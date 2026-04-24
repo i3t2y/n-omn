@@ -12,6 +12,7 @@ UPSTREAM_BASE
 
 WECOM_WEBHOOK
 
+kv命名空间 STATE
 
 CLIENT_TOKEN openssl rand -hex 32 生成
 

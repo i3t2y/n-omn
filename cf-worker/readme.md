@@ -11,3 +11,18 @@ RESEND_API_KEY
 UPSTREAM_BASE
 
 WECOM_WEBHOOK
+
+
+CLIENT_TOKEN openssl rand -hex 32 生成
+
+INTERNAL_PSK 与 HF Space 同一个值
+
+OMNIROUTE_PRIMARY https://3t2y-a.hf.space
+
+WECOM_WEBHOOK 企业微信机器人 Webhook URL
+
+RESEND_API_KEY Resend 控制台生成
+
+ALERT_EMAIL_FROM alert@yourdomain.com
+
+ALERT_EMAIL_TO 你的高优先级邮箱

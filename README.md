@@ -1,4 +1,4 @@
-# nim-omniroute-gateway
+# NOG
 
 `nim-omniroute-gateway` 是一个部署在 Hugging Face Space 上的 NVIDIA NIM 多 Key 轮询网关。它以 OmniRoute 为核心，通过前置 gate 层实现外部鉴权、请求清洗、内部 API Key 注入和稳定性兜底，用 25 个 NIM API Key 构建可恢复、可复现、可交接的生产网关。
 

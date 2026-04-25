@@ -1,18 +1,3 @@
-
-原因：GitHub 官方建议仓库必须有 README；README 应承担快速理解和导航职责，不承载全部踩坑细节。  
-实测证据：`1.3.0.txt` Line 6001 显示 25 Key 注册、Resilience、Combo、gate 启动流程；Line 6024 显示核心启动验证项成功；Line 7593 显示 `nim-pool` 路由到 nvidia 成功。
-
----
-
-#### **PATCH-MD-B**
-
-文件：`docs/DECISIONS.md`  
-操作：插入（新建文件）  
-位置：文件起始处  
-来源类型：实测 + 架构决策 + 官方文档  
-实测证据：`1.3.0.txt` Line 6024、7593、8467、9163、9182；当前对话摘要确认生产 3 模型、实验 4 模型。
-
-```markdown
 # Architecture Decisions
 
 本文档记录 `nim-omniroute-gateway` 的架构决策。这里不写操作教程，只写为什么这样做，防止后续迭代重复踩坑。
@@ -94,3 +79,115 @@ Dashboard 中出现 `Provider returned empty content` 时，不直接判定为 N
 {
   "stream": false
 }
+```
+
+原因：Combo 或上游可能返回 SSE 形态，显式非流式可以减少客户端把 SSE 当 JSON 解析导致的格式错误风险。
+
+## D008: gate.js 必须使用 raw body 转发
+
+gate 层不能用会重写请求体的 JSON middleware 破坏原始请求。最终防吞噬版采用 raw body 手动读取和转发，减少模板变量、请求体和 SSE 解析被破坏的风险。
+
+## D009: 禁止 JavaScript 模板字符串写关键日志和转发字符串
+
+历史问题中出现过变量被吞，导致日志显示不完整，例如端口、target、authorization 注入位置被破坏。
+
+决策：关键路径使用字符串拼接，避免模板字符串在文档渲染、复制、压缩或二次转写中被吞噬。
+
+## D010: `nim-pool` Combo 必须使用 `models` 字段
+
+错误写法：
+
+```json
+{
+  "name": "nim-pool",
+  "strategy": "round-robin",
+  "providers": ["nvidia"]
+}
+```
+
+正确方向：
+
+```json
+{
+  "name": "nim-pool",
+  "strategy": "round-robin",
+  "models": [
+    "nvidia/meta/llama-3.3-70b-instruct",
+    "nvidia/z-ai/glm-5.1",
+    "nvidia/qwen/qwen3-coder-480b-a35b-instruct"
+  ]
+}
+```
+
+原因：`providers` 会创建空壳 Combo，后续请求可能被解析到默认 provider，出现 `No credentials for provider: openai`。
+
+## D011: 模型目录和 Combo 路由是两件事
+
+Combo 能路由成功，不代表 Dashboard 卡片一定能显示模型名。Dashboard 的 Combo 卡片依赖 model catalog。
+
+决策：必须通过 `/api/provider-models` 注册模型目录。
+
+模型目录注册使用：
+
+```json
+{
+  "provider": "nvidia",
+  "modelId": "meta/llama-3.3-70b-instruct",
+  "modelName": "Llama 3.3 70B Instruct (NIM)"
+}
+```
+
+Combo 内使用完整路由键：
+
+```json
+"nvidia/meta/llama-3.3-70b-instruct"
+```
+
+## D012: `v1.0.0` Resilience 基线使用 28 RPM
+
+虽然理论上 35 RPM 更接近吞吐最优，但 `v1.0.0` 目标是稳定可复现，不是最大吞吐。
+
+基线：
+
+```json
+{
+  "defaults": {
+    "requestsPerMinute": 28,
+    "minTimeBetweenRequests": 1,
+    "concurrentRequests": 5
+  }
+}
+```
+
+后续通过 Issue 单独测试：
+
+- RPM 32
+- RPM 35
+
+不允许在未压测前直接把 `v1.0.0` 基线改成 35。
+
+## D013: provider 被短暂限流是正常保护行为
+
+Dashboard 显示几十秒级限流倒计时，不视为故障。连续测试 provider 或 round-robin 后，部分 provider 进入短暂冷却是 rate-limit protection 生效的表现。
+
+## D014: GitHub 文档分层
+
+文档职责如下：
+
+| 文件 | 职责 |
+|---|---|
+| `README.md` | 快速理解和导航 |
+| `docs/DECISIONS.md` | 架构决策，不写教程 |
+| `docs/TROUBLESHOOTING.md` | 故障现象、根因、处理 |
+| `docs/VALIDATION.md` | 实测记录和验收标准 |
+| `docs/AI_HANDOFF.md` | 无上下文 AI 接手说明 |
+
+## D015: Release 必须基于 tag
+
+`v1.0.0` 需要通过 GitHub Release 固化。Release 内容对应一个 Git tag，代表仓库历史中的一个可恢复点。
+```
+
+原因：DECISIONS.md 用来保存“为什么”，避免 README 被踩坑细节污染，也避免未来 AI 重复推翻已验证结论。  
+实测证据：`1.3.0.txt` Line 7593 证明 `nim-pool` 正确路由到 nvidia；Line 9163、9182 证明 `/api/provider-models` 是 Dashboard 模型显示问题的根因修复点。
+
+---

@@ -1,8 +1,9 @@
 ---
-title: noke-omn
-emoji: 🚀
-colorFrom: blue
-colorTo: green
+title: omn
+emoji: 📊
+colorFrom: purple
+colorTo: red
 sdk: docker
 pinned: false
+license: mit
 ---

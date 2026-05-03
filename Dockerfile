@@ -1,17 +1,32 @@
 FROM diegosouzapw/omniroute:latest
 
-# HF Space 以 uid=1000 运行，确保 /app/data 可写
-RUN chown -R 1000:1000 /app/data
+ENV OMNIROUTE_PORT=20128
+ENV EXPOSED_PORT=7860
+ENV DATA_DIR=/data
 
-# 覆盖默认端口 20128 → 7860（HF Space 要求）
-ENV PORT=7860
-# DATA_DIR 保持官方默认 /app/data，无需修改
-# NEXT_PUBLIC_BASE_URL 在 HF Space Variables 里设置，不硬编码（每个 Space URL 不同）
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    python3 \
+    sqlite3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /data && chmod 777 /data
+RUN rm -rf /app/data && ln -sf /data /app/data
+
+RUN mkdir -p /gate
+COPY gate/package.json /gate/package.json
+COPY gate/gate.js /gate/gate.js
+RUN cd /gate && npm install --omit=dev --silent
 
 COPY entrypoint.sh /entrypoint.sh
-COPY init-nim-keys.sh /init-nim-keys.sh
+RUN chmod +x /entrypoint.sh
 
-RUN chmod +x /entrypoint.sh /init-nim-keys.sh
+COPY init-nim-keys.sh /entrypoint-init-nim.sh
+RUN chmod +x /entrypoint-init-nim.sh
 
 EXPOSE 7860
 

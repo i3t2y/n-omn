@@ -1,0 +1,18 @@
+{
+  "name": "nim-omniroute-gateway-gate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "External authentication and proxy gate for OmniRoute in the NIM OmniRoute Gateway deployment.",
+  "type": "commonjs",
+  "main": "gate.js",
+  "scripts": {
+    "start": "node gate.js"
+  },
+  "dependencies": {
+    "express": "^4.18.3",
+    "http-proxy-middleware": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

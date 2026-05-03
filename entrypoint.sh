@@ -1,11 +1,19 @@
 #!/bin/bash
 set -e
 
-# 后台启动 OmniRoute（它自己监听 7860）
-/app/start.sh &
+echo "[entrypoint] PORT=${PORT}"
+echo "[entrypoint] DATA_DIR=${DATA_DIR}"
 
-# 等 OmniRoute 就绪后跑 init 脚本
+# 官方镜像工作目录是 /app，启动命令是 node run-standalone.mjs
+# run-standalone.mjs 会调用 bootstrapEnv() 自动生成 secrets，再 spawn server.js
+cd /app
+node run-standalone.mjs &
+OR_PID=$!
+
+echo "[entrypoint] OmniRoute started (PID=${OR_PID}), running init script..."
+
+# init 脚本内部有 until curl health 的等待循环，直接执行
 /init-nim-keys.sh
 
-# 保持前台进程
-wait
+echo "[entrypoint] Init complete. Keeping container alive..."
+wait $OR_PID

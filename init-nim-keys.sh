@@ -400,26 +400,18 @@ register_model() {
 }
 
 # 生产 nim-pool 模型（多模型 fallback 用途）
-register_model "qwen/qwen3-coder-480b-a35b-instruct"
 register_model "minimaxai/minimax-m2.7"
-register_model "minimaxai/minimax-m2.5"
+register_model "moonshotai/kimi-k2-thinking"
+register_model "moonshotai/kimi-k2.6"
 register_model "z-ai/glm-5.1"
-register_model "deepseek-ai/deepseek-v4-pro"
-register_model "deepseek-ai/deepseek-v4-flash"
-register_model "deepseek-ai/deepseek-v3.2"
 register_model "nvidia/nemotron-3-super-120b-a12b"
-register_model "meta/llama-3.3-70b-instruct"
-register_model "moonshotai/kimi-k2.5"
+register_model "qwen/qwen3-coder-480b-a35b-instruct"
+register_model "moonshotai/kimi-k2-thinking"
+register_model "nvidia/nemotron-3-nano-omni"
 
 # 额外保留模型目录项，便于后续手动测试或扩展 Combo
-register_model "qwen/qwen3-next-80b-a3b-thinking"
-register_model "qwen/qwen2.5-coder-32b-instruct"
-register_model "mistralai/devstral-2-123b-instruct-2512"
-register_model "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-register_model "nvidia/llama-3.1-nemotron-ultra-253b-v1"
-register_model "nvidia/llama-3.1-nemotron-nano-8b-v1"
-register_model "meta/llama-3.1-405b-instruct"
-register_model "meta/llama-4-maverick-17b-128e-instruct"
+register_model "deepseek-ai/deepseek-v4-pro"
+register_model "deepseek-ai/deepseek-v4-flash"
 
 echo "[init] Model registration done."
 
@@ -435,10 +427,14 @@ COMBO_BODY='{
   "name": "nim-pool",
   "strategy": "round-robin",
   "models": [
-    "nvidia/qwen/qwen3-coder-480b-a35b-instruct",
-    "nvidia/meta/llama-3.3-70b-instruct",
-    "nvidia/mistralai/devstral-2-123b-instruct-2512",
-    "nvidia/mistralai/mistral-large-3-675b-instruct-2512"
+    "minimaxai/minimax-m2.7"
+    "moonshotai/kimi-k2-thinking"
+    "moonshotai/kimi-k2.6"
+    "z-ai/glm-5.1"
+    "nvidia/nemotron-3-super-120b-a12b"
+    "qwen/qwen3-coder-480b-a35b-instruct"
+    "moonshotai/kimi-k2-thinking"
+    "nvidia/nemotron-3-nano-omni"
   ]
 }'
 

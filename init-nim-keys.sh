@@ -6,14 +6,13 @@ set -eo pipefail
 # v1.4.0 HF Space edition
 # ─────────────────────────────────────────────────────────────
 
-# ── 改动 1：端口默认值改为 7860（HF Space 暴露端口）─────────────────
-if [ -z "${OMNIROUTE_PORT:-}" ]; then
-  OMNIROUTE_PORT=7860
-fi
-
+# 端口固定 7860（HF Space）
+OMNIROUTE_PORT=7860
 BASE_URL="http://127.0.0.1:${OMNIROUTE_PORT}"
-INIT_MARKER="/data/.init-done"
-OR_API_KEY_FILE="/data/.or-api-key"
+
+# HF 免费 Space 无持久化，INIT_MARKER 和 OR_API_KEY_FILE 用 /tmp
+INIT_MARKER="/tmp/.init-done"
+OR_API_KEY_FILE="/tmp/.or-api-key"
 COOKIE_FILE="/tmp/omniroute-cookie.txt"
 
 LOGIN_RESP_FILE="/tmp/omniroute-login.json"
@@ -26,7 +25,6 @@ COMBO_RESP_FILE="/tmp/omniroute-combo-response.json"
 REGISTERED=0
 SKIPPED=0
 FAILED=0
-
 PROVIDER_IDS=()
 
 echo "[init] Starting NIM OmniRoute initializer..."
@@ -36,12 +34,12 @@ echo "[init] OR_API_KEY_FILE=${OR_API_KEY_FILE}"
 
 # ── 必要环境变量检查 ────────────────────────────────────────────────
 
-if [ -z "${INITIAL_PASSWORD:-}" ]; then
+if [ -z "${INITIAL_PASSWORD}" ]; then
   echo "[init] ERROR: INITIAL_PASSWORD is required"
   exit 1
 fi
 
-if [ -z "${NIM_KEYS:-}" ]; then
+if [ -z "${NIM_KEYS}" ]; then
   echo "[init] ERROR: NIM_KEYS is required"
   exit 1
 fi
@@ -97,7 +95,7 @@ else
     OR_API_KEY_VALUE=$(jq -r '.key // empty' "${KEY_RESP_FILE}")
 
     if [ -z "${OR_API_KEY_VALUE}" ] || [ "${OR_API_KEY_VALUE}" = "null" ]; then
-      echo "[init] ERROR: Created key but could not parse key field from response."
+      echo "[init] ERROR: Created key but could not parse key field."
       cat "${KEY_RESP_FILE}" || true
       exit 1
     fi
@@ -132,13 +130,7 @@ while IFS= read -r RAW_KEY; do
     --arg provider "nvidia" \
     --arg apiKey "${KEY}" \
     --arg name "${NAME}" \
-    '{
-      provider: $provider,
-      apiKey: $apiKey,
-      name: $name,
-      priority: 1,
-      testStatus: "unknown"
-    }')
+    '{provider: $provider, apiKey: $apiKey, name: $name, priority: 1, testStatus: "unknown"}')
 
   HTTP_CODE=$(curl -s -o "${RESP_FILE}" -w "%{http_code}" \
     -b "${COOKIE_FILE}" \
@@ -174,15 +166,7 @@ PROVIDERS_HTTP=$(curl -s -o "${PROVIDERS_FILE}" -w "%{http_code}" \
 if [ "${PROVIDERS_HTTP}" = "200" ]; then
   mapfile -t PROVIDER_IDS < <(
     jq -r '
-      [
-        .. |
-        objects |
-        select((.provider? // "") == "nvidia") |
-        select((.id? // "") != "") |
-        .id
-      ] |
-      unique |
-      .[]
+      [.. | objects | select((.provider? // "") == "nvidia") | select((.id? // "") != "") | .id] | unique | .[]
     ' "${PROVIDERS_FILE}" 2>/dev/null
   )
 else
@@ -194,7 +178,7 @@ PROVIDER_COUNT="${#PROVIDER_IDS[@]}"
 echo "[init] Provider IDs collected: ${PROVIDER_COUNT}"
 
 if [ "${PROVIDER_COUNT}" -eq 0 ]; then
-  echo "[init] WARN: No NVIDIA provider IDs found. Tests and rate-limit protection will be skipped."
+  echo "[init] WARN: No NVIDIA provider IDs found."
 fi
 
 # ── Resilience 配置 ─────────────────────────────────────────────────
@@ -309,6 +293,8 @@ CB_RESET_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
 echo "[init] Circuit breaker reset HTTP ${CB_RESET_CODE}"
 
 # ── 首次初始化专属步骤 ───────────────────────────────────────────────
+# HF 免费 Space 无持久化，INIT_MARKER 在 /tmp，每次重启都消失
+# 因此每次重启都会执行下面的模型注册和 Combo 创建（幂等，409 正常）
 
 if [ -f "${INIT_MARKER}" ]; then
   echo "[init] Already initialized (marker exists). Skipping model registration and Combo creation."
@@ -317,9 +303,8 @@ if [ -f "${INIT_MARKER}" ]; then
 fi
 
 # ── 模型目录注册 ────────────────────────────────────────────────────
-# ── 改动 2：只保留 4 个稳定模型 ────────────────────────────────────
 
-echo "[init] First-time init: registering models to OmniRoute model directory..."
+echo "[init] First-time init: registering models..."
 
 register_model() {
   local MODEL_ID="$1"
@@ -348,20 +333,10 @@ register_model "mistralai/mistral-large-3-675b-instruct-2512"
 echo "[init] Model registration done."
 
 # ── 创建 Combo：nim-pool ────────────────────────────────────────────
-# ── 改动 3：models 数组与上面对齐，只保留 4 个 ──────────────────────
 
-echo "[init] First-time init: creating Combo nim-pool..."
+echo "[init] Creating Combo nim-pool..."
 
-COMBO_BODY='{
-  "name": "nim-pool",
-  "strategy": "round-robin",
-  "models": [
-    "nvidia/qwen/qwen3-coder-480b-a35b-instruct",
-    "nvidia/z-ai/glm-5.1",
-    "nvidia/meta/llama-3.3-70b-instruct",
-    "nvidia/mistralai/mistral-large-3-675b-instruct-2512"
-  ]
-}'
+COMBO_BODY='{"name":"nim-pool","strategy":"round-robin","models":["nvidia/qwen/qwen3-coder-480b-a35b-instruct","nvidia/z-ai/glm-5.1","nvidia/meta/llama-3.3-70b-instruct","nvidia/mistralai/mistral-large-3-675b-instruct-2512"]}'
 
 COMBO_CODE=$(curl -s -o "${COMBO_RESP_FILE}" -w "%{http_code}" \
   -b "${COOKIE_FILE}" \

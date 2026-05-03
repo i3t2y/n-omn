@@ -1,16 +1,11 @@
 #!/bin/bash
-# 启动 OmniRoute
-omniroute &
-OR_PID=$!
+set -e
 
-# 等待 OmniRoute 就绪
-until curl -sf http://127.0.0.1:7860/api/monitoring/health > /dev/null 2>&1; do
-  sleep 2
-done
+# 后台启动 OmniRoute（它自己监听 7860）
+/app/start.sh &
 
-# 如果没有 init 标记，跑 init 脚本
-if [ ! -f /data/.init-done ]; then
-  bash /app/init-nim-keys.sh
-fi
+# 等 OmniRoute 就绪后跑 init 脚本
+/init-nim-keys.sh
 
-wait $OR_PID
+# 保持前台进程
+wait

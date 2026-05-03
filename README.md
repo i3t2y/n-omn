@@ -5,5 +5,5 @@ colorFrom: purple
 colorTo: red
 sdk: docker
 pinned: false
-license: mit
+license: apache-2.0
 ---

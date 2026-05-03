@@ -407,7 +407,7 @@ register_model "z-ai/glm-5.1"
 register_model "nvidia/nemotron-3-super-120b-a12b"
 register_model "qwen/qwen3-coder-480b-a35b-instruct"
 register_model "moonshotai/kimi-k2-thinking"
-register_model "nvidia/nemotron-3-nano-omni"
+register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 
 # 额外保留模型目录项，便于后续手动测试或扩展 Combo
 register_model "deepseek-ai/deepseek-v4-pro"

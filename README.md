@@ -1,8 +1,8 @@
 ---
-title: nim-gateway
+title: noke-omn
 emoji: 🚀
 colorFrom: blue
-colorTo: purple
+colorTo: green
 sdk: docker
 pinned: false
 ---

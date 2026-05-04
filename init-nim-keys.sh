@@ -427,13 +427,12 @@ COMBO_BODY='{
   "name": "nim-pool",
   "strategy": "round-robin",
   "models": [
-    "minimaxai/minimax-m2.7"
-    "moonshotai/kimi-k2-thinking"
-    "moonshotai/kimi-k2.6"
-    "z-ai/glm-5.1"
-    "nvidia/nemotron-3-super-120b-a12b"
-    "qwen/qwen3-coder-480b-a35b-instruct"
-    "moonshotai/kimi-k2-thinking"
+    "minimaxai/minimax-m2.7",
+    "moonshotai/kimi-k2-thinking",
+    "moonshotai/kimi-k2.6",
+    "z-ai/glm-5.1",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "qwen/qwen3-coder-480b-a35b-instruct",
     "nvidia/nemotron-3-nano-omni"
   ]
 }'

@@ -396,6 +396,8 @@ register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 register_model "if/qwen3-max-preview"
 register_model "if/kimi-k2-0905"
 register_model "if/deepseek-v3.2"
+register_model "mistralai/mistral-small-4-119b-2603"
+register_model "model: mistralai/mistral-medium-3.5-128b"
 # 额外保留模型目录项，便于后续手动测试或扩展 Combo
 register_model "deepseek-ai/deepseek-v4-pro"
 register_model "deepseek-ai/deepseek-v4-flash"

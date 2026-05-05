@@ -250,7 +250,7 @@ echo "[init] Applying Resilience config..."
 RESILIENCE_BODY='{
   "profiles": {
     "apikey": {
-      "transientCooldown": 90000,
+      "transientCooldown": 30000,
       "rateLimitCooldown": 60000,
       "maxBackoffLevel": 3,
       "circuitBreakerThreshold": 3,

@@ -1,7 +1,5 @@
 FROM diegosouzapw/omniroute:latest
 
-COPY src/i18n/messages/zh-CN.json /app/src/i18n/messages/zh-CN.json
-
 ENV OMNIROUTE_PORT=20128
 ENV EXPOSED_PORT=7860
 ENV DATA_DIR=/data

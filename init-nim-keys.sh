@@ -257,21 +257,18 @@ if [ "$PROVIDER_COUNT" -eq 0 ]; then
   echo "[init] WARN: No NVIDIA provider IDs found. Connection test and rate-limit protection will be skipped."
 fi
 
-# ── Resilience 配置（Fix-1 / Fix-2）────────────────────────────────
-# 使用新 schema requestQueue 直传，绕过 normalizeLegacyPatch 字段映射歧义
-# maxWaitMs=0: 禁用 Bottleneck 队列超时，彻底消除 job expired → 502
-# requestsPerMinute=35: 低于 NIM 免费账号硬限 40 RPM，留 12.5% 安全边距
-# minTimeBetweenRequestsMs=200: 平滑 burst，避免短窗口内打满单 key 令牌桶
-# concurrentRequests=3: 降低单 connection 并发压力
+# ── Resilience 配置（v2.3.0）────────────────────────────────────────
+# maxWaitMs: 1 = schema 允许的最小值（min(1)），等效于"立即 fallback"
+# 不能设 0：z.number().int().min(1) 硬约束，会返回 400 导致整段配置失效
 
-echo "[init] Applying Resilience config (v2.2.0 new schema)..."
+echo "[init] Applying Resilience config (v2.3.0)..."
 
 RESILIENCE_BODY='{
   "requestQueue": {
     "requestsPerMinute": 35,
     "minTimeBetweenRequestsMs": 200,
     "concurrentRequests": 3,
-    "maxWaitMs": 0
+    "maxWaitMs": 1
   },
   "connectionCooldown": {
     "apikey": {
@@ -306,8 +303,9 @@ RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" \
 echo "[init] Resilience HTTP $RESILIENCE_CODE"
 
 if [ "$RESILIENCE_CODE" != "200" ] && [ "$RESILIENCE_CODE" != "204" ]; then
-  echo "[init] WARN: Resilience config may have failed:"
+  echo "[init] ERROR: Resilience config failed — this is critical, check response:"
   cat "$RESILIENCE_RESP_FILE" || true
+  # 不 exit，让后续步骤继续，但明确标记为错误
 fi
 
 # ── 全局路由策略 + requestBodyLimit（Fix-3）────────────────────────

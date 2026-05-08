@@ -266,13 +266,13 @@ echo "[init] Applying Resilience config (v2.3.0)..."
 RESILIENCE_BODY='{
   "requestQueue": {
     "requestsPerMinute": 35,
-    "minTimeBetweenRequestsMs": 200,
-    "concurrentRequests": 3,
-    "maxWaitMs": 30000
+    "minTimeBetweenRequestsMs": 1,
+    "concurrentRequests": 8,
+    "maxWaitMs": 60000
   },
   "connectionCooldown": {
     "apikey": {
-      "baseCooldownMs": 60000,
+      "baseCooldownMs": 15000,
       "maxBackoffSteps": 3,
       "useUpstreamRetryHints": true
     },

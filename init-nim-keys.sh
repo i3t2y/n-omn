@@ -3,19 +3,17 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v2.1.0 — 基于 v1.4.0 原脚本
-# 修正：
-#   1. Combo 重名判断从 409 改为兼容 400（源码返回 400）
-#   2. 连接测试/限速循环从字面量改为正确的数组展开
-# 新增：
-#   3. RTK+Caveman stacked 压缩配置
-#   4. requestBodyLimit 写入 settings（v3.7.9）
-# OmniRoute v3.7.9 源码锚定：
-#   combos/route.ts       — 重名返回 400，字段 models[]
-#   provider-models/route.ts — 字段 provider + modelId
-#   rate-limits/route.ts  — 字段 connectionId + enabled
-#   keys/route.ts         — 字段 name，响应 .key
-#   types.ts              — CavemanIntensity / RtkIntensity 枚举
+# v2.2.0
+# 修复历史：
+#   v1.4.0  原始版本
+#   v1.9.0  修复密码变量引用 / NIM_KEYS 解析 / QODER_API_KEY 对齐
+#   v2.0.0  新增压缩配置 / requestBodyLimit / 保留已验证逻辑
+#   v2.1.0  修正 for 循环数组展开 / Combo 重名判断改为 400+body
+#   v2.2.0  Fix-1: maxWaitMs=0 禁用队列超时
+#            Fix-2: RPM=35 / minTime=200ms / concurrent=3
+#            Fix-3: 压缩配置独立段 / requestBodyLimit 保留
+#            Bug-1: PROVIDER_COUNT 显式赋值确认
+#            Bug-2: PROVIDER_COUNT 空值防护
 # ─────────────────────────────────────────────────────────────
 
 if [ -z "$OMNIROUTE_PORT" ]; then
@@ -32,7 +30,7 @@ KEY_RESP_FILE="/tmp/omniroute-key-response.json"
 PROVIDERS_FILE="/tmp/omniroute-providers.json"
 RESILIENCE_RESP_FILE="/tmp/omniroute-resilience-response.json"
 SETTINGS_RESP_FILE="/tmp/omniroute-settings-response.json"
-COMPRESSION_RESP_FILE="/tmp/omniroute-compression-response.json"
+COMPRESS_RESP_FILE="/tmp/omniroute-compress-response.json"
 COMBO_RESP_FILE="/tmp/omniroute-combo-response.json"
 
 REGISTERED=0
@@ -41,7 +39,7 @@ FAILED=0
 
 PROVIDER_IDS=()
 
-echo "[init] Starting NIM OmniRoute initializer v2.1.0..."
+echo "[init] Starting NIM OmniRoute initializer v2.2.0..."
 echo "[init] BASE_URL=$BASE_URL"
 echo "[init] INIT_MARKER=$INIT_MARKER"
 echo "[init] OR_API_KEY_FILE=$OR_API_KEY_FILE"
@@ -80,12 +78,14 @@ LOGIN_HTTP=$(curl -s -o "$LOGIN_RESP_FILE" -w "%{http_code}" \
 
 if [ "$LOGIN_HTTP" != "200" ] && [ "$LOGIN_HTTP" != "201" ]; then
   echo "[init] ERROR: Login failed, HTTP $LOGIN_HTTP"
+  echo "[init] Response:"
   cat "$LOGIN_RESP_FILE" || true
   exit 1
 fi
 
 if ! grep -q "auth_token" "$COOKIE_FILE" 2>/dev/null; then
   echo "[init] ERROR: Login failed, no auth_token cookie received"
+  echo "[init] Cookie file content:"
   cat "$COOKIE_FILE" || true
   exit 1
 fi
@@ -93,7 +93,6 @@ fi
 echo "[init] Logged in, token acquired."
 
 # ── 创建或复用 OmniRoute 内部 API Key ───────────────────────────────
-# 源码锚定：keys/route.ts — body 字段 name（不是 label），响应字段 .key
 
 if [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
   echo "[init] OR_API_KEY file already exists, skipping creation."
@@ -110,7 +109,8 @@ else
     OR_API_KEY_VALUE=$(jq -r '.key // empty' "$KEY_RESP_FILE")
 
     if [ -z "$OR_API_KEY_VALUE" ] || [ "$OR_API_KEY_VALUE" = "null" ]; then
-      echo "[init] ERROR: Created key but could not parse .key field."
+      echo "[init] ERROR: Created key but could not parse key field from response."
+      echo "[init] Response body:"
       cat "$KEY_RESP_FILE" || true
       exit 1
     fi
@@ -120,20 +120,20 @@ else
     echo "[init] OR_API_KEY written to $OR_API_KEY_FILE"
   else
     echo "[init] ERROR: /api/keys returned HTTP $KEY_HTTP"
+    echo "[init] Response:"
     cat "$KEY_RESP_FILE" || true
     exit 1
   fi
 fi
 
 # ── NIM Keys 批量注册 ───────────────────────────────────────────────
-# NIM_KEYS 格式：换行分隔，每行一个 key
 
 echo "[init] Registering NIM provider keys..."
 
 INDEX=1
 
 while IFS= read -r RAW_KEY; do
-  KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r' | xargs)
 
   if [ -z "$KEY" ]; then
     continue
@@ -168,6 +168,7 @@ while IFS= read -r RAW_KEY; do
     SKIPPED=$((SKIPPED + 1))
   else
     echo "[init] $NAME unexpected HTTP $HTTP_CODE"
+    echo "[init] Response:"
     cat "$RESP_FILE" || true
     FAILED=$((FAILED + 1))
   fi
@@ -242,41 +243,57 @@ if [ "$PROVIDERS_HTTP" = "200" ]; then
   )
 else
   echo "[init] WARN: /api/providers returned HTTP $PROVIDERS_HTTP"
+  echo "[init] Response:"
   cat "$PROVIDERS_FILE" || true
 fi
 
-PROVIDER_COUNT=""
+# Bug-1 fix: 显式赋值，防止 XML/摘要截断导致歧义
+# Bug-2 fix: 空值兜底，防止 [ "" -eq 0 ] 报 integer expression expected
+PROVIDER_COUNT="${#PROVIDER_IDS[@]}"
+PROVIDER_COUNT="${PROVIDER_COUNT:-0}"
 echo "[init] Provider IDs collected: $PROVIDER_COUNT"
 
 if [ "$PROVIDER_COUNT" -eq 0 ]; then
-  echo "[init] WARN: No NVIDIA provider IDs found. Tests and rate-limit protection will be skipped."
+  echo "[init] WARN: No NVIDIA provider IDs found. Connection test and rate-limit protection will be skipped."
 fi
 
-# ── Resilience 配置 ─────────────────────────────────────────────────
+# ── Resilience 配置（Fix-1 / Fix-2）────────────────────────────────
+# 使用新 schema requestQueue 直传，绕过 normalizeLegacyPatch 字段映射歧义
+# maxWaitMs=0: 禁用 Bottleneck 队列超时，彻底消除 job expired → 502
+# requestsPerMinute=35: 低于 NIM 免费账号硬限 40 RPM，留 12.5% 安全边距
+# minTimeBetweenRequestsMs=200: 平滑 burst，避免短窗口内打满单 key 令牌桶
+# concurrentRequests=3: 降低单 connection 并发压力
 
-echo "[init] Applying Resilience config..."
+echo "[init] Applying Resilience config (v2.2.0 new schema)..."
 
 RESILIENCE_BODY='{
-  "profiles": {
+  "requestQueue": {
+    "requestsPerMinute": 35,
+    "minTimeBetweenRequestsMs": 200,
+    "concurrentRequests": 3,
+    "maxWaitMs": 0
+  },
+  "connectionCooldown": {
     "apikey": {
-      "transientCooldown": 30000,
-      "rateLimitCooldown": 60000,
-      "maxBackoffLevel": 3,
-      "circuitBreakerThreshold": 3,
-      "circuitBreakerReset": 600000
+      "baseCooldownMs": 60000,
+      "maxBackoffSteps": 3,
+      "useUpstreamRetryHints": true
     },
     "oauth": {
-      "transientCooldown": 5000,
-      "rateLimitCooldown": 60000,
-      "maxBackoffLevel": 8,
-      "circuitBreakerThreshold": 3,
-      "circuitBreakerReset": 60000
+      "baseCooldownMs": 60000,
+      "maxBackoffSteps": 8,
+      "useUpstreamRetryHints": true
     }
   },
-  "defaults": {
-    "requestsPerMinute": 28,
-    "minTimeBetweenRequests": 1,
-    "concurrentRequests": 5
+  "providerBreaker": {
+    "apikey": {
+      "failureThreshold": 3,
+      "resetTimeoutMs": 600000
+    },
+    "oauth": {
+      "failureThreshold": 3,
+      "resetTimeoutMs": 60000
+    }
   }
 }'
 
@@ -293,9 +310,11 @@ if [ "$RESILIENCE_CODE" != "200" ] && [ "$RESILIENCE_CODE" != "204" ]; then
   cat "$RESILIENCE_RESP_FILE" || true
 fi
 
-# ── 全局 Settings：路由策略 + requestBodyLimit（v3.7.9 新字段）────────
+# ── 全局路由策略 + requestBodyLimit（Fix-3）────────────────────────
+# requestBodyLimit=10485760: v3.7.9 新字段，防止 62K+ 大请求被截断
+# fallbackStrategy=round-robin / stickyRoundRobinLimit=1: 保持原策略
 
-echo "[init] Applying global settings..."
+echo "[init] Applying routing strategy + requestBodyLimit..."
 
 SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" \
   -b "$COOKIE_FILE" \
@@ -307,83 +326,58 @@ SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" \
     "requestBodyLimit": 10485760
   }')
 
-echo "[init] Settings HTTP $SETTINGS_CODE"
+echo "[init] Settings routing HTTP $SETTINGS_CODE"
 
 if [ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "204" ]; then
-  echo "[init] WARN: Settings config may have failed:"
+  echo "[init] WARN: Settings routing config may have failed:"
   cat "$SETTINGS_RESP_FILE" || true
 fi
 
-# ── ★ 压缩配置（RTK aggressive + Caveman full stacked）──────────────
-# 源码锚定：
-#   CavemanIntensity = "lite" | "full" | "ultra"        (types.ts)
-#   RtkIntensity = "minimal" | "standard" | "aggressive" (types.ts)
-#   v3.7.9 fix(auth): compression preview 强制 ManagementSessionAuth
+# ── 压缩配置：RTK aggressive + Caveman full stacked（Fix-3）─────────
+# 独立段，避免与 routing settings 合并导致字段冲突
+# autoTriggerTokens=32000: 超过 32K token 自动触发压缩
+# stackedPipeline: RTK 先跑 aggressive，再 Caveman full，预期节省 ~89%
 
-echo "[init] ★ Applying compression config (stacked: RTK aggressive + Caveman full)..."
+echo "[init] Applying compression config (RTK+Caveman stacked)..."
 
-COMPRESSION_CODE=$(curl -s -o "$COMPRESSION_RESP_FILE" -w "%{http_code}" \
-  -b "$COOKIE_FILE" \
-  -X PUT "$BASE_URL/api/settings/compression" \
-  -H "Content-Type: application/json" \
-  -d '{
+COMPRESS_BODY='{
+  "compression": {
     "enabled": true,
     "defaultMode": "stacked",
     "autoTriggerMode": "stacked",
     "autoTriggerTokens": 32000,
-    "cacheMinutes": 5,
-    "preserveSystemPrompt": true,
-    "mcpDescriptionCompressionEnabled": true,
     "stackedPipeline": [
-      {"engine": "rtk",     "intensity": "aggressive"},
+      {"engine": "rtk", "intensity": "aggressive"},
       {"engine": "caveman", "intensity": "full"}
     ],
     "rtkConfig": {
-      "enabled": true,
       "intensity": "aggressive",
-      "applyToToolResults": true,
-      "applyToCodeBlocks": false,
-      "applyToAssistantMessages": false,
-      "enabledFilters": [],
-      "disabledFilters": [],
       "maxLinesPerResult": 200,
       "maxCharsPerResult": 20000,
-      "deduplicateThreshold": 3,
-      "customFiltersEnabled": true,
-      "trustProjectFilters": false,
-      "rawOutputRetention": "failures",
-      "rawOutputMaxBytes": 1048576
+      "rawOutputRetention": "failures"
     },
     "cavemanConfig": {
-      "enabled": true,
       "compressRoles": ["user", "assistant"],
-      "skipRules": [],
-      "minMessageLength": 50,
-      "preservePatterns": [],
       "intensity": "full"
-    },
-    "cavemanOutputMode": {
-      "enabled": false,
-      "intensity": "full",
-      "autoClarity": true
-    },
-    "languageConfig": {
-      "enabled": true,
-      "defaultLanguage": "en",
-      "autoDetect": true,
-      "enabledPacks": ["en"]
     }
-  }')
+  }
+}'
 
-echo "[init] Compression PUT HTTP $COMPRESSION_CODE"
+COMPRESS_CODE=$(curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d "$COMPRESS_BODY")
 
-if [ "$COMPRESSION_CODE" != "200" ] && [ "$COMPRESSION_CODE" != "204" ]; then
+echo "[init] Compression config HTTP $COMPRESS_CODE"
+
+if [ "$COMPRESS_CODE" != "200" ] && [ "$COMPRESS_CODE" != "204" ]; then
   echo "[init] WARN: Compression config may have failed:"
-  cat "$COMPRESSION_RESP_FILE" || true
+  cat "$COMPRESS_RESP_FILE" || true
 fi
 
 # ── 批量连接测试 ────────────────────────────────────────────────────
-# 修正：原脚本 for PID in "" 不展开数组，改为 "${PROVIDER_IDS[@]}"
+# v2.1.0 fix: 使用 "${PROVIDER_IDS[@]}" 正确展开数组（原 v1.4.0 用 "" 不展开）
 
 echo "[init] Running connection tests ($PROVIDER_COUNT providers)..."
 
@@ -402,8 +396,7 @@ done
 echo "[init] Connection tests done."
 
 # ── 批量开启速率限制保护 ─────────────────────────────────────────────
-# 修正：同上，改为 "${PROVIDER_IDS[@]}"
-# 源码锚定：rate-limits/route.ts — 字段 connectionId + enabled
+# v2.1.0 fix: 同上，正确展开数组
 
 echo "[init] Enabling rate limit protection for all providers..."
 
@@ -447,7 +440,6 @@ if [ -f "$INIT_MARKER" ]; then
 fi
 
 # ── 模型目录注册 ────────────────────────────────────────────────────
-# 源码锚定：provider-models/route.ts — 必填 provider + modelId
 
 echo "[init] First-time init: registering models to OmniRoute model directory..."
 
@@ -470,6 +462,7 @@ register_model() {
   echo "[init] model $MODEL_ID -> HTTP $MODEL_CODE"
 }
 
+# 生产 nim-pool 模型（多模型 fallback 用途）
 register_model "minimaxai/minimax-m2.7"
 register_model "moonshotai/kimi-k2-thinking"
 register_model "moonshotai/kimi-k2.6"
@@ -480,6 +473,7 @@ register_model "mistralai/mistral-small-4-119b-2603"
 register_model "mistralai/mistral-medium-3.5-128b"
 register_model "meta/llama-3.2-90b-vision-instruct"
 register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+# 额外保留模型目录项，便于后续手动测试或扩展 Combo
 register_model "deepseek-ai/deepseek-v4-pro"
 register_model "deepseek-ai/deepseek-v4-flash"
 register_model "if/qwen3-max-preview"
@@ -489,7 +483,8 @@ register_model "if/deepseek-v3.2"
 echo "[init] Model registration done."
 
 # ── 创建 Combo：nim-pool ────────────────────────────────────────────
-# 源码锚定：combos/route.ts — 字段 models[]，重名返回 400（非 409）
+# v2.1.0 fix: Combo 重名返回 400（非 409），需检查响应体含 "already exists"
+# 源码验证：combos/route.ts → if (existing) return 400 "Combo name already exists"
 
 echo "[init] First-time init: creating Combo nim-pool..."
 
@@ -515,19 +510,12 @@ COMBO_CODE=$(curl -s -o "$COMBO_RESP_FILE" -w "%{http_code}" \
 
 echo "[init] Combo nim-pool HTTP $COMBO_CODE"
 
-# 修正：重名返回 400（combos/route.ts 源码），检查响应体区分重名与真实错误
-if [ "$COMBO_CODE" = "201" ] || [ "$COMBO_CODE" = "200" ]; then
+if [ "$COMBO_CODE" = "200" ] || [ "$COMBO_CODE" = "201" ]; then
   echo "[init] Combo nim-pool created OK"
-elif [ "$COMBO_CODE" = "400" ]; then
-  COMBO_ERR=$(jq -r '.error // ""' "$COMBO_RESP_FILE" 2>/dev/null)
-  if echo "$COMBO_ERR" | grep -qi "already exists"; then
-    echo "[init] Combo nim-pool already exists, skipped"
-  else
-    echo "[init] WARN: Combo creation 400 — unexpected error: $COMBO_ERR"
-    cat "$COMBO_RESP_FILE" || true
-  fi
+elif [ "$COMBO_CODE" = "400" ] && grep -q "already exists" "$COMBO_RESP_FILE" 2>/dev/null; then
+  echo "[init] Combo nim-pool already exists, skipped"
 else
-  echo "[init] WARN: Combo creation unexpected HTTP $COMBO_CODE"
+  echo "[init] WARN: Combo creation unexpected response (HTTP $COMBO_CODE):"
   cat "$COMBO_RESP_FILE" || true
 fi
 

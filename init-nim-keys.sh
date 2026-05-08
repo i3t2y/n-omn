@@ -1,222 +1,330 @@
 #!/bin/bash
-# ============================================================================
-# OmniRoute Init Script v1.9.0 — v3.7.9 Final Edition
-# 基于 OmniRoute v3.7.9 (2026-05-06 Latest)
-# 源码锚定：
-#   openapi.yaml          — 所有端点 schema
-#   types.ts              — CavemanIntensity / RtkIntensity 枚举
-#   CHANGELOG v3.7.9      — 新增 requestBodyLimit / compression preview auth
-#   RESILIENCE_GUIDE.md   — resilience 默认值与字段语义
-# ============================================================================
 set -eo pipefail
 
-# ─── 配置常量（从环境变量注入，禁止硬编码凭据）────────────────────────────────
-: "${OMNIROUTE_PORT:=20128}"
-: "${OMNIROUTE_DATA_DIR:=/data}"
-: "${OMNIROUTE_PASSWORD:=123456}"          # 对应 INITIAL_PASSWORD env var
-: "${OMNIROUTE_COMBO_MODEL:=deepseek-ai/deepseek-r1}"
+# ─────────────────────────────────────────────────────────────
+# NIM OmniRoute initializer
+# v2.1.0 — 基于 v1.4.0 原脚本
+# 修正：
+#   1. Combo 重名判断从 409 改为兼容 400（源码返回 400）
+#   2. 连接测试/限速循环从字面量改为正确的数组展开
+# 新增：
+#   3. RTK+Caveman stacked 压缩配置
+#   4. requestBodyLimit 写入 settings（v3.7.9）
+# OmniRoute v3.7.9 源码锚定：
+#   combos/route.ts       — 重名返回 400，字段 models[]
+#   provider-models/route.ts — 字段 provider + modelId
+#   rate-limits/route.ts  — 字段 connectionId + enabled
+#   keys/route.ts         — 字段 name，响应 .key
+#   types.ts              — CavemanIntensity / RtkIntensity 枚举
+# ─────────────────────────────────────────────────────────────
 
-BASE_URL="http://127.0.0.1:${OMNIROUTE_PORT}"
-DATA_DIR="$OMNIROUTE_DATA_DIR"
-INIT_MARKER="$DATA_DIR/.init-done"
-OR_KEY_FILE="$DATA_DIR/.or-api-key"
-COOKIE_FILE="/tmp/omniroute-cookie-$$.txt"   # $$ 避免并发冲突
-RESP_DIR="/tmp/omniroute-init-$$"
-
-# 上游 provider 凭据（从宿主 env 注入）
-NIM_KEY_1="${NIM_KEY_1:-}"
-NIM_KEY_2="${NIM_KEY_2:-}"
-NIM_KEY_3="${NIM_KEY_3:-}"
-QODER_KEY="${QODER_KEY:-}"
-
-NIM_BASE_URL="https://integrate.api.nvidia.com/v1"
-QODER_BASE_URL="https://api.qoder.com/v1"
-
-# ─── 初始化工作目录 ───────────────────────────────────────────────────────────
-mkdir -p "$DATA_DIR" "$RESP_DIR"
-trap 'rm -rf "$RESP_DIR" "$COOKIE_FILE"' EXIT   # 退出时清理临时文件
-
-log()  { echo "[init] $*"; }
-warn() { echo "[init] WARN: $*" >&2; }
-die()  { echo "[init] FATAL: $*" >&2; exit 1; }
-
-# HTTP 调用封装：自动打印 code，非 2xx 写 warn 但不强制退出（除非调用方用 die）
-http() {
-  local method="$1" url="$2" out="$3"; shift 3
-  local code
-  code=$(curl -s -o "$out" -w "%{http_code}" -b "$COOKIE_FILE" -X "$method" "$url" "$@")
-  echo "$code"
-}
-
-# ─── 0. 幂等检查 ─────────────────────────────────────────────────────────────
-if [ -f "$INIT_MARKER" ]; then
-  log "Already initialized at $(cat "$INIT_MARKER"), skipping."
-  exit 0
+if [ -z "$OMNIROUTE_PORT" ]; then
+  OMNIROUTE_PORT=20128
 fi
 
-# ─── 1. 等待 OmniRoute 就绪 ──────────────────────────────────────────────────
-# 锚定：API_REFERENCE.md → /api/monitoring/health → 200 = ready
-log "Waiting for OmniRoute at $BASE_URL/api/monitoring/health ..."
-READY=0
-for i in $(seq 1 90); do
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    --connect-timeout 2 --max-time 5 \
-    "$BASE_URL/api/monitoring/health" 2>/dev/null || echo "000")
-  if [ "$CODE" = "200" ]; then
-    log "Ready after ${i}s"
-    READY=1; break
-  fi
-  [ "$((i % 10))" = "0" ] && log "  still waiting... (${i}s, last=$CODE)"
-  sleep 1
-done
-[ "$READY" = "0" ] && die "OmniRoute not ready after 90s"
+BASE_URL="http://127.0.0.1:$OMNIROUTE_PORT"
+INIT_MARKER="/data/.init-done"
+OR_API_KEY_FILE="/data/.or-api-key"
+COOKIE_FILE="/tmp/omniroute-cookie.txt"
 
-# ─── 2. 登录拿 auth_token cookie ─────────────────────────────────────────────
-# 锚定：openapi.yaml /api/auth/login → required: [password]，无 username/email
-log "Logging in..."
-LOGIN_CODE=$(curl -s -o "$RESP_DIR/login.json" -w "%{http_code}" \
+LOGIN_RESP_FILE="/tmp/omniroute-login.json"
+KEY_RESP_FILE="/tmp/omniroute-key-response.json"
+PROVIDERS_FILE="/tmp/omniroute-providers.json"
+RESILIENCE_RESP_FILE="/tmp/omniroute-resilience-response.json"
+SETTINGS_RESP_FILE="/tmp/omniroute-settings-response.json"
+COMPRESSION_RESP_FILE="/tmp/omniroute-compression-response.json"
+COMBO_RESP_FILE="/tmp/omniroute-combo-response.json"
+
+REGISTERED=0
+SKIPPED=0
+FAILED=0
+
+PROVIDER_IDS=()
+
+echo "[init] Starting NIM OmniRoute initializer v2.1.0..."
+echo "[init] BASE_URL=$BASE_URL"
+echo "[init] INIT_MARKER=$INIT_MARKER"
+echo "[init] OR_API_KEY_FILE=$OR_API_KEY_FILE"
+
+# ── 必要环境变量检查 ────────────────────────────────────────────────
+
+if [ -z "$INITIAL_PASSWORD" ]; then
+  echo "[init] ERROR: INITIAL_PASSWORD is required"
+  exit 1
+fi
+
+if [ -z "$NIM_KEYS" ]; then
+  echo "[init] ERROR: NIM_KEYS is required"
+  exit 1
+fi
+
+# ── 等待 OmniRoute 就绪 ─────────────────────────────────────────────
+
+echo "[init] Waiting for OmniRoute to start..."
+
+until curl -sf "$BASE_URL/api/monitoring/health" > /dev/null 2>&1; do
+  sleep 3
+done
+
+echo "[init] OmniRoute is up."
+
+# ── 登录 Dashboard，获取 auth_token Cookie ─────────────────────────
+
+echo "[init] Logging in..."
+
+LOGIN_HTTP=$(curl -s -o "$LOGIN_RESP_FILE" -w "%{http_code}" \
   -c "$COOKIE_FILE" \
   -X POST "$BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"password\":\"${OMNIROUTE_PASSWORD}\"}")
-[ "$LOGIN_CODE" != "200" ] && { cat "$RESP_DIR/login.json"; die "Login failed HTTP $LOGIN_CODE"; }
-log "Login OK (cookie written to $COOKIE_FILE)"
+  -d "{\"password\":\"$INITIAL_PASSWORD\"}")
 
-# ─── 3. 全局 settings：开启 requestBodyLimit（v3.7.9 新字段）────────────────
-# 锚定：CHANGELOG v3.7.9 feat(settings): add request body limit setting (#1968)
-# 10MB = 10485760 bytes，足够容纳 62K token 的完整请求体（~250KB）
-# 同时设置 requireLogin=false（保持 /v1/* 无需 bearer 的开发模式）
-log "Patching global settings (requestBodyLimit + requireLogin)..."
-SETTINGS_CODE=$(http PATCH "$BASE_URL/api/settings" "$RESP_DIR/settings.json" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "requestBodyLimit": 10485760,
-    "requireLogin": false
-  }')
-log "Settings PATCH HTTP $SETTINGS_CODE"
-[ "$SETTINGS_CODE" != "200" ] && warn "settings PATCH non-200, body: $(head -c 300 "$RESP_DIR/settings.json")"
-
-# ─── 4. 创建 OmniRoute 自身 API key ─────────────────────────────────────────
-# 锚定：openapi.yaml /api/keys POST → required: [label]
-# 响应 201，包含完整 key（只返回一次）
-if [ -f "$OR_KEY_FILE" ]; then
-  log "Reusing existing OR API key from $OR_KEY_FILE"
-  OR_KEY=$(cat "$OR_KEY_FILE")
-else
-  log "Creating OmniRoute API key..."
-  KEY_CODE=$(http POST "$BASE_URL/api/keys" "$RESP_DIR/key.json" \
-    -H "Content-Type: application/json" \
-    -d '{"label":"claude-code-default"}')
-  [ "$KEY_CODE" != "201" ] && [ "$KEY_CODE" != "200" ] && \
-    { cat "$RESP_DIR/key.json"; die "Key creation failed HTTP $KEY_CODE"; }
-  # 响应字段名未在 openapi 中明确，用三选一兜底
-  OR_KEY=$(jq -r '.key // .apiKey // .value // empty' "$RESP_DIR/key.json" 2>/dev/null)
-  [ -z "$OR_KEY" ] && { log "Response was:"; cat "$RESP_DIR/key.json"; die "Cannot extract key from response — check field name above"; }
-  (umask 077; echo -n "$OR_KEY" > "$OR_KEY_FILE")
-  log "OR API key saved to $OR_KEY_FILE"
+if [ "$LOGIN_HTTP" != "200" ] && [ "$LOGIN_HTTP" != "201" ]; then
+  echo "[init] ERROR: Login failed, HTTP $LOGIN_HTTP"
+  cat "$LOGIN_RESP_FILE" || true
+  exit 1
 fi
 
-# ─── 5. 注册上游 provider connections ────────────────────────────────────────
-# 锚定：openapi.yaml ProviderConnectionCreate → required: [provider, url]
-# provider 字段值："openai-compatible"（通用兼容层）
-# v3.7.9 fix: local OpenAI-compatible endpoints can be added without API key（NIM 有 key，不受影响）
+if ! grep -q "auth_token" "$COOKIE_FILE" 2>/dev/null; then
+  echo "[init] ERROR: Login failed, no auth_token cookie received"
+  cat "$COOKIE_FILE" || true
+  exit 1
+fi
 
-register_provider() {
-  local name="$1" url="$2" key="$3"
-  [ -z "$key" ] && { log "Skipping $name (no key)"; return 0; }
+echo "[init] Logged in, token acquired."
 
-  # 幂等：先查是否已存在同名 connection
-  curl -s -b "$COOKIE_FILE" "$BASE_URL/api/providers" \
-    -o "$RESP_DIR/providers_check.json" 2>/dev/null
-  EXISTING=$(jq -r --arg n "$name" '.connections[]? | select(.name==$n) | .id' \
-    "$RESP_DIR/providers_check.json" 2>/dev/null | head -1)
-  if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-    log "Provider $name already exists (id=$EXISTING), skipping"
-    return 0
+# ── 创建或复用 OmniRoute 内部 API Key ───────────────────────────────
+# 源码锚定：keys/route.ts — body 字段 name（不是 label），响应字段 .key
+
+if [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
+  echo "[init] OR_API_KEY file already exists, skipping creation."
+else
+  echo "[init] Creating OmniRoute API Key via /api/keys..."
+
+  KEY_HTTP=$(curl -s -o "$KEY_RESP_FILE" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/keys" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"gate-internal","expiresAt":null}')
+
+  if [ "$KEY_HTTP" = "200" ] || [ "$KEY_HTTP" = "201" ]; then
+    OR_API_KEY_VALUE=$(jq -r '.key // empty' "$KEY_RESP_FILE")
+
+    if [ -z "$OR_API_KEY_VALUE" ] || [ "$OR_API_KEY_VALUE" = "null" ]; then
+      echo "[init] ERROR: Created key but could not parse .key field."
+      cat "$KEY_RESP_FILE" || true
+      exit 1
+    fi
+
+    echo "$OR_API_KEY_VALUE" > "$OR_API_KEY_FILE"
+    chmod 600 "$OR_API_KEY_FILE"
+    echo "[init] OR_API_KEY written to $OR_API_KEY_FILE"
+  else
+    echo "[init] ERROR: /api/keys returned HTTP $KEY_HTTP"
+    cat "$KEY_RESP_FILE" || true
+    exit 1
+  fi
+fi
+
+# ── NIM Keys 批量注册 ───────────────────────────────────────────────
+# NIM_KEYS 格式：换行分隔，每行一个 key
+
+echo "[init] Registering NIM provider keys..."
+
+INDEX=1
+
+while IFS= read -r RAW_KEY; do
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
+
+  if [ -z "$KEY" ]; then
+    continue
   fi
 
-  local body
-  body=$(jq -n \
-    --arg provider "openai-compatible" \
-    --arg name "$name" \
-    --arg url "$url" \
-    --arg apiKey "$key" \
-    '{provider:$provider, name:$name, url:$url, apiKey:$apiKey, isActive:true}')
-  local code
-  code=$(http POST "$BASE_URL/api/providers" "$RESP_DIR/prov_${name}.json" \
-    -H "Content-Type: application/json" -d "$body")
-  log "Provider $name → HTTP $code"
-  [ "$code" != "201" ] && [ "$code" != "200" ] && \
-    warn "provider $name non-2xx: $(head -c 300 "$RESP_DIR/prov_${name}.json")"
-}
+  NAME=$(printf "nim-%02d" "$INDEX")
+  RESP_FILE="/tmp/omniroute-provider-$INDEX.json"
 
-register_provider "nim-1" "$NIM_BASE_URL" "$NIM_KEY_1"
-register_provider "nim-2" "$NIM_BASE_URL" "$NIM_KEY_2"
-register_provider "nim-3" "$NIM_BASE_URL" "$NIM_KEY_3"
-register_provider "qoder" "$QODER_BASE_URL" "$QODER_KEY"
+  BODY=$(jq -n \
+    --arg provider "nvidia" \
+    --arg apiKey "$KEY" \
+    --arg name "$NAME" \
+    '{
+      provider: $provider,
+      apiKey: $apiKey,
+      name: $name,
+      priority: 1,
+      testStatus: "unknown"
+    }')
 
-# 拉最新 connection 列表，提取各 ID
-curl -s -b "$COOKIE_FILE" "$BASE_URL/api/providers" \
-  -o "$RESP_DIR/providers.json" 2>/dev/null
-NIM1_ID=$(jq -r '.connections[]? | select(.name=="nim-1") | .id' "$RESP_DIR/providers.json" | head -1)
-NIM2_ID=$(jq -r '.connections[]? | select(.name=="nim-2") | .id' "$RESP_DIR/providers.json" | head -1)
-NIM3_ID=$(jq -r '.connections[]? | select(.name=="nim-3") | .id' "$RESP_DIR/providers.json" | head -1)
-QODER_ID=$(jq -r '.connections[]? | select(.name=="qoder") | .id' "$RESP_DIR/providers.json" | head -1)
-log "Provider IDs: nim1=$NIM1_ID nim2=$NIM2_ID nim3=$NIM3_ID qoder=$QODER_ID"
+  HTTP_CODE=$(curl -s -o "$RESP_FILE" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/providers" \
+    -H "Content-Type: application/json" \
+    -d "$BODY")
 
-# ─── 6. 创建 routing combo "nim-pool" ───────────────────────────────────────
-# 锚定：openapi.yaml ComboCreate → required: [name, model]
-# strategy enum: priority|weighted|round-robin|random|least-used|cost-optimized
-# v3.7.9 fix(combos): align strategy contracts (#1892) — round-robin 现在可靠
-# 幂等：先查是否已存在
+  if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+    echo "[init] $NAME registered OK"
+    REGISTERED=$((REGISTERED + 1))
+  elif [ "$HTTP_CODE" = "409" ]; then
+    echo "[init] $NAME already exists, skipped"
+    SKIPPED=$((SKIPPED + 1))
+  else
+    echo "[init] $NAME unexpected HTTP $HTTP_CODE"
+    cat "$RESP_FILE" || true
+    FAILED=$((FAILED + 1))
+  fi
 
-log "Checking existing combos..."
-curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" -o "$RESP_DIR/combos_check.json" 2>/dev/null
-EXISTING_COMBO=$(jq -r '.combos[]? | select(.name=="nim-pool") | .id' \
-  "$RESP_DIR/combos_check.json" 2>/dev/null | head -1)
+  INDEX=$((INDEX + 1))
+done <<< "$NIM_KEYS"
 
-if [ -n "$EXISTING_COMBO" ] && [ "$EXISTING_COMBO" != "null" ]; then
-  log "Combo nim-pool already exists (id=$EXISTING_COMBO), skipping creation"
+echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed."
+
+# ── Qoder AI Key 注册 ───────────────────────────────────────────────
+
+echo "[init] Registering Qoder AI key..."
+
+if [ -n "$QODER_API_KEY" ]; then
+  QODER_RESP_FILE="/tmp/omniroute-provider-qoder.json"
+
+  QODER_BODY=$(jq -n \
+    --arg provider "qoder" \
+    --arg apiKey "$QODER_API_KEY" \
+    --arg name "qoder-01" \
+    '{
+      provider: $provider,
+      apiKey: $apiKey,
+      name: $name,
+      priority: 1,
+      testStatus: "unknown",
+      providerSpecificData: {
+        authMode: "pat",
+        transport: "qodercli"
+      }
+    }')
+
+  QODER_HTTP=$(curl -s -o "$QODER_RESP_FILE" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/providers" \
+    -H "Content-Type: application/json" \
+    -d "$QODER_BODY")
+
+  if [ "$QODER_HTTP" = "201" ] || [ "$QODER_HTTP" = "200" ]; then
+    echo "[init] qoder-01 registered OK"
+  elif [ "$QODER_HTTP" = "409" ]; then
+    echo "[init] qoder-01 already exists, skipped"
+  else
+    echo "[init] WARN: qoder-01 unexpected HTTP $QODER_HTTP"
+    cat "$QODER_RESP_FILE" || true
+  fi
 else
-  log "Creating routing combo nim-pool..."
-  # 只把有效 ID 的 node 加进去
-  NODES_JSON=$(jq -n \
-    --arg n1 "$NIM1_ID" --arg n2 "$NIM2_ID" \
-    --arg n3 "$NIM3_ID" --arg qd "$QODER_ID" \
-    '[
-      ($n1 | select(. != "" and . != "null") | {connectionId:., priority:1, weight:1}),
-      ($n2 | select(. != "" and . != "null") | {connectionId:., priority:2, weight:1}),
-      ($n3 | select(. != "" and . != "null") | {connectionId:., priority:3, weight:1}),
-      ($qd | select(. != "" and . != "null") | {connectionId:., priority:4, weight:1})
-    ] | map(select(. != null))')
-
-  NODE_COUNT=$(echo "$NODES_JSON" | jq 'length')
-  [ "$NODE_COUNT" = "0" ] && die "No valid provider IDs found — cannot create combo"
-  log "Combo will have $NODE_COUNT nodes"
-
-  COMBO_BODY=$(jq -n \
-    --arg model "$OMNIROUTE_COMBO_MODEL" \
-    --argjson nodes "$NODES_JSON" \
-    '{name:"nim-pool", model:$model, strategy:"round-robin", nodes:$nodes}')
-
-  COMBO_CODE=$(http POST "$BASE_URL/api/combos" "$RESP_DIR/combo.json" \
-    -H "Content-Type: application/json" -d "$COMBO_BODY")
-  log "Combo create HTTP $COMBO_CODE"
-  [ "$COMBO_CODE" != "201" ] && [ "$COMBO_CODE" != "200" ] && \
-    warn "combo create non-2xx: $(head -c 400 "$RESP_DIR/combo.json")"
+  echo "[init] WARN: QODER_API_KEY not set, skipping Qoder AI registration"
 fi
 
-# ─── 7. ★ 完整压缩配置（单次 PUT）────────────────────────────────────────────
-# 锚定：
-#   types.ts CavemanIntensity = "lite" | "full" | "ultra"
-#   types.ts RtkIntensity = "minimal" | "standard" | "aggressive"
-#   types.ts DEFAULT stackedPipeline = [{rtk standard},{caveman full}]
-#   openapi.yaml PUT /api/settings/compression
-#   CHANGELOG v3.7.9 fix(compression): align seeded standard savings combo with stacked default
-log "★ Writing compression config (stacked: RTK aggressive + Caveman full)..."
+# ── 重新读取所有 Provider IDs ───────────────────────────────────────
 
-COMPRESSION_CODE=$(http PUT "$BASE_URL/api/settings/compression" \
-  "$RESP_DIR/compression.json" \
+echo "[init] Fetching NVIDIA provider IDs from /api/providers..."
+
+PROVIDERS_HTTP=$(curl -s -o "$PROVIDERS_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  "$BASE_URL/api/providers")
+
+if [ "$PROVIDERS_HTTP" = "200" ]; then
+  mapfile -t PROVIDER_IDS < <(
+    jq -r '
+      [
+        .. |
+        objects |
+        select((.provider? // "") == "nvidia") |
+        select((.id? // "") != "") |
+        .id
+      ] |
+      unique |
+      .[]
+    ' "$PROVIDERS_FILE" 2>/dev/null
+  )
+else
+  echo "[init] WARN: /api/providers returned HTTP $PROVIDERS_HTTP"
+  cat "$PROVIDERS_FILE" || true
+fi
+
+PROVIDER_COUNT=""
+echo "[init] Provider IDs collected: $PROVIDER_COUNT"
+
+if [ "$PROVIDER_COUNT" -eq 0 ]; then
+  echo "[init] WARN: No NVIDIA provider IDs found. Tests and rate-limit protection will be skipped."
+fi
+
+# ── Resilience 配置 ─────────────────────────────────────────────────
+
+echo "[init] Applying Resilience config..."
+
+RESILIENCE_BODY='{
+  "profiles": {
+    "apikey": {
+      "transientCooldown": 30000,
+      "rateLimitCooldown": 60000,
+      "maxBackoffLevel": 3,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerReset": 600000
+    },
+    "oauth": {
+      "transientCooldown": 5000,
+      "rateLimitCooldown": 60000,
+      "maxBackoffLevel": 8,
+      "circuitBreakerThreshold": 3,
+      "circuitBreakerReset": 60000
+    }
+  },
+  "defaults": {
+    "requestsPerMinute": 28,
+    "minTimeBetweenRequests": 1,
+    "concurrentRequests": 5
+  }
+}'
+
+RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/resilience" \
+  -H "Content-Type: application/json" \
+  -d "$RESILIENCE_BODY")
+
+echo "[init] Resilience HTTP $RESILIENCE_CODE"
+
+if [ "$RESILIENCE_CODE" != "200" ] && [ "$RESILIENCE_CODE" != "204" ]; then
+  echo "[init] WARN: Resilience config may have failed:"
+  cat "$RESILIENCE_RESP_FILE" || true
+fi
+
+# ── 全局 Settings：路由策略 + requestBodyLimit（v3.7.9 新字段）────────
+
+echo "[init] Applying global settings..."
+
+SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fallbackStrategy": "round-robin",
+    "stickyRoundRobinLimit": 1,
+    "requestBodyLimit": 10485760
+  }')
+
+echo "[init] Settings HTTP $SETTINGS_CODE"
+
+if [ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "204" ]; then
+  echo "[init] WARN: Settings config may have failed:"
+  cat "$SETTINGS_RESP_FILE" || true
+fi
+
+# ── ★ 压缩配置（RTK aggressive + Caveman full stacked）──────────────
+# 源码锚定：
+#   CavemanIntensity = "lite" | "full" | "ultra"        (types.ts)
+#   RtkIntensity = "minimal" | "standard" | "aggressive" (types.ts)
+#   v3.7.9 fix(auth): compression preview 强制 ManagementSessionAuth
+
+echo "[init] ★ Applying compression config (stacked: RTK aggressive + Caveman full)..."
+
+COMPRESSION_CODE=$(curl -s -o "$COMPRESSION_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/compression" \
   -H "Content-Type: application/json" \
   -d '{
     "enabled": true,
@@ -266,96 +374,163 @@ COMPRESSION_CODE=$(http PUT "$BASE_URL/api/settings/compression" \
       "enabledPacks": ["en"]
     }
   }')
-log "Compression PUT HTTP $COMPRESSION_CODE"
-[ "$COMPRESSION_CODE" != "200" ] && [ "$COMPRESSION_CODE" != "204" ] && \
-  warn "compression PUT non-2xx: $(head -c 400 "$RESP_DIR/compression.json")"
 
-# ─── 8. Resilience 配置 ──────────────────────────────────────────────────────
-# 锚定：RESILIENCE_GUIDE.md 默认值表格 + openapi.yaml PATCH /api/resilience
-# 注意：resilience 的具体 JSON 字段名未在 openapi 中暴露（type: object）
-# 先 GET 当前配置，打印字段名供调试；再 PATCH
-log "Fetching current resilience config (for field name verification)..."
-curl -s -b "$COOKIE_FILE" "$BASE_URL/api/resilience" \
-  -o "$RESP_DIR/resilience_current.json" 2>/dev/null
-log "Current resilience keys: $(jq -r 'keys | @csv' "$RESP_DIR/resilience_current.json" 2>/dev/null || echo 'parse-error')"
+echo "[init] Compression PUT HTTP $COMPRESSION_CODE"
 
-RESIL_CODE=$(http PATCH "$BASE_URL/api/resilience" "$RESP_DIR/resilience.json" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "queueSize": 30,
-    "pacingMs": 250,
-    "maxConcurrent": 3,
-    "waitForCooldown": true,
-    "circuitBreaker": {
-      "failureThreshold": 5,
-      "cooldownMs": 30000,
-      "halfOpenProbeIntervalMs": 60000
-    },
-    "connectionCooldown": {
-      "baseMs": 1000,
-      "maxMs": 60000,
-      "respectRetryAfter": true
-    }
-  }')
-log "Resilience PATCH HTTP $RESIL_CODE"
-
-# ─── 9. 重置 circuit breakers（确保所有 connection 从干净状态启动）────────────
-# 锚定：openapi.yaml POST /api/resilience/reset → 无 body
-log "Resetting circuit breakers..."
-CB_CODE=$(http POST "$BASE_URL/api/resilience/reset" "$RESP_DIR/cb_reset.json")
-log "CB reset HTTP $CB_CODE"
-
-# ─── 10. 烟雾测试：compression preview ──────────────────────────────────────
-# 锚定：openapi.yaml /api/compression/preview → required: [messages, mode]
-# v3.7.9 fix(auth): require dashboard management auth for compression preview
-# → 必须用 -b $COOKIE_FILE（ManagementSessionAuth cookie），不能只用 Bearer
-log "Smoke test: compression preview (requires management cookie)..."
-PREVIEW_CODE=$(http POST "$BASE_URL/api/compression/preview" \
-  "$RESP_DIR/preview.json" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "mode": "stacked",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Please basically I think we should obviously just run the test, you know what I mean, like it should be pretty straightforward."
-      },
-      {
-        "role": "tool",
-        "content": "FAIL tests/e2e/login.spec.ts:42:18\n  AssertionError: expected element to be visible\n    at Context.<anonymous> (/app/tests/e2e/login.spec.ts:42:18)\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)\n  npm ERR! Test failed. See above.\n  npm ERR! A complete log of this run can be found in:\n  npm ERR!     /root/.npm/_logs/2026-05-08T12_00_00_000Z-debug-0.log"
-      }
-    ]
-  }')
-SAVINGS=$(jq -r '
-  .stats.savingsPercent //
-  .savingsPercent //
-  (.stats | if type=="object" then .savingsPercent else null end) //
-  "n/a"
-' "$RESP_DIR/preview.json" 2>/dev/null || echo "parse-error")
-log "Compression preview HTTP $PREVIEW_CODE — savings=$SAVINGS%"
-if [ "$PREVIEW_CODE" != "200" ]; then
-  warn "Preview non-200, response: $(head -c 500 "$RESP_DIR/preview.json")"
-  warn "If 401/403: cookie may have expired — this is non-fatal, compression is still configured"
+if [ "$COMPRESSION_CODE" != "200" ] && [ "$COMPRESSION_CODE" != "204" ]; then
+  echo "[init] WARN: Compression config may have failed:"
+  cat "$COMPRESSION_RESP_FILE" || true
 fi
 
-# ─── 11. 最终验证：GET 回读压缩配置确认持久化 ────────────────────────────────
-log "Verifying compression config persisted..."
-VERIFY_CODE=$(http GET "$BASE_URL/api/settings/compression" \
-  "$RESP_DIR/compression_verify.json")
-ACTUAL_MODE=$(jq -r '.defaultMode // "unknown"' "$RESP_DIR/compression_verify.json" 2>/dev/null)
-ACTUAL_RTK=$(jq -r '.rtkConfig.intensity // "unknown"' "$RESP_DIR/compression_verify.json" 2>/dev/null)
-ACTUAL_CAV=$(jq -r '.cavemanConfig.intensity // "unknown"' "$RESP_DIR/compression_verify.json" 2>/dev/null)
-log "Verified: mode=$ACTUAL_MODE rtk=$ACTUAL_RTK caveman=$ACTUAL_CAV"
-[ "$ACTUAL_MODE" != "stacked" ] && warn "defaultMode is '$ACTUAL_MODE', expected 'stacked' — check compression PUT response"
+# ── 批量连接测试 ────────────────────────────────────────────────────
+# 修正：原脚本 for PID in "" 不展开数组，改为 "${PROVIDER_IDS[@]}"
 
-# ─── 12. 写入完成标记 ────────────────────────────────────────────────────────
-date -Iseconds > "$INIT_MARKER"
-log "✅ Done v1.9.0 (OmniRoute v3.7.9) at $(cat "$INIT_MARKER")"
-log ""
-log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log "  Endpoint : $BASE_URL/v1"
-log "  API Key  : $(cat "$OR_KEY_FILE")"
-log "  Combo    : nim-pool  (model: $OMNIROUTE_COMBO_MODEL)"
-log "  Compress : stacked [RTK aggressive → Caveman full]"
-log "  Target   : ~89% token savings on tool-heavy Claude Code sessions"
-log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "[init] Running connection tests ($PROVIDER_COUNT providers)..."
+
+for PID in "${PROVIDER_IDS[@]}"; do
+  if [ -z "$PID" ]; then
+    continue
+  fi
+
+  TEST_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/providers/$PID/test")
+
+  echo "[init] provider $PID test HTTP $TEST_CODE"
+done
+
+echo "[init] Connection tests done."
+
+# ── 批量开启速率限制保护 ─────────────────────────────────────────────
+# 修正：同上，改为 "${PROVIDER_IDS[@]}"
+# 源码锚定：rate-limits/route.ts — 字段 connectionId + enabled
+
+echo "[init] Enabling rate limit protection for all providers..."
+
+for PID in "${PROVIDER_IDS[@]}"; do
+  if [ -z "$PID" ]; then
+    continue
+  fi
+
+  RATE_BODY=$(jq -n \
+    --arg connectionId "$PID" \
+    '{connectionId: $connectionId, enabled: true}')
+
+  RATE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/rate-limits" \
+    -H "Content-Type: application/json" \
+    -d "$RATE_BODY")
+
+  echo "[init] provider $PID rate-limit HTTP $RATE_CODE"
+done
+
+echo "[init] Rate limit protection enabled."
+
+# ── 重置所有 circuit breaker ────────────────────────────────────────
+
+echo "[init] Resetting circuit breakers..."
+
+CB_RESET_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/resilience/reset" \
+  -H "Content-Type: application/json")
+
+echo "[init] Circuit breaker reset HTTP $CB_RESET_CODE"
+
+# ── 首次初始化专属步骤 ───────────────────────────────────────────────
+
+if [ -f "$INIT_MARKER" ]; then
+  echo "[init] Already initialized (marker exists). Skipping model registration and Combo creation."
+  echo "[init] Done (incremental mode)."
+  exit 0
+fi
+
+# ── 模型目录注册 ────────────────────────────────────────────────────
+# 源码锚定：provider-models/route.ts — 必填 provider + modelId
+
+echo "[init] First-time init: registering models to OmniRoute model directory..."
+
+register_model() {
+  local MODEL_ID="$1"
+  local MODEL_BODY
+  local MODEL_CODE
+
+  MODEL_BODY=$(jq -n \
+    --arg provider "nvidia" \
+    --arg modelId "$MODEL_ID" \
+    '{provider: $provider, modelId: $modelId}')
+
+  MODEL_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/provider-models" \
+    -H "Content-Type: application/json" \
+    -d "$MODEL_BODY")
+
+  echo "[init] model $MODEL_ID -> HTTP $MODEL_CODE"
+}
+
+register_model "minimaxai/minimax-m2.7"
+register_model "moonshotai/kimi-k2-thinking"
+register_model "moonshotai/kimi-k2.6"
+register_model "z-ai/glm-5.1"
+register_model "nvidia/nemotron-3-super-120b-a12b"
+register_model "qwen/qwen3-coder-480b-a35b-instruct"
+register_model "mistralai/mistral-small-4-119b-2603"
+register_model "mistralai/mistral-medium-3.5-128b"
+register_model "meta/llama-3.2-90b-vision-instruct"
+register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+register_model "deepseek-ai/deepseek-v4-pro"
+register_model "deepseek-ai/deepseek-v4-flash"
+register_model "if/qwen3-max-preview"
+register_model "if/kimi-k2-0905"
+register_model "if/deepseek-v3.2"
+
+echo "[init] Model registration done."
+
+# ── 创建 Combo：nim-pool ────────────────────────────────────────────
+# 源码锚定：combos/route.ts — 字段 models[]，重名返回 400（非 409）
+
+echo "[init] First-time init: creating Combo nim-pool..."
+
+COMBO_BODY='{
+  "name": "nim-pool",
+  "strategy": "round-robin",
+  "models": [
+    "minimaxai/minimax-m2.7",
+    "moonshotai/kimi-k2-thinking",
+    "moonshotai/kimi-k2.6",
+    "z-ai/glm-5.1",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "qwen/qwen3-coder-480b-a35b-instruct",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+  ]
+}'
+
+COMBO_CODE=$(curl -s -o "$COMBO_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/combos" \
+  -H "Content-Type: application/json" \
+  -d "$COMBO_BODY")
+
+echo "[init] Combo nim-pool HTTP $COMBO_CODE"
+
+# 修正：重名返回 400（combos/route.ts 源码），检查响应体区分重名与真实错误
+if [ "$COMBO_CODE" = "201" ] || [ "$COMBO_CODE" = "200" ]; then
+  echo "[init] Combo nim-pool created OK"
+elif [ "$COMBO_CODE" = "400" ]; then
+  COMBO_ERR=$(jq -r '.error // ""' "$COMBO_RESP_FILE" 2>/dev/null)
+  if echo "$COMBO_ERR" | grep -qi "already exists"; then
+    echo "[init] Combo nim-pool already exists, skipped"
+  else
+    echo "[init] WARN: Combo creation 400 — unexpected error: $COMBO_ERR"
+    cat "$COMBO_RESP_FILE" || true
+  fi
+else
+  echo "[init] WARN: Combo creation unexpected HTTP $COMBO_CODE"
+  cat "$COMBO_RESP_FILE" || true
+fi
+
+touch "$INIT_MARKER"
+echo "[init] Marker written: $INIT_MARKER"
+echo "[init] Done (first-init mode)."

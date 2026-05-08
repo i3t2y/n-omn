@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v1.4.0 + Qoder AI support
+# v1.5.0 — RTK/Caveman compression + nim-pool binding
 # ─────────────────────────────────────────────────────────────
 
 if [ -z "$OMNIROUTE_PORT" ]; then
@@ -21,6 +21,9 @@ PROVIDERS_FILE="/tmp/omniroute-providers.json"
 RESILIENCE_RESP_FILE="/tmp/omniroute-resilience-response.json"
 SETTINGS_RESP_FILE="/tmp/omniroute-settings-response.json"
 COMBO_RESP_FILE="/tmp/omniroute-combo-response.json"
+RTK_RESP_FILE="/tmp/omniroute-rtk-response.json"
+CAVEMAN_RESP_FILE="/tmp/omniroute-caveman-response.json"
+CCOMBO_RESP_FILE="/tmp/omniroute-ccombo-response.json"
 
 REGISTERED=0
 SKIPPED=0
@@ -28,10 +31,8 @@ FAILED=0
 
 PROVIDER_IDS=()
 
-echo "[init] Starting NIM OmniRoute initializer..."
+echo "[init] Starting NIM OmniRoute initializer (v1.5.0)..."
 echo "[init] BASE_URL=$BASE_URL"
-echo "[init] INIT_MARKER=$INIT_MARKER"
-echo "[init] OR_API_KEY_FILE=$OR_API_KEY_FILE"
 
 # ── 必要环境变量检查 ────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ done
 
 echo "[init] OmniRoute is up."
 
-# ── 登录 Dashboard，获取 auth_token Cookie ─────────────────────────
+# ── 登录 Dashboard ──────────────────────────────────────────────────
 
 echo "[init] Logging in..."
 
@@ -67,14 +68,12 @@ LOGIN_HTTP=$(curl -s -o "$LOGIN_RESP_FILE" -w "%{http_code}" \
 
 if [ "$LOGIN_HTTP" != "200" ] && [ "$LOGIN_HTTP" != "201" ]; then
   echo "[init] ERROR: Login failed, HTTP $LOGIN_HTTP"
-  echo "[init] Response:"
   cat "$LOGIN_RESP_FILE" || true
   exit 1
 fi
 
 if ! grep -q "auth_token" "$COOKIE_FILE" 2>/dev/null; then
   echo "[init] ERROR: Login failed, no auth_token cookie received"
-  echo "[init] Cookie file content:"
   cat "$COOKIE_FILE" || true
   exit 1
 fi
@@ -98,8 +97,7 @@ else
     OR_API_KEY_VALUE=$(jq -r '.key // empty' "$KEY_RESP_FILE")
 
     if [ -z "$OR_API_KEY_VALUE" ] || [ "$OR_API_KEY_VALUE" = "null" ]; then
-      echo "[init] ERROR: Created key but could not parse key field from response."
-      echo "[init] Response body:"
+      echo "[init] ERROR: Created key but could not parse key field."
       cat "$KEY_RESP_FILE" || true
       exit 1
     fi
@@ -109,7 +107,6 @@ else
     echo "[init] OR_API_KEY written to $OR_API_KEY_FILE"
   else
     echo "[init] ERROR: /api/keys returned HTTP $KEY_HTTP"
-    echo "[init] Response:"
     cat "$KEY_RESP_FILE" || true
     exit 1
   fi
@@ -157,7 +154,6 @@ while IFS= read -r RAW_KEY; do
     SKIPPED=$((SKIPPED + 1))
   else
     echo "[init] $NAME unexpected HTTP $HTTP_CODE"
-    echo "[init] Response:"
     cat "$RESP_FILE" || true
     FAILED=$((FAILED + 1))
   fi
@@ -208,7 +204,7 @@ else
   echo "[init] WARN: QODER_API_KEY not set, skipping Qoder AI registration"
 fi
 
-# ── 重新读取所有 Provider IDs ───────────────────────────────
+# ── 重新读取所有 Provider IDs ───────────────────────────────────────
 
 echo "[init] Fetching NVIDIA provider IDs from /api/providers..."
 
@@ -232,11 +228,10 @@ if [ "$PROVIDERS_HTTP" = "200" ]; then
   )
 else
   echo "[init] WARN: /api/providers returned HTTP $PROVIDERS_HTTP"
-  echo "[init] Response:"
   cat "$PROVIDERS_FILE" || true
 fi
 
-PROVIDER_COUNT="${#PROVIDER_IDS[@]}"
+PROVIDER_COUNT=${#PROVIDER_IDS[@]}
 echo "[init] Provider IDs collected: $PROVIDER_COUNT"
 
 if [ "$PROVIDER_COUNT" -eq 0 ]; then
@@ -284,7 +279,7 @@ if [ "$RESILIENCE_CODE" != "200" ] && [ "$RESILIENCE_CODE" != "204" ]; then
   cat "$RESILIENCE_RESP_FILE" || true
 fi
 
-# ── 全局路由策略：Round Robin ────────────────────────────────────────
+# ── 全局路由策略 ────────────────────────────────────────────────────
 
 echo "[init] Applying routing strategy: round-robin, stickyLimit=1..."
 
@@ -299,6 +294,86 @@ echo "[init] Settings routing HTTP $SETTINGS_CODE"
 if [ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "204" ]; then
   echo "[init] WARN: Settings routing config may have failed:"
   cat "$SETTINGS_RESP_FILE" || true
+fi
+
+# ═══════════════════════════════════════════════════════════════════
+# ★ 新增：RTK Engine 配置
+# ═══════════════════════════════════════════════════════════════════
+
+echo "[init] ★ Configuring RTK Engine (Aggressive, 300/30000)..."
+
+RTK_BODY='{
+  "enabled": true,
+  "intensity": "aggressive",
+  "maxLines": 300,
+  "maxChars": 30000,
+  "deduplicateThreshold": 3,
+  "rawOutputMaxBytes": 1048576,
+  "rawOutputRetention": "rawOutputFailures",
+  "filterToolResults": true,
+  "filterAssistantMessages": false,
+  "filterCodeBlocks": false,
+  "customFilters": true,
+  "trustProjectFilters": false
+}'
+
+RTK_CODE=$(curl -s -o "$RTK_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/context/rtk" \
+  -H "Content-Type: application/json" \
+  -d "$RTK_BODY")
+
+echo "[init] RTK Engine HTTP $RTK_CODE"
+
+if [ "$RTK_CODE" != "200" ] && [ "$RTK_CODE" != "204" ]; then
+  echo "[init] WARN: RTK config may have failed (will retry with PUT):"
+  cat "$RTK_RESP_FILE" || true
+
+  # 部分版本端点用 PUT，做一次兜底
+  RTK_CODE=$(curl -s -o "$RTK_RESP_FILE" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X PUT "$BASE_URL/api/context/rtk" \
+    -H "Content-Type: application/json" \
+    -d "$RTK_BODY")
+  echo "[init] RTK Engine PUT fallback HTTP $RTK_CODE"
+fi
+
+# ═══════════════════════════════════════════════════════════════════
+# ★ 新增：Caveman Engine 配置
+# ═══════════════════════════════════════════════════════════════════
+
+echo "[init] ★ Configuring Caveman Engine (en pack, output mode disabled)..."
+
+CAVEMAN_BODY='{
+  "enabled": false,
+  "autoDetectLanguage": true,
+  "language": "en",
+  "languagePacks": ["en"],
+  "outputMode": {
+    "enabled": false,
+    "level": "full",
+    "autoClarityBypass": true
+  }
+}'
+
+CAVEMAN_CODE=$(curl -s -o "$CAVEMAN_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/context/caveman" \
+  -H "Content-Type: application/json" \
+  -d "$CAVEMAN_BODY")
+
+echo "[init] Caveman Engine HTTP $CAVEMAN_CODE"
+
+if [ "$CAVEMAN_CODE" != "200" ] && [ "$CAVEMAN_CODE" != "204" ]; then
+  echo "[init] WARN: Caveman config may have failed (will retry with PUT):"
+  cat "$CAVEMAN_RESP_FILE" || true
+
+  CAVEMAN_CODE=$(curl -s -o "$CAVEMAN_RESP_FILE" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X PUT "$BASE_URL/api/context/caveman" \
+    -H "Content-Type: application/json" \
+    -d "$CAVEMAN_BODY")
+  echo "[init] Caveman Engine PUT fallback HTTP $CAVEMAN_CODE"
 fi
 
 # ── 批量连接测试 ────────────────────────────────────────────────────
@@ -319,7 +394,7 @@ done
 
 echo "[init] Connection tests done."
 
-# ── 批量开启速率限制保护 ─────────────────────────────────────────────
+# ── 批量开启速率限制保护 ────────────────────────────────────────────
 
 echo "[init] Enabling rate limit protection for all providers..."
 
@@ -343,7 +418,7 @@ done
 
 echo "[init] Rate limit protection enabled."
 
-# ── 重置所有 circuit breaker ────────────────────────────────────────
+# ── 重置 circuit breaker ────────────────────────────────────────────
 
 echo "[init] Resetting circuit breakers..."
 
@@ -354,7 +429,7 @@ CB_RESET_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
 
 echo "[init] Circuit breaker reset HTTP $CB_RESET_CODE"
 
-# ── 首次初始化专属步骤 ───────────────────────────────────────────────
+# ── 首次初始化专属步骤 ──────────────────────────────────────────────
 
 if [ -f "$INIT_MARKER" ]; then
   echo "[init] Already initialized (marker exists). Skipping model registration and Combo creation."
@@ -385,7 +460,6 @@ register_model() {
   echo "[init] model $MODEL_ID -> HTTP $MODEL_CODE"
 }
 
-# 生产 nim-pool 模型（多模型 fallback 用途）
 register_model "minimaxai/minimax-m2.7"
 register_model "moonshotai/kimi-k2-thinking"
 register_model "moonshotai/kimi-k2.6"
@@ -396,7 +470,6 @@ register_model "mistralai/mistral-small-4-119b-2603"
 register_model "mistralai/mistral-medium-3.5-128b"
 register_model "meta/llama-3.2-90b-vision-instruct"
 register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
-# 额外保留模型目录项，便于后续手动测试或扩展 Combo
 register_model "deepseek-ai/deepseek-v4-pro"
 register_model "deepseek-ai/deepseek-v4-flash"
 register_model "if/qwen3-max-preview"
@@ -419,7 +492,8 @@ COMBO_BODY='{
     "z-ai/glm-5.1",
     "nvidia/nemotron-3-super-120b-a12b",
     "qwen/qwen3-coder-480b-a35b-instruct",
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "deepseek-ai/deepseek-v4-flash"
   ]
 }'
 
@@ -436,6 +510,47 @@ if [ "$COMBO_CODE" != "200" ] && [ "$COMBO_CODE" != "201" ] && [ "$COMBO_CODE" !
   cat "$COMBO_RESP_FILE" || true
 fi
 
+# ═══════════════════════════════════════════════════════════════════
+# ★ 新增：创建 Compression Combo 并绑定到 nim-pool
+# ═══════════════════════════════════════════════════════════════════
+
+echo "[init] ★ Creating Compression Combo: rtk-aggressive-en..."
+
+CCOMBO_BODY='{
+  "name": "rtk-aggressive-en",
+  "description": "RTK aggressive + Caveman EN, bound to nim-pool",
+  "pipeline": [
+    {"engine": "rtk", "level": "aggressive"},
+    {"engine": "caveman", "level": "full"}
+  ],
+  "languagePacks": ["en"],
+  "outputMode": {
+    "enabled": false,
+    "level": "full"
+  },
+  "routingCombos": ["nim-pool"],
+  "default": true
+}'
+
+CCOMBO_CODE=$(curl -s -o "$CCOMBO_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/compression-combos" \
+  -H "Content-Type: application/json" \
+  -d "$CCOMBO_BODY")
+
+echo "[init] Compression Combo HTTP $CCOMBO_CODE"
+
+if [ "$CCOMBO_CODE" = "200" ] || [ "$CCOMBO_CODE" = "201" ]; then
+  echo "[init] ★ Compression Combo created and bound to nim-pool"
+elif [ "$CCOMBO_CODE" = "409" ]; then
+  echo "[init] Compression Combo already exists, skipped"
+else
+  echo "[init] WARN: Compression Combo creation may have failed:"
+  cat "$CCOMBO_RESP_FILE" || true
+
+  echo "[init] Note: If endpoint path differs, check Dashboard Network tab and adjust /api/compression-combos accordingly."
+fi
+
 touch "$INIT_MARKER"
 echo "[init] Marker written: $INIT_MARKER"
-echo "[init] Done (first-init mode)."
+echo "[init] Done (first-init mode, v1.5.0)."

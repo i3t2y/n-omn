@@ -405,7 +405,7 @@ for PID in "${PROVIDER_IDS[@]}"; do
 
   RATE_BODY=$(jq -n \
     --arg connectionId "$PID" \
-    '{connectionId: $connectionId, enabled: false}')
+    '{connectionId: $connectionId, enabled: true}')
 
   RATE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
     -b "$COOKIE_FILE" \
@@ -416,7 +416,7 @@ for PID in "${PROVIDER_IDS[@]}"; do
   echo "[init] provider $PID rate-limit HTTP $RATE_CODE"
 done
 
-echo "[init] Rate limit protection false."
+echo "[init] Rate limit protection true."
 
 # ── 重置所有 circuit breaker ────────────────────────────────────────
 

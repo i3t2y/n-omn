@@ -440,21 +440,17 @@ register_model "qwen/qwen3-coder-480b-a35b-instruct"
 register_model "mistralai/mistral-small-4-119b-2603"
 register_model "mistralai/mistral-medium-3.5-128b"
 register_model "meta/llama-3.2-90b-vision-instruct"
-# ↑ nemotron-3-nano-omni-30b-a3b-reasoning 已移除（Downloadable，无 API 端点）
 
 # ── 额外模型目录项（备用，不放入 Combo）────────────────────────────
 register_model "deepseek-ai/deepseek-v4-pro"
 register_model "deepseek-ai/deepseek-v4-flash"
-register_model "if/qwen3-max-preview"
-register_model "if/kimi-k2-0905"
-register_model "if/deepseek-v3.2"
+register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 
 echo "[init] Model registration done."
 
 # ── 创建 Combo：nim-pool ─────────────────────────────────────────────
 #
 # 模型顺序 = round-robin 优先级
-# nemotron-3-nano-omni-30b-a3b-reasoning 已从列表中移除
 # 如需添加新模型，先用 Dashboard per-model test 验证可用性
 
 echo "[init] First-time init: creating Combo nim-pool..."

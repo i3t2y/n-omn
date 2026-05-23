@@ -442,9 +442,10 @@ register_model "mistralai/mistral-medium-3.5-128b"
 register_model "meta/llama-3.2-90b-vision-instruct"
 
 # ── 额外模型目录项（备用，不放入 Combo）────────────────────────────
+# register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 register_model "deepseek-ai/deepseek-v4-pro"
 register_model "deepseek-ai/deepseek-v4-flash"
-register_model "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+
 
 echo "[init] Model registration done."
 

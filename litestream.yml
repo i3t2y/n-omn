@@ -1,0 +1,12 @@
+dbs:
+  - path: /data/storage.sqlite
+    replicas:
+      - type: s3
+        bucket: omniroute-data
+        path: db/storage.sqlite
+        endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+        access-key-id: ${R2_ACCESS_KEY_ID}
+        secret-access-key: ${R2_SECRET_ACCESS_KEY}
+        region: auto
+        sync-interval: 10s
+        snapshot-interval: 1h

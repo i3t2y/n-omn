@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v3.1.3
+# v3.1.4
 # 修复历史：
 #   v2.2.0  原始版本
 #   v3.0.0  适配 OmniRoute v3.8.0
@@ -12,8 +12,8 @@ set -eo pipefail
 #   v3.1.1  修复 Combo 失败不写 marker 问题；移除 alias 注册
 #   v3.1.2  Thinking Budget 合并进 PATCH /api/settings
 #   v3.1.3  删除 POST /api/resilience/clear-cooldowns（端点不存在）
-#            该操作已被 POST /api/resilience/reset 一并完成
-#            来源：源码 reset/route.ts 中 clearAllModelLockouts() 已内联
+#   v3.1.4  注释掉连接测试段、Resilience GET debug、Settings GET debug
+#            （功能保留，暂不执行，减少启动耗时约 10~15s）
 # ─────────────────────────────────────────────────────────────
 
 if [ -z "$OMNIROUTE_PORT" ]; then
@@ -28,9 +28,9 @@ COOKIE_FILE="/tmp/omniroute-cookie.txt"
 LOGIN_RESP_FILE="/tmp/omniroute-login.json"
 KEY_RESP_FILE="/tmp/omniroute-key-response.json"
 PROVIDERS_FILE="/tmp/omniroute-providers.json"
-RESILIENCE_GET_FILE="/tmp/omniroute-resilience-get.json"
+# RESILIENCE_GET_FILE="/tmp/omniroute-resilience-get.json"
 RESILIENCE_RESP_FILE="/tmp/omniroute-resilience-response.json"
-SETTINGS_GET_FILE="/tmp/omniroute-settings-get.json"
+# SETTINGS_GET_FILE="/tmp/omniroute-settings-get.json"
 SETTINGS_RESP_FILE="/tmp/omniroute-settings-response.json"
 COMPRESS_RESP_FILE="/tmp/omniroute-compress-response.json"
 COMBO_RESP_FILE="/tmp/omniroute-combo-response.json"
@@ -42,7 +42,7 @@ FAILED=0
 
 PROVIDER_IDS=()
 
-echo "[init] Starting NIM OmniRoute initializer v3.1.3..."
+echo "[init] Starting NIM OmniRoute initializer v3.1.4..."
 echo "[init] BASE_URL=$BASE_URL"
 
 # ── 必要环境变量检查 ─────────────────────────────────────────────────
@@ -59,17 +59,17 @@ fi
 
 # ── 参数默认值 ───────────────────────────────────────────────────────
 
-NIM_RPM="${NIM_RPM:-120}"
-NIM_MIN_INTERVAL_MS="${NIM_MIN_INTERVAL_MS:-100}"
-NIM_CONCURRENT="${NIM_CONCURRENT:-15}"
-NIM_FALLBACK_STRATEGY="${NIM_FALLBACK_STRATEGY:-round-robin}"
-NIM_STICKY_LIMIT="${NIM_STICKY_LIMIT:-1}"
-NIM_REQUEST_BODY_LIMIT="${NIM_REQUEST_BODY_LIMIT:-10485760}"
-NIM_COMPRESS_MODE="${NIM_COMPRESS_MODE:-stacked}"
-NIM_COMPRESS_THRESHOLD="${NIM_COMPRESS_THRESHOLD:-12000}"
-NIM_THINKING_MODE="${NIM_THINKING_MODE:-adaptive}"
-NIM_THINKING_BUDGET="${NIM_THINKING_BUDGET:-8000}"
-COMBO_STRATEGY="${COMBO_STRATEGY:-round-robin}"
+NIM_RPM=""
+NIM_MIN_INTERVAL_MS=""
+NIM_CONCURRENT=""
+NIM_FALLBACK_STRATEGY=""
+NIM_STICKY_LIMIT=""
+NIM_REQUEST_BODY_LIMIT=""
+NIM_COMPRESS_MODE=""
+NIM_COMPRESS_THRESHOLD=""
+NIM_THINKING_MODE=""
+NIM_THINKING_BUDGET=""
+COMBO_STRATEGY=""
 
 # ── 等待 OmniRoute 就绪 ──────────────────────────────────────────────
 
@@ -156,7 +156,7 @@ echo "[init] Registering NIM provider keys..."
 INDEX=1
 
 while IFS= read -r RAW_KEY; do
-  KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r' | xargs)
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
 
   if [ -z "$KEY" ]; then
     continue
@@ -201,6 +201,7 @@ done <<< "$NIM_KEYS"
 echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed."
 
 # ── 读取所有 NVIDIA Provider IDs ─────────────────────────────────────
+# （连接测试段已注释，Provider IDs 仍需采集供将来取消注释时使用）
 
 echo "[init] Fetching NVIDIA provider IDs..."
 
@@ -227,25 +228,23 @@ else
   cat "$PROVIDERS_FILE" || true
 fi
 
-PROVIDER_COUNT=${#PROVIDER_IDS[@]}
+PROVIDER_COUNT=
 echo "[init] Provider IDs collected: $PROVIDER_COUNT"
 
 # ── Resilience 配置 ──────────────────────────────────────────────────
 
-echo "[init] Fetching current Resilience schema (for debug)..."
-
-RESILIENCE_GET_HTTP=$(curl -s -o "$RESILIENCE_GET_FILE" -w "%{http_code}" \
-  -b "$COOKIE_FILE" \
-  "$BASE_URL/api/resilience")
-
-echo "[init] Resilience GET HTTP $RESILIENCE_GET_HTTP"
-
-if [ "$RESILIENCE_GET_HTTP" = "200" ]; then
-  echo "[init] Current resilience schema:"
-  jq '.' "$RESILIENCE_GET_FILE" || cat "$RESILIENCE_GET_FILE" || true
-else
-  echo "[init] WARN: Could not fetch resilience schema"
-fi
+# [debug] 注释掉 Resilience GET（取消注释可查看当前 schema）
+# echo "[init] Fetching current Resilience schema (for debug)..."
+# RESILIENCE_GET_HTTP=$(curl -s -o "$RESILIENCE_GET_FILE" -w "%{http_code}" \
+#   -b "$COOKIE_FILE" \
+#   "$BASE_URL/api/resilience")
+# echo "[init] Resilience GET HTTP $RESILIENCE_GET_HTTP"
+# if [ "$RESILIENCE_GET_HTTP" = "200" ]; then
+#   echo "[init] Current resilience schema:"
+#   jq '.' "$RESILIENCE_GET_FILE" || cat "$RESILIENCE_GET_FILE" || true
+# else
+#   echo "[init] WARN: Could not fetch resilience schema"
+# fi
 
 echo "[init] Applying Resilience config (RPM=$NIM_RPM, interval=$NIM_MIN_INTERVAL_MS ms, concurrent=$NIM_CONCURRENT)..."
 
@@ -276,19 +275,17 @@ fi
 
 # ── 全局路由策略 + requestBodyLimit ──────────────────────────────────
 
-echo "[init] Fetching current Settings schema (for debug)..."
-
-SETTINGS_GET_HTTP=$(curl -s -o "$SETTINGS_GET_FILE" -w "%{http_code}" \
-  -b "$COOKIE_FILE" \
-  "$BASE_URL/api/settings")
-
-echo "[init] Settings GET HTTP $SETTINGS_GET_HTTP"
-
-if [ "$SETTINGS_GET_HTTP" = "200" ]; then
-  echo "[init] Current settings (routing-related):"
-  jq '{fallbackStrategy, stickyRoundRobinLimit, requestBodyLimit}' \
-    "$SETTINGS_GET_FILE" 2>/dev/null || jq '.' "$SETTINGS_GET_FILE" || true
-fi
+# [debug] 注释掉 Settings GET（取消注释可查看当前 settings）
+# echo "[init] Fetching current Settings schema (for debug)..."
+# SETTINGS_GET_HTTP=$(curl -s -o "$SETTINGS_GET_FILE" -w "%{http_code}" \
+#   -b "$COOKIE_FILE" \
+#   "$BASE_URL/api/settings")
+# echo "[init] Settings GET HTTP $SETTINGS_GET_HTTP"
+# if [ "$SETTINGS_GET_HTTP" = "200" ]; then
+#   echo "[init] Current settings (routing-related):"
+#   jq '{fallbackStrategy, stickyRoundRobinLimit, requestBodyLimit}' \
+#     "$SETTINGS_GET_FILE" 2>/dev/null || jq '.' "$SETTINGS_GET_FILE" || true
+# fi
 
 echo "[init] Applying routing strategy + requestBodyLimit..."
 
@@ -349,31 +346,29 @@ if [ "$COMPRESS_CODE" != "200" ] && [ "$COMPRESS_CODE" != "204" ]; then
   cat "$COMPRESS_RESP_FILE" || true
 fi
 
-# ── 批量连接测试 ─────────────────────────────────────────────────────
-
-if [ "$PROVIDER_COUNT" -gt 0 ]; then
-  echo "[init] Running connection tests ($PROVIDER_COUNT providers)..."
-
-  for PID in "${PROVIDER_IDS[@]}"; do
-    if [ -z "$PID" ]; then
-      continue
-    fi
-
-    TEST_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      -b "$COOKIE_FILE" \
-      -X POST "$BASE_URL/api/providers/$PID/test")
-
-    echo "[init] provider $PID test HTTP $TEST_CODE"
-  done
-
-  echo "[init] Connection tests done."
-else
-  echo "[init] WARN: No NVIDIA provider IDs found, skipping connection tests."
-fi
+# ── 连接测试 ─────────────────────────────────────────────────────────
+# [debug] 注释掉连接测试（取消注释可手动验证各 provider 连通性）
+# OmniRoute LocalHealthCheck 会在启动 15s 后自动执行，无需脚本重复触发
+#
+# if [ "$PROVIDER_COUNT" -gt 0 ]; then
+#   echo "[init] Running connection tests ($PROVIDER_COUNT providers)..."
+#   for PID in ""; do
+#     if [ -z "$PID" ]; then
+#       continue
+#     fi
+#     TEST_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+#       -b "$COOKIE_FILE" \
+#       -X POST "$BASE_URL/api/providers/$PID/test")
+#     echo "[init] provider $PID test HTTP $TEST_CODE"
+#   done
+#   echo "[init] Connection tests done."
+# else
+#   echo "[init] WARN: No NVIDIA provider IDs found, skipping connection tests."
+# fi
 
 # ── 重置所有 circuit breakers（同时清除 model lockouts）────────────
 # 源码 reset/route.ts 确认：POST /api/resilience/reset 内部调用了
-# clearAllModelLockouts()，一次请求同时完成两件事，无需单独的 clear-cooldowns 端点
+# clearAllModelLockouts()，一次请求同时完成两件事
 
 echo "[init] Resetting circuit breakers..."
 
@@ -411,7 +406,7 @@ if [ -f "$INIT_MARKER" ]; then
   echo "[init]   Status  : $(echo "$HEALTH_RESP" | jq -r '.status // "unknown"')"
   echo "[init]   Version : $(echo "$HEALTH_RESP" | jq -r '.version // "unknown"')"
   echo "[init] ─────────────────────────────────────────────"
-  echo "[init] Done (incremental mode). v3.1.3"
+  echo "[init] Done (incremental mode). v3.1.4"
   exit 0
 fi
 
@@ -515,4 +510,4 @@ HEALTH_RESP=$(curl -s "$BASE_URL/api/monitoring/health")
 echo "[init]   Status  : $(echo "$HEALTH_RESP" | jq -r '.status // "unknown"')"
 echo "[init]   Version : $(echo "$HEALTH_RESP" | jq -r '.version // "unknown"')"
 echo "[init] ─────────────────────────────────────────────"
-echo "[init] Done (first-init mode). v3.1.3"
+echo "[init] Done (first-init mode). v3.1.4"

@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v3.2.0
+# v3.2.1
 # 修复历史：
 #   v2.2.0  原始版本（基于 OmniRoute v3.5.x 时代的 schema）
 #   v3.0.0  适配 OmniRoute v3.8.0：
@@ -24,6 +24,8 @@ set -eo pipefail
 #            Compression + Thinking Budget 合并为单次 PATCH
 #            移除调试用 GET 段（Resilience GET、Settings GET）
 #            移除批量连接测试段（减少启动耗时）
+#   v3.2.1  修复 Memory 配置字段名：v3.8.6 新增字段 API field 无 memory 前缀
+#            memoryEmbeddingSource → embeddingSource（DB key ≠ API field）
 # ─────────────────────────────────────────────────────────────
 
 # ── 端口配置 ─────────────────────────────────────────────────
@@ -309,16 +311,24 @@ if [ "$COMPRESS_CODE" != "200" ] && [ "$COMPRESS_CODE" != "204" ]; then
   cat "$COMPRESS_RESP_FILE" || true
 fi
 
-# ── Memory 系统配置 ───────────────────────────────────────────
+# ── Memory 系统配置（v3.2.1 修复：API field 名与 DB key 不同）────
 #
-# strategy=hybrid：FTS5 关键词召回 + 向量召回双路并行
+# PUT /api/settings/memory 接受 MemorySettingsExtendedSchema（12 字段）
+#
+# Legacy fields（DB key = API field，直接用）：
+#   memoryEnabled / memoryMaxTokens / memoryRetentionDays / memoryStrategy
+#
+# v3.8.6 新增 fields（DB key 有 memory 前缀，API field 无前缀）：
+#   DB key: memoryEmbeddingSource  → API field: embeddingSource
+#   DB key: memoryStaticEnabled    → API field: staticEnabled
+#   DB key: memoryTransformersEnabled → API field: transformersEnabled
+#   DB key: memoryVectorStore      → API field: vectorStore
+#
 # embeddingSource=static：使用内置 potion-base-8M，无需外部 API Key
-#   冷启动约 200ms，RAM 占用极低，HF Space 免费层完全可用
-# staticEnabled=true：激活 static embedding 源（必须与 embeddingSource 配合）
-# maxTokens=2000：注入上下文的 token 预算，不影响模型 context window
-# retentionDays=30：记忆保留天数，R2 持久化后跨重启有效
-#
-# 此段每次重启都执行（幂等 PUT），确保配置始终正确
+# staticEnabled=true：必须同时设为 true 才能激活 static 源
+# strategy 枚举：recent（内部映射 exact）/ semantic / hybrid
+
+MEMORY_RESP_FILE="/tmp/omniroute-memory-response.json"
 
 echo "[init] Applying Memory config..."
 
@@ -331,7 +341,7 @@ MEMORY_CODE=$(curl -s -o "$MEMORY_RESP_FILE" -w "%{http_code}" \
     "memoryStrategy": "hybrid",
     "memoryMaxTokens": 2000,
     "memoryRetentionDays": 30,
-    "memoryEmbeddingSource": "static",
+    "embeddingSource": "static",
     "staticEnabled": true
   }')
 

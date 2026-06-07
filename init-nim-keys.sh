@@ -330,15 +330,17 @@ fi
 #   冷启动 ~200ms，HF Space 免费层完全可用
 # staticEnabled=true：必须同时设为 true 才能激活 static 源
 
-echo "[init] Applying Memory extended config (embedding source)..."
+echo "[init] Applying Memory extended config (remote embedding via Voyage AI)..."
 
 MEMORY_EXT_CODE=$(curl -s -o "$MEMORY_EXT_RESP_FILE" -w "%{http_code}" \
   -b "$COOKIE_FILE" \
   -X PUT "$BASE_URL/api/settings/memory" \
   -H "Content-Type: application/json" \
   -d '{
-    "embeddingSource": "static",
-    "staticEnabled": true
+    "embeddingSource": "remote",
+    "embeddingProviderModel": "voyage-ai/voyage-3",
+    "staticEnabled": false,
+    "transformersEnabled": false
   }')
 
 echo "[init] Memory extended config HTTP $MEMORY_EXT_CODE"

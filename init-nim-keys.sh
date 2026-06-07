@@ -552,4 +552,4 @@ else
 fi
 
 echo "[init] ─────────────────────────────────────────────"
-echo "[init] Done (first-init mode). v3.2.0"
+echo "[init] Done (first-init mode). v3.2.1"

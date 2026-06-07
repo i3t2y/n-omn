@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v3.1.4
+# v3.1.5
 # 修复历史：
 #   v2.2.0  原始版本
 #   v3.0.0  适配 OmniRoute v3.8.0
@@ -13,7 +13,8 @@ set -eo pipefail
 #   v3.1.2  Thinking Budget 合并进 PATCH /api/settings
 #   v3.1.3  删除 POST /api/resilience/clear-cooldowns（端点不存在）
 #   v3.1.4  注释掉连接测试段、Resilience GET debug、Settings GET debug
-#            （功能保留，暂不执行，减少启动耗时约 10~15s）
+#   v3.1.5  修复参数默认值段覆盖 HF Space Secrets 环境变量的问题
+#            直接赋值改为 :- 条件赋值，已注入的变量不再被清空
 # ─────────────────────────────────────────────────────────────
 
 if [ -z "$OMNIROUTE_PORT" ]; then
@@ -42,7 +43,7 @@ FAILED=0
 
 PROVIDER_IDS=()
 
-echo "[init] Starting NIM OmniRoute initializer v3.1.4..."
+echo "[init] Starting NIM OmniRoute initializer v3.1.5..."
 echo "[init] BASE_URL=$BASE_URL"
 
 # ── 必要环境变量检查 ─────────────────────────────────────────────────
@@ -57,19 +58,20 @@ if [ -z "$NIM_KEYS" ]; then
   exit 1
 fi
 
-# ── 参数默认值 ───────────────────────────────────────────────────────
+# ── 参数默认值（仅在未通过环境变量设置时生效）────────────────────────
+# 使用 :- 条件赋值，已通过 HF Space Secrets 注入的变量不会被覆盖
 
-NIM_RPM=""
-NIM_MIN_INTERVAL_MS=""
-NIM_CONCURRENT=""
-NIM_FALLBACK_STRATEGY=""
-NIM_STICKY_LIMIT=""
-NIM_REQUEST_BODY_LIMIT=""
-NIM_COMPRESS_MODE=""
-NIM_COMPRESS_THRESHOLD=""
-NIM_THINKING_MODE=""
-NIM_THINKING_BUDGET=""
-COMBO_STRATEGY=""
+: ""
+: ""
+: ""
+: ""
+: ""
+: ""
+: ""
+: ""
+: ""
+: ""
+: ""
 
 # ── 等待 OmniRoute 就绪 ──────────────────────────────────────────────
 
@@ -406,7 +408,7 @@ if [ -f "$INIT_MARKER" ]; then
   echo "[init]   Status  : $(echo "$HEALTH_RESP" | jq -r '.status // "unknown"')"
   echo "[init]   Version : $(echo "$HEALTH_RESP" | jq -r '.version // "unknown"')"
   echo "[init] ─────────────────────────────────────────────"
-  echo "[init] Done (incremental mode). v3.1.4"
+  echo "[init] Done (incremental mode). v3.1.5"
   exit 0
 fi
 
@@ -510,4 +512,4 @@ HEALTH_RESP=$(curl -s "$BASE_URL/api/monitoring/health")
 echo "[init]   Status  : $(echo "$HEALTH_RESP" | jq -r '.status // "unknown"')"
 echo "[init]   Version : $(echo "$HEALTH_RESP" | jq -r '.version // "unknown"')"
 echo "[init] ─────────────────────────────────────────────"
-echo "[init] Done (first-init mode). v3.1.4"
+echo "[init] Done (first-init mode). v3.1.5"

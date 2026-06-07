@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v3.1.1
+# v3.1.2
 # 修复历史：
 #   v2.2.0  原始版本（基于 OmniRoute v3.5.x 时代的 schema）
 #   v3.0.0  适配 OmniRoute v3.8.0：
@@ -13,8 +13,7 @@ set -eo pipefail
 #            Fix-4: 移除 POST /api/rate-limits（端点已变更或废弃）
 #            Fix-5: maxWaitMs 改为注释说明，由 GET 获取当前值后决定是否覆盖
 #            Fix-6: 增加版本探测，打印实际运行版本便于调试
-#   v3.0.1  仅删除 Qoder AI 注册段（上游 api.qoder.com 不稳定，Issue #1167/#1283）
-#            其余所有逻辑、字段名、端点路径与 v3.0.0 完全一致
+#   v3.0.1  仅删除 Qoder AI 注册段（上游 api.qoder.com 不稳定）
 #   v3.1.0  全参数环境变量化：
 #            NIM_RPM / NIM_MIN_INTERVAL_MS / NIM_CONCURRENT
 #            NIM_FALLBACK_STRATEGY / NIM_STICKY_LIMIT / NIM_REQUEST_BODY_LIMIT
@@ -23,7 +22,11 @@ set -eo pipefail
 #            COMBO_STRATEGY
 #   v3.1.1  Fix-1: Combo 创建失败时不写入 INIT_MARKER，下次启动自动重试
 #            Fix-2: 移除 Alias 注册段（v3.8.14 已改为 startup seed 管理，
-#                   POST /api/models/alias 返回 405，该段代码无效）
+#                   POST /api/models/alias 返回 405）
+#   v3.1.2  Fix-3: 移除独立的 PUT /api/settings/thinking 端点调用
+#                   （该端点在 v3.8.x 不存在，返回 404 HTML 页面）
+#                   改为将 thinking 字段合并进 PATCH /api/settings，
+#                   与 compression 配置合并为一次请求
 # ─────────────────────────────────────────────────────────────
 
 if [ -z "$OMNIROUTE_PORT" ]; then
@@ -43,7 +46,6 @@ RESILIENCE_RESP_FILE="/tmp/omniroute-resilience-response.json"
 SETTINGS_GET_FILE="/tmp/omniroute-settings-get.json"
 SETTINGS_RESP_FILE="/tmp/omniroute-settings-response.json"
 COMPRESS_RESP_FILE="/tmp/omniroute-compress-response.json"
-THINKING_RESP_FILE="/tmp/omniroute-thinking-response.json"
 COMBO_RESP_FILE="/tmp/omniroute-combo-response.json"
 VERSION_FILE="/tmp/omniroute-version.json"
 
@@ -53,7 +55,7 @@ FAILED=0
 
 PROVIDER_IDS=()
 
-echo "[init] Starting NIM OmniRoute initializer v3.1.1..."
+echo "[init] Starting NIM OmniRoute initializer v3.1.2..."
 echo "[init] BASE_URL=$BASE_URL"
 
 # ── 必要环境变量检查 ─────────────────────────────────────────────────
@@ -68,20 +70,6 @@ if [ -z "$NIM_KEYS" ]; then
   exit 1
 fi
 
-# ── 参数默认值（所有调参变量均可通过环境变量覆盖）──────────────────
-
-NIM_RPM="${NIM_RPM:-60}"
-NIM_MIN_INTERVAL_MS="${NIM_MIN_INTERVAL_MS:-350}"
-NIM_CONCURRENT="${NIM_CONCURRENT:-6}"
-NIM_FALLBACK_STRATEGY="${NIM_FALLBACK_STRATEGY:-round-robin}"
-NIM_STICKY_LIMIT="${NIM_STICKY_LIMIT:-1}"
-NIM_REQUEST_BODY_LIMIT="${NIM_REQUEST_BODY_LIMIT:-10485760}"
-NIM_COMPRESS_MODE="${NIM_COMPRESS_MODE:-stacked}"
-NIM_COMPRESS_THRESHOLD="${NIM_COMPRESS_THRESHOLD:-32000}"
-NIM_THINKING_MODE="${NIM_THINKING_MODE:-adaptive}"
-NIM_THINKING_BUDGET="${NIM_THINKING_BUDGET:-8000}"
-COMBO_STRATEGY="${COMBO_STRATEGY:-round-robin}"
-
 # ── 等待 OmniRoute 就绪 ──────────────────────────────────────────────
 
 echo "[init] Waiting for OmniRoute to start..."
@@ -92,7 +80,7 @@ done
 
 echo "[init] OmniRoute is up."
 
-# ── 版本探测（仅用于日志，不阻断流程）──────────────────────────────
+# ── 版本探测 ─────────────────────────────────────────────────────────
 
 VERSION_HTTP=$(curl -s -o "$VERSION_FILE" -w "%{http_code}" \
   "$BASE_URL/api/monitoring/health" 2>/dev/null || echo "000")
@@ -104,7 +92,7 @@ else
   echo "[init] WARN: Could not fetch version (HTTP $VERSION_HTTP)"
 fi
 
-# ── 登录 Dashboard，获取 auth_token Cookie ──────────────────────────
+# ── 登录 Dashboard ────────────────────────────────────────────────────
 
 echo "[init] Logging in..."
 
@@ -167,7 +155,7 @@ echo "[init] Registering NIM provider keys..."
 INDEX=1
 
 while IFS= read -r RAW_KEY; do
-  KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r' | xargs)
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
 
   if [ -z "$KEY" ]; then
     continue
@@ -326,18 +314,29 @@ if [ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "204" ]; then
   cat "$SETTINGS_RESP_FILE" || true
 fi
 
-# ── 压缩配置 ─────────────────────────────────────────────────────────
+# ── 压缩配置 + Thinking Budget（合并为一次 PATCH）────────────────────
+#
+# v3.1.2 修正：
+#   PUT /api/settings/thinking 在 v3.8.x 不存在（返回 404 HTML）
+#   改为将 thinking 字段合并进 PATCH /api/settings
+#   如果当前版本 schema 不支持 thinking 字段，会被静默忽略，不会导致 400
 
-echo "[init] Applying compression config (mode=$NIM_COMPRESS_MODE, threshold=$NIM_COMPRESS_THRESHOLD)..."
+echo "[init] Applying compression config + thinking budget (mode=$NIM_COMPRESS_MODE, threshold=$NIM_COMPRESS_THRESHOLD, thinking=$NIM_THINKING_MODE/$NIM_THINKING_BUDGET)..."
 
 COMPRESS_BODY=$(jq -n \
   --arg mode "$NIM_COMPRESS_MODE" \
   --argjson threshold "$NIM_COMPRESS_THRESHOLD" \
+  --arg thinkMode "$NIM_THINKING_MODE" \
+  --argjson thinkBudget "$NIM_THINKING_BUDGET" \
   '{
     compression: {
       enabled: true,
       defaultMode: $mode,
       autoTriggerTokens: $threshold
+    },
+    thinking: {
+      mode: $thinkMode,
+      maxTokens: $thinkBudget
     }
   }')
 
@@ -347,36 +346,11 @@ COMPRESS_CODE=$(curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}" \
   -H "Content-Type: application/json" \
   -d "$COMPRESS_BODY")
 
-echo "[init] Compression PATCH HTTP $COMPRESS_CODE"
+echo "[init] Compression + thinking budget PATCH HTTP $COMPRESS_CODE"
 
 if [ "$COMPRESS_CODE" != "200" ] && [ "$COMPRESS_CODE" != "204" ]; then
-  echo "[init] WARN: Compression config may have failed:"
+  echo "[init] WARN: Compression/thinking config may have failed:"
   cat "$COMPRESS_RESP_FILE" || true
-fi
-
-# ── Thinking Budget ───────────────────────────────────────────────────
-
-echo "[init] Setting thinking budget (mode=$NIM_THINKING_MODE, maxTokens=$NIM_THINKING_BUDGET)..."
-
-THINKING_BODY=$(jq -n \
-  --arg mode "$NIM_THINKING_MODE" \
-  --argjson budget "$NIM_THINKING_BUDGET" \
-  '{
-    mode: $mode,
-    maxTokens: $budget
-  }')
-
-THINKING_CODE=$(curl -s -o "$THINKING_RESP_FILE" -w "%{http_code}" \
-  -b "$COOKIE_FILE" \
-  -X PUT "$BASE_URL/api/settings/thinking" \
-  -H "Content-Type: application/json" \
-  -d "$THINKING_BODY")
-
-echo "[init] Thinking budget PUT HTTP $THINKING_CODE"
-
-if [ "$THINKING_CODE" != "200" ] && [ "$THINKING_CODE" != "204" ]; then
-  echo "[init] WARN: Thinking budget config may have failed:"
-  cat "$THINKING_RESP_FILE" || true
 fi
 
 # ── 批量连接测试 ─────────────────────────────────────────────────────
@@ -444,7 +418,7 @@ echo "[init] ──────────────────────�
 
 if [ -f "$INIT_MARKER" ]; then
   echo "[init] Already initialized (marker exists). Skipping model registration and Combo creation."
-  echo "[init] Done (incremental mode). v3.1.1"
+  echo "[init] Done (incremental mode). v3.1.2"
   exit 0
 fi
 
@@ -542,12 +516,12 @@ fi
 
 # ── Final health check ────────────────────────────────────────────────
 
-echo "[init] ─────────────────────────────────────────────"
-echo "[init] Final health check..."
-
 HEALTH_FILE="/tmp/omniroute-health-final.json"
 HEALTH_HTTP=$(curl -s -o "$HEALTH_FILE" -w "%{http_code}" \
   "$BASE_URL/api/monitoring/health")
+
+echo "[init] ─────────────────────────────────────────────"
+echo "[init] Final health check..."
 
 if [ "$HEALTH_HTTP" = "200" ]; then
   HEALTH_STATUS=$(jq -r '.status // "unknown"' "$HEALTH_FILE" 2>/dev/null || echo "unknown")
@@ -559,4 +533,4 @@ else
 fi
 
 echo "[init] ─────────────────────────────────────────────"
-echo "[init] Done (first-init mode). v3.1.1"
+echo "[init] Done (first-init mode). v3.1.2"

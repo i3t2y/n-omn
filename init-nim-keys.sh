@@ -3,30 +3,17 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v3.1.2
+# v3.1.3
 # 修复历史：
-#   v2.2.0  原始版本（基于 OmniRoute v3.5.x 时代的 schema）
-#   v3.0.0  适配 OmniRoute v3.8.0：
-#            Fix-1: 移除 nemotron-3-nano-omni-30b-a3b-reasoning（Downloadable 模型，无 API 端点）
-#            Fix-2: Resilience 改为 GET → 差量 PATCH，不再盲目覆盖全量字段
-#            Fix-3: Compression 改为 GET → 差量 PATCH，避免 v3.7.9 字段结构冲突
-#            Fix-4: 移除 POST /api/rate-limits（端点已变更或废弃）
-#            Fix-5: maxWaitMs 改为注释说明，由 GET 获取当前值后决定是否覆盖
-#            Fix-6: 增加版本探测，打印实际运行版本便于调试
-#   v3.0.1  仅删除 Qoder AI 注册段（上游 api.qoder.com 不稳定）
-#   v3.1.0  全参数环境变量化：
-#            NIM_RPM / NIM_MIN_INTERVAL_MS / NIM_CONCURRENT
-#            NIM_FALLBACK_STRATEGY / NIM_STICKY_LIMIT / NIM_REQUEST_BODY_LIMIT
-#            NIM_COMPRESS_MODE / NIM_COMPRESS_THRESHOLD
-#            NIM_THINKING_MODE / NIM_THINKING_BUDGET
-#            COMBO_STRATEGY
-#   v3.1.1  Fix-1: Combo 创建失败时不写入 INIT_MARKER，下次启动自动重试
-#            Fix-2: 移除 Alias 注册段（v3.8.14 已改为 startup seed 管理，
-#                   POST /api/models/alias 返回 405）
-#   v3.1.2  Fix-3: 移除独立的 PUT /api/settings/thinking 端点调用
-#                   （该端点在 v3.8.x 不存在，返回 404 HTML 页面）
-#                   改为将 thinking 字段合并进 PATCH /api/settings，
-#                   与 compression 配置合并为一次请求
+#   v2.2.0  原始版本
+#   v3.0.0  适配 OmniRoute v3.8.0
+#   v3.0.1  删除 Qoder AI 注册段
+#   v3.1.0  环境变量驱动参数配置
+#   v3.1.1  修复 Combo 失败不写 marker 问题；移除 alias 注册
+#   v3.1.2  Thinking Budget 合并进 PATCH /api/settings
+#   v3.1.3  删除 POST /api/resilience/clear-cooldowns（端点不存在）
+#            该操作已被 POST /api/resilience/reset 一并完成
+#            来源：源码 reset/route.ts 中 clearAllModelLockouts() 已内联
 # ─────────────────────────────────────────────────────────────
 
 if [ -z "$OMNIROUTE_PORT" ]; then
@@ -55,7 +42,7 @@ FAILED=0
 
 PROVIDER_IDS=()
 
-echo "[init] Starting NIM OmniRoute initializer v3.1.2..."
+echo "[init] Starting NIM OmniRoute initializer v3.1.3..."
 echo "[init] BASE_URL=$BASE_URL"
 
 # ── 必要环境变量检查 ─────────────────────────────────────────────────
@@ -69,6 +56,20 @@ if [ -z "$NIM_KEYS" ]; then
   echo "[init] ERROR: NIM_KEYS is required"
   exit 1
 fi
+
+# ── 参数默认值 ───────────────────────────────────────────────────────
+
+NIM_RPM="${NIM_RPM:-120}"
+NIM_MIN_INTERVAL_MS="${NIM_MIN_INTERVAL_MS:-100}"
+NIM_CONCURRENT="${NIM_CONCURRENT:-15}"
+NIM_FALLBACK_STRATEGY="${NIM_FALLBACK_STRATEGY:-round-robin}"
+NIM_STICKY_LIMIT="${NIM_STICKY_LIMIT:-1}"
+NIM_REQUEST_BODY_LIMIT="${NIM_REQUEST_BODY_LIMIT:-10485760}"
+NIM_COMPRESS_MODE="${NIM_COMPRESS_MODE:-stacked}"
+NIM_COMPRESS_THRESHOLD="${NIM_COMPRESS_THRESHOLD:-12000}"
+NIM_THINKING_MODE="${NIM_THINKING_MODE:-adaptive}"
+NIM_THINKING_BUDGET="${NIM_THINKING_BUDGET:-8000}"
+COMBO_STRATEGY="${COMBO_STRATEGY:-round-robin}"
 
 # ── 等待 OmniRoute 就绪 ──────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ else
   echo "[init] WARN: Could not fetch version (HTTP $VERSION_HTTP)"
 fi
 
-# ── 登录 Dashboard ────────────────────────────────────────────────────
+# ── 登录 ─────────────────────────────────────────────────────────────
 
 echo "[init] Logging in..."
 
@@ -155,7 +156,7 @@ echo "[init] Registering NIM provider keys..."
 INDEX=1
 
 while IFS= read -r RAW_KEY; do
-  KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r' | xargs)
 
   if [ -z "$KEY" ]; then
     continue
@@ -199,7 +200,7 @@ done <<< "$NIM_KEYS"
 
 echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed."
 
-# ── 重新读取所有 NVIDIA Provider IDs ─────────────────────────────────
+# ── 读取所有 NVIDIA Provider IDs ─────────────────────────────────────
 
 echo "[init] Fetching NVIDIA provider IDs..."
 
@@ -253,10 +254,10 @@ RESILIENCE_BODY=$(jq -n \
   --argjson interval "$NIM_MIN_INTERVAL_MS" \
   --argjson concurrent "$NIM_CONCURRENT" \
   '{
-    requestQueue: {
-      requestsPerMinute: $rpm,
-      minTimeBetweenRequestsMs: $interval,
-      concurrentRequests: $concurrent
+    "requestQueue": {
+      "requestsPerMinute": $rpm,
+      "minTimeBetweenRequestsMs": $interval,
+      "concurrentRequests": $concurrent
     }
   }')
 
@@ -292,13 +293,13 @@ fi
 echo "[init] Applying routing strategy + requestBodyLimit..."
 
 SETTINGS_BODY=$(jq -n \
-  --arg fallback "$NIM_FALLBACK_STRATEGY" \
+  --arg strategy "$NIM_FALLBACK_STRATEGY" \
   --argjson sticky "$NIM_STICKY_LIMIT" \
-  --argjson bodylimit "$NIM_REQUEST_BODY_LIMIT" \
+  --argjson bodyLimit "$NIM_REQUEST_BODY_LIMIT" \
   '{
-    fallbackStrategy: $fallback,
-    stickyRoundRobinLimit: $sticky,
-    requestBodyLimit: $bodylimit
+    "fallbackStrategy": $strategy,
+    "stickyRoundRobinLimit": $sticky,
+    "requestBodyLimit": $bodyLimit
   }')
 
 SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" \
@@ -314,29 +315,24 @@ if [ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "204" ]; then
   cat "$SETTINGS_RESP_FILE" || true
 fi
 
-# ── 压缩配置 + Thinking Budget（合并为一次 PATCH）────────────────────
-#
-# v3.1.2 修正：
-#   PUT /api/settings/thinking 在 v3.8.x 不存在（返回 404 HTML）
-#   改为将 thinking 字段合并进 PATCH /api/settings
-#   如果当前版本 schema 不支持 thinking 字段，会被静默忽略，不会导致 400
+# ── 压缩配置 + Thinking Budget ───────────────────────────────────────
 
 echo "[init] Applying compression config + thinking budget (mode=$NIM_COMPRESS_MODE, threshold=$NIM_COMPRESS_THRESHOLD, thinking=$NIM_THINKING_MODE/$NIM_THINKING_BUDGET)..."
 
 COMPRESS_BODY=$(jq -n \
   --arg mode "$NIM_COMPRESS_MODE" \
   --argjson threshold "$NIM_COMPRESS_THRESHOLD" \
-  --arg thinkMode "$NIM_THINKING_MODE" \
-  --argjson thinkBudget "$NIM_THINKING_BUDGET" \
+  --arg thinkingMode "$NIM_THINKING_MODE" \
+  --argjson thinkingBudget "$NIM_THINKING_BUDGET" \
   '{
-    compression: {
-      enabled: true,
-      defaultMode: $mode,
-      autoTriggerTokens: $threshold
+    "compression": {
+      "enabled": true,
+      "defaultMode": $mode,
+      "autoTriggerTokens": $threshold
     },
-    thinking: {
-      mode: $thinkMode,
-      maxTokens: $thinkBudget
+    "thinking": {
+      "mode": $thinkingMode,
+      "budgetTokens": $thinkingBudget
     }
   }')
 
@@ -349,7 +345,7 @@ COMPRESS_CODE=$(curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}" \
 echo "[init] Compression + thinking budget PATCH HTTP $COMPRESS_CODE"
 
 if [ "$COMPRESS_CODE" != "200" ] && [ "$COMPRESS_CODE" != "204" ]; then
-  echo "[init] WARN: Compression/thinking config may have failed:"
+  echo "[init] WARN: Compression config may have failed:"
   cat "$COMPRESS_RESP_FILE" || true
 fi
 
@@ -375,7 +371,9 @@ else
   echo "[init] WARN: No NVIDIA provider IDs found, skipping connection tests."
 fi
 
-# ── 重置所有 circuit breaker ─────────────────────────────────────────
+# ── 重置所有 circuit breakers（同时清除 model lockouts）────────────
+# 源码 reset/route.ts 确认：POST /api/resilience/reset 内部调用了
+# clearAllModelLockouts()，一次请求同时完成两件事，无需单独的 clear-cooldowns 端点
 
 echo "[init] Resetting circuit breakers..."
 
@@ -386,18 +384,7 @@ CB_RESET_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
 
 echo "[init] Circuit breaker reset HTTP $CB_RESET_CODE"
 
-# ── 清除模型冷却 ──────────────────────────────────────────────────────
-
-echo "[init] Clearing model cooldowns..."
-
-COOLDOWN_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-  -b "$COOKIE_FILE" \
-  -X POST "$BASE_URL/api/resilience/clear-cooldowns" \
-  -H "Content-Type: application/json")
-
-echo "[init] Model cooldowns clear HTTP $COOLDOWN_CODE"
-
-# ── 打印当前参数配置 ──────────────────────────────────────────────────
+# ── 打印当前参数配置 ─────────────────────────────────────────────────
 
 echo "[init] ─────────────────────────────────────────────"
 echo "[init] 当前参数配置："
@@ -418,7 +405,13 @@ echo "[init] ──────────────────────�
 
 if [ -f "$INIT_MARKER" ]; then
   echo "[init] Already initialized (marker exists). Skipping model registration and Combo creation."
-  echo "[init] Done (incremental mode). v3.1.2"
+  echo "[init] ─────────────────────────────────────────────"
+  echo "[init] Final health check..."
+  HEALTH_RESP=$(curl -s "$BASE_URL/api/monitoring/health")
+  echo "[init]   Status  : $(echo "$HEALTH_RESP" | jq -r '.status // "unknown"')"
+  echo "[init]   Version : $(echo "$HEALTH_RESP" | jq -r '.version // "unknown"')"
+  echo "[init] ─────────────────────────────────────────────"
+  echo "[init] Done (incremental mode). v3.1.3"
   exit 0
 fi
 
@@ -453,7 +446,7 @@ register_model() {
   fi
 }
 
-# ── nim-pool 核心模型 ────────────────────────────────────────────────
+# nim-pool 核心模型
 register_model "minimaxai/minimax-m2.7"
 register_model "moonshotai/kimi-k2-thinking"
 register_model "moonshotai/kimi-k2.6"
@@ -464,23 +457,22 @@ register_model "mistralai/mistral-small-4-119b-2603"
 register_model "mistralai/mistral-medium-3.5-128b"
 register_model "meta/llama-3.2-90b-vision-instruct"
 
-# ── 额外模型目录项（备用，不放入 Combo）────────────────────────────
+# 额外模型目录项（备用，不放入 Combo）
 register_model "deepseek-ai/deepseek-v4-pro"
 register_model "deepseek-ai/deepseek-v4-flash"
 
 echo "[init] Model registration done."
 
 # ── 创建 Combo：nim-pool ─────────────────────────────────────────────
-# v3.1.1: Combo 创建失败时不写入 INIT_MARKER，下次启动自动重试
 
 echo "[init] Creating Combo nim-pool (strategy=$COMBO_STRATEGY)..."
 
 COMBO_BODY=$(jq -n \
   --arg strategy "$COMBO_STRATEGY" \
   '{
-    name: "nim-pool",
-    strategy: $strategy,
-    models: [
+    "name": "nim-pool",
+    "strategy": $strategy,
+    "models": [
       "minimaxai/minimax-m2.7",
       "moonshotai/kimi-k2-thinking",
       "moonshotai/kimi-k2.6",
@@ -503,34 +495,24 @@ echo "[init] Combo nim-pool HTTP $COMBO_CODE"
 
 if [ "$COMBO_CODE" = "200" ] || [ "$COMBO_CODE" = "201" ]; then
   echo "[init] Combo nim-pool created OK"
-  touch "$INIT_MARKER"
-  echo "[init] Marker written: $INIT_MARKER"
-elif grep -q "already exists" "$COMBO_RESP_FILE" 2>/dev/null; then
+elif [ "$COMBO_CODE" = "400" ] && grep -q "already exists" "$COMBO_RESP_FILE" 2>/dev/null; then
   echo "[init] Combo nim-pool already exists, skipped"
-  touch "$INIT_MARKER"
-  echo "[init] Marker written: $INIT_MARKER"
 else
-  echo "[init] WARN: Combo creation failed (HTTP $COMBO_CODE), marker NOT written, will retry on next startup"
+  echo "[init] WARN: Combo creation unexpected response (HTTP $COMBO_CODE):"
   cat "$COMBO_RESP_FILE" || true
+  echo "[init] ERROR: Combo creation failed. Not writing init marker."
+  exit 1
 fi
 
-# ── Final health check ────────────────────────────────────────────────
+touch "$INIT_MARKER"
+echo "[init] Marker written: $INIT_MARKER"
 
-HEALTH_FILE="/tmp/omniroute-health-final.json"
-HEALTH_HTTP=$(curl -s -o "$HEALTH_FILE" -w "%{http_code}" \
-  "$BASE_URL/api/monitoring/health")
+# ── Final health check ───────────────────────────────────────────────
 
 echo "[init] ─────────────────────────────────────────────"
 echo "[init] Final health check..."
-
-if [ "$HEALTH_HTTP" = "200" ]; then
-  HEALTH_STATUS=$(jq -r '.status // "unknown"' "$HEALTH_FILE" 2>/dev/null || echo "unknown")
-  HEALTH_VERSION=$(jq -r '.version // "unknown"' "$HEALTH_FILE" 2>/dev/null || echo "unknown")
-  echo "[init]   Status  : $HEALTH_STATUS"
-  echo "[init]   Version : $HEALTH_VERSION"
-else
-  echo "[init]   Health check failed (HTTP $HEALTH_HTTP)"
-fi
-
+HEALTH_RESP=$(curl -s "$BASE_URL/api/monitoring/health")
+echo "[init]   Status  : $(echo "$HEALTH_RESP" | jq -r '.status // "unknown"')"
+echo "[init]   Version : $(echo "$HEALTH_RESP" | jq -r '.version // "unknown"')"
 echo "[init] ─────────────────────────────────────────────"
-echo "[init] Done (first-init mode). v3.1.2"
+echo "[init] Done (first-init mode). v3.1.3"

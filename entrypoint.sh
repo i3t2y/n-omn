@@ -26,6 +26,20 @@ echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT"
 echo "[entrypoint] EXPOSED_PORT=$EXPOSED_PORT"
 echo "[entrypoint] DATA_DIR=$DATA_DIR"
 
+# ── 新增：Litestream restore（在 OmniRoute 启动前恢复数据库）──
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] R2 credentials found. Attempting Litestream restore..."
+  litestream restore \
+    -config /litestream.yml \
+    -if-replica-exists \
+    "$DATA_DIR/storage.sqlite" && \
+    echo "[entrypoint] Litestream restore complete." || \
+    echo "[entrypoint] WARN: Litestream restore failed or no replica found. Continuing."
+else
+  echo "[entrypoint] WARN: R2 credentials not set. Skipping Litestream restore."
+fi
+# ──────────────────────────────────────────────────────────────
+
 PORT="$OMNIROUTE_PORT" \
 DATA_DIR="$DATA_DIR" \
 REQUIRE_API_KEY=true \
@@ -89,6 +103,17 @@ if [ ! -f "/data/.or-api-key" ] || [ ! -s "/data/.or-api-key" ]; then
   echo "[entrypoint] FATAL: OR_API_KEY not created within timeout"
   exit 1
 fi
+
+# ── 新增：Litestream replicate（后台旁路，持续复制 WAL 到 R2）──
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] Starting Litestream replication in background..."
+  litestream replicate -config /litestream.yml &
+  LS_PID=$!
+  echo "[entrypoint] Litestream PID=$LS_PID"
+else
+  echo "[entrypoint] WARN: Litestream replication disabled (no R2 credentials)."
+fi
+# ──────────────────────────────────────────────────────────────
 
 echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
 exec node /gate/gate.js

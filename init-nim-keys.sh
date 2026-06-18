@@ -43,11 +43,11 @@ REGISTERED=0
 SKIPPED=0
 FAILED=0
 
-# ── 硬编码参数（不再依赖 HF Space Secrets）───────────────────
-# 如需调整，直接修改此处，无需改 Secrets
-_RPM="${NIM_RPM:-120}"
-_CONCURRENT="${NIM_CONCURRENT:-15}"
-_MIN_INTERVAL_MS=100
+# ── 动态参数（优先从环境变量读取，若未设置则使用默认值） ───────────────────
+# 在 HF Space 的 Settings > Variables and Secrets 中添加同名变量即可
+_RPM=${NIM_RPM:-60}
+_CONCURRENT=${NIM_CONCURRENT:-5}
+_MIN_INTERVAL_MS=${NIM_MIN_INTERVAL_MS:-500}
 _FALLBACK_STRATEGY="round-robin"
 _STICKY_LIMIT=1
 _REQUEST_BODY_LIMIT=10485760

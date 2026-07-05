@@ -79,14 +79,20 @@ if [ -z "$NIM_KEYS" ]; then
   exit 1
 fi
 
-# ── 等待 OmniRoute 就绪 ───────────────────────────────────────
+# ── 等待 OmniRoute 就绪（含超时上限，防止死循环）──────────────
 echo "[init] Waiting for OmniRoute to start..."
 
+HWAIT=0
 until curl -sf "$BASE_URL/api/monitoring/health" > /dev/null 2>&1; do
   sleep 3
+  HWAIT=$((HWAIT + 3))
+  if [ "$HWAIT" -ge 180 ]; then
+    echo "[init] FATAL: OmniRoute not ready within 180s during init"
+    exit 1
+  fi
 done
 
-echo "[init] OmniRoute is up."
+echo "[init] OmniRoute is up (after ${HWAIT}s)."
 
 # ── 版本探测 ──────────────────────────────────────────────────
 VERSION_HTTP=$(curl -s -o "$VERSION_FILE" -w "%{http_code}" \
@@ -102,11 +108,13 @@ fi
 # ── 登录，获取 auth_token Cookie ─────────────────────────────
 echo "[init] Logging in..."
 
+LOGIN_BODY=$(jq -n --arg password "$INITIAL_PASSWORD" '{password: $password}')
+
 LOGIN_HTTP=$(curl -s -o "$LOGIN_RESP_FILE" -w "%{http_code}" \
   -c "$COOKIE_FILE" \
   -X POST "$BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"password\":\"$INITIAL_PASSWORD\"}")
+  -d "$LOGIN_BODY")
 
 if [ "$LOGIN_HTTP" != "200" ] && [ "$LOGIN_HTTP" != "201" ]; then
   echo "[init] ERROR: Login failed, HTTP $LOGIN_HTTP"
@@ -141,7 +149,7 @@ else
 
     if [ -z "$OR_API_KEY_VALUE" ] || [ "$OR_API_KEY_VALUE" = "null" ]; then
       echo "[init] ERROR: Created key but could not parse key field from response."
-      cat "$KEY_RESP_FILE" || true
+      jq 'del(.key, .secret)' "$KEY_RESP_FILE" 2>/dev/null || echo "(response not parseable or empty)"
       exit 1
     fi
 
@@ -150,7 +158,7 @@ else
     echo "[init] OR_API_KEY written to $OR_API_KEY_FILE"
   else
     echo "[init] ERROR: /api/keys returned HTTP $KEY_HTTP"
-    cat "$KEY_RESP_FILE" || true
+    jq 'del(.key, .secret)' "$KEY_RESP_FILE" 2>/dev/null || echo "(response not parseable or empty)"
     exit 1
   fi
 fi
@@ -161,7 +169,7 @@ echo "[init] Registering NIM provider keys..."
 INDEX=1
 
 while IFS= read -r RAW_KEY; do
-  KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r' | xargs)
 
   if [ -z "$KEY" ]; then
     continue

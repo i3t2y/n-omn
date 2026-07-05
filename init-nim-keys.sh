@@ -130,14 +130,25 @@ fi
 
 echo "[init] Logged in, token acquired."
 
+# resolve_or_key：OR_KEY 统一解析——env 优先、回退文件、首尾 trim。
+# env 设置（含纯空白）时 ${:-} 短路不触发 cat，避免文件缺失报错。
+resolve_or_key() {
+  printf '%s' "${OMNIROUTE_API_KEY:-$(cat "$OR_API_KEY_FILE" 2>/dev/null)}" \
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
 # ── 创建或复用 OmniRoute 内部 API Key ────────────────────────
 if [ -n "$OMNIROUTE_API_KEY" ]; then
   OR_KEY="$(printf '%s' "$OMNIROUTE_API_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-  echo "$OR_KEY" > "$OR_API_KEY_FILE"
-  chmod 600 "$OR_API_KEY_FILE"
+  if [ -z "$OR_KEY" ]; then
+    echo "[init] FATAL: OMNIROUTE_API_KEY env 为纯空白，无效配置。" >&2
+    exit 1
+  fi
+  echo "$OR_KEY" > "$OR_API_KEY_FILE" 2>/dev/null || echo "[init] WARN: 镜像写入 $OR_API_KEY_FILE 失败（非阻塞，env 已设）。"
+  chmod 600 "$OR_API_KEY_FILE" 2>/dev/null || true
   echo "[init] OMNIROUTE_API_KEY env set, env-bypass 模式，跳过 /api/keys 创建。"
 elif [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
-  OR_KEY=$(cat "$OR_API_KEY_FILE")
+  OR_KEY="$(cat "$OR_API_KEY_FILE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   echo "[init] OR_API_KEY file already exists, skipping creation."
 else
   echo "[init] Creating OmniRoute API Key via /api/keys..."
@@ -417,7 +428,7 @@ if [ -f "$_DB_PATH" ]; then
 
       # export-json 排除遥测历史（Issue #2125 workaround）
       # 当上游修复后，改为 ?includeHistory=false
-      OR_KEY="$(printf '%s' "${OMNIROUTE_API_KEY:-$(cat "$OR_API_KEY_FILE")}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      OR_KEY="$(resolve_or_key)"
       curl -sf "$BASE_URL/api/settings/export-json" \
         -H "Authorization: Bearer $OR_KEY" \
         | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets)' \
@@ -575,7 +586,7 @@ if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_REPO" ]; then
 
   # export-json 排除遥测历史（Issue #2125 workaround）
   # 当上游修复后，改为 ?includeHistory=false
-  OR_KEY="$(printf '%s' "${OMNIROUTE_API_KEY:-$(cat "$OR_API_KEY_FILE")}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  OR_KEY="$(resolve_or_key)"
   curl -sf "$BASE_URL/api/settings/export-json" \
     -H "Authorization: Bearer $OR_KEY" \
     | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets)' \

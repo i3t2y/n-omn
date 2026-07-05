@@ -45,7 +45,7 @@ FAILED=0
 
 # ── 动态参数（优先从环境变量读取，若未设置则使用默认值） ───────────────────
 # 在 HF Space 的 Settings > Variables and Secrets 中添加同名变量即可
-_RPM=${NIM_RPM:-60}
+_RPM=${NIM_RPM:-40}
 _CONCURRENT=${NIM_CONCURRENT:-5}
 _MIN_INTERVAL_MS=${NIM_MIN_INTERVAL_MS:-500}
 _COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-8000}
@@ -56,6 +56,15 @@ _COMPRESS_MODE="stacked"
 _COMPRESS_THRESHOLD=12000
 _THINKING_MODE="adaptive"
 _THINKING_BUDGET=8000
+
+# ── SQLite 路径（真实 OmniRoute 库，与引擎一致）─────────────────────────────
+_DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
+
+# sql_escape：转义字符串用于 SQLite 单引号字面量（' → ''）
+# 用法：sqlite3 "$_DB_PATH" "SELECT ... WHERE name='$(sql_escape "$VAL")'"
+sql_escape() {
+  printf '%s' "$1" | sed "s/'/''/g"
+}
 
 echo "[init] Starting NIM OmniRoute initializer v3.2.2..."
 echo "[init] BASE_URL=$BASE_URL"
@@ -120,11 +129,13 @@ if [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
 else
   echo "[init] Creating OmniRoute API Key via /api/keys..."
 
+  KEY_BODY=$(jq -n --arg name "gate-internal" '{name: $name, expiresAt: null}')
+
   KEY_HTTP=$(curl -s -o "$KEY_RESP_FILE" -w "%{http_code}" \
     -b "$COOKIE_FILE" \
     -X POST "$BASE_URL/api/keys" \
     -H "Content-Type: application/json" \
-    -d '{"name":"gate-internal","expiresAt":null}')
+    -d "$KEY_BODY")
 
   if [ "$KEY_HTTP" = "200" ] || [ "$KEY_HTTP" = "201" ]; then
     OR_API_KEY_VALUE=$(jq -r '.key // empty' "$KEY_RESP_FILE")
@@ -376,11 +387,18 @@ echo "[init]   NIM_THINKING_MODE      = $_THINKING_MODE"
 echo "[init]   NIM_THINKING_BUDGET    = $_THINKING_BUDGET tokens"
 echo "[init] ─────────────────────────────────────────────"
 
-# ── 首次初始化检查 ────────────────────────────────────────────
-if [ -f "$INIT_MARKER" ]; then
-  echo "[init] Already initialized (marker exists). Skipping model registration and Combo creation."
-  echo "[init] Done (incremental mode). v3.2.2"
-  exit 0
+# ── 首次初始化检查（SQLite 感知，替代文件标记）─────────────────────────────
+# HF Space 重建后容器内文件标记消失，故改为查询 combos 表判断是否已初始化
+if [ -f "$_DB_PATH" ]; then
+  COMBO_COUNT=$(sqlite3 "$_DB_PATH" \
+    "SELECT COUNT(*) FROM combos WHERE name='$(sql_escape "nim-pool")';" 2>/dev/null || echo 0)
+  if [ "${COMBO_COUNT:-0}" -gt 0 ]; then
+    echo "[init] Already initialized (nim-pool found in DB), skip first-time setup."
+    echo "[init] Done (incremental mode). v3.2.2"
+    exit 0
+  fi
+else
+  echo "[init] DB not present yet (first deploy or pre-engine). Proceeding with first-time init."
 fi
 
 # ── 模型目录注册 ──────────────────────────────────────────────

@@ -131,7 +131,13 @@ fi
 echo "[init] Logged in, token acquired."
 
 # ── 创建或复用 OmniRoute 内部 API Key ────────────────────────
-if [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  OR_KEY="$(printf '%s' "$OMNIROUTE_API_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  echo "$OR_KEY" > "$OR_API_KEY_FILE"
+  chmod 600 "$OR_API_KEY_FILE"
+  echo "[init] OMNIROUTE_API_KEY env set, env-bypass 模式，跳过 /api/keys 创建。"
+elif [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
+  OR_KEY=$(cat "$OR_API_KEY_FILE")
   echo "[init] OR_API_KEY file already exists, skipping creation."
 else
   echo "[init] Creating OmniRoute API Key via /api/keys..."
@@ -155,6 +161,7 @@ else
 
     echo "$OR_API_KEY_VALUE" > "$OR_API_KEY_FILE"
     chmod 600 "$OR_API_KEY_FILE"
+    OR_KEY="$OR_API_KEY_VALUE"
     echo "[init] OR_API_KEY written to $OR_API_KEY_FILE"
   else
     echo "[init] ERROR: /api/keys returned HTTP $KEY_HTTP"
@@ -410,7 +417,7 @@ if [ -f "$_DB_PATH" ]; then
 
       # export-json 排除遥测历史（Issue #2125 workaround）
       # 当上游修复后，改为 ?includeHistory=false
-      OR_KEY=$(cat "$OR_API_KEY_FILE")
+      OR_KEY="$(printf '%s' "${OMNIROUTE_API_KEY:-$(cat "$OR_API_KEY_FILE")}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
       curl -sf "$BASE_URL/api/settings/export-json" \
         -H "Authorization: Bearer $OR_KEY" \
         | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets)' \
@@ -568,7 +575,7 @@ if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_REPO" ]; then
 
   # export-json 排除遥测历史（Issue #2125 workaround）
   # 当上游修复后，改为 ?includeHistory=false
-  OR_KEY=$(cat "$OR_API_KEY_FILE")
+  OR_KEY="$(printf '%s' "${OMNIROUTE_API_KEY:-$(cat "$OR_API_KEY_FILE")}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   curl -sf "$BASE_URL/api/settings/export-json" \
     -H "Authorization: Bearer $OR_KEY" \
     | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets)' \

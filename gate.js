@@ -20,7 +20,8 @@ if (!OR_API_KEY) {
   try {
     OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim();
   } catch (e) {
-    // 文件不存在，保持空，下文 fatal
+    if (e.code !== 'ENOENT') console.error('[gate] WARN: read /data/.or-api-key failed:', e.message);
+    // 读取失败（含 ENOENT），留空走下文 fatal
   }
 }
 if (!OR_API_KEY) {

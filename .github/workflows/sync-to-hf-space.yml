@@ -26,14 +26,14 @@ jobs:
       - name: Prepare Hugging Face Space files
         run: |
           mkdir -p /tmp/hf-space-sync
-          rsync -av --delete \
-            --exclude='.github' \
-            --exclude='cf-worker' \
-            --exclude='docs' \
-            --exclude='.git' \
-            --exclude='audit-report.md' \
-            --exclude='*.txt' \
-            ./ /tmp/hf-space-sync/
+          # 白名单同步：仅复制 HF Space 部署所需文件，避免黑名单遗漏泄漏
+          for f in Dockerfile entrypoint.sh init-nim-keys.sh litestream.yml \
+                   gate.js package.json README.md; do
+            cp "$f" /tmp/hf-space-sync/
+          done
+          # 审计：列出将同步到 HF 的文件清单
+          echo "---- files to sync to HF Space ----"
+          ls -la /tmp/hf-space-sync/
 
       - name: Push to Hugging Face Space
         env:

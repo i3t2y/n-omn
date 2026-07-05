@@ -10,3 +10,5 @@ dbs:
         region: auto
         sync-interval: 10s
         snapshot-interval: 1h
+        # auto-recover：遇 LTX 错误自动重置本地追踪状态（HF Space 免费层 OOM Kill 后自愈）
+        auto-recover: true

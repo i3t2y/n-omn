@@ -50,9 +50,9 @@ assert.strictEqual(pickKey({ OMNIROUTE_API_KEY: '   ' }, () => 'filesecret\n'), 
 // case B: env 缺、文件存在 → 用文件
 assert.strictEqual(pickKey({}, () => 'filesecret\n'), 'filesecret');
 
-// case C: env 缺、文件不存在 → undefined（fatal 前提）
+// case C: env 缺、文件不存在 → ''（实现初始值 ''，catch 留空保持 ''；与 undefined 对 fatal 判定 !val 等价）
 const readThrow = () => { const e = new Error('ENOENT'); e.code='ENOENT'; throw e; };
-assert.strictEqual(pickKey({}, readThrow), undefined);
+assert.strictEqual(pickKey({}, readThrow), '');
 
 console.log('OK gate key-source logic');
 ```

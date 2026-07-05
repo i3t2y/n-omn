@@ -1,0 +1,42 @@
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cf-worker/**'
+      - '.github/workflows/deploy-cf-worker.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-cf-worker:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Show cf-worker files
+        run: |
+          pwd
+          ls -la
+          echo "---- cf-worker ----"
+          ls -la cf-worker
+          echo "---- wrangler.toml ----"
+          cat cf-worker/wrangler.toml
+
+      - name: Install Wrangler
+        run: |
+          npm install -g wrangler@4
+          wrangler --version
+
+      - name: Deploy Worker from cf-worker directory
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd cf-worker
+          wrangler deploy

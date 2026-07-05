@@ -1,0 +1,4 @@
+name = "omn"
+main = "index.js"
+compatibility_date = "2026-04-26"
+workers_dev = true

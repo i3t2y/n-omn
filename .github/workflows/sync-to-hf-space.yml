@@ -1,0 +1,40 @@
+name: Sync hf-space to Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'hf-space/**'
+      - '.github/workflows/sync-to-hf-space.yml'
+  workflow_dispatch:
+
+jobs:
+  sync-to-hf-space:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Prepare Hugging Face Space files
+        run: |
+          mkdir -p /tmp/hf-space-sync
+          rsync -av --delete hf-space/ /tmp/hf-space-sync/
+
+      - name: Push hf-space contents to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd /tmp/hf-space-sync
+
+          git init
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add .
+          git commit -m "sync: update Hugging Face Space from GitHub" || echo "No changes to commit"
+
+          git branch -M main
+          git remote add hf https://oauth2:${HF_TOKEN}@huggingface.co/spaces/3t2y/a
+          git push --force hf main

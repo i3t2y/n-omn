@@ -493,6 +493,47 @@ else
   cat "$CODEX_COMBO_RESP_FILE" || true
 fi
 
+# ── 可读配置快照 → HF Dataset ────────────────────────────────
+# 仅导出冷备，恢复链路仍走 stage2 的 R2 restore（本轮不接 HF Dataset 恢复）
+# 仅在 HF_TOKEN 和 HF_DATASET_REPO 已设置时执行
+if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_REPO" ]; then
+  echo "[init] Exporting readable config snapshot to HF Dataset..."
+  BACKUP_DIR="/tmp/omni-snapshot"
+  mkdir -p "$BACKUP_DIR"
+
+  # export-json 排除遥测历史（Issue #2125 workaround）
+  # 当上游修复后，改为 ?includeHistory=false
+  OR_KEY=$(cat "$OR_API_KEY_FILE")
+  curl -sf "$BASE_URL/api/settings/export-json" \
+    -H "Authorization: Bearer $OR_KEY" \
+    | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets)' \
+    > "$BACKUP_DIR/omni_config.json"
+
+  # 拆分成可读子文件（方便直接编辑）
+  jq '.keys'      "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/keys.json"
+  jq '.providers' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providers.json"
+  jq '.settings'  "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
+  jq '.combos'    "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
+
+  # 上传到 HF Dataset
+  python3 - <<'PYEOF'
+import os, json
+from pathlib import Path
+from datetime import datetime
+from huggingface_hub import HfApi
+
+api = HfApi(token=os.environ["HF_TOKEN"])
+api.upload_folder(
+    folder_path="/tmp/omni-snapshot",
+    path_in_repo="omni_data",
+    repo_id=os.environ["HF_DATASET_REPO"],
+    repo_type="dataset",
+    commit_message=f"Sync omni_data - {datetime.utcnow().isoformat()}",
+)
+print("[init] HF Dataset snapshot uploaded.")
+PYEOF
+fi
+
 # ── 完成 ──────────────────────────────────────────────────────
 touch "$INIT_MARKER"
 echo "[init] Marker written: $INIT_MARKER"

@@ -51,6 +51,7 @@ CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
 PROXY_LOGS_TABLE_MAX_ROWS="$PROXY_LOGS_TABLE_MAX_ROWS" \
 JWT_SECRET="$JWT_SECRET" \
 API_KEY_SECRET="$API_KEY_SECRET" \
+OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
 INITIAL_PASSWORD="$INITIAL_PASSWORD" \
 node /app/server.js &
 
@@ -82,26 +83,30 @@ fi
 echo "[entrypoint] running NIM key init script in background..."
 bash /entrypoint-init-nim.sh &
 
-echo "[entrypoint] waiting for OR_API_KEY to be written (max 120s)..."
-j=0
-while [ "$j" -lt 120 ]; do
-  if [ -f "/data/.or-api-key" ] && [ -s "/data/.or-api-key" ]; then
-    echo "[entrypoint] OR_API_KEY ready"
-    break
-  fi
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  echo "[entrypoint] OMNIROUTE_API_KEY env set, env-bypass 模式，跳过等待 .or-api-key。"
+else
+  echo "[entrypoint] waiting for OR_API_KEY to be written (max 120s)..."
+  j=0
+  while [ "$j" -lt 120 ]; do
+    if [ -f "/data/.or-api-key" ] && [ -s "/data/.or-api-key" ]; then
+      echo "[entrypoint] OR_API_KEY ready"
+      break
+    fi
 
-  if ! kill -0 "$OR_PID" 2>/dev/null; then
-    echo "[entrypoint] FATAL: OmniRoute exited while waiting for OR_API_KEY"
+    if ! kill -0 "$OR_PID" 2>/dev/null; then
+      echo "[entrypoint] FATAL: OmniRoute exited while waiting for OR_API_KEY"
+      exit 1
+    fi
+
+    sleep 2
+    j=$((j + 2))
+  done
+
+  if [ ! -f "/data/.or-api-key" ] || [ ! -s "/data/.or-api-key" ]; then
+    echo "[entrypoint] FATAL: OR_API_KEY not created within timeout"
     exit 1
   fi
-
-  sleep 2
-  j=$((j + 2))
-done
-
-if [ ! -f "/data/.or-api-key" ] || [ ! -s "/data/.or-api-key" ]; then
-  echo "[entrypoint] FATAL: OR_API_KEY not created within timeout"
-  exit 1
 fi
 
 # ── 新增：Litestream replicate（后台旁路，持续复制 WAL 到 R2）──

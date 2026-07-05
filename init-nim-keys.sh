@@ -426,19 +426,24 @@ if [ -f "$_DB_PATH" ]; then
       BACKUP_DIR="/tmp/omni-snapshot"
       mkdir -p "$BACKUP_DIR"
 
-      # export-json 排除遥测历史（Issue #2125 workaround）
-      # 当上游修复后，改为 ?includeHistory=false
+      # export-json 上游 v3.8+：默认已排 telemetry（#2125，opt-in ?includeHistory=true）
+      # 这里仍显式 del 兼容旧版。字段名已重构：keys→apiKeys、providers→providerConnections+providerNodes
+      # 安全：apiKeys[].key 与 providerConnections[].credentials 含明文（上游 getProviderConnections 解密返明文），
+      # dataset 即便 private 也不可存明文凭证 → 导出阶段即 del，保留元数据（name/scopes/key_hash/provider/id）
       OR_KEY="$(resolve_or_key)"
       curl -sf "$BASE_URL/api/settings/export-json" \
         -H "Authorization: Bearer $OR_KEY" \
-        | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets)' \
+        | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets) |
+              (if (.apiKeys|type)=="array" then .apiKeys |= map(del(.key)) else . end) |
+              (if (.providerConnections|type)=="array" then .providerConnections |= map(del(.credentials)) else . end)' \
         > "$BACKUP_DIR/omni_config.json"
 
-      # 拆分成可读子文件（方便直接编辑）
-      jq '.keys'      "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/keys.json"
-      jq '.providers' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providers.json"
-      jq '.settings'  "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
-      jq '.combos'    "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
+      # 拆分成可读子文件（字段名对齐上游 v3.8+）
+      jq '.apiKeys'             "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/keys.json"
+      jq '.providerConnections' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providerConnections.json"
+      jq '.providerNodes'       "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providerNodes.json"
+      jq '.settings'            "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
+      jq '.combos'              "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
 
       # 上传到 HF Dataset
       python3 - <<'PYEOF'
@@ -584,19 +589,24 @@ if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_REPO" ]; then
   BACKUP_DIR="/tmp/omni-snapshot"
   mkdir -p "$BACKUP_DIR"
 
-  # export-json 排除遥测历史（Issue #2125 workaround）
-  # 当上游修复后，改为 ?includeHistory=false
+  # export-json 上游 v3.8+：默认已排 telemetry（#2125，opt-in ?includeHistory=true）
+  # 这里仍显式 del 兼容旧版。字段名已重构：keys→apiKeys、providers→providerConnections+providerNodes
+  # 安全：apiKeys[].key 与 providerConnections[].credentials 含明文（上游 getProviderConnections 解密返明文），
+  # dataset 即便 private 也不可存明文凭证 → 导出阶段即 del，保留元数据（name/scopes/key_hash/provider/id）
   OR_KEY="$(resolve_or_key)"
   curl -sf "$BASE_URL/api/settings/export-json" \
     -H "Authorization: Bearer $OR_KEY" \
-    | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets)' \
+    | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets) |
+          (if (.apiKeys|type)=="array" then .apiKeys |= map(del(.key)) else . end) |
+          (if (.providerConnections|type)=="array" then .providerConnections |= map(del(.credentials)) else . end)' \
     > "$BACKUP_DIR/omni_config.json"
 
-  # 拆分成可读子文件（方便直接编辑）
-  jq '.keys'      "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/keys.json"
-  jq '.providers' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providers.json"
-  jq '.settings'  "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
-  jq '.combos'    "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
+  # 拆分成可读子文件（字段名对齐上游 v3.8+）
+  jq '.apiKeys'             "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/keys.json"
+  jq '.providerConnections' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providerConnections.json"
+  jq '.providerNodes'       "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providerNodes.json"
+  jq '.settings'            "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
+  jq '.combos'              "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
 
   # 上传到 HF Dataset
   python3 - <<'PYEOF'

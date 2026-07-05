@@ -81,6 +81,8 @@ if [ "$i" -ge 180 ]; then
 fi
 
 echo "[entrypoint] running NIM key init script in background..."
+# init 内部 env 守卫（见 init-nim-keys.sh）：env 模式跳过 /api/keys 创建，
+# 仍写 .or-api-key 镜像作诊断/兼容；gate env 优先，不读该文件。
 bash /entrypoint-init-nim.sh &
 
 if [ -n "$OMNIROUTE_API_KEY" ]; then

@@ -82,7 +82,7 @@
 
 #### 3.3.3 `init-nim-keys.sh`
 
-- "创建或复用 OmniRoute 内部 API Key"段（当前第 133-164 行）开头加守卫，**env 分支显式赋 `OR_KEY`**（供后续步骤使用，而非仅靠镜像文件 + 后段 `cat` 间接取值）：
+- "创建或复用 OmniRoute 内部 API Key"段（当前第 133-164 行）开头加守卫，**env 分支显式赋 `OR_KEY`**（供后续步骤使用，而非仅靠镜像文件 + 后段 `cat` 间接取值）。实现于 plan 时进一步演进：env/文件分支 `OR_KEY` 均走首尾 `trim`（与 gate.js `.trim()` 对称），env 纯空白 trim 后空即 `fatal`（对齐 gate.js 双缺 fatal），export-json 两处解析逻辑抽 `resolve_or_key` 函数统一口径（DRY）。代码原型如下（语义骨架）：
   ```sh
   if [ -n "$OMNIROUTE_API_KEY" ]; then
     OR_KEY="$OMNIROUTE_API_KEY"                      # 关键：供后续 export-json 等使用

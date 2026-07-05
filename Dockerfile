@@ -21,10 +21,11 @@ RUN pip3 install --no-cache-dir --break-system-packages huggingface_hub
 
 # ── 新增：安装 Litestream ──────────────────────────────────
 # 使用 v0.5.9（非 v0.3.13）：修复 R2 InvalidContentEncoding 编码 bug + 支持 auto-recover
+# v0.5.x asset 命名规则：litestream-{VER}-linux-{ARCH}.tar.gz（无 v 前缀，x86_64 非 amd64）
 ARG LITESTREAM_VERSION=0.5.9
-RUN ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/') && \
     curl -fsSL \
-      "https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-v${LITESTREAM_VERSION}-linux-${ARCH}.tar.gz" \
+      "https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-${LITESTREAM_VERSION}-linux-${ARCH}.tar.gz" \
     | tar -xz -C /usr/local/bin litestream && \
     chmod +x /usr/local/bin/litestream && \
     litestream version

@@ -411,7 +411,7 @@ register_model() {
 register_model "minimaxai/minimax-m2.7"
 register_model "moonshotai/kimi-k2-thinking"
 register_model "moonshotai/kimi-k2.6"
-register_model "z-ai/glm-5.1"
+register_model "z-ai/glm-5.2"
 register_model "nvidia/nemotron-3-super-120b-a12b"
 register_model "qwen/qwen3-coder-480b-a35b-instruct"
 register_model "mistralai/mistral-small-4-119b-2603"
@@ -438,7 +438,7 @@ COMBO_CODE=$(curl -s -o "$COMBO_RESP_FILE" -w "%{http_code}" \
       "minimaxai/minimax-m2.7",
       "moonshotai/kimi-k2-thinking",
       "moonshotai/kimi-k2.6",
-      "z-ai/glm-5.1",
+      "z-ai/glm-5.2",
       "nvidia/nemotron-3-super-120b-a12b",
       "qwen/qwen3-coder-480b-a35b-instruct",
       "mistralai/mistral-small-4-119b-2603",

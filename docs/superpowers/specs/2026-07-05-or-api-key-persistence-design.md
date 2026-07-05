@@ -60,17 +60,18 @@
 - `OR_API_KEY` 来源优先 `process.env.OMNIROUTE_API_KEY`，回退读 `/data/.or-api-key`。
 - 防御性读取（`fs.readFileSync` 文件不存在抛 ENOENT 而非 falsy，需 try/catch，否则 env 与文件皆缺时未捕获异常崩溃而非走显式 fatal）：
   ```js
-  let OR_API_KEY = process.env.OMNIROUTE_API_KEY;
+  let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
   if (!OR_API_KEY) {
     try {
       OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim();
-    } catch (e) { /* 文件不存在，保持 undefined */ }
+    } catch (e) { /* 文件不存在，保持空 */ }
   }
   if (!OR_API_KEY) {
     console.error('[gate] FATAL: No OR_API_KEY (neither OMNIROUTE_API_KEY env nor /data/.or-api-key file)');
     process.exit(1);
   }
   ```
+  env 分支补 `.trim()` 与文件分支对称防御：env-bypass 是严格字符串相等比对，若 HF Secret 注入意外携带首尾空白会致比对失配 401；同理 `Authorization: Bearer <值>` 含空白会偏差。`trim` 对正常 Secret 无影响，零成本容错。
 - 启动校验改为：env 存在 **或** 文件存在二者居其一即可；二者皆无才 fatal（对齐现有 `INTERNAL_PSK` 缺失即 fatal 风格）。
 - **PSK 间接层保留不变**：本方案仅改 `OR_API_KEY` 获取方式（gate→OmniRoute 内层鉴权），`INTERNAL_PSK` 校验 + 请求头替换（客户端→gate 外层鉴权）原样保留。两层职责：
 

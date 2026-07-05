@@ -10,9 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     jq \
     python3 \
+    python3-pip \
     sqlite3 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# ── 新增：huggingface_hub（HF Dataset 配置快照上传）─────────
+RUN pip3 install --no-cache-dir --break-system-packages huggingface_hub
+# ──────────────────────────────────────────────────────────
 
 # ── 新增：安装 Litestream ──────────────────────────────────
 ARG LITESTREAM_VERSION=0.3.13
@@ -42,5 +47,9 @@ COPY litestream.yml /litestream.yml
 # ──────────────────────────────────────────────────────────
 
 EXPOSE 7860
+
+# ── 新增：容器级健康检查 ─────────────────────────────────
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -sf http://127.0.0.1:7860/healthz || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]

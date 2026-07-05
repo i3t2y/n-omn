@@ -13,11 +13,20 @@ if (!INTERNAL_PSK) {
   console.error('[gate] FATAL: INTERNAL_PSK not set. /v1 鉴权需此 PSK，HF Space Secret 必须配置 INTERNAL_PSK。');
   process.exit(1);
 }
-if (!fs.existsSync('/data/.or-api-key')) {
-  console.error('[gate] FATAL: /data/.or-api-key 不存在。entrypoint 应先等 init 写入该文件再 exec gate。');
+// env 优先（HF Secret 固定，env-bypass 跨重建），回退读文件（旧链路兼容）
+// env 与文件分支均 .trim()：env-bypass 严格字符串相等比对，首尾空白会致失配 401
+let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
+if (!OR_API_KEY) {
+  try {
+    OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim();
+  } catch (e) {
+    // 文件不存在，保持空，下文 fatal
+  }
+}
+if (!OR_API_KEY) {
+  console.error('[gate] FATAL: No OR_API_KEY (neither OMNIROUTE_API_KEY env nor /data/.or-api-key file). entrypoint 应先 init 或配置 OMNIROUTE_API_KEY Secret。');
   process.exit(1);
 }
-const OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim();
 
 app.get('/healthz', async (req, res) => {
   const r = await fetch(`http://127.0.0.1:${OR_PORT}/api/monitoring/health`).catch(() => null);

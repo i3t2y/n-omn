@@ -32,8 +32,8 @@ RUN mkdir -p /data && chmod 777 /data
 RUN rm -rf /app/data && ln -sf /data /app/data
 
 RUN mkdir -p /gate
-COPY gate/package.json /gate/package.json
-COPY gate/gate.js /gate/gate.js
+COPY package.json /gate/package.json
+COPY gate.js /gate/gate.js
 RUN cd /gate && npm install --omit=dev --silent
 
 COPY entrypoint.sh /entrypoint.sh

@@ -1,10 +1,15 @@
 # 踩坑经验与维护指南
 
 > 2026-04-30 整理。记录从零搭建到生产可用过程中遇到的所有关键问题、根因分析和解决方案。面向未来的维护者（人类或 AI）。
+>
+> ⚠️ **本文档状态**：反映 v1.0.0 时代（2026-04-30），多处已 drift（gate.js PATCH-GATE 已丢失、生产/实验模型池已变、RPM 28→40、Memory·Skills·Compression·HF Dataset·Litestream/CF Worker 告警均不在本文）。
+> **当前真态以 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) 为准**（2026-07-06 快照，上游 v3.8.44）。本文保留作踩坑根因与维护教训的历史追溯（多数教训仍成立），**勿据已 drift 的具体值改代码**。
 
 ---
 
 ## 1. PATCH-GATE 补丁演进史
+
+> ⚠️ **本节描述的 gate.js 191 行版逻辑，当前 46 行版已全部丢失**（KNOWN_COMBOS、Combo stream=false 强制、PATCH-GATE-003 stream_options 处理、raw body、Header 双清均不在）。上游 v3.8.4x 不自愈 combo streaming，stream_options 400 风险回归。回填须按 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §6 重验上游新错误名 + `/v1/messages` Accept header 策略，勿照搬此旧逻辑。下文作踩坑根因历史追溯保留。
 
 ### PATCH-GATE-001：Combo 列表扩展
 
@@ -162,6 +167,8 @@ Client → [CLIENT_TOKEN] → CF Worker → [INTERNAL_PSK] → gate.js → [OR_A
 
 ## 5. 模型池管理经验
 
+> ⚠️ **本节为 v1.0.0 时代实测分类，已 drift**。当前 nim-pool 已扩为 9 模型、无 nim-pool-lab、新增 nim-codex，见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §4。下文学教训（生产/实验分离、稳定性验证标准等）逻辑仍参考。
+
 ### 5.1 生产池 vs 实验池
 
 | 池 | 名称 | 模型数 | 策略 |
@@ -234,6 +241,8 @@ OmniRoute 启动 → 等待健康 → 登录 Dashboard → 创建 OR_API_KEY
 ---
 
 ## 7. Resilience 配置
+
+> ⚠️ **RPM 28 是 v1.0.0 基线，当前已 40**（`init-nim-keys.sh:48 _RPM=${NIM_RPM:-40}`），见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §3。"不要擅自改、阶梯压测"决策逻辑仍适用。
 
 ```json
 {

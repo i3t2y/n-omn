@@ -28,3 +28,5 @@ license: mit
 若 HF Space 中残留旧 `OR_API_KEY` Secret（stage3 时期命名），应在 Settings → Variables and secrets 中删除：env-bypass 只识别 `OMNIROUTE_API_KEY` 或 `ROUTER_API_KEY`，不识别 `OR_API_KEY`，残留值不被任何代码消费，仅致命名混淆。
 
 未设 `OMNIROUTE_API_KEY` 时，仍走旧链路（init 调 `/api/keys` 生成、写 `/data/.or-api-key`），行为不变。
+
+> 完整架构与当前实态（三层鉴权链路、env-bypass 跨重建固定化、生产模型池、gate.js 46 行回归风险、Litestream 复制、NIM 模型上架状态）见 [`docs/CURRENT_STATE_v3.8.md`](docs/CURRENT_STATE_v3.8.md)。该文档为当前真态 SSOT；其余 `docs/` 下的活文档已按 drift header 区分 v1.0.0 时代与当前实态，历史快照文件只读不改。

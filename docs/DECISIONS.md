@@ -2,6 +2,8 @@
 
 本文档记录 `nim-omniroute-gateway` 的架构决策。这里不写操作教程，只写为什么这样做，防止后续迭代重复踩坑。
 
+> ⚠️ **本文档状态**：多数 D001-D015 是永恒性架构决策（库私有、不提交 Secret、raw body 原则、HF 临时存储、empty content 不等同 key 坏、model catalog 与 Combo 两件事等），仍成立。**部分含具体值已 drift**（D005 生产/实验池模型集、D012 RPM 28），见各节标注。当前真态以 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) 为准。
+
 当前基线：GitHub `v1.0.0`
 
 内部来源：`v1.3.0` 防吞噬版跑通方案
@@ -43,6 +45,8 @@ HF Space 上的 OmniRoute SQLite 状态不能作为唯一权威来源。容器�
 决策：`init-nim-keys.sh` 必须承担幂等初始化职责，而不是依赖一次性手工配置。
 
 ## D005: 生产池和实验池分离
+
+> ⚠️ 下列模型集是 v1.0.0 时代实测基线，当前已演进入 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §4（nim-pool 9 模型、新增 nim-codex、无 nim-pool-lab）。决策原则（"round-robin 可靠性由最弱模型决定、生产/实验分离"）仍成立。
 
 生产池 `nim-pool` 只放实测稳定模型：
 
@@ -144,6 +148,8 @@ Combo 内使用完整路由键：
 ```
 
 ## D012: `v1.0.0` Resilience 基线使用 28 RPM
+
+> ⚠️ **RPM 28 已 drift**：v3.8.x 时代上调为 40（`init-nim-keys.sh:48 _RPM=${NIM_RPM:-40}`），见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §3。本决策"保守稳定优先于最大吞吐、阶梯压测再调"逻辑仍成立，基线值以 40 为准。
 
 虽然理论上 35 RPM 更接近吞吐最优，但 `v1.0.0` 目标是稳定可复现，不是最大吞吐。
 

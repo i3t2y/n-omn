@@ -1,6 +1,10 @@
 # AI Handoff
 
-本文档给无上下文 AI 使用。任何新会话接手 `nim-omniroute-gateway` 时，必须先读本文档，再读 `README.md`、`docs/DECISIONS.md`、`docs/TROUBLESHOOTING.md`、`docs/VALIDATION.md`。
+> ⚠️ **本文档状态**：反映 v1.0.0 时代（2026-04-25），多处已 drift（生产池/RPM/gate.js PATCH-GATE/Memory·Skills·Compression·HF Dataset·Litestream/auto-recover 均不在本文范围）。
+> **当前真态以 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) 为准**（2026-07-06 快照，上游 v3.8.44）。
+> 本文保留作 v1.0.0 时代 AI 接手规范与历史踩坑追溯，**勿据本文改代码**——先读 CURRENT_STATE。
+
+本文档给无上下文 AI 使用。任何新会话接手 `nim-omniroute-gateway` 时，必须先读 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md)，再读本文档、`README.md`、`docs/DECISIONS.md`、`docs/TROUBLESHOOTING.md`、`docs/VALIDATION.md`。
 
 ## 0. 当前唯一基线
 
@@ -85,13 +89,9 @@ NVIDIA NIM
 
 ## 4. 当前生产模型池
 
-生产 `nim-pool` 只允许包含：
+> ⚠️ **v1.0.0 时代实测基线，已 drift**。当前 nim-pool 已扩为 9 模型（含 minimax/kimi/glm-5.2/nemotron/mistral/llama-3.2-90b-vision）+ 新增 nim-codex combo，见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §4。下表仅 v1.0.0 时代的"稳定性实测分类"逻辑参考。
 
-```text
-nvidia/meta/llama-3.3-70b-instruct
-nvidia/z-ai/glm-5.1
-nvidia/qwen/qwen3-coder-480b-a35b-instruct
-```
+生产 `nim-pool` 只允许包含：
 
 不要把下面模型加入生产池，除非有新的连续实测证据：
 
@@ -111,6 +111,8 @@ nim-pool-lab
 ## 5. 当前 Resilience 基线
 
 GitHub `v1.0.0` 固化值：
+
+> ⚠️ **RPM 28 是 v1.0.0 基线，当前已 40**（`init-nim-keys.sh:48 _RPM=${NIM_RPM:-40}`，`NIM_RPM` env 可覆盖）。见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §3。下文"不要擅自改 28"决策逻辑仍适用，但基线值以 40 为准。
 
 ```json
 {
@@ -221,11 +223,15 @@ gate.js PATCH-GATE-003 已处理：
 - Combo：删除 `stream_options`，保持 `stream=false`
 - 非 Combo：设 `stream=true`，保留 `stream_options`
 
-**不要手动删除 `stream_options` 来"修复"非 Combo 请求，这会丢失 usage tracking。**
+**不要手动删除 `stream_options` 来"修复"非 Combo 请求，这会丢失 usage tracking.**
+
+> ⚠️ **v1.0.0 时代 gate.js 191 行含 PATCH-GATE-003；当前 gate.js 46 行版已丢此逻辑**。上游 v3.8.4x 不自愈 combo streaming（`chat.ts:256 stream always wins`），stream_options 400 风险回归。详见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §6 行动项。
 
 ### 7.8 新增 Combo 必须更新 KNOWN_COMBOS
 
 gate.js 的 `KNOWN_COMBOS` Set 必须包含所有 Combo 名称。遗漏会导致新 Combo 不受 `stream=false` 保护，触发 `ALL_ACCOUNTS_INACTIVE`。
+
+> ⚠️ **`KNOWN_COMBOS` 当前 gate.js 已不存在**（46 行版无此逻辑）。`ALL_ACCOUNTS_INACTIVE` 错名上游已重命名为 `noActiveProviders`/`noActiveConnectionsInGroup`。回填 combo stream 保护时需按 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §6 重验后再写，勿照搬此旧法。
 
 ## 8. 修改时必须遵守的 Patch 格式
 
@@ -280,6 +286,8 @@ PATCH-[ID]
 - 新增 Combo 时不更新 `KNOWN_COMBOS`。
 
 ## 11. 当前下一步
+
+> ⚠️ **v1.0.0 时代下一步，已基本完成**（仓库已建、tag/release 已发、env-bypass 已合龙 v3.8）。当前下一步见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §12，要点：gate.js PATCH-GATE 回填、init `/api/keys` POST 清理、NIM 模型上架核验、上游 v3.8.4x 新特性评估采纳。下表仅 v1.0.0 时代遗留，保留作历史。
 
 当前最优下一步是：
 

@@ -2,6 +2,8 @@
 
 本文档记录 `nim-omniroute-gateway` 已遇到的问题、根因和处理方法。这里不写架构决策，架构决策见 `docs/DECISIONS.md`。
 
+> ⚠️ **本文档状态**：反映 v1.0.0 时代，多处已 drift（§2/§3 模型 ID 示例、§11 PATCH-GATE-003 处理）。**当前真态以 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) 为准**。故障现象与根因判断逻辑仍参考，具体值/行号已过期见各节标注。
+
 ## 1. gate 日志显示端口或 target 不完整
 
 ### 现象
@@ -33,6 +35,8 @@ proxying to 127.0.0.1:20128
 防吞噬版是当前 GitHub `v1.0.0` 基线的一部分，不要回退到旧版 gate.js。
 
 ## 2. `nim-pool` 请求被路由到 openai
+
+> ⚠️ 示例模型 ID 为 v1.0.0 时代，当前见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §4。坑根因（Combo 必须用 `models` 字段非 `providers`，否则空壳落到默认 provider）仍成立。
 
 ### 现象
 
@@ -72,6 +76,8 @@ Combo 必须使用 `models` 字段，并使用完整模型路由键：
 ```
 
 ## 3. Dashboard 中 `nim-pool` 显示“没有模型”
+
+> ⚠️ 示例 `modelId` 为 v1.0.0 时代，当前见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §4。根因（Combo 路由与 Dashboard model catalog 是两层，需 `/api/provider-models` 注册；`modelId` 不带 `nvidia/` 前缀、Combo `models` 带前缀）仍成立。
 
 ### 现象
 
@@ -272,10 +278,12 @@ Client 发送 { stream_options: {include_usage: true}, stream: false }
 
 ### 处理
 
-已通过 PATCH-GATE-003（gate.js 第 150-161 行）自动处理：
+> 🔴 **当前 gate.js 46 行版已丢此逻辑，stream_options 400 风险已回归**。v1.0.0 时代 gate.js 第 150-161 行曾含 PATCH-GATE-003：
 
 - **Combo 模型**：删除 `stream_options`，保持 `stream=false`（防 ALL_ACCOUNTS_INACTIVE）
 - **直连模型**：设置 `stream=true`，保留 `stream_options`（支持 usage tracking）
+
+上游 v3.8.4x 不自愈 combo streaming（`chat.ts:256 stream always wins`），当前 nim-pool/nim-codex 裸转 → Hermes/OpenAI SDK 自动加 `stream_options` 即犯 400。回填须按 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) §6 重验上游新错误名（`ALL_ACCOUNTS_INACTIVE` 已改名）+ `/v1/messages` Accept header 策略再写。`ALL_ACCOUNTS_INACTIVE` 现为 `noActiveProviders`/`noActiveConnectionsInGroup`。
 
 如果仍有问题，检查：
 1. gate.js 是否为最新版本（包含 PATCH-GATE-003）

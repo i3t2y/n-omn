@@ -1,4 +1,7 @@
 # Validation Record
+
+> ⚠️ **历史快照**（v1.0.0, 2026-04-26 当期实测证据），**勿改**（正文是 v1.0.0 当时跑通的实测记录，改则证据失真）。当前真态见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md)。
+
 2026-04-26 实验模型单测结果：
 
 以下模型在 70 秒 curl 超时窗口内均未返回任何 HTTP 响应，表现为 HTTP=000、0 bytes received：

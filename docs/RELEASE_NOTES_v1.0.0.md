@@ -1,5 +1,7 @@
 # Release Notes: v1.0.0
 
+> ⚠️ **历史快照**（v1.0.0, 2026-04-25），记录当时实态，**勿改**（正文是 v1.0.0 release 当时证据，改则版本自矛盾）。当前真态见 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md)。
+
 Release date: 2026-04-25
 
 ## Overview

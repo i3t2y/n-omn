@@ -1,5 +1,29 @@
 # Changelog — OmniRoute Gateway (nog)
 
+## 2026-07-06
+
+### 文档活族隔离补全 (本批)
+- 新增 `docs/CURRENT_STATE_v3.8.md`：当前 v3.8.x 实态快照 SSOT（上游 v3.8.44，2026-07-06），含架构/env-bypass/RPM=40(用户覆盖 28)/nim-pool 9 模型 + nim-codex/gate.js 46 行回归警示/Memory·Skills·Compression/Litestream auto-recover/CF Worker 告警/上游演进摘录/下一步清单
+- §5 NIM 模型上架状态收口：deep-research workflow(104 agent/6h11m/8 confirmed)核验范围聚焦上游 OmniRoute（v3.8.44 发版线、6 端点全在、env-bypass 定位为 static fallback 未废弃），未覆盖 NIM 各模型逐项上架；实证级事实——`qwen3-coder-480b-a35b-instruct` 已 2026-06-11 下架(410 Gone，25-key 全量测得)，NIM 免费层 ≈32K 隐藏上下文限(329 msg 触发 502 风暴)，Dockerfile 固定 `diegosouzapw/omniroute:3.8.43`；其余 8 模型逐项上架状态待带 nvapi key 跑 `curl integrate.api.nvidia.com/v1/models` 交叉比对
+- README.md 配置说明段末加指针行导向 CURRENT_STATE_v3.8.md
+- 活文档（AI_HANDOFF/EXPERIENCE/DECISIONS/TROUBLESHOOTING）顶部加 drift header 指向 CURRENT_STATE，关键 drift 节内标（生产池/RPM 28→40/PATCH-GATE-003 已丢/ALL_ACCOUNTS_INACTIVE 重命名/§下一步已过期）
+- 快照文档（RELEASE_NOTES_v1.0.0/VALIDATION/implementation-log）顶部加历史快照 header 注勿改
+
+### init export-json jq 字段名漂移修正 + 明文凭证 del 加固 (commit f9c743c)
+- 上游 v3.8+ export-json 顶层字段已重构（keys→apiKeys、providers→providerConnections+providerNodes）。旧 jq 取 .keys/.providers 恒 null，HF Dataset 冷备 keys.json/providers.json 长期损坏
+- jq 字段名对齐 apiKeys/providerConnections/providerNodes
+- apiKeys[].key（OR_KEY）、providerConnections[].credentials（NIM key，上游 getProviderConnections 解密返明文）导出阶段即 del，防 dataset 误转 public / 协作 token 读泄露；保留 name/scopes/key_hash/provider/id 元数据
+- `if (type)=="array"` 条件守抗 (x // []) |= map() 在字段缺/null 崩
+- 两处对称（重建场景 + 首启场景）
+
+### env-bypass 跨重建固定化合龙 (fusion 系列 bd69884)
+- 8ac47b7→bd69884：HF Space Secret `OMNIROUTE_API_KEY` 驱动上游 env-bypass（`src/lib/db/apiKeys.ts isConfiguredEnvApiKey`，lifecycle 校验前 return），跨重建固定、去 sqlite 依赖、去 race
+- gate.js env 优先 + try/catch + 双缺 fatal；entrypoint 透传 env + env 模式跳过等待 .or-api-key；init env 守卫 + 显式 OR_KEY + export-json 优先 env + resolve_or_key DRY
+- 保留旧 `/api/keys` + `.or-api-key` fallback 链路
+
+### 分支拓扑整理
+- 本地 `main` 承继 `fusion-main`（= nomn/main，commit bd69884），后续本地 main 提交 push 即触发 n-omn GitHub Actions 部署（HF Space sync + CF Worker deploy）。fusion-main/fusion-main-backup 保留作历史/回退点
+
 ## 2026-04-30
 
 ### tt TLS 指纹伪装 (已完成)

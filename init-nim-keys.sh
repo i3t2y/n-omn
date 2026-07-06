@@ -531,7 +531,7 @@ if [ -f "$_DB_PATH" ]; then
     if [ -s /tmp/nim-deprecated.txt ]; then
       echo "[init] Incremental: deprecated models detected, repairing Combos..."
       # GET /api/combos 找各 Combo id
-      COMBOS_JSON=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos")
+      COMBOS_JSON=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" || true)
       for combo_name in nim-pool nim-codex; do
         CID=$(printf '%s' "$COMBOS_JSON" | jq -r --arg n "$combo_name" \
           '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
@@ -554,13 +554,23 @@ if [ -f "$_DB_PATH" ]; then
             STRAT="context-relay"
           fi
           NEW_MODELS="${NEW_MODELS#,}"
+          if [ -z "$NEW_MODELS" ]; then
+            echo "[init] WARN: Incremental: $combo_name 所有候选模型均下架,skip PUT(空 models Combo 无可用模型)"
+            continue
+          fi
           PUT_BODY=$(jq -n --arg name "$combo_name" --arg strat "$STRAT" \
             --argjson models "$(printf '[%s]' "$NEW_MODELS")" \
             '{name:$name, strategy:$strat, models:$models}')
           PUT_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -b "$COOKIE_FILE" -X PUT "$BASE_URL/api/combos/$CID" \
-            -H "Content-Type: application/json" -d "$PUT_BODY")
-          echo "[init] Incremental: PUT /api/combos/$CID ($combo_name) HTTP $PUT_CODE"
+            -H "Content-Type: application/json" -d "$PUT_BODY" || true)
+          PUT_OK=0
+          if [ "$PUT_CODE" = "200" ] || [ "$PUT_CODE" = "204" ]; then PUT_OK=1; fi
+          if [ "$PUT_OK" = "1" ]; then
+            echo "[init] Incremental: PUT /api/combos/$CID ($combo_name) HTTP $PUT_CODE OK"
+          else
+            echo "[init] WARN: Incremental: PUT /api/combos/$CID ($combo_name) HTTP $PUT_CODE (非 200/204,Combo 修复失败但非致命)"
+          fi
         else
           echo "[init] Incremental: $combo_name not found in DB, skip repair."
         fi

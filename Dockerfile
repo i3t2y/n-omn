@@ -1,4 +1,4 @@
-FROM diegosouzapw/omniroute:latest
+FROM diegosouzapw/omniroute:3.8.43
 
 ENV OMNIROUTE_PORT=20128
 ENV EXPOSED_PORT=7860

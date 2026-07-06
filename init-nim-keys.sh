@@ -544,12 +544,12 @@ if [ -f "$_DB_PATH" ]; then
                      "meta/llama-3.2-90b-vision-instruct" "openai/gpt-oss-120b" \
                      "qwen/qwen3-next-80b-a3b-instruct" "nvidia/nemotron-3-ultra-550b-a55b" \
                      "deepseek-ai/deepseek-v4-pro" "mistralai/mistral-large-3-675b-instruct-2512"; do
-              grep -qx "$m" /tmp/nim-deprecated.txt 2>/dev/null || NEW_MODELS="${NEW_MODELS},\"$m\""
+              grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null || NEW_MODELS="${NEW_MODELS},\"$m\""
             done
             STRAT="round-robin"
           else
             for m in "openai/gpt-oss-120b" "qwen/qwen3-next-80b-a3b-instruct" "mistralai/mistral-medium-3.5-128b"; do
-              grep -qx "$m" /tmp/nim-deprecated.txt 2>/dev/null || NEW_MODELS="${NEW_MODELS},\"$m\""
+              grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null || NEW_MODELS="${NEW_MODELS},\"$m\""
             done
             STRAT="context-relay"
           fi

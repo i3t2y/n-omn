@@ -276,15 +276,30 @@ check_nim_model_health() {
 - DEPRECATED_MODELS 写入临时文件，后续 register_model + Combo 创建段读此文件跳过已下架
 - 增量模式分支（nim-pool 已在 DB）：巡检后若发现下架，需调用 OmniRoute API 修 Combo（见 §4.6）
 
-### 4.6 增量模式 Combo 修复（待 API 查证）
+### 4.6 增量模式 Combo 修复
 
 增量模式下巡检发现下架模型在已有 Combo 里，需修。当前 nim-codex Combo（DB 已建）含已下架的 qwen3-coder-480b 头号，必须修。
 
-可能端点（实现时查证 OmniRoute 源码 / Dashboard Network）：
-- `PUT /api/combos/{combo_id}` — 更新 Combo 配置（含 models 数组）
-- 或 `DELETE /api/combos/{combo_id}` + `POST /api/combos` — 删旧重建
+源码查证（§7.1）：`PUT /api/combos/{id}` 接 body `{name, models, strategy}`，非 DELETE+POST。
 
-查证后定。当前 spec 标记为 P0-2 实现待查证项。
+流程：
+
+```bash
+# 1. GET /api/combos 找 nim-codex 的 id
+CODEX_ID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+  | jq -r '.combos[]? | select(.name=="nim-codex") | .id')
+
+# 2. PUT 更新 models（nim-pool 同理，按巡检结果剔下架）
+curl -s -b "$COOKIE_FILE" -X PUT "$BASE_URL/api/combos/$CODEX_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"nim-codex","strategy":"context-relay","models":[
+    "openai/gpt-oss-120b",
+    "qwen/qwen3-next-80b-a3b-instruct",
+    "mistralai/mistral-medium-3.5-128b"
+  ]}'
+```
+
+nim-pool 增量修复同模板，models 数组按 §4.2 的 11 个（剔除已下架 2 个）。
 
 ---
 
@@ -307,7 +322,7 @@ alias dpp='env -u ANTHROPIC_API_KEY ANTHROPIC_BASE_URL="$OMN_BASE_URL" ANTHROPIC
 
 删旧：`cg52`/`ck26`/`cm27`/`cq48`/`cd4f`/`cd4p` 全部替换。
 
-注：`nemo55` 的 `--model` 是 `nvidia/nvidia/nemotron-3-ultra-550b-a55b`（双 nvidia 因为 provider=NVIDIA + 模型 ID 前缀 nvidia/）。需在 P0-3 实现时验证此双前缀是否正确，可能只需 `/nvidia/nemotron-3-ultra-550b-a55b`。对照其它同类：`nvidia/nemotron-3-super-120b-a12b`（Nemotron 系 init 注册时用 `nvidia/` 单前缀 modelId，所以 alias 应为 `nvidia/nvidia/nemotron-3-super-120b-a12b` 或 `nvidia/nemotron-3-super-120b-a12b` 取决于 Anthropic 入口 provider 映射）。**P0-3 标记为待验证命名前缀深度**。
+注：`nemo55` 的 `--model` 是 `nvidia/nvidia/nemotron-3-ultra-550b-a55b`（双 nvidia 正确）。源码查证（§7.2）：full model = `${storagePrefix}/${modelId}`，storagePrefix=provider id=`nvidia`，modelId 本身含厂商子前缀（NIM 该模型为 `nvidia/nemotron-3-ultra-550b-a55b`）。故 alias `--model` 双 nvidia 前缀，与 init `register_model "nvidia/nemotron-3-super-120b-a12b"` 前缀规则一致（init modelId 无 storagePrefix，alias 加上成双）。
 
 ---
 
@@ -323,12 +338,17 @@ alias dpp='env -u ANTHROPIC_API_KEY ANTHROPIC_BASE_URL="$OMN_BASE_URL" ANTHROPIC
 
 ---
 
-## 7. 实现待查证项（P0-2/P0-3 执行时确认）
+## 7. 源码查证结论（writing-plans 阶段已查证，非待定）
 
-1. **Combo 更新 API**（§4.6）：`PUT /api/combos/{combo_id}` vs DELETE+POST，查 OmniRoute 源码 `src/app/api/combos/` 或 Dashboard Network 请求
-2. **`nemo55` modelId 前缀深度**（§5）：`nvidia/nvidia/nemotron-3-ultra-550b-a55b` vs `nvidia/nemotron-3-ultra-550b-a55b`，对照 init §4.4 `register_model "nvidia/nemotron-3-super-120b-a12b"` 单前缀反推
-3. **巡检函数嵌入位置**（§4.5）：首次初始化分支（register 之前）确实插入；增量模式分支（nim-pool 已在 DB，第 417-468 行）插入巡检 + Combo 修复调用
-4. **DEPRECATED_MODELS 传递**：临时文件 `/tmp/nim-deprecated.txt` 在 register_model 与 Combo 段读，避免下架模型重复注册
+查证依据：上游 `github.com/diegosouzapw/OmniRoute` gitee 镜像 `src/app/api/combos/` + `src/lib/providerModels/managedAvailableModels.ts`
+
+1. **Combo 更新 API**（§4.6 已定）：`PUT /api/combos/{id}` 接 body `{name, models, strategy}`，返回更新后 combo。增量模式修 Combo 用此单端点（非 DELETE+POST）。流程：`GET /api/combos` → 找 `nim-codex` 的 `id` → `PUT /api/combos/{id}` body 含新 models 数组。源码：`src/app/api/combos/[id]/route.ts` 有 `GET/PUT/DELETE`，PUT 接 `body.models` 经 `normalizeComboModels` 归一化。
+
+2. **`nemo55` modelId 前缀深度**（§5 已定）：`nvidia/nvidia/nemotron-3-ultra-550b-a55b`（双 nvidia 正确）。源码 `managedAvailableModels.ts`：full model = `${storagePrefix}/${modelId}`，storagePrefix 是 provider id = `nvidia`，modelId 本身含厂商子前缀（NIM 该模型为 `nvidia/nemotron-3-ultra-550b-a55b`，与 `z-ai/glm-5.2` 同级）。故 alias `--model` = `nvidia/nvidia/nemotron-3-ultra-550b-a55b`，与 init `register_model "nvidia/nemotron-3-super-120b-a12b"` 前缀规则一致（init modelId 无 storagePrefix `nvidia/`，alias 加上即双）。
+
+3. **巡检函数嵌入位置**（§4.5 已定）：首次初始化分支 `register_model` 段之前（init 第 475 行 `echo "[init] First-time init: registering models..."` 之前）插入 `check_nim_model_health` 调用；增量模式分支（init 第 417-468 行 `if [ "${COMBO_COUNT:-0}" -gt 0 ]` 块内）插入巡检 + Combo 修复调用。
+
+4. **DEPRECATED_MODELS 传递**：首次初始化用全局数组 `DEPRECATED_MODELS=()` + 临时文件 `/tmp/nim-deprecated.txt`，`register_model` 与 Combo 创建段读此文件跳过已下架模型。bash 数组跨函数作用域用文件传，最稳。
 
 ---
 

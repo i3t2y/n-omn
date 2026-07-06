@@ -525,6 +525,50 @@ if [ -f "$_DB_PATH" ]; then
   if [ "${COMBO_COUNT:-0}" -gt 0 ]; then
     echo "[init] Already initialized (nim-pool found in DB), skip first-time setup."
 
+    # ===== 巡检 + 增量 Combo 修复（spec §4.6）=====
+    check_nim_model_health
+
+    if [ -s /tmp/nim-deprecated.txt ]; then
+      echo "[init] Incremental: deprecated models detected, repairing Combos..."
+      # GET /api/combos 找各 Combo id
+      COMBOS_JSON=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos")
+      for combo_name in nim-pool nim-codex; do
+        CID=$(printf '%s' "$COMBOS_JSON" | jq -r --arg n "$combo_name" \
+          '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
+        if [ -n "$CID" ]; then
+          # 按 Combo 名重算 models（剔除下架）
+          NEW_MODELS=""
+          if [ "$combo_name" = "nim-pool" ]; then
+            for m in "minimaxai/minimax-m2.7" "moonshotai/kimi-k2.6" "z-ai/glm-5.2" \
+                     "nvidia/nemotron-3-super-120b-a12b" "mistralai/mistral-small-4-119b-2603" \
+                     "meta/llama-3.2-90b-vision-instruct" "openai/gpt-oss-120b" \
+                     "qwen/qwen3-next-80b-a3b-instruct" "nvidia/nemotron-3-ultra-550b-a55b" \
+                     "deepseek-ai/deepseek-v4-pro" "mistralai/mistral-large-3-675b-instruct-2512"; do
+              grep -qx "$m" /tmp/nim-deprecated.txt 2>/dev/null || NEW_MODELS="${NEW_MODELS},\"$m\""
+            done
+            STRAT="round-robin"
+          else
+            for m in "openai/gpt-oss-120b" "qwen/qwen3-next-80b-a3b-instruct" "mistralai/mistral-medium-3.5-128b"; do
+              grep -qx "$m" /tmp/nim-deprecated.txt 2>/dev/null || NEW_MODELS="${NEW_MODELS},\"$m\""
+            done
+            STRAT="context-relay"
+          fi
+          NEW_MODELS="${NEW_MODELS#,}"
+          PUT_BODY=$(jq -n --arg name "$combo_name" --arg strat "$STRAT" \
+            --argjson models "$(printf '[%s]' "$NEW_MODELS")" \
+            '{name:$name, strategy:$strat, models:$models}')
+          PUT_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -b "$COOKIE_FILE" -X PUT "$BASE_URL/api/combos/$CID" \
+            -H "Content-Type: application/json" -d "$PUT_BODY")
+          echo "[init] Incremental: PUT /api/combos/$CID ($combo_name) HTTP $PUT_CODE"
+        else
+          echo "[init] Incremental: $combo_name not found in DB, skip repair."
+        fi
+      done
+    else
+      echo "[init] Incremental: no deprecated models, Combos OK."
+    fi
+
     # ===== 配置快照导出到 HF Dataset（重建场景：DB 有完整配置）=====
     if [ -n "$HF_TOKEN" ] && [ -n "$HF_DATASET_REPO" ]; then
       echo "[init] Exporting readable config snapshot to HF Dataset..."

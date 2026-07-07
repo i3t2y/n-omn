@@ -548,7 +548,7 @@ check_nim_model_health() {
     "deepseek-ai/deepseek-v4-pro" \
     "deepseek-ai/deepseek-v4-flash"; do
     if ! printf '%s' "$_models_json" | jq -e --arg m "$model" \
-      '.data[]?.id == $m' >/dev/null 2>&1; then
+      'any(.data[]?.id == $m; .)' >/dev/null 2>&1; then
       echo "[init]   $model — DEPRECATED, skipping"
       echo "$model" >> /tmp/nim-deprecated.txt
     else

@@ -3,7 +3,7 @@ set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer
-# v3.2.2
+# v3.3.0
 # 修复历史：
 #   v2.2.0  原始版本（基于 OmniRoute v3.5.x 时代的 schema）
 #   v3.0.0  适配 OmniRoute v3.8.0：移除不可用模型、Resilience/Compression 差量 PATCH
@@ -15,6 +15,20 @@ set -eo pipefail
 #            memoryEnabled/Strategy/MaxTokens/RetentionDays 走 PATCH /api/settings
 #            embeddingSource/staticEnabled 走 PUT /api/settings/memory
 #            skillsEnabled 合并进 PATCH /api/settings，减少一次 HTTP 调用
+#   v3.3.0  解决 NIM 32K 超限触发的 502 风暴（对齐 OmniRoute v3.8.4x schema）：
+#            (1) per-model context override：直接写 storage.sqlite 的 model_context_overrides
+#                表（source='manual'，real_context=32768，全 11 个 NIM 模型），让压缩引擎
+#                据真实 32K 上限算目标，而非标称 128K。manual 永不被 24h reconciler 覆盖。
+#                无 HTTP API 写 manual override，故经 DB。
+#            (2) compression 端点纠正：PATCH /api/settings + compression.{...} 嵌套 →
+#                PUT /api/settings/compression 扁平 body（上游 .strict() 会拒多余字段）。
+#            (3) thinkingBudget 独立端点：拆出 PUT /api/settings/thinking-budget，字段
+#                {mode,baseBudget}（旧拼 {enabled,maxTokens} 全错，静默 WARN）。
+#            (4) maxBodySizeMb：字段名 requestBodyLimit → maxBodySizeMb，单位 MB（非 bytes），
+#                上游 MIN=1MB → 取 1MB（较原 10MB 收紧 10 倍），超限请求上游返回 413 拦截。
+#            (5) routing 加 requestRetry=2 / maxRetryIntervalSec=5（空响应/502 有限重试）。
+#            阈值 threshold=12000（HF env 覆盖时需在 Dashboard 改回，仓库内已默认 12000）。
+#            memory legacy 段（memoryEnabled/skillsEnabled）schema 漂移留旧患，本次不动。
 # ─────────────────────────────────────────────────────────────
 
 # ── 端口配置 ──────────────────────────────────────────────────
@@ -34,6 +48,7 @@ PROVIDERS_FILE="/tmp/omniroute-providers.json"
 RESILIENCE_RESP_FILE="/tmp/omniroute-resilience-response.json"
 SETTINGS_RESP_FILE="/tmp/omniroute-settings-response.json"
 COMPRESS_RESP_FILE="/tmp/omniroute-compress-response.json"
+THINKING_RESP_FILE="/tmp/omniroute-thinking-response.json"
 MEMORY_LEGACY_RESP_FILE="/tmp/omniroute-memory-legacy-response.json"
 MEMORY_EXT_RESP_FILE="/tmp/omniroute-memory-ext-response.json"
 COMBO_RESP_FILE="/tmp/omniroute-combo-response.json"
@@ -51,10 +66,17 @@ _MIN_INTERVAL_MS=${NIM_MIN_INTERVAL_MS:-500}
 _COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
 _FALLBACK_STRATEGY="round-robin"
 _STICKY_LIMIT=1
-_REQUEST_BODY_LIMIT=10485760
+# 上游字段名 maxBodySizeMb（单位 MB，非 bytes）。范围 [MIN=1, MAX=500]。
+# 任务原意 512KB 拦截超大请求，但 schema 强制 ≥1MB。取下限 1MB（较现状 10MB 仍收紧 10 倍），
+# 在发送给 NIM 前由上游拦截超大请求返回 413，而非透传触发 NIM 侧 502 风暴。
+# 注：MB 字节限非 token 限，高密度小体积仍可能漏过——是 NIM 32K 超限前置守门第一道。
+_REQUEST_BODY_LIMIT_MB=${NIM_REQUEST_BODY_LIMIT_MB:-1}
 _COMPRESS_MODE="stacked"
 _THINKING_MODE="adaptive"
 _THINKING_BUDGET=8000
+# ── NIM 真实上下文上限（标称 128K，实测 NIM 32K 截断 → 压缩引擎须知道 32768）───
+# 写入 model_context_overrides 表 source='manual'，24h reconciler 永不覆盖。
+_NIM_REAL_CONTEXT=${NIM_REAL_CONTEXT:-32768}
 
 # ── SQLite 路径（真实 OmniRoute 库，与引擎一致）─────────────────────────────
 _DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
@@ -279,8 +301,8 @@ if [ "$RESILIENCE_CODE" != "200" ] && [ "$RESILIENCE_CODE" != "204" ]; then
   cat "$RESILIENCE_RESP_FILE" || true
 fi
 
-# ── 全局路由策略 ──────────────────────────────────────────────
-echo "[init] Applying routing strategy + requestBodyLimit..."
+# ── 全局路由策略 + maxBodySizeMb（POST 超大请求前置 413 拦截）──────────────
+echo "[init] Applying routing strategy + maxBodySizeMb (=$_REQUEST_BODY_LIMIT_MB MB)..."
 
 SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" \
   -b "$COOKIE_FILE" \
@@ -289,41 +311,62 @@ SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" \
   -d "{
     \"fallbackStrategy\": \"$_FALLBACK_STRATEGY\",
     \"stickyRoundRobinLimit\": $_STICKY_LIMIT,
-    \"requestBodyLimit\": $_REQUEST_BODY_LIMIT
+    \"requestRetry\": 2,
+    \"maxRetryIntervalSec\": 5,
+    \"maxBodySizeMb\": $_REQUEST_BODY_LIMIT_MB
   }")
 
-echo "[init] Settings routing HTTP $SETTINGS_CODE"
+echo "[init] Settings routing + maxBodySizeMb HTTP $SETTINGS_CODE"
 
 if [ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "204" ]; then
   echo "[init] WARN: Settings routing config may have failed:"
   cat "$SETTINGS_RESP_FILE" || true
 fi
 
-# ── Compression + Thinking Budget ────────────────────────────
-echo "[init] Applying compression + thinking budget (mode=$_COMPRESS_MODE, threshold=$_COMPRESS_THRESHOLD, thinking=$_THINKING_MODE/$_THINKING_BUDGET)..."
+# ── Compression（独立端点 PUT /api/settings/compression，body 扁平）─────────
+# 上游 v3.8.4x compressionSettingsUpdateSchema 为 .strict()：多余字段 400。
+# 厉害点：(1) 必须扁平（非 compression.{...} 嵌套）；(2) 端点是 PUT 不是 PATCH；
+# (3) thinkingBudget 不在此端点（拆独立 /api/settings/thinking-budget，见下）。
+echo "[init] Applying compression (mode=$_COMPRESS_MODE, autoTriggerTokens=$_COMPRESS_THRESHOLD)..."
 
 COMPRESS_CODE=$(curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}" \
   -b "$COOKIE_FILE" \
-  -X PATCH "$BASE_URL/api/settings" \
+  -X PUT "$BASE_URL/api/settings/compression" \
   -H "Content-Type: application/json" \
   -d "{
-    \"compression\": {
-      \"enabled\": true,
-      \"defaultMode\": \"$_COMPRESS_MODE\",
-      \"autoTriggerTokens\": $_COMPRESS_THRESHOLD
-    },
-    \"thinkingBudget\": {
-      \"enabled\": true,
-      \"mode\": \"$_THINKING_MODE\",
-      \"maxTokens\": $_THINKING_BUDGET
-    }
+    \"enabled\": true,
+    \"defaultMode\": \"$_COMPRESS_MODE\",
+    \"autoTriggerTokens\": $_COMPRESS_THRESHOLD
   }")
 
-echo "[init] Compression + thinking budget HTTP $COMPRESS_CODE"
+echo "[init] Compression HTTP $COMPRESS_CODE"
 
 if [ "$COMPRESS_CODE" != "200" ] && [ "$COMPRESS_CODE" != "204" ]; then
-  echo "[init] WARN: Compression + thinking budget may have failed:"
+  echo "[init] WARN: Compression config may have failed:"
   cat "$COMPRESS_RESP_FILE" || true
+fi
+
+# ── Thinking Budget（独立端点 PUT /api/settings/thinking-budget）────────────
+# 上游 updateThinkingBudgetSchema(.strict()) 字段：mode / customBudget / effortLevel /
+# baseBudget / complexityMultiplier（无 enabled/maxTokens，旧拼字段全部失败为静默 WARN）。
+# mode=adaptive 时 baseBudget 是思考预算基线 tokens。
+echo "[init] Applying thinking budget (mode=$_THINKING_MODE, baseBudget=$_THINKING_BUDGET)..."
+
+THINKING_RESP_FILE="/tmp/omniroute-thinking-response.json"
+THINKING_CODE=$(curl -s -o "$THINKING_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/thinking-budget" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"mode\": \"$_THINKING_MODE\",
+    \"baseBudget\": $_THINKING_BUDGET
+  }")
+
+echo "[init] Thinking budget HTTP $THINKING_CODE"
+
+if [ "$THINKING_CODE" != "200" ] && [ "$THINKING_CODE" != "204" ]; then
+  echo "[init] WARN: Thinking budget config may have failed:"
+  cat "$THINKING_RESP_FILE" || true
 fi
 
 # ── Memory legacy config + Skills（PATCH /api/settings）───────
@@ -397,6 +440,67 @@ CB_RESET_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
 
 echo "[init] Circuit breaker reset HTTP $CB_RESET_CODE"
 
+# ── per-model context override（NIM 32K 真实上限 → 压缩引擎据此目标压到 32K 以内）──
+#
+# 上游 v3.8.4x：getModelContextLimit() 优先级 = model_context_overrides(manual) >
+# static catalog / models.dev sync。source='manual' 的 override 永不被 24h
+# contextWindowReconciler（source='auto:discovery'）覆盖。无 HTTP API 写 manual
+# override（setModelContextOverride 仅 reconciler 内部调用），故直接写 DB 表。
+#
+# NIM 标称 128K，实测 32K 截断 → 压缩引擎按 128K 算目标，压完仍 >32K 触发 NIM 502 风暴。
+# 写 real_context=32768 让引擎把压缩目标下移到 32K 以内。覆盖全部经 nvidia provider
+# 注册的 NIM 模型（与 register_model 列表一致），不只任务列的 5 个。
+#
+# DB 路径与引擎一致（$_DB_PATH）；表 migration 110 已随 OmniRoute 启动建成。
+# 每行 INSERT OR REPLACE，重复执行幂等（PK = provider+model_id）。
+echo "[init] Applying per-model context override (NIM 32K cap, source=manual)..."
+
+OVERRIDE_APPLIED=0
+OVERRIDE_SKIPPED=0
+
+apply_context_override() {
+  local MODEL_ID="$1"
+  local CONTEXT="$2"
+
+  # 注意：勿用 `sqlite ... && count=$((x+1)) || y=$((y+1))` 写法——
+  # bash 算术赋值退出码恒为 0，会令 || 分支永不触发、失败也计 applied。
+  # 用 if/then 据 sqlite3 真退出码判断。
+  if sqlite3 "$_DB_PATH" \
+    "INSERT OR REPLACE INTO model_context_overrides
+       (provider, model_id, real_context, source, refreshed_at)
+     VALUES
+       ('nvidia', '$(sql_escape "$MODEL_ID")', $CONTEXT, 'manual', datetime('now'));" \
+    2>/dev/null; then
+    OVERRIDE_APPLIED=$((OVERRIDE_APPLIED + 1))
+  else
+    OVERRIDE_SKIPPED=$((OVERRIDE_SKIPPED + 1))
+  fi
+}
+
+for _M in \
+  "minimaxai/minimax-m2.7" \
+  "moonshotai/kimi-k2-thinking" \
+  "moonshotai/kimi-k2.6" \
+  "z-ai/glm-5.2" \
+  "nvidia/nemotron-3-super-120b-a12b" \
+  "qwen/qwen3-coder-480b-a35b-instruct" \
+  "mistralai/mistral-small-4-119b-2603" \
+  "mistralai/mistral-medium-3.5-128b" \
+  "meta/llama-3.2-90b-vision-instruct" \
+  "deepseek-ai/deepseek-v4-pro" \
+  "deepseek-ai/deepseek-v4-flash"
+do
+  apply_context_override "$_M" "$_NIM_REAL_CONTEXT"
+done
+
+echo "[init] per-model context override: $OVERRIDE_APPLIED applied, $OVERRIDE_SKIPPED failed (real_context=$_NIM_REAL_CONTEXT)."
+
+# 校验：读回确认 override 已存（manual source 列不应为空）
+OVERRIDE_VERIFY=$(sqlite3 "$_DB_PATH" \
+  "SELECT COUNT(*) FROM model_context_overrides
+     WHERE provider='nvidia' AND source='manual';" 2>/dev/null || echo 0)
+echo "[init] Verify: $OVERRIDE_VERIFY manual overrides persisted in model_context_overrides."
+
 # ── 打印当前参数配置 ──────────────────────────────────────────
 echo "[init] ─────────────────────────────────────────────"
 echo "[init] 当前参数配置："
@@ -405,9 +509,10 @@ echo "[init]   NIM_MIN_INTERVAL_MS    = $_MIN_INTERVAL_MS ms"
 echo "[init]   NIM_CONCURRENT         = $_CONCURRENT"
 echo "[init]   NIM_FALLBACK_STRATEGY  = $_FALLBACK_STRATEGY"
 echo "[init]   NIM_STICKY_LIMIT       = $_STICKY_LIMIT"
-echo "[init]   NIM_REQUEST_BODY_LIMIT = $_REQUEST_BODY_LIMIT bytes"
+echo "[init]   NIM_REQUEST_BODY_LIMIT_MB = $_REQUEST_BODY_LIMIT_MB MB (maxBodySizeMb)"
 echo "[init]   NIM_COMPRESS_MODE      = $_COMPRESS_MODE"
 echo "[init]   NIM_COMPRESS_THRESHOLD = $_COMPRESS_THRESHOLD tokens"
+echo "[init]   NIM_REAL_CONTEXT       = $_NIM_REAL_CONTEXT tokens (NIM 32K cap override)"
 echo "[init]   NIM_THINKING_MODE      = $_THINKING_MODE"
 echo "[init]   NIM_THINKING_BUDGET    = $_THINKING_BUDGET tokens"
 echo "[init] ─────────────────────────────────────────────"

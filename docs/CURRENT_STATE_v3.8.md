@@ -159,7 +159,7 @@ NIM `/v1/models` 共返回 121 个模型。
 
 gate.js 仅 46 行，职责：INTERNAL_PSK 校验、OR_API_KEY 注入、/healthz 代理。
 
-v1.0.0 时代 PATCH-GATE 补丁全丢，stream_options 400 风险当下活。回填需先重验上游 v3.8.4x combo streaming 实际错误名（旧 `ALL_ACCOUNTS_INACTIVE` 已重命名为 `noActiveProviders` / `noActiveConnectionsInGroup`）。不能照搬旧补丁逻辑。
+v1.0.0 时代 PATCH-GATE 补丁全丢，但经源码验证（2026-07-07），stream_options 400 风险已被上游根治：`open-sse/executors/default.ts:613` 针对非流式请求主动删除 stream_options（issue #3884，注释明确点名 NVIDIA NIM）；`chatCore.ts:2070` 在格式翻译层删除 stream_options。gate.js 纯透传（无 express.json()），不应处理 body 字段。gate.js 保持 46 行原样不动。
 
 ## 7. Memory / Skills / Compression / Thinking config
 
@@ -291,7 +291,7 @@ init 脚本中的 `check_nim_model_health()` 函数，在增量模式（非首�
 
 ## 17. 待办（按优先级）
 
-1. **gate.js PATCH-GATE 回填**：上游不自愈 combo streaming，stream_options 400 风险当下活。需先重验上游实际错误名再回填。
+1. ~~**gate.js PATCH-GATE 回填**~~ ✅ 已验证关闭（2026-07-07）：上游 `open-sse/executors/default.ts:613`（issue #3884，NIM 专项）+ `chatCore.ts:2070` 已根治 stream_options 400 风险。gate.js 纯透传，无需修改。
 2. **清空 R2 修复 nim-pool Combo**：Cloudflare Dashboard 删除 omniroute-data/db/ 下所有文件 → HF Space Restart → first-time setup 用正确 8 模型重建 Combo。
 3. **Groq 128K 兜底**：35 tools 不可压缩部分约 27K，NIM 32K 留给对话空间不足 6K。引入 Groq（llama-3.3-70b-versatile，128K 真实上下文）作为 NIM fallback，根治长会话场景。
 4. **gate.js token 估算预拦截**：请求发送前估算 token 数，超 32K 直接返回 413，不发送给 NIM，从根本上避免运行期间 DEGRADED。

@@ -111,6 +111,7 @@ else
   fi
 fi
 
+export NODE_OPTIONS="--max-old-space-size=4096"
 # ── 新增：Litestream replicate（后台旁路，持续复制 WAL 到 R2）──
 if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
   echo "[entrypoint] Starting Litestream replication in background..."

@@ -1,14 +1,19 @@
 dbs:
   - path: /data/storage.sqlite
-    replicas:
-      - type: s3
-        bucket: omniroute-data
-        path: db/storage.sqlite
-        endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
-        access-key-id: ${R2_ACCESS_KEY_ID}
-        secret-access-key: ${R2_SECRET_ACCESS_KEY}
-        region: auto
-        sync-interval: 10s
-        snapshot-interval: 1h
-        # auto-recover：遇 LTX 错误自动重置本地追踪状态（HF Space 免费层 OOM Kill 后自愈）
-        auto-recover: true
+    # v0.5.x：单数 replica 对象（v0.5.0 移除多副本支持 #647）
+    replica:
+      type: s3
+      bucket: omniroute-data
+      path: db/storage.sqlite
+      endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      access-key-id: ${R2_ACCESS_KEY_ID}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY}
+      region: auto
+      sync-interval: 10s
+      # auto-recover：v0.5.7+ 遇 LTX 错误自动重置本地追踪状态（HF 免费层 OOM Kill 后自愈）
+      auto-recover: true
+
+# v0.5.x：快照配置移至顶层全局块（不再是 replica 内字段）
+snapshot:
+  interval: 1h
+  retention: 24h

@@ -44,7 +44,7 @@ NVIDIA NIM (integrate.api.nvidia.com)
 
 | 参数 | env 名 | 默认 | 生产值 | 注 |
 |------|--------|------|--------|-----|
-| requestsPerMinute | `NIM_RPM` | 40 | 28（HF env 覆盖） | 生产实测安全值 28 |
+| requestsPerMinute | `NIM_RPM` | 35 | 28（HF env 覆盖） | v3.4.0 统一：文档与代码默认值对齐为 35；NIM 官方单 key 上限 40，取 35 留 12.5% 缓冲防 429 |
 | concurrentRequests | `NIM_CONCURRENT` | 5 | 5 | |
 | minTimeBetweenRequestsMs | `NIM_MIN_INTERVAL_MS` | 500 | 500 | |
 | maxBodySizeMb | — | 1 | 1 | 字段名从 requestBodyLimit 纠正，单位从 bytes 改为 MB。schema `[MIN=1, MAX=500]`，取下限 1MB 作前置 413 拦截 |

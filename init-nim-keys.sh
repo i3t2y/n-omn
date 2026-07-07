@@ -482,11 +482,10 @@ apply_context_override() {
 
 for _M in \
   "minimaxai/minimax-m2.7" \
-  "moonshotai/kimi-k2-thinking" \
   "moonshotai/kimi-k2.6" \
   "z-ai/glm-5.2" \
   "nvidia/nemotron-3-super-120b-a12b" \
-  "qwen/qwen3-coder-480b-a35b-instruct" \
+  "qwen/qwen3-next-80b-a3b-instruct" \
   "mistralai/mistral-small-4-119b-2603" \
   "mistralai/mistral-medium-3.5-128b" \
   "meta/llama-3.2-90b-vision-instruct" \
@@ -519,6 +518,49 @@ echo "[init]   NIM_REAL_CONTEXT       = $_NIM_REAL_CONTEXT tokens (NIM 32K cap o
 echo "[init]   NIM_THINKING_MODE      = $_THINKING_MODE"
 echo "[init]   NIM_THINKING_BUDGET    = $_THINKING_BUDGET tokens"
 echo "[init] ─────────────────────────────────────────────"
+
+
+# ── 巡检函数：检测 NIM 模型可用性（spec §4.6）──
+check_nim_model_health() {
+  echo "[init] check_nim_model_health: checking NIM model availability..."
+  > /tmp/nim-deprecated.txt
+  local _first_key
+  _first_key=$(printf '%s\n' "$NIM_KEYS" | head -n1)
+  local _models_json
+  _models_json=$(curl -s --max-time 10 \
+    -H "Authorization: Bearer ${_first_key}" \
+    "https://integrate.api.nvidia.com/v1/models" 2>/dev/null || echo "")
+  local _model_count
+  _model_count=$(printf '%s' "$_models_json" | jq -r '.data[]?.id' 2>/dev/null | wc -l)
+  if [ "${_model_count:-0}" -lt 5 ]; then
+    echo "[init] check_nim_model_health: NIM API returned $_model_count models (<5), skipping"
+    return 0
+  fi
+  for model in \
+    "minimaxai/minimax-m2.7" \
+    "moonshotai/kimi-k2.6" \
+    "z-ai/glm-5.2" \
+    "nvidia/nemotron-3-super-120b-a12b" \
+    "qwen/qwen3-next-80b-a3b-instruct" \
+    "mistralai/mistral-small-4-119b-2603" \
+    "mistralai/mistral-medium-3.5-128b" \
+    "meta/llama-3.2-90b-vision-instruct" \
+    "deepseek-ai/deepseek-v4-pro" \
+    "deepseek-ai/deepseek-v4-flash"; do
+    if ! printf '%s' "$_models_json" | jq -e --arg m "$model" \
+      '.data[]?.id == $m' >/dev/null 2>&1; then
+      echo "[init]   $model — DEPRECATED, skipping"
+      echo "$model" >> /tmp/nim-deprecated.txt
+    else
+      echo "[init]   $model — available"
+    fi
+  done
+  local _dep_count
+  _dep_count=$(wc -l < /tmp/nim-deprecated.txt 2>/dev/null || echo 0)
+  echo "[init] check_nim_model_health: $_dep_count deprecated, $_model_count available on NIM"
+}
+
+
 
 # ── 首次初始化检查（SQLite 感知，替代文件标记）─────────────────────────────
 # HF Space 重建后容器内文件标记消失，故改为查询 combos 表判断是否已初始化
@@ -659,11 +701,10 @@ register_model() {
 
 # nim-pool 核心模型
 register_model "minimaxai/minimax-m2.7"
-register_model "moonshotai/kimi-k2-thinking"
 register_model "moonshotai/kimi-k2.6"
 register_model "z-ai/glm-5.2"
 register_model "nvidia/nemotron-3-super-120b-a12b"
-register_model "qwen/qwen3-coder-480b-a35b-instruct"
+register_model "qwen/qwen3-next-80b-a3b-instruct"
 register_model "mistralai/mistral-small-4-119b-2603"
 register_model "mistralai/mistral-medium-3.5-128b"
 register_model "meta/llama-3.2-90b-vision-instruct"
@@ -686,11 +727,10 @@ COMBO_CODE=$(curl -s -o "$COMBO_RESP_FILE" -w "%{http_code}" \
     "strategy": "round-robin",
     "models": [
       "minimaxai/minimax-m2.7",
-      "moonshotai/kimi-k2-thinking",
       "moonshotai/kimi-k2.6",
       "z-ai/glm-5.2",
       "nvidia/nemotron-3-super-120b-a12b",
-      "qwen/qwen3-coder-480b-a35b-instruct",
+      "qwen/qwen3-next-80b-a3b-instruct",
       "mistralai/mistral-small-4-119b-2603",
       "mistralai/mistral-medium-3.5-128b",
       "meta/llama-3.2-90b-vision-instruct"
@@ -726,7 +766,7 @@ CODEX_COMBO_CODE=$(curl -s -o "$CODEX_COMBO_RESP_FILE" -w "%{http_code}" \
     "name": "nim-codex",
     "strategy": "context-relay",
     "models": [
-      "qwen/qwen3-coder-480b-a35b-instruct",
+      "qwen/qwen3-next-80b-a3b-instruct",
       "deepseek-ai/deepseek-v4-pro",
       "mistralai/mistral-medium-3.5-128b"
     ]

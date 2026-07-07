@@ -29,4 +29,4 @@ license: mit
 
 未设 `OMNIROUTE_API_KEY` 时，仍走旧链路（init 调 `/api/keys` 生成、写 `/data/.or-api-key`），行为不变。
 
-> 完整架构与当前实态（三层鉴权链路、env-bypass 跨重建固定化、生产模型池、gate.js 46 行回归风险、Litestream 复制、NIM 模型上架状态）见 [`docs/CURRENT_STATE_v3.8.md`](docs/CURRENT_STATE_v3.8.md)。该文档为当前真态 SSOT；其余 `docs/` 下的活文档已按 drift header 区分 v1.0.0 时代与当前实态，历史快照文件只读不改。
+> 完整架构与当前实态（三层鉴权链路、env-bypass 跨重建固定化、生产模型池、gate.js 纯透传现状、Litestream 复制、NIM 模型上架状态）见 [`docs/CURRENT_STATE_v3.8.md`](docs/CURRENT_STATE_v3.8.md)。该文档为当前真态 SSOT；其余 `docs/` 下的活文档已按 drift header 区分 v1.0.0 时代与当前实态，历史快照文件只读不改。

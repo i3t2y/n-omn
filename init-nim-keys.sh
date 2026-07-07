@@ -439,6 +439,9 @@ CB_RESET_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "Content-Type: application/json")
 
 echo "[init] Circuit breaker reset HTTP $CB_RESET_CODE"
+echo "[init] Clearing persisted circuit breaker states from DB..."
+sqlite3 /data/storage.sqlite "DELETE FROM domain_circuit_breakers;" 2>/dev/null || true
+echo "[init] Persisted breaker states cleared"
 
 # ── per-model context override（NIM 32K 真实上限 → 压缩引擎据此目标压到 32K 以内）──
 #

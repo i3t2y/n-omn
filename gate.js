@@ -43,4 +43,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/', createProxyMiddleware({ target: `http://127.0.0.1:${OR_PORT}`, changeOrigin: true }));
-app.listen(GATE_PORT, '0.0.0.0');
+// 原：app.listen(GATE_PORT, '0.0.0.0');
+app.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] listening on 0.0.0.0:${GATE_PORT} -> 127.0.0.1:${OR_PORT}`);
+});

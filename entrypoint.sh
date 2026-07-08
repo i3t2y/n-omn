@@ -40,6 +40,7 @@ else
 fi
 # ──────────────────────────────────────────────────────────────
 
+# ── 修正后的启动段 ──
 PORT="$OMNIROUTE_PORT" \
 DATA_DIR="$DATA_DIR" \
 REQUIRE_API_KEY=true \
@@ -53,8 +54,8 @@ JWT_SECRET="$JWT_SECRET" \
 API_KEY_SECRET="$API_KEY_SECRET" \
 OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
 INITIAL_PASSWORD="$INITIAL_PASSWORD" \
-# 修改 entrypoint.sh 约 60 行处
 node /app/server.js --log &
+# ──────────────────
 
 OR_PID=$!
 echo "[entrypoint] OmniRoute PID=$OR_PID"

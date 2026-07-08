@@ -80,6 +80,17 @@ if [ "$i" -ge 180 ]; then
   exit 1
 fi
 
+# ── 基础镜像版本护栏：打印实际版本并与期望比对（只告警，不中断）──
+EXPECTED_OR_VERSION="${EXPECTED_OR_VERSION:-3.8.43}"
+_OR_VER=$(curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" 2>/dev/null \
+  | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+echo "[entrypoint] OmniRoute base image version: $_OR_VER (expected $EXPECTED_OR_VERSION)"
+if [ "$_OR_VER" != "$EXPECTED_OR_VERSION" ] && [ "$_OR_VER" != "unknown" ]; then
+  echo "[entrypoint] ⚠️ WARN: base 版本($_OR_VER)与期望($EXPECTED_OR_VERSION)不一致——"
+  echo "[entrypoint] ⚠️ 可能是 FROM 漂移。若卡在 starting，优先检查 Dockerfile 的 FROM 是否被 latest 冲走。"
+fi
+# ──────────────────────────────────────────────────────────────
+
 echo "[entrypoint] running NIM key init script in background..."
 # init 内部 env 守卫（见 init-nim-keys.sh）：env 模式跳过 /api/keys 创建，
 # 仍写 .or-api-key 镜像作诊断/兼容；gate env 优先，不读该文件。

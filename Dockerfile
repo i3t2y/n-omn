@@ -1,4 +1,4 @@
-FROM diegosouzapw/omniroute:3.8.44
+FROM diegosouzapw/omniroute:3.8.43
 # FROM diegosouzapw/omniroute:latest
 
 ENV OMNIROUTE_PORT=20128

@@ -162,12 +162,12 @@ purge_proxy_db() {
     # 【修复F·根因】关闭连接级 proxy_enabled（core.ts:228 DEFAULT 1，注册即启用代理）
     # 注意：是 proxy_enabled，不是 per_key_proxy_enabled（后者 DEFAULT 0，本就关闭）。
     sqlite3 "$_DB_PATH" "UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';" 2>/dev/null || true
-    sqlite3 "$_DB_PATH" "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', 'proxyEnabled', 'false');" 2>/dev/null || true
+    # sqlite3 "$_DB_PATH" "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', 'proxyEnabled', 'false');" 2>/dev/null || true
         # 全局 proxyEnabled=false + 回读校验
-    sqlite3 "$_DB_PATH" "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', 'proxyEnabled', 'false');" 2>/dev/null || true
-    local _pe_gv
-    _pe_gv=$(sqlite3 "$_DB_PATH" "SELECT value FROM key_value WHERE namespace='settings' AND key='proxyEnabled';" 2>/dev/null || echo "READ_FAILED")
-    echo "[init] purge: global proxyEnabled=$_pe_gv（期望 false）。"
+    # sqlite3 "$_DB_PATH" "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', 'proxyEnabled', 'false');" 2>/dev/null || true
+    # local _pe_gv
+    # _pe_gv=$(sqlite3 "$_DB_PATH" "SELECT value FROM key_value WHERE namespace='settings' AND key='proxyEnabled';" 2>/dev/null || echo "READ_FAILED")
+    # echo "[init] purge: global proxyEnabled=$_pe_gv（期望 false）。"
     sqlite3 "$_DB_PATH" "DELETE FROM proxy_registry WHERE host='$(sql_escape "$_PROXY_RELAY_HOST")' AND port=$_PROXY_RELAY_PORT;" 2>/dev/null || true
     local _reg _asg _proxy_on
     _reg=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM proxy_registry;" 2>/dev/null || echo "?")

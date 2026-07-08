@@ -145,6 +145,8 @@ purge_proxy_db() {
   if [ -f "$_DB_PATH" ]; then
     sqlite3 "$_DB_PATH" "DELETE FROM proxy_assignments WHERE proxy_id IN
       (SELECT id FROM proxy_registry WHERE host='$(sql_escape "$_PROXY_RELAY_HOST")' AND port=$_PROXY_RELAY_PORT);" 2>/dev/null || true
+    # 【修复F】关闭 per-key proxy toggle（proxy_enabled DEFAULT 1 导致注册即启用）
+    sqlite3 "$_DB_PATH" "UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';" 2>/dev/null || true
     sqlite3 "$_DB_PATH" "DELETE FROM proxy_registry WHERE host='$(sql_escape "$_PROXY_RELAY_HOST")' AND port=$_PROXY_RELAY_PORT;" 2>/dev/null || true
     local _reg _asg
     _reg=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM proxy_registry;" 2>/dev/null || echo "?")

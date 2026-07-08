@@ -163,7 +163,7 @@ purge_proxy_db() {
     # 注意：是 proxy_enabled，不是 per_key_proxy_enabled（后者 DEFAULT 0，本就关闭）。
     sqlite3 "$_DB_PATH" "UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';" 2>/dev/null || true
     # sqlite3 "$_DB_PATH" "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', 'proxyEnabled', 'false');" 2>/dev/null || true
-        # 全局 proxyEnabled=false + 回读校验
+    # 全局 proxyEnabled=false + 回读校验
     # sqlite3 "$_DB_PATH" "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', 'proxyEnabled', 'false');" 2>/dev/null || true
     # local _pe_gv
     # _pe_gv=$(sqlite3 "$_DB_PATH" "SELECT value FROM key_value WHERE namespace='settings' AND key='proxyEnabled';" 2>/dev/null || echo "READ_FAILED")

@@ -5,6 +5,7 @@
 #           docker inspect --format='{{index .RepoDigests 0}}' diegosouzapw/omniroute:3.8.43
 # 用 tag+digest 双写：digest 保证不可变，tag 便于人读。
 # FROM diegosouzapw/omniroute:3.8.43@sha256:517c160643c56ad72e3e305458d961c9a4c87f711393c13020450f9f088d1570
+# FROM diegosouzapw/omniroute:3.8.46@sha256:3e254b91fffa9aa20e244b3bce89c1390fa32b1d35efa4e5b3823eec10450bd4
 FROM diegosouzapw/omniroute:latest
 
 ENV OMNIROUTE_PORT=20128

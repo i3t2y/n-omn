@@ -435,12 +435,11 @@ if [ -f "$_DB_PATH" ]; then
     purge_proxy_db
     sqlite3 "$_DB_PATH" "DELETE FROM domain_circuit_breakers;" 2>/dev/null || true
     check_nim_model_health
-    if [ -s /tmp/nim-deprecated.txt ]; then
-      repair_combo "nim-pool"  "round-robin"      "${NIM_POOL_MODELS[@]}"
-      repair_combo "nim-codex" "$_CODEX_STRATEGY" "${NIM_CODEX_MODELS[@]}"
-    else echo "[init] Incremental: no deprecated."; fi
+    # 无条件 repair combo：确保模型列表和路由前缀格式始终与 SSOT 同步
+    repair_combo "nim-pool"  "round-robin"      "${NIM_POOL_MODELS[@]}"
+    repair_combo "nim-codex" "$_CODEX_STRATEGY" "${NIM_CODEX_MODELS[@]}"
     hf_snapshot
-    echo "[init] Done (incremental). v4.1.0"
+    echo "[init] Done (incremental). v4.1.1"
     exit 0
   fi
 else

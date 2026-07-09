@@ -124,9 +124,12 @@ NIM_CODEX_MODELS=(
   "deepseek-ai/deepseek-v4-pro"
   "openai/gpt-oss-120b"
   "z-ai/glm-5.2"
+  "mistralai/codestral-22b-instruct-v0.1"
 )
+
 NIM_EXTRA_MODELS=(
   "deepseek-ai/deepseek-v4-flash"
+  "mistralai/mistral-medium-3.5-128b"
 )
 
 build_all_models() {

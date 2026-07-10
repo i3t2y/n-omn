@@ -1,7 +1,8 @@
 ```markdown
 # OmniRoute NIM 部署技术文档
 
-> **版本**：v4.1.1 | **最后更新**：2026-07-09 | **镜像**：OmniRoute 3.8.43  
+> **版本**：v4.2.3 | **最后更新**：2026-07-10 | **镜像**：OmniRoute 3.8.43  
+> **部署链路**：本地 → `nomn/main`(GitHub) → Actions `sync-to-hf-space.yml` → `git push --force` 到 HF Space `nomke/omn` → 重建上线
 > **部署平台**：HuggingFace Space (Docker SDK) | **Provider**：NVIDIA NIM
 
 ---
@@ -35,7 +36,7 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 
 | 文件 | 用途 | 当前版本 | 是否需要改动 |
 |------|------|---------|-------------|
-| `init-nim-keys.sh` | NIM 初始化脚本（key 注册、模型注册、combo 创建、配置写入） | v4.1.1 | 本次更新 |
+| `init-nim-keys.sh` | NIM 初始化脚本（key 注册、模型注册、combo 创建、配置写入） | v4.2.3 | 本次更新 |
 | `Dockerfile` | 容器构建定义（基础镜像、依赖安装、健康检查） | v3.8.0 基线 | 否 |
 | `entrypoint.sh` | 容器入口脚本（Litestream 恢复、OmniRoute 启动、init 调用、gate 启动） | v3.8.0 基线 | 否 |
 | `gate.js` | Express 反向代理网关（PSK 鉴权 + Bearer 替换） | v3.8.0 基线 | 否 |
@@ -53,9 +54,13 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 | v3.7.0 | context-relay 查证；变量名对齐；nim-codex 改 round-robin | 历史版本 |
 | v3.8.0 | body-limit 字节→MB 自动换算；proxy_enabled 强制覆盖；CRLF 修复 | 本地仓库原基线 |
 | v4.1.0 | 模型分档(NIM_PROFILE) + 单变量调试(NIM_MODE) + 日志归档 + combo 对象数组格式修正 + 首次探活 | HF Space 已部署验证 |
-| **v4.1.1** | v4.1.0 + 扩展模型数组 + `models_to_json` 添加 `nvidia/` 路由前缀 | **当前版本** |
+| v4.1.1 | v4.1.0 + 扩展模型数组 + `models_to_json` 添加 `nvidia/` 路由前缀 | 历史版本 |
+| v4.2.0 | 模型目录对齐 2026-07 NIM slug + RPM 按"存活 Key 数×35"动态推导 + 多层兜底 combo `nim-max` | 历史版本 |
+| v4.2.1 | 移除非法 `quota-share` → 主池 `p2c` + 策略白名单 `_is_valid_strat` + 被动健康选型 `nim_health_pick` + 轻量探针 `NIM_PROBE` | 历史版本 |
+| v4.2.2 | 幂等 `upsert_combo`(先 GET 后 PUT) 根治 R2 restore 撞名 + 增量门放宽(任一 nim-* 或 INIT_MARKER) | 历史版本 |
+| **v4.2.3** | v4.2.2 + **`models_to_json` 粘名 bug 修复(`printf '%s'`→`'%s\n'`)** + DEBUG log 上传 Dataset(`⑨ NIM_DEBUG_LOG_TO_DATASET`/`NIM_DEBUG_LOG_KEEP`) | **当前版本** |
 
-### v4.1.1 相对 v3.8.0 的完整变更
+### v4.2.3 相对 v3.8.0 的完整变更
 
 1. **模型分档**：`TIER_FAST`(4) / `TIER_STABLE`(7) / `TIER_RESTRICTED`(5)，由 `NIM_PROFILE=fast|balanced|full` 控制入池范围
 2. **单变量调试**：`NIM_MODE=DEBUG` 开启全程日志归档至 `/data/omni-data/log/` + 关闭 SQLite 自动备份
@@ -63,12 +68,17 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 4. **首次探活**：首次初始化也执行 `check_nim_model_health`，自动过滤 NVIDIA 目录中不存在的模型
 5. **路由前缀修正**：`models_to_json` 添加 `sed 's/^/nvidia\//'`，消除 OmniRoute 内置 provider 映射导致的裸 ID 路由歧义
 6. **扩展模型数组**：补充 `deepseek-v4-flash`、`llama-3.3-70b`、`gemma-4-31b`、`nemotron-super-49b-v1.5`、`yi-large`、`codestral-22b` 等模型
+7. **动态 RPM**：RPM/并发按"存活 NIM Key 数 × 35"动态推导（v4.2.0），不再写死 28
+8. **三个 combo**：`nim-max`(priority 多层兜底，日常主入口) / `nim-pool`(p2c 纯 NIM 池) / `nim-codex`(round-robin 代码专项)，均经 `_is_valid_strat` 白名单 + 幂等 `upsert_combo`
+9. **被动健康选型**：`nim_health_pick` 读近 1h 本地 `call_logs` 成功率/延迟输出分档主力推荐
+10. **粘名 bug 修复（v4.2.3 核心）**：`models_to_json` 的 `printf '%s'` 多参数会粘成单串（3 模型 → `nvidia/a/b/c` 一个垃圾对象，combo 建成 201 但调用全 400），改 `printf '%s\n'` 恢复正确 round-robin
+11. **DEBUG log 上传 Dataset（v4.2.3·⑨）**：DEBUG 模式 `init_*.log` 拷为 `debug_*.log` 随 `hf_snapshot` 上传 HF Dataset，本地仅留最近 `NIM_DEBUG_LOG_KEEP`(默认 5) 个
 
 ---
 
 ## 四、三大技术坑位与修正
 
-这是本文档最关键的部分。以下三个问题均经过线上实测验证，修正方案已落地到 v4.1.1 脚本中。
+这是本文档最关键的部分。以下三个问题均经过线上实测验证，修正方案已落地到 v4.2.3 脚本中。
 
 ### 坑位 1：proxy_registry 全局兜底（Issue #3332）
 
@@ -99,6 +109,29 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 ```json
 { "name": "premium", "strategy": "priority", "models": [{ "model": "cc/claude-opus-4-7" }] }
 ```
+
+### 坑位 2b：models_to_json 粘名 bug（v4.2.3 修复）
+
+**现象**：combo 建成返回 201（HTTP 200/201），看似成功，但实际调用 `nim-pool` / `nim-codex` 时部分或全部模型返 400/404。
+
+**根因**：`models_to_json()` 用 `printf '%s' "$@"` 拼接多参数时**无分隔符**，多个模型 ID 会粘成单串喂给 `sed 's/^/nvidia\//'` + `jq -R`，最终只产**一个垃圾对象**：
+
+```
+入参: z-ai/glm-5.2  deepseek-ai/deepseek-v4-pro  meta/llama-3.3-70b-instruct
+printf '%s'  → "z-ai/glm-5.2deepseek-ai/deepseek-v4-prometa/llama-3.3-70b-instruct" （粘成一团）
+sed + jq    → [{"model":"nvidia/z-ai/glm-5.2deepseek-ai/deepseek-v4-prometa/llama-3.3-70b-instruct"}]  ← 单个垃圾名
+```
+
+单参数场景恰好不显现（无第二个串可粘），故长期静默——combo 201 创建成功，运行时却路由到一个不存在的模型名。
+
+**修正（v4.2.3）**：`printf '%s'` → `printf '%s\n'`，每参数独占一行，`jq -R` 逐行转对象：
+
+```bash
+models_to_json() { printf '%s\n' "$@" | sed 's/^/nvidia\//' | jq -R '{model: .}' | jq -s -c .; }
+# 出参: [{"model":"nvidia/z-ai/glm-5.2"},{"model":"nvidia/deepseek-ai/deepseek-v4-pro"},{"model":"nvidia/meta/llama-3.3-70b-instruct"}]
+```
+
+**验证**：HF 生产 `nomke/omn` v4.2.2 仍带此 bug；v4.2.3 推送后 nim-pool/nim-codex 多模型 round-robin 复活。
 
 ### 坑位 3：裸 ID 路由歧义
 
@@ -185,29 +218,47 @@ NVIDIA NIM 存在两层权限验证：
 
 ## 六、Combo 架构
 
+脚本建三个 combo，均经 `_is_valid_strat` 白名单校验 + 幂等 `upsert_combo`（先 GET 查名，存在 PUT 更新、不存在 POST 创建，根治 R2 restore 后裸 POST 撞 `Combo name already exists`）。
+
+### nim-max（日常主入口）
+
+- **策略**：`priority`（优先级滑落）
+- **模型**：NIM 存活池 → 非 NIM 免费兜底（Cerebras/Pollinations/CF，经 `NIM_FALLBACK_MODELS_OVERRIDE` 覆盖；兜底供应商未连接则静默跳过）
+- **用途**：日常 Agent 主入口，"永不断供"——NIM 额度耗尽/429 时毫秒级滑到免费兜底
+
 ### nim-pool
 
-- **策略**：`round-robin`（轮询）
-- **模型**：由 `NIM_PROFILE` 控制（balanced = 11 个）
-- **用途**：通用对话、问答
+- **策略**：`p2c`（多账号建议；单账号经白名单回退 `round-robin`）
+- **模型**：由 `NIM_PROFILE` 控制（balanced = 11 个，受探活过滤）
+- **用途**：纯 NIM 高吞吐场景
 
 ### nim-codex
 
 - **策略**：`round-robin`
-- **模型**：`deepseek-v4-pro` / `gpt-oss-120b` / `glm-5.2` / `codestral-22b`（共 4 个，受探活过滤）
-- **用途**：代码生成场景
+- **模型**：`deepseek-v4-pro` / `gpt-oss-120b` / `glm-5.2` / `codestral-22b`（受探活过滤）
+- **用途**：代码生成专项
 
 ### 增量模式行为
 
-容器重启时（`storage.sqlite` 已存在且 `combos` 表中有 `nim-pool` 记录），init 脚本进入增量模式：
+容器重启时（任一 `nim-*` combo 存在或 `INIT_MARKER` 存在，v4.2.2 起门放宽），init 脚本进入增量模式：
 1. `purge_proxy_db` — 清理代理注册表
-2. 清空 `domain_circuit_breakers` 熔断器
+2. 仅清过期 `domain_circuit_breakers`（保留冷却窗内健康信号）
 3. `check_nim_model_health` — 实时探活
-4. 如有 deprecated 模型：`repair_combo` 用 PUT 更新 combo 的模型列表
-5. `hf_snapshot` — 上传配置快照到 HuggingFace Dataset
-6. 退出，不重复注册 keys 和模型
+4. 如有 deprecated 模型：`upsert_combo` 用 PUT 更新各 combo 模型列表
+5. `nim_health_pick` — 读近 1h 本地 `call_logs` 输出分档主力推荐
+6. `hf_snapshot` — 上传脱敏配置（+ DEBUG log `debug_*.log`，见⑨）到 HuggingFace Dataset
+7. 退出，不重复注册 keys 和模型
 
-修改 `NIM_PROFILE` 或模型数组后，只需 Factory Reboot，`repair_combo` 会自动重建 pool。
+修改 `NIM_PROFILE` 或模型数组后，只需 Factory Reboot，`upsert_combo` 会自动重建对应 combo。
+
+### nim_health_pick 分档主力推荐（启动末尾示例）
+
+```
+[init]   🧑 💻 编程/复杂推理 : deepseek-ai/deepseek-v4-pro (ok 99%, 420ms, n=37)
+[init]   ⚡ 低延迟/日常快答 : deepseek-ai/deepseek-v4-flash (ok 100%, 180ms, n=12)
+[init]   🎯 综合均衡首选   : z-ai/glm-5.2 (ok 98%, 310ms, n=25)
+[init]   直调示例：model = nvidia/deepseek-ai/deepseek-v4-pro
+```
 
 ---
 
@@ -219,7 +270,7 @@ NVIDIA NIM 存在两层权限验证：
 |--------|--------|--------|---------|------|
 | `NIM_PROFILE` | `balanced` | `balanced` | init: `case` 分支 | 控制模型入池范围 |
 | `NIM_MODE` | `NORMAL` | `NORMAL` | init: 头部 if 分支 | `DEBUG` 开启日志归档+关备份 |
-| `NIM_RPM` | `28` | `28` | init: `/api/resilience` | 每分钟请求上限 |
+| `NIM_RPM` | 动态推导 | `存活Key数×NIM_PER_KEY_RPM(35)`，clamp[35,300] | init: `/api/resilience` | 每分钟请求上限（v4.2.0 起不再写死 28） |
 | `CONTEXT_LENGTH_DEFAULT` | `32768` | `32768` | init: `model_context_overrides` 表 | 模型上下文窗口覆写 |
 | `NIM_COMPRESS_THRESHOLD` | `12000` | `12000` | init: `/api/settings/compression` | 压缩触发 token 阈值 |
 
@@ -248,7 +299,14 @@ NVIDIA NIM 存在两层权限验证：
 | `NIM_MIN_INTERVAL_MS` | `500` | 请求最小间隔（毫秒） |
 | `NIM_REQUEST_BODY_LIMIT` | `1`（MB） | 请求体大小上限，字节值 >500 自动换算为 MB |
 | `NIM_PURGE_PROXY` | `1` | 是否执行 proxy_registry 清理 |
+| `NIM_POOL_STRATEGY` | `p2c` | nim-pool 调度策略；非法值（如 `quota-share`）经 `_is_valid_strat` 白名单回退 `round-robin` |
 | `NIM_CODEX_STRATEGY` | `round-robin` | nim-codex 调度策略 |
+| `NIM_FALLBACK_MODELS_OVERRIDE` | 空 | 空格分隔，覆盖 `nim-max` 的非 NIM 兜底节点 |
+| `NIM_PROBE` | `0` | 设 `1` 启用轻量模型探针（每模型每小时限频 + 跨 key 轮换，建议仅排查时开） |
+| `NIM_DEBUG_LOG_TO_DATASET` | `1` | DEBUG 模式下是否把 `debug_*.log` 上传 HF Dataset（v4.2.3·⑨） |
+| `NIM_DEBUG_LOG_KEEP` | `5` | 本地 `/data/` 仅保留最近 N 个 `init_*.log`（v4.2.3·⑨） |
+| `NIM_PER_KEY_RPM` | `35` | 每 Key 计入 RPM（40 免费层留 12% 退避余量） |
+| `NIM_PER_KEY_CONCURRENT` | `3` | 每 Key 并发数 |
 | `NIM_PROXY_RELAY_HOST` | `127.0.0.1` | purge 针对的代理主机 |
 | `NIM_PROXY_RELAY_PORT` | `20129` | purge 针对的代理端口 |
 
@@ -270,7 +328,7 @@ NVIDIA NIM 存在两层权限验证：
 [entrypoint] OmniRoute ready after 2s
 [entrypoint] OmniRoute base image version: 3.8.43 (expected 3.8.43)
 [init] NIM_PROFILE=balanced -> pool 意向 11 个模型
-[init] Starting NIM OmniRoute initializer v4.1.1 (profile=balanced, mode=NORMAL)...
+[init] Starting NIM OmniRoute initializer v4.2.3 (profile=balanced, mode=NORMAL)...
 [init] OmniRoute up (after 0s).
 [init] version: 3.8.43
 [init] Logged in.
@@ -294,7 +352,7 @@ NVIDIA NIM 存在两层权限验证：
 [init] nim-codex HTTP 201
 [init] HF Dataset uploaded.
 [init] Status: healthy / 3.8.43
-[init] Done (first-init). v4.1.1
+[init] Done (first-init). v4.2.3
 ```
 
 ### 增量重启（配置变更后）
@@ -310,7 +368,7 @@ NVIDIA NIM 存在两层权限验证：
 [init] Incremental: PUT combos/... (nim-pool) HTTP 200
 [init] Incremental: PUT combos/... (nim-codex) HTTP 200
 [init] HF Dataset uploaded.
-[init] Done (incremental). v4.1.1
+[init] Done (incremental). v4.2.3
 ```
 
 ---
@@ -373,6 +431,8 @@ curl -s -w "\nHTTP %{http_code}" \
 8. **init** `hf_snapshot` 函数 — HF Dataset 配置备份
 9. **init** `models_to_json` 中的 `jq -R '{model: .}' | jq -s -c .` — 对象数组格式，不可回退为字符串数组
 10. **init** `models_to_json` 中的 `sed 's/^/nvidia\//'` — 路由前缀，消除内置 provider 映射歧义
+11. **init** `models_to_json` 中的 `printf '%s\n'`（**v4.2.3 修正**）— 多参数分行，不可回退为 `printf '%s'`（会粘成单串使多模型 combo 全 400）
+12. **`.github/workflows/sync-to-hf-space.yml`** — `git push --force` 目标 `nomke/omn`，GitHub `main` 为唯一部署触发源
 
 ---
 
@@ -505,5 +565,5 @@ snapshot:
 
 ---
 
-*本文档由 v4.1.1 部署验证生成，所有结论均基于线上实测和官方源码/文档核实。*
+*本文档由 v4.2.3 部署验证生成，所有结论均基于线上实测和官方源码/文档核实。*
 ```

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-# ───────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer  v4.2.3（基于 v4.2.2）
 # 相对 v4.2.2 的变更：
 #   【v4.2.3·⑨ 】DEBUG log 上传 Dataset（debug_<时间戳>.log，默认开启，
@@ -10,9 +10,9 @@ set -eo pipefail
 # 继承 v4.2.2：⑦ 幂等 upsert_combo ⑧ 增量门放宽（任一 nim-* combo 或 INIT_MARKER）。
 # 继承 v4.2.1：① 移除 quota-share/主池 p2c+白名单 ② nim-codex 响应体打印
 #              ④ 可选探针 NIM_PROBE ⑤ 增量只清过期熔断 ⑥ nim_health_pick 分档推荐。
-# ───────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
 
-# ══ 单变量调试 + 日志归档（只走 stdout，不持久化到 Dataset）═══════
+# ══ 单变量调试 + 日志归档（stdout 实时 tee；DEBUG 时另上传 Dataset，见⑨）═══════
 NIM_MODE="${NIM_MODE:-NORMAL}"
 LOG_DIR="/data/omni-data/log"
 if [ "$NIM_MODE" = "DEBUG" ]; then
@@ -99,7 +99,7 @@ build_all_models() {
   printf '%s
 ' "${NIM_POOL_MODELS[@]}" "${NIM_CODEX_MODELS[@]}" "${NIM_EXTRA_MODELS[@]}" | awk '!seen[$0]++'
 }
-models_to_json() { printf '%s' "$@" | sed 's/^/nvidia\//' | jq -R '{model: .}' | jq -s -c .; }
+models_to_json() { printf '%s\n' "$@" | sed 's/^/nvidia\//' | jq -R '{model: .}' | jq -s -c .; }
 
 # ══ combo 策略白名单（3.8.43 实测合法枚举，不含 quota-share）═════
 _VALID_STRATS="priority weighted round-robin context-relay fill-first p2c random least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized fusion"

@@ -1,10 +1,7 @@
-这是经过 **v4.2.3** 最终验证、完全收拢后的完整文档。它涵盖了全部新增环境变量、启动推荐主力样例、R2/Dataset 持久化逻辑、升级论证以及运维排查。
-
-你可以直接将以下内容替换到仓库根目录的 `README.md` 中。
-
-***
-
 # **OmniRoute × NVIDIA NIM 多账号网关（HF Space 部署，v4.2.3）**
+
+> **快速部署文档** · 深度版见 [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) · 变更日志见 [`CHANGELOG.md`](CHANGELOG.md)
+> 旧版本/历史快照/nog 项目文档已归档至 [`archive/`](archive/)
 
 > 在 Hugging Face 免费 Docker Space 上自托管 OmniRoute，接入多个 NVIDIA NIM 免费 Key，通过多账号池化 + p2c 调度 + 多层兜底，把单账号 ~40 RPM 的硬限横向放大为 N×40。
 

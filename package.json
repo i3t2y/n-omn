@@ -1,6 +1,6 @@
 {
   "name": "omniroute-gate",
-  "version": "4.2.0",
+  "version": "4.2.3",
   "private": true,
   "description": "PSK auth gate in front of OmniRoute (HF Space :7860 -> :20128)",
   "main": "gate.js",

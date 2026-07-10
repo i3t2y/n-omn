@@ -10,6 +10,8 @@
 - **[新功能] DEBUG 日志入库**：`hf_snapshot` 现在支持将 `init_*.log` 拷入 snapshot 目录并重命名为 `debug_*.log` 上传至 HF Dataset。
 - **[运维] 本地日志滚动**：新增 `NIM_DEBUG_LOG_KEEP` 变量（默认 5），自动清理容器内 `/data` 目录下的旧初始化日志，防止磁盘膨胀。
 - **[文档] 升级论证**：基于 GitHub Issue #6773 (NIM 404) 论证了维持 3.8.43 版本的必要性，并制定了升级复查触发条件。
+- **[修复] context-monitor 累积判读八进制算术错误**（`context_accumulator_update`，阻断性）：原 `IFS=$'\t' read` 把 tab 当 IFS 空白类——折叠连续空字段、剥离行首 tab，一旦某列（`model`/`suc_max`/`fail_min`）为 NULL→空串，6 列被折叠成 <6 段，`MAX(timestamp)` 串错位落入 `_fail_n`，进 `$(( _suc_n + _fail_n ))` 触发八进制解析报错（`error token "09T22"`），致累积更新整swallow 中断。改用 `mapfile -t -d $'\t'` 数组逐字段拆行，保留空字段、6 索引严格对齐 SQL 列序，数字列空兜 0。
+- **[修复] nim_health_pick 列名改 3.8.43 真实列**（`_score_model`，既有 bug）：原 `SELECT` 用 `status_code`/`model_id`/`created_at`/`latency_ms` 全列错名，`call_logs` 无对应列 → `sqlite3` 报错被 `2>/dev/null` 吞 → row 恒空 → 恒 `NA`，选型全程失效退默认档。按 `OmniRoute src/lib/usage/callLogs.ts` 确认真实列名后重写：`status_code→status`、`model_id→model`、`created_at→timestamp`；移除无对应列的 `AVG(latency_ms)` 聚合，`SELECT` 瘦身为 成功率+样本数 两列；`_pick_from` 同步剥 ms 延迟比较与展示，退化为按成功率选型。
 
 ### **v4.2.2 (2026-07-09)**
 - **[修复] 幂等 Combo 创建**：新增 `upsert_combo` 函数，通过“先 GET 查名再决定 PUT/POST”的逻辑，彻底解决了 R2 restore 回旧 DB 后导致的 `Combo name already exists` (400) 报错。

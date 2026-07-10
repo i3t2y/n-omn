@@ -58,7 +58,7 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 | v4.2.0 | 模型目录对齐 2026-07 NIM slug + RPM 按"存活 Key 数×35"动态推导 + 多层兜底 combo `nim-max` | 历史版本 |
 | v4.2.1 | 移除非法 `quota-share` → 主池 `p2c` + 策略白名单 `_is_valid_strat` + 被动健康选型 `nim_health_pick` + 轻量探针 `NIM_PROBE` | 历史版本 |
 | v4.2.2 | 幂等 `upsert_combo`(先 GET 后 PUT) 根治 R2 restore 撞名 + 增量门放宽(任一 nim-* 或 INIT_MARKER) | 历史版本 |
-| **v4.2.3** | v4.2.2 + **`models_to_json` 粘名 bug 修复(`printf '%s'`→`'%s\n'`)** + DEBUG log 上传 Dataset(`⑨ NIM_DEBUG_LOG_TO_DATASET`/`NIM_DEBUG_LOG_KEEP`) | **当前版本** |
+| **v4.2.3** | v4.2.2 + **`models_to_json` 粘名 bug 修复(`printf '%s'`→`'%s\n'`)** + DEBUG log 上传 Dataset(`⑨ NIM_DEBUG_LOG_TO_DATASET`/`NIM_DEBUG_LOG_KEEP`) + **`context_accumulator_update` 八进制算术错误修复(`mapfile` 替 `IFS=$'\t' read`)** + **`_score_model` 列名改 3.8.43 真实列(`status`/`model`/`timestamp`，移除 `latency_ms`)** | **当前版本** |
 
 ### v4.2.3 相对 v3.8.0 的完整变更
 
@@ -70,9 +70,11 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 6. **扩展模型数组**：补充 `deepseek-v4-flash`、`llama-3.3-70b`、`gemma-4-31b`、`nemotron-super-49b-v1.5`、`yi-large`、`codestral-22b` 等模型
 7. **动态 RPM**：RPM/并发按"存活 NIM Key 数 × 35"动态推导（v4.2.0），不再写死 28
 8. **三个 combo**：`nim-max`(priority 多层兜底，日常主入口) / `nim-pool`(p2c 纯 NIM 池) / `nim-codex`(round-robin 代码专项)，均经 `_is_valid_strat` 白名单 + 幂等 `upsert_combo`
-9. **被动健康选型**：`nim_health_pick` 读近 1h 本地 `call_logs` 成功率/延迟输出分档主力推荐
+9. **被动健康选型**：`nim_health_pick` 读近 1h 本地 `call_logs` 成功率/样本数输出分档主力推荐
 10. **粘名 bug 修复（v4.2.3 核心）**：`models_to_json` 的 `printf '%s'` 多参数会粘成单串（3 模型 → `nvidia/a/b/c` 一个垃圾对象，combo 建成 201 但调用全 400），改 `printf '%s\n'` 恢复正确 round-robin
 11. **DEBUG log 上传 Dataset（v4.2.3·⑨）**：DEBUG 模式 `init_*.log` 拷为 `debug_*.log` 随 `hf_snapshot` 上传 HF Dataset，本地仅留最近 `NIM_DEBUG_LOG_KEEP`(默认 5) 个
+12. **context_accumulator_update 八进制算术修复（v4.2.3）**：原 `IFS=$'\t' read` 把 tab 当 IFS 空白类折叠空字段、剥离行首，致 6 列错位、`MAX(timestamp)` 串落入 `_fail_n` 进 `$(( ))` 报八进制错误（`09T22`），累积判读整swallow 中断。改 `mapfile -t -d $'\t'` 数组逐字段拆行，6 索引严格对齐
+13. **`_score_model` 列名改 3.8.43 真实列（v4.2.3）**：原 `SELECT` 用 `status_code`/`model_id`/`created_at`/`latency_ms` 全错名 → row 恒空 → 选型退默认档。改 `status`/`model`/`timestamp`，移除无对应列的 `AVG(latency_ms)` → 选型按成功率复活
 
 ---
 
@@ -131,7 +133,7 @@ models_to_json() { printf '%s\n' "$@" | sed 's/^/nvidia\//' | jq -R '{model: .}'
 # 出参: [{"model":"nvidia/z-ai/glm-5.2"},{"model":"nvidia/deepseek-ai/deepseek-v4-pro"},{"model":"nvidia/meta/llama-3.3-70b-instruct"}]
 ```
 
-**验证**：HF 生产 `nomke/omn` v4.2.2 仍带此 bug；v4.2.3 推送后 nim-pool/nim-codex 多模型 round-robin 复活。
+**验证**：HF 生产 `nomke/omn` 已于 v4.2.3 修复此 bug，nim-pool/nim-codex 多模型 round-robin 已复活（2026-07-10 实测 RUNNING v4.2.3）。
 
 ### 坑位 3：裸 ID 路由歧义
 

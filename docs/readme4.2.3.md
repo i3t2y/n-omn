@@ -54,12 +54,12 @@
 | `nim-codex` | round-robin | DeepSeek-V4-Pro / GPT-OSS-120B / GLM-5.2 | 代码专项任务 |
 
 ### **启动推荐主力（样例输出）**
-每次启动末尾，`nim_health_pick` 会读取近 1 小时本地 `call_logs` 成功率与延迟，输出决策参考：
+每次启动末尾，`nim_health_pick` 会读取近 1 小时本地 `call_logs` 成功率与样本数，输出决策参考：
 ```text
 [init] ══════════ 本次推荐主力（按分档）══════════
-[init]   🧑 💻 编程/复杂推理 : deepseek-ai/deepseek-v4-pro (ok 99%, 420ms, n=37)
-[init]   ⚡ 低延迟/日常快答 : deepseek-ai/deepseek-v4-flash (ok 100%, 180ms, n=12)
-[init]   🎯 综合均衡首选   : z-ai/glm-5.2 (ok 98%, 310ms, n=25)
+[init]   🧑 💻 编程/复杂推理 : deepseek-ai/deepseek-v4-pro (ok 99%, n=37)
+[init]   ⚡ 低延迟/日常快答 : deepseek-ai/deepseek-v4-flash (ok 100%, n=12)
+[init]   🎯 综合均衡首选   : z-ai/glm-5.2 (ok 98%, n=25)
 [init] ────────────────────────────────────────
 [init]   直调示例：model = nvidia/deepseek-ai/deepseek-v4-pro
 ```
@@ -91,7 +91,7 @@
 - **卡在 Starting**：检查 Dockerfile 的 `FROM` 是否被改成 `latest`；entrypoint 会打印版本比对，若非 `3.8.43` 则存在漂移风险。
 - **400 Invalid Strategy**：确保 `NIM_POOL_STRATEGY` 不含 `quota-share`。脚本已内置白名单，非法值会自动降级为 `round-robin`。
 - **Combo 撞名报错**：v4.2.2+ 已切换为 `upsert_combo`（GET 查名 → PUT 更新），彻底解决 R2 restore 后的 POST 冲突。
-- **Schema 不匹配**：若 `nim_health_pick` 报错，请运行 `sqlite3 /data/storage.sqlite ".schema call_logs"` 确认列名是否为 `model_id`/`status_code`。
+- **Schema 不匹配**：若 `nim_health_pick` 报错，请运行 `sqlite3 /data/storage.sqlite ".schema call_logs"` 确认列名。3.8.43 实测真实列为 `status`/`model`/`timestamp`/`tokens_in`/`tokens_out`/`duration`（非 `model_id`/`status_code`/`created_at`，无 `latency_ms` 列）。`_score_model` 已改用真实列名，按成功率+样本数两列选型。
 - **升级建议**：**暂不升级。** 3.8.46 存在 NIM 路由 404 严重 bug（Issue #6773）。待该 issue 关闭且 3.8.47+ 发布后，先在独立测试 Space 验证再切换。
 
 ---

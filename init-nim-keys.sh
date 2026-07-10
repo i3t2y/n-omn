@@ -343,7 +343,10 @@ context_accumulator_update() {
   [ -z "$_last_ts" ] && _last_ts="1970-01-01T00:00:00.000Z"
   echo "[init]   checkpoint last_ts=$_last_ts"
 
-  # 成功：status 2xx 且 output>0；失败：status>=500 或 (2xx 且 output=0)
+  # 成功：status 2xx 且 output>0；
+  # 失败：status>=500、status=413（context/body 过大，上游 chatBodyAdmission 对 oversized 发 413）、
+  #       或 (2xx 且 output=0)。
+  # 不纳 401/403/429：鉴权/限频信号会污染 first_failure_tokens。
   # 按模型分桶累积 MAX(成功 input) / MIN(失败 input)，并累计 samples
   local _q
   _q="
@@ -351,10 +354,10 @@ context_accumulator_update() {
       model                                                   AS mid,
       MAX(CASE WHEN status BETWEEN 200 AND 299 AND ${_output_col}>0
                THEN ${_input_col} END)                        AS suc_max,
-      MIN(CASE WHEN (status>=500) OR (status BETWEEN 200 AND 299 AND ${_output_col}=0)
+      MIN(CASE WHEN (status>=500) OR (status=413) OR (status BETWEEN 200 AND 299 AND ${_output_col}=0)
                THEN ${_input_col} END)                        AS fail_min,
       SUM(CASE WHEN status BETWEEN 200 AND 299 AND ${_output_col}>0 THEN 1 ELSE 0 END) AS suc_n,
-      SUM(CASE WHEN (status>=500) OR (status BETWEEN 200 AND 299 AND ${_output_col}=0) THEN 1 ELSE 0 END) AS fail_n,
+      SUM(CASE WHEN (status>=500) OR (status=413) OR (status BETWEEN 200 AND 299 AND ${_output_col}=0) THEN 1 ELSE 0 END) AS fail_n,
       MAX(timestamp)                                          AS max_ts
     FROM call_logs
     WHERE provider='nvidia' AND timestamp > '$(sql_escape "$_last_ts")'
@@ -429,6 +432,34 @@ context_accumulator_update() {
     ON CONFLICT(namespace, key) DO UPDATE SET value = excluded.value;" 2>/dev/null \
     && echo "[init]   checkpoint -> ctx_last_log_ts=$_new_max_ts"
   echo "[init]   累积更新 ${_cnt} 个模型。"
+
+  # 【#2 断链修复】高置信推荐回写 model_context_overrides，自动标定 real_context 落地。
+  # 仅 confidence IN ('medium','high') 且 recommended_real_context 非空才覆盖；
+  # source 标 'monitor+manual'（DB 层直写枚举外值做审计标记；TS 读层会归一为 manual）。
+  # model_id 取裸名（REPLACE 去 'nvidia/' 前缀），与既有 apply_context_override 写入行对齐。
+  # 不改 case 硬编码的 _NIM_REAL_CONTEXT=32768 fallback；此处末尾写入胜出周期内的先写。
+  local _ov_cnt
+  _ov_cnt=$(sqlite3 "$_DB_PATH" "
+    INSERT INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
+    SELECT 'nvidia',
+           REPLACE(model_id, 'nvidia/', ''),
+           recommended_real_context,
+           'monitor+manual',
+           datetime('now')
+    FROM context_recommendations
+    WHERE confidence IN ('medium','high')
+      AND recommended_real_context IS NOT NULL
+      AND recommended_real_context > 0
+    ON CONFLICT(provider, model_id) DO UPDATE SET
+      real_context = excluded.real_context,
+      source = excluded.source,
+      refreshed_at = datetime('now')
+    WHERE excluded.source = 'monitor+manual';" 2>/dev/null \
+    | wc -l 2>/dev/null || echo 0)
+  # sqlite3 无 --changes 时回退查写入数（monitor+manual 行数）
+  local _ov_rows
+  _ov_rows=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM model_context_overrides WHERE source='monitor+manual';" 2>/dev/null || echo "?")
+  echo "[init]   monitor 回写 model_context_overrides：当前 monitor+manual 行数=$_ov_rows"
 }
 
 # ══ 【⑥ 】启动健康打分选型：读本地 call_logs，分档输出推荐 ═══════

@@ -9,7 +9,7 @@ set -eo pipefail
 #              取代 v4.2.1 继承的 "DEBUG log 不入 Dataset" 旧策略。
 # 继承 v4.2.2：⑦ 幂等 upsert_combo ⑧ 增量门放宽（任一 nim-* combo 或 INIT_MARKER）。
 # 继承 v4.2.1：① 移除 quota-share/主池 p2c+白名单 ② nim-codex 响应体打印
-#              ④ 可选探针 NIM_PROBE ⑤ 增量只清过期熔断 ⑥ context_recommendations 累积推荐（被动观测）。
+#              ⑤ 增量只清过期熔断 ⑥ context_recommendations 累积推荐（被动观测）。
 # ─────────────────────────────────────────────────────────────
 
 # ══ 单变量调试 + 日志归档（stdout 实时 tee；DEBUG 时另上传 Dataset，见⑨）═══════
@@ -47,9 +47,6 @@ PROVIDERS_FILE="$(_resp omniroute-providers.json)"
 RESILIENCE_RESP_FILE="$(_resp omniroute-resilience.json)"
 SETTINGS_RESP_FILE="$(_resp omniroute-settings.json)"
 COMPRESS_RESP_FILE="$(_resp omniroute-compress.json)"
-THINKING_RESP_FILE="$(_resp omniroute-thinking.json)"
-MEMORY_LEGACY_RESP_FILE="$(_resp omniroute-memory-legacy.json)"
-MEMORY_EXT_RESP_FILE="$(_resp omniroute-memory-ext.json)"
 COMBO_RESP_FILE="$(_resp omniroute-combo.json)"
 VERSION_FILE="$(_resp omniroute-version.json)"
 
@@ -154,8 +151,6 @@ _FALLBACK_STRATEGY="round-robin"
 _STICKY_LIMIT=1
 _COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
 _COMPRESS_MODE="stacked"
-_THINKING_MODE="adaptive"
-_THINKING_BUDGET=8000
 _NIM_REAL_CONTEXT=${CONTEXT_LENGTH_DEFAULT:-32768}
 echo "[init] pool strategy=$_POOL_STRATEGY | codex strategy=$_CODEX_STRATEGY"
 
@@ -177,15 +172,6 @@ _PROXY_RELAY_HOST=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
 _PROXY_RELAY_PORT=${NIM_PROXY_RELAY_PORT:-20129}
 _DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
-
-check_dangerous_env() {
-  echo "[init] check_dangerous_env: scanning relay/proxy env..."
-  local _hit=0
-  for v in OMNIROUTE_RELAY_BACKEND BIFROST_BASE_URL HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
-    if [ -n "${!v}" ]; then echo "[init] ⚠️ DANGER: env $v=${!v} 已设置。"; _hit=1; fi
-  done
-  [ "$_hit" = "0" ] && echo "[init] check_dangerous_env: clean。"
-}
 
 purge_proxy_db() {
   [ "$_PURGE_PROXY" != "1" ] && { echo "[init] purge_proxy_db: skipped."; return 0; }
@@ -249,37 +235,6 @@ filter_alive() {
   for m in "$@"; do grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null || out+=("$m"); done
   printf '%s
 ' "${out[@]}"
-}
-
-# ══ 【④ 】轻量探针：默认关闭；NIM_PROBE=1 才跑 ═══════════════════
-nim_probe() {
-  [ "${NIM_PROBE:-0}" != "1" ] && { echo "[init] nim_probe: disabled (set NIM_PROBE=1 to enable)."; return 0; }
-  echo "[init] nim_probe: enabled — 每模型每小时限频 + 跨 key 轮换 (max_tokens=1)"
-  local PROBE_DIR="/tmp/nim-probe"; mkdir -p "$PROBE_DIR"
-  > /tmp/nim-probe-bad.txt
-  mapfile -t _KEYS < <(printf '%s
-' "$NIM_KEYS" | sed '/^[[:space:]]*$/d')
-  local _nkeys=${#_KEYS[@]}; [ "$_nkeys" -eq 0 ] && return 0
-  local _ki=0 m _stamp _now _last _key _code
-  _now=$(date +%s)
-  while IFS= read -r m; do
-    [ -z "$m" ] && continue
-    grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null && continue
-    _stamp="$PROBE_DIR/$(echo "$m" | tr '/' '-').ts"
-    _last=$(cat "$_stamp" 2>/dev/null || echo 0)
-    if [ $(( _now - _last )) -lt 3600 ]; then
-      echo "[init]   probe skip $m（1h 内已探）"; continue
-    fi
-    _key="${_KEYS[$(( _ki % _nkeys ))]}"; _ki=$(( _ki + 1 ))
-    _code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
-      -H "Authorization: Bearer ${_key}" -H "Content-Type: application/json" \
-      "https://integrate.api.nvidia.com/v1/chat/completions" \
-      -d "$(jq -n --arg mid "$m" '{model:$mid, max_tokens:1, messages:[{role:"user",content:"hi"}]}')" 2>/dev/null || echo "000")
-    echo "[init]   probe $m (key#$(( (_ki-1) % _nkeys ))) -> HTTP $_code"
-    echo "$_now" > "$_stamp"
-    [ "$_code" != "200" ] && echo "$m" >> /tmp/nim-probe-bad.txt
-    sleep 1
-  done < <(build_all_models)
 }
 
 # ══ 【⑥+ 上下文累积判读】跨 call_logs 淘汰周期保留每模型成功/失败口径 ═══
@@ -508,7 +463,6 @@ context_accumulator_update() {
 # ══════════════════════════════════════════════════════════════
 echo "[init] Starting NIM OmniRoute initializer v4.2.3 (profile=$_PROFILE, mode=$NIM_MODE)..."
 echo "[init] BASE_URL=$BASE_URL"
-check_dangerous_env
 
 [ -z "$INITIAL_PASSWORD" ] && { echo "[init] ERROR: INITIAL_PASSWORD required"; exit 1; }
 [ -z "$NIM_KEYS" ] && { echo "[init] ERROR: NIM_KEYS required"; exit 1; }
@@ -608,24 +562,6 @@ curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}
   -X PUT "$BASE_URL/api/settings/compression" -H "Content-Type: application/json" \
   -d "{\"enabled\":true,\"defaultMode\":\"$_COMPRESS_MODE\",\"autoTriggerTokens\":$_COMPRESS_THRESHOLD}" | sed 's/^/[init] Compression HTTP /'
 
-echo "[init] Thinking budget..."
-curl -s -o "$THINKING_RESP_FILE" -w "%{http_code}
-" -b "$COOKIE_FILE" \
-  -X PUT "$BASE_URL/api/settings/thinking-budget" -H "Content-Type: application/json" \
-  -d "{\"mode\":\"$_THINKING_MODE\",\"baseBudget\":$_THINKING_BUDGET}" | sed 's/^/[init] Thinking HTTP /'
-
-echo "[init] Memory legacy + Skills..."
-curl -s -o "$MEMORY_LEGACY_RESP_FILE" -w "%{http_code}
-" -b "$COOKIE_FILE" \
-  -X PATCH "$BASE_URL/api/settings" -H "Content-Type: application/json" \
-  -d '{"memoryEnabled":true,"memoryStrategy":"hybrid","memoryMaxTokens":2000,"memoryRetentionDays":30,"skillsEnabled":true}' | sed 's/^/[init] Memory legacy HTTP /'
-
-echo "[init] Memory extended (static)..."
-curl -s -o "$MEMORY_EXT_RESP_FILE" -w "%{http_code}
-" -b "$COOKIE_FILE" \
-  -X PUT "$BASE_URL/api/settings/memory" -H "Content-Type: application/json" \
-  -d '{"embeddingSource":"static","staticEnabled":true,"transformersEnabled":false}' | sed 's/^/[init] Memory extended HTTP /'
-
 echo "[init] Resetting circuit breakers (first-init clean start)..."
 curl -s -o /dev/null -w "[init] CB reset HTTP %{http_code}
 " -b "$COOKIE_FILE" \
@@ -645,7 +581,7 @@ echo "[init] override: $OVERRIDE_APPLIED applied, $OVERRIDE_SKIPPED failed."
 
 echo "[init] ─────────────────────────────────────────────"
 echo "[init]   PROFILE=$_PROFILE MODE=$NIM_MODE KEYS=$_ALIVE_KEYS RPM=$_RPM BODY=$_REQUEST_BODY_LIMIT_MB MB"
-echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY PROBE=${NIM_PROBE:-0} REAL_CONTEXT=$_NIM_REAL_CONTEXT"
+echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT"
 echo "[init] ─────────────────────────────────────────────"
 
 hf_snapshot() {
@@ -689,9 +625,6 @@ hf_snapshot() {
       --arg real_context "$_NIM_REAL_CONTEXT" \
       --arg body_limit_mb "$_REQUEST_BODY_LIMIT_MB" \
       --arg compress_threshold "$_COMPRESS_THRESHOLD" \
-      --arg thinking_mode "$_THINKING_MODE" \
-      --arg thinking_budget "$_THINKING_BUDGET" \
-      --arg probe "${NIM_PROBE:-0}" \
       --arg per_key_rpm "${_PER_KEY_RPM}" \
       '{version:$version, profile:$profile, mode:$mode,
         tiers:{fast:$tier_fast, stable:$tier_stable, restricted:$tier_restricted},
@@ -701,9 +634,7 @@ hf_snapshot() {
                      per_key_rpm:($per_key_rpm|tonumber)},
         strategies:{pool:$pool_strategy, codex:$codex_strategy, fallback:$fallback_strategy},
         context:{real_context:($real_context|tonumber)},
-        limits:{body_mb:($body_limit_mb|tonumber), compress_threshold:($compress_threshold|tonumber)},
-        thinking:{mode:$thinking_mode, budget:($thinking_budget|tonumber)},
-        flags:{probe:($probe|tonumber)}}'; } > "$BACKUP_DIR/init_vars.json" \
+        limits:{body_mb:($body_limit_mb|tonumber), compress_threshold:($compress_threshold|tonumber)}}'; } > "$BACKUP_DIR/init_vars.json" \
     && echo "[init] snapshot: init_vars.json written" \
     || echo "[init] snapshot: WARN init_vars.json 写入失败"
 
@@ -745,7 +676,6 @@ if [ -f "$_DB_PATH" ]; then
     # ⑤ 只清"已过期"熔断，保留仍在冷却窗内的历史信号
     sqlite3 "$_DB_PATH" "DELETE FROM domain_circuit_breakers WHERE cooldown_until < datetime('now');" 2>/dev/null || true
     check_nim_model_health
-    nim_probe
     # ⑦ 增量也走幂等 upsert（同时修复 deprecated 与撞名）
     mapfile -t POOL_ALIVE  < <(filter_alive "${NIM_POOL_MODELS[@]}")
     mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
@@ -761,7 +691,6 @@ else
 fi
 
 check_nim_model_health
-nim_probe
 
 echo "[init] Registering models..."
 register_model() {

@@ -76,6 +76,9 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 12. **context_accumulator_update 八进制算术修复（v4.2.3）**：原 `IFS=$'\t' read` 把 tab 当 IFS 空白类折叠空字段、剥离行首，致 6 列错位、`MAX(timestamp)` 串落入 `_fail_n` 进 `$(( ))` 报八进制错误（`09T22`），累积判读整swallow 中断。改 `mapfile -t -d $'\t'` 数组逐字段拆行，6 索引严格对齐
 13. **`_score_model` 列名改 3.8.43 真实列（v4.2.3）**：原 `SELECT` 用 `status_code`/`model_id`/`created_at`/`latency_ms` 全错名 → row 恒空 → 选型退默认档。改 `status`/`model`/`timestamp`，移除无对应列的 `AVG(latency_ms)` → 选型按成功率复活
 14. **confidence 写空致 #2 回写失效修复（v4.2.3）**：原 `confidence='$(_conf)'` 误用命令替换（非变量展开 `$_conf`），`_conf` 被当命令执行 → `command not found` → confidence 写空 → `monitor+manual` override 回写恒 0。改 `$_conf`，高置信（如 382 样本 high）方落地
+15. **双 PRAGMA 合一（v4.2.3·#4）**：旧 `_detect_input_col`/`_detect_output_col` 各跑一次 `PRAGMA table_info(call_logs)` 重复扫两遍。合一为 `_detect_io_cols` 单次 PRAGMA + awk 双模式，输出两行（非 `\t` 分隔，避 IFS tab 折叠致列错位 Bug A 同类回归）省一次磁盘扫
+16. **`_arr_json` jq 正规转义（v4.2.3·#7）**：旧 bash 字符串拼接 `"`$_i`"` 构造 JSON 数组未转义 `"`/`\`（比 `models_to_json` 更脆弱）。改 `jq -R . | jq -s -c .` 正规转义，空数组兜 `[]`，加固防未来模型名含特殊字符
+17. **累积判读过滤 model-sync（v4.2.3）**：`context_accumulator_update` SELECT 加 `AND model LIKE '%/%' AND model != 'model-sync'`。`model-sync` 等无 `/` 内部进程标识不扫进 `context_recommendations`，排除噪声条目污染置信度
 
 ---
 

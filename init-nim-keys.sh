@@ -304,18 +304,20 @@ _context_acc_init_table() {
   return 0
 }
 
-# 探测 call_logs 的 input token 列名。3.8.43 实测为 tokens_in；
-# 兼容写法 input_tokens / in_tokens / total_input_tokens（探测命中即用）。
-_detect_input_col() {
-  # PRAGMA table_info 列序: cid|name|type|notnull|dflt|pk  → 列名在 $2
+# 探测 call_logs 的 input/output token 列名。3.8.43 实测 tokens_in/tokens_out；
+# 兼容 input_tokens/in_tokens/total_input_tokens 等（探测命中即用）。
+# 单次 PRAGMA（#4 合一：旧版 _detect_input_col/_detect_output_col 各跑一次，
+# 对同一 call_logs 表重复打两次 PRAGMA table_info，合一省一次磁盘扫）。
+# PRAGMA table_info 列序 cid|name|type|notnull|dflt|pk → 列名在 $2。
+# 输出两行：第1行 input 列名、第2行 output 列名；未命中留空行。用两行而非 \t 分隔，
+# 避免 IFS tab 空白折叠致列错位（Bug A 同类回归：仅 output 命中时前导 tab 被 read 剥离，
+# output 列名错位落入 input 字段）。调用方按行读两变量。
+_detect_io_cols() {
   sqlite3 "$_DB_PATH" "PRAGMA table_info(call_logs);" 2>/dev/null \
-    | awk -F'|' '$2~/^tokens_in$|^input_tokens$|^in_tokens$|^total_input_tokens$/{print $2; found=1} END{exit !found}' \
-    | head -n1
-}
-_detect_output_col() {
-  sqlite3 "$_DB_PATH" "PRAGMA table_info(call_logs);" 2>/dev/null \
-    | awk -F'|' '$2~/^tokens_out$|^output_tokens$|^out_tokens$|^total_output_tokens$/{print $2; found=1} END{exit !found}' \
-    | head -n1
+    | awk -F'|' '
+        $2~/^tokens_in$|^input_tokens$|^in_tokens$|^total_input_tokens$/ {if(!ic) ic=$2}
+        $2~/^tokens_out$|^output_tokens$|^out_tokens$|^total_output_tokens$/ {if(!oc) oc=$2}
+        END{print ic; print oc}'
 }
 
 # 增量更新：读 checkpoint -> 查 id>checkpoint 新日志 -> 累积 -> 落表 -> 推 checkpoint
@@ -328,11 +330,12 @@ context_accumulator_update() {
   _has_tbl=$(sqlite3 "$_DB_PATH" "SELECT name FROM sqlite_master WHERE type='table' AND name='call_logs';" 2>/dev/null || echo "")
   [ -z "$_has_tbl" ] && { echo "[init]   call_logs 不存在（无流量），预约表就绪。"; return 0; }
 
-  # 列名探测（失败则 columns 0 行）
-  local _input_col _output_col
-  _input_col=$(_detect_input_col)
+  # 列名探测（单次 PRAGMA 两行输出，失败则兜默认/跳过）
+  local _input_col _output_col _io
+  _io=$(_detect_io_cols)
+  _input_col=$(printf '%s' "$_io" | sed -n '1p')
+  _output_col=$(printf '%s' "$_io" | sed -n '2p')
   [ -z "$_input_col" ] && { echo "[init]   WARN: call_logs 无已知 input token 列，skip。"; return 0; }
-  _output_col=$(_detect_output_col)
   [ -z "$_output_col" ] && _output_col="tokens_out"
   echo "[init]   列探测 input=$_input_col output=$_output_col"
 
@@ -361,6 +364,7 @@ context_accumulator_update() {
       MAX(timestamp)                                          AS max_ts
     FROM call_logs
     WHERE provider='nvidia' AND timestamp > '$(sql_escape "$_last_ts")'
+      AND model LIKE '%/%' AND model != 'model-sync'
     GROUP BY model;"
 
   local _rows _cnt=0
@@ -716,11 +720,9 @@ hf_snapshot() {
 
   # ── 【⑥+ 】init_vars.json：把脚本运行时变量（profile/TIER/RPM/策略/口径）随快照上传 ──
   #   目的：HF Dataset 侧可回溯本空间的真实初始化参数，无需翻容器日志。
-  _arr_json() { # bash 数组 -> JSON 数组字符串
-    local _i _out="["
-    for _i in "$@"; do _out+="\"$_i\","; done
-    [ "${_out: -1}" = "," ] && _out="${_out%,}"
-    printf '%s]' "$_out"
+  _arr_json() { # bash 数组 -> JSON 字符串数组（jq 正规转义，防 \"/\\ 破坏 JSON）
+    [ "$#" -eq 0 ] && { printf '[]'; return; }
+    printf '%s\n' "$@" | jq -R . | jq -s -c .
   }
   { jq -n \
       --arg version "4.2.3" \

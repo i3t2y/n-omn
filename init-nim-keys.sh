@@ -282,6 +282,155 @@ nim_probe() {
   done < <(build_all_models)
 }
 
+# ══ 【⑥+ 上下文累积判读】跨 call_logs 淘汰周期保留每模型成功/失败口径 ═══
+# 背景：call_logs 表有 ~10 万行上限（trimCallLogsToMaxRows），旧日志被淘汰后
+#       历史划定信号丢失。本节把"曾经跑通的最大 input"与"首次报错的最小 input"
+#       沉降到 context_recommendations 表，跨淘汰周期保留，供自动标定 real_context。
+# 约束：只读不写外部服务；checkpoint 存 key_value(namespace='monitor')；
+#       ON CONFLICT DO UPDATE 保证 last_success_tokens 只增不减。
+_context_acc_init_table() {
+  [ ! -f "$_DB_PATH" ] && return 1
+  sqlite3 "$_DB_PATH" "
+    CREATE TABLE IF NOT EXISTS context_recommendations (
+      model_id TEXT PRIMARY KEY,
+      last_success_tokens INTEGER DEFAULT NULL,
+      first_failure_tokens INTEGER DEFAULT NULL,
+      success_samples INTEGER DEFAULT 0,
+      failure_samples INTEGER DEFAULT 0,
+      confidence TEXT DEFAULT 'insufficient',
+      recommended_real_context INTEGER DEFAULT NULL,
+      last_updated TEXT DEFAULT NULL
+    );" 2>/dev/null || return 1
+  return 0
+}
+
+# 探测 call_logs 的 input token 列名。3.8.43 实测为 tokens_in；
+# 兼容写法 input_tokens / in_tokens / total_input_tokens（探测命中即用）。
+_detect_input_col() {
+  # PRAGMA table_info 列序: cid|name|type|notnull|dflt|pk  → 列名在 $2
+  sqlite3 "$_DB_PATH" "PRAGMA table_info(call_logs);" 2>/dev/null \
+    | awk -F'|' '$2~/^tokens_in$|^input_tokens$|^in_tokens$|^total_input_tokens$/{print $2; found=1} END{exit !found}' \
+    | head -n1
+}
+_detect_output_col() {
+  sqlite3 "$_DB_PATH" "PRAGMA table_info(call_logs);" 2>/dev/null \
+    | awk -F'|' '$2~/^tokens_out$|^output_tokens$|^out_tokens$|^total_output_tokens$/{print $2; found=1} END{exit !found}' \
+    | head -n1
+}
+
+# 增量更新：读 checkpoint -> 查 id>checkpoint 新日志 -> 累积 -> 落表 -> 推 checkpoint
+context_accumulator_update() {
+  echo "[init] context_accumulator_update: 增量累积每模型成功/失败口径..."
+  [ ! -f "$_DB_PATH" ] && { echo "[init]   no DB, skip."; return 0; }
+  _context_acc_init_table || { echo "[init]   建表失败，skip。"; return 0; }
+
+  local _has_tbl
+  _has_tbl=$(sqlite3 "$_DB_PATH" "SELECT name FROM sqlite_master WHERE type='table' AND name='call_logs';" 2>/dev/null || echo "")
+  [ -z "$_has_tbl" ] && { echo "[init]   call_logs 不存在（无流量），预约表就绪。"; return 0; }
+
+  # 列名探测（失败则 columns 0 行）
+  local _input_col _output_col
+  _input_col=$(_detect_input_col)
+  [ -z "$_input_col" ] && { echo "[init]   WARN: call_logs 无已知 input token 列，skip。"; return 0; }
+  _output_col=$(_detect_output_col)
+  [ -z "$_output_col" ] && _output_col="tokens_out"
+  echo "[init]   列探测 input=$_input_col output=$_output_col"
+
+  # checkpoint：call_logs.id 是 TEXT(UUID) 无数值序，改用 timestamp 串比较
+  # ISO-8601 字典序 == 时间序；checkpoint str 存 key_value(monitor/ctx_last_log_ts)
+  local _ckpt_key="ctx_last_log_ts" _last_ts _new_max_ts
+  _last_ts=$(sqlite3 "$_DB_PATH" "SELECT value FROM key_value WHERE namespace='monitor' AND key='$(sql_escape "$_ckpt_key")';" 2>/dev/null || echo "")
+  [ -z "$_last_ts" ] && _last_ts="1970-01-01T00:00:00.000Z"
+  echo "[init]   checkpoint last_ts=$_last_ts"
+
+  # 成功：status 2xx 且 output>0；失败：status>=500 或 (2xx 且 output=0)
+  # 按模型分桶累积 MAX(成功 input) / MIN(失败 input)，并累计 samples
+  local _q
+  _q="
+    SELECT
+      model                                                   AS mid,
+      MAX(CASE WHEN status BETWEEN 200 AND 299 AND ${_output_col}>0
+               THEN ${_input_col} END)                        AS suc_max,
+      MIN(CASE WHEN (status>=500) OR (status BETWEEN 200 AND 299 AND ${_output_col}=0)
+               THEN ${_input_col} END)                        AS fail_min,
+      SUM(CASE WHEN status BETWEEN 200 AND 299 AND ${_output_col}>0 THEN 1 ELSE 0 END) AS suc_n,
+      SUM(CASE WHEN (status>=500) OR (status BETWEEN 200 AND 299 AND ${_output_col}=0) THEN 1 ELSE 0 END) AS fail_n,
+      MAX(timestamp)                                          AS max_ts
+    FROM call_logs
+    WHERE provider='nvidia' AND timestamp > '$(sql_escape "$_last_ts")'
+    GROUP BY model;"
+
+  local _rows _cnt=0
+  _rows=$(sqlite3 -separator $'\t' "$_DB_PATH" "$_q" 2>/dev/null || echo "")
+  if [ -z "$_rows" ]; then echo "[init]   本轮无新日志（timestamp > checkpoint）。"; return 0; fi
+
+  local _mid _suc_max _fail_min _suc_n _fail_n _max_ts
+  while IFS=$'\t' read -r _mid _suc_max _fail_min _suc_n _fail_n _max_ts; do
+    [ -z "$_mid" ] || [ "$_mid" = "" ] && continue
+    # ON CONFLICT DO UPDATE：last_success 只增不减（取 MAX(旧,新)），
+    # first_failure 只减不增（取 COALESCE(MIN,旧)）。samples 累加。
+    local _rec_real _conf _new_total
+    _new_total=$(( (${_suc_n:-0} + ${_fail_n:-0}) ))
+    sqlite3 "$_DB_PATH" "
+      INSERT INTO context_recommendations (model_id, last_success_tokens, first_failure_tokens,
+                                           success_samples, failure_samples, confidence,
+                                           recommended_real_context, last_updated)
+      VALUES ('$(sql_escape "$_mid")',
+              $([ -n "$_suc_max" ] && echo "$_suc_max" || echo 'NULL'),
+              $([ -n "$_fail_min" ] && echo "$_fail_min" || echo 'NULL'),
+              ${_suc_n:-0}, ${_fail_n:-0},
+              'insufficient', NULL, datetime('now'))
+      ON CONFLICT(model_id) DO UPDATE SET
+        last_success_tokens = MAX(COALESCE(excluded.last_success_tokens, 0),
+                                  COALESCE(context_recommendations.last_success_tokens, 0)),
+        first_failure_tokens = CASE
+          WHEN context_recommendations.first_failure_tokens IS NULL THEN excluded.first_failure_tokens
+          WHEN excluded.first_failure_tokens IS NULL THEN context_recommendations.first_failure_tokens
+          ELSE MIN(excluded.first_failure_tokens, context_recommendations.first_failure_tokens)
+        END,
+        success_samples  = context_recommendations.success_samples  + excluded.success_samples,
+        failure_samples  = context_recommendations.failure_samples  + excluded.failure_samples,
+        last_updated     = datetime('now');" 2>/dev/null || continue
+
+    # 推荐值 + 置信度：需历史累计样本，读回
+    local _hist_suc_n _hist_fail_n _hist_suc _hist_fail
+    _hist_suc_n=$(sqlite3 "$_DB_PATH" "SELECT success_samples FROM context_recommendations WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo 0)
+    _hist_fail_n=$(sqlite3 "$_DB_PATH" "SELECT failure_samples FROM context_recommendations WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo 0)
+    _hist_suc=$(sqlite3 "$_DB_PATH" "SELECT last_success_tokens FROM context_recommendations WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo "")
+    _hist_fail=$(sqlite3 "$_DB_PATH" "SELECT first_failure_tokens FROM context_recommendations WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo "")
+
+    local _total=$((_hist_suc_n + _hist_fail_n))
+    if [ "$_total" -lt 10 ]; then _conf="insufficient"
+    elif [ "$_total" -lt 50 ]; then _conf="low"
+    elif [ "$_total" -lt 200 ]; then _conf="medium"
+    else _conf="high"; fi
+
+    # 推荐口径：有失败边界 → first_failure*0.85；否则 last_success*0.9
+    if [ -n "$_hist_fail" ] && [ "$_hist_fail" -gt 0 ] 2>/dev/null; then
+      _rec_real=$(( _hist_fail * 85 / 100 ))
+    elif [ -n "$_hist_suc" ] && [ "$_hist_suc" -gt 0 ] 2>/dev/null; then
+      _rec_real=$(( _hist_suc * 90 / 100 ))
+    else
+      _rec_real=""
+    fi
+
+    sqlite3 "$_DB_PATH" "
+      UPDATE context_recommendations
+      SET confidence='$(_conf)',
+          recommended_real_context=$([ -n "$_rec_real" ] && echo "$_rec_real" || echo 'NULL')
+      WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || true
+    _cnt=$((_cnt+1))
+  done <<< "$_rows"
+
+  # token 成功 only 增不减已由 ON CONFLICT 保证；checkpoint 推到本轮 max_ts
+  _new_max_ts=$(printf '%s\n' "$_rows" | awk -F'\t' -v OFS='\t' '{print $6}' | sort | tail -n1)
+  [ -n "$_new_max_ts" ] && sqlite3 "$_DB_PATH" "
+    INSERT INTO key_value (namespace, key, value) VALUES ('monitor', '$(sql_escape "$_ckpt_key")', '$(sql_escape "$_new_max_ts")')
+    ON CONFLICT(namespace, key) DO UPDATE SET value = excluded.value;" 2>/dev/null \
+    && echo "[init]   checkpoint -> ctx_last_log_ts=$_new_max_ts"
+  echo "[init]   累积更新 ${_cnt} 个模型。"
+}
+
 # ══ 【⑥ 】启动健康打分选型：读本地 call_logs，分档输出推荐 ═══════
 nim_health_pick() {
   echo "[init] nim_health_pick: 读近1h本地 call_logs 打分（零外部请求）..."
@@ -337,6 +486,30 @@ nim_health_pick() {
   echo "[init] ────────────────────────────────────────"
   echo "[init]   直调示例：model = nvidia/${PICK_CODE%% *}"
   echo "[init] ═════════════════════════════════════════"
+
+  # 【⑥+ 】累积推荐表输出（跨 call_logs 淘汰周期保留的口径）
+  local _acc_rows
+  _acc_rows=$(sqlite3 -separator '|' "$_DB_PATH" "
+    SELECT model_id,
+           COALESCE(last_success_tokens,'-'),
+           COALESCE(first_failure_tokens,'-'),
+           (success_samples||'/'||failure_samples),
+           confidence,
+           COALESCE(recommended_real_context,'-')
+    FROM context_recommendations
+    ORDER BY CASE confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1
+             WHEN 'low' THEN 2 ELSE 3 END, model_id;" 2>/dev/null || echo "")
+  if [ -z "$_acc_rows" ]; then
+    echo "[init] （累积推荐表为空：尚无成功/失败样本）"
+  else
+    echo "[init] ═══累积 real_context 推荐（跨淘汰周期保留）═══"
+    echo "[init]   model | last_ok | first_fail | ok/fail_n | conf | rec_ctx"
+    while IFS='|' read -r _m _ok _fail _n _c _r; do
+      [ -z "$_m" ] && continue
+      printf '[init]   %s | %s | %s | %s | %s | %s\n' "$_m" "$_ok" "$_fail" "$_n" "$_c" "$_r"
+    done <<< "$_acc_rows"
+    echo "[init] ═════════════════════════════════════════"
+  fi
 }
 
 # ══════════════════════════════════════════════════════════════
@@ -497,6 +670,52 @@ hf_snapshot() {
   jq '.settings' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
   jq '.combos' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
 
+  # ── 【⑥+ 】init_vars.json：把脚本运行时变量（profile/TIER/RPM/策略/口径）随快照上传 ──
+  #   目的：HF Dataset 侧可回溯本空间的真实初始化参数，无需翻容器日志。
+  _arr_json() { # bash 数组 -> JSON 数组字符串
+    local _i _out="["
+    for _i in "$@"; do _out+="\"$_i\","; done
+    [ "${_out: -1}" = "," ] && _out="${_out%,}"
+    printf '%s]' "$_out"
+  }
+  { jq -n \
+      --arg version "4.2.3" \
+      --arg profile "$_PROFILE" \
+      --arg mode "$NIM_MODE" \
+      --argjson tier_fast "$(_arr_json "${TIER_FAST[@]}")" \
+      --argjson tier_stable "$(_arr_json "${TIER_STABLE[@]}")" \
+      --argjson tier_restricted "$(_arr_json "${TIER_RESTRICTED[@]}")" \
+      --argjson pool_models "$(_arr_json "${NIM_POOL_MODELS[@]}")" \
+      --argjson codex_models "$(_arr_json "${NIM_CODEX_MODELS[@]}")" \
+      --argjson fast_models "$(_arr_json "${NIM_FAST_MODELS[@]}")" \
+      --arg alive_keys "$_ALIVE_KEYS" \
+      --arg rpm "$_RPM" \
+      --arg concurrent "$_CONCURRENT" \
+      --arg min_interval_ms "$_MIN_INTERVAL_MS" \
+      --arg pool_strategy "$_POOL_STRATEGY" \
+      --arg codex_strategy "$_CODEX_STRATEGY" \
+      --arg fallback_strategy "$_FALLBACK_STRATEGY" \
+      --arg real_context "$_NIM_REAL_CONTEXT" \
+      --arg body_limit_mb "$_REQUEST_BODY_LIMIT_MB" \
+      --arg compress_threshold "$_COMPRESS_THRESHOLD" \
+      --arg thinking_mode "$_THINKING_MODE" \
+      --arg thinking_budget "$_THINKING_BUDGET" \
+      --arg probe "${NIM_PROBE:-0}" \
+      --arg per_key_rpm "${_PER_KEY_RPM}" \
+      '{version:$version, profile:$profile, mode:$mode,
+        tiers:{fast:$tier_fast, stable:$tier_stable, restricted:$tier_restricted},
+        pools:{pool:$pool_models, codex:$codex_models, fast:$fast_models},
+        dynamic_rpm:{alive_keys:($alive_keys|tonumber), rpm:($rpm|tonumber),
+                     concurrent:($concurrent|tonumber), min_interval_ms:($min_interval_ms|tonumber),
+                     per_key_rpm:($per_key_rpm|tonumber)},
+        strategies:{pool:$pool_strategy, codex:$codex_strategy, fallback:$fallback_strategy},
+        context:{real_context:($real_context|tonumber)},
+        limits:{body_mb:($body_limit_mb|tonumber), compress_threshold:($compress_threshold|tonumber)},
+        thinking:{mode:$thinking_mode, budget:($thinking_budget|tonumber)},
+        flags:{probe:($probe|tonumber)}}'; } > "$BACKUP_DIR/init_vars.json" \
+    && echo "[init] snapshot: init_vars.json written" \
+    || echo "[init] snapshot: WARN init_vars.json 写入失败"
+
   # ── 【v4.2.3·⑨ 】DEBUG log 上传到 Dataset（debug_<时间戳>.log）──
   #   仅 DEBUG 模式且 INIT_LOG 存在时；默认开启，可用 NIM_DEBUG_LOG_TO_DATASET=0 关闭。
   #   同时本地只保留最近 NIM_DEBUG_LOG_KEEP(默认5) 个，避免 /data 与 Dataset 无限堆积。
@@ -541,6 +760,7 @@ if [ -f "$_DB_PATH" ]; then
     mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
     upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
     upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
+    context_accumulator_update
     nim_health_pick
     hf_snapshot
     echo "[init] Done (incremental). v4.2.3"
@@ -572,6 +792,7 @@ mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
 upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
 upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
 
+context_accumulator_update
 nim_health_pick
 hf_snapshot
 purge_proxy_db

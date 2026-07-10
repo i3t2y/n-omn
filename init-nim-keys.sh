@@ -9,7 +9,7 @@ set -eo pipefail
 #              取代 v4.2.1 继承的 "DEBUG log 不入 Dataset" 旧策略。
 # 继承 v4.2.2：⑦ 幂等 upsert_combo ⑧ 增量门放宽（任一 nim-* combo 或 INIT_MARKER）。
 # 继承 v4.2.1：① 移除 quota-share/主池 p2c+白名单 ② nim-codex 响应体打印
-#              ④ 可选探针 NIM_PROBE ⑤ 增量只清过期熔断 ⑥ nim_health_pick 分档推荐。
+#              ④ 可选探针 NIM_PROBE ⑤ 增量只清过期熔断 ⑥ context_recommendations 累积推荐（被动观测）。
 # ─────────────────────────────────────────────────────────────
 
 # ══ 单变量调试 + 日志归档（stdout 实时 tee；DEBUG 时另上传 Dataset，见⑨）═══════
@@ -448,94 +448,39 @@ context_accumulator_update() {
     && echo "[init]   checkpoint -> ctx_last_log_ts=$_new_max_ts"
   echo "[init]   累积更新 ${_cnt} 个模型。"
 
-  # 【#2 断链修复】高置信推荐回写 model_context_overrides，自动标定 real_context 落地。
+  # 【已禁用】自动回写——手动 case 分支值比 90% 安全裕量更优。
+  # 如需恢复数据驱动 override，取消下方注释即可。
+  # ── 【#2 断链修复】高置信推荐回写 model_context_overrides，自动标定 real_context 落地。
   # 仅 confidence IN ('medium','high') 且 recommended_real_context 非空才覆盖；
   # source 标 'monitor+manual'（DB 层直写枚举外值做审计标记；TS 读层会归一为 manual）。
   # model_id 取裸名（REPLACE 去 'nvidia/' 前缀），与既有 apply_context_override 写入行对齐。
   # 不改 case 硬编码的 _NIM_REAL_CONTEXT=32768 fallback；此处末尾写入胜出周期内的先写。
-  local _ov_cnt
-  _ov_cnt=$(sqlite3 "$_DB_PATH" "
-    INSERT INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
-    SELECT 'nvidia',
-           REPLACE(model_id, 'nvidia/', ''),
-           recommended_real_context,
-           'monitor+manual',
-           datetime('now')
-    FROM context_recommendations
-    WHERE confidence IN ('medium','high')
-      AND recommended_real_context IS NOT NULL
-      AND recommended_real_context > 0
-    ON CONFLICT(provider, model_id) DO UPDATE SET
-      real_context = excluded.real_context,
-      source = excluded.source,
-      refreshed_at = datetime('now')
-    WHERE excluded.source = 'monitor+manual';" 2>/dev/null \
-    | wc -l 2>/dev/null || echo 0)
-  # sqlite3 无 --changes 时回退查写入数（monitor+manual 行数）
-  local _ov_rows
-  _ov_rows=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM model_context_overrides WHERE source='monitor+manual';" 2>/dev/null || echo "?")
-  echo "[init]   monitor 回写 model_context_overrides：当前 monitor+manual 行数=$_ov_rows"
-}
+  # local _ov_cnt
+  # _ov_cnt=$(sqlite3 "$_DB_PATH" "
+  #   INSERT INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
+  #   SELECT 'nvidia',
+  #          REPLACE(model_id, 'nvidia/', ''),
+  #          recommended_real_context,
+  #          'monitor+manual',
+  #          datetime('now')
+  #   FROM context_recommendations
+  #   WHERE confidence IN ('medium','high')
+  #     AND recommended_real_context IS NOT NULL
+  #     AND recommended_real_context > 0
+  #   ON CONFLICT(provider, model_id) DO UPDATE SET
+  #     real_context = excluded.real_context,
+  #     source = excluded.source,
+  #     refreshed_at = datetime('now')
+  #   WHERE excluded.source = 'monitor+manual';" 2>/dev/null \
+  #   | wc -l 2>/dev/null || echo 0)
+  # # sqlite3 无 --changes 时回退查写入数（monitor+manual 行数）
+  # local _ov_rows
+  # _ov_rows=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM model_context_overrides WHERE source='monitor+manual';" 2>/dev/null || echo "?")
+  # echo "[init]   monitor 回写 model_context_overrides：当前 monitor+manual 行数=$_ov_rows"
 
-# ══ 【⑥ 】启动健康打分选型：读本地 call_logs，分档输出推荐 ═══════
-nim_health_pick() {
-  echo "[init] nim_health_pick: 读近1h本地 call_logs 打分（零外部请求）..."
-  [ ! -f "$_DB_PATH" ] && { echo "[init]   no DB, skip pick."; return 0; }
-  local _has_tbl
-  _has_tbl=$(sqlite3 "$_DB_PATH" "SELECT name FROM sqlite_master WHERE type='table' AND name='call_logs';" 2>/dev/null || echo "")
-  [ -z "$_has_tbl" ] && echo "[init]   call_logs 表不存在（尚无流量），本次按默认分档推荐。"
-
-  _score_model() {
-    local mid="$1" row
-    [ -z "$_has_tbl" ] && { echo "NA"; return; }
-    # call_logs 3.8.43 真实列名：status（非 status_code）、model（非 model_id）、
-    # timestamp（非 created_at）、tokens_in/tokens_out、duration。无 latency_ms 列，
-    # 故移除原延迟聚合（AVG(latency_ms) 全表报错致 row 恒空 → 恒 NA，选型失效）。
-    # SELECT 仅留 成功率 + 样本数 两列；_pick_from 退化为按成功率选型。
-    row=$(sqlite3 -separator '|' "$_DB_PATH" "
-      SELECT
-        printf('%.0f', SUM(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END)*100.0/COUNT(*)),
-        COUNT(*)
-      FROM call_logs
-      WHERE provider='nvidia' AND model='nvidia/$(sql_escape "$mid")'
-        AND timestamp > datetime('now','-1 hour');" 2>/dev/null || echo "")
-    [ -z "$row" ] || [ "${row%%|*}" = "" ] && { echo "NA"; return; }
-    echo "$row"
-  }
-
-  _pick_from() {
-    local best="" best_ok=-1 m sc ok n
-    for m in "$@"; do
-      grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null && continue
-      grep -Fxq "$m" /tmp/nim-probe-bad.txt 2>/dev/null && continue
-      sc=$(_score_model "$m")
-      if [ "$sc" = "NA" ]; then
-        [ -z "$best" ] && best="$m (无历史数据, 默认档位首选)"
-        continue
-      fi
-      ok="${sc%%|*}"; n="${sc#*|}"
-      if [ "${ok:-0}" -gt "$best_ok" ] 2>/dev/null; then
-        best_ok=$ok; best="$m (ok ${ok}%, n=${n})"
-      fi
-    done
-    [ -z "$best" ] && best="（无存活候选）"
-    echo "$best"
-  }
-
-  local PICK_CODE PICK_FAST PICK_GEN
-  PICK_CODE=$(_pick_from "${NIM_CODEX_MODELS[@]}")
-  PICK_FAST=$(_pick_from "${NIM_FAST_MODELS[@]}")
-  PICK_GEN=$(_pick_from "${NIM_POOL_MODELS[@]}")
-
-  echo "[init] ══════════ 本次推荐主力（按分档）══════════"
-  echo "[init]   🧑 💻 编程/复杂推理 : $PICK_CODE"
-  echo "[init]   ⚡ 低延迟/日常快答 : $PICK_FAST"
-  echo "[init]   🎯 综合均衡首选   : $PICK_GEN"
-  echo "[init] ────────────────────────────────────────"
-  echo "[init]   直调示例：model = nvidia/${PICK_CODE%% *}"
-  echo "[init] ═════════════════════════════════════════"
-
-  # 【⑥+ 】累积推荐表输出（跨 call_logs 淘汰周期保留的口径）
+  # 【⑥+ 】累积推荐表输出（跨 call_logs 淘汰周期保留的口径）。
+  # 表输出与聚合同函数：context_accumulator_update 每轮增量/first-init 结束即打印当前推荐全表，
+  # 属被动观测（不触发任何写入）；原 nim_health_pick 仅"本次推荐主力(按分档)"部分已移除。
   local _acc_rows
   _acc_rows=$(sqlite3 -separator '|' "$_DB_PATH" "
     SELECT model_id,
@@ -807,7 +752,6 @@ if [ -f "$_DB_PATH" ]; then
     upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
     upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
     context_accumulator_update
-    nim_health_pick
     hf_snapshot
     echo "[init] Done (incremental). v4.2.3"
     exit 0
@@ -839,7 +783,6 @@ upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
 upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
 
 context_accumulator_update
-nim_health_pick
 hf_snapshot
 purge_proxy_db
 

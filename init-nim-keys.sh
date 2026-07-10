@@ -367,9 +367,17 @@ context_accumulator_update() {
   _rows=$(sqlite3 -separator $'\t' "$_DB_PATH" "$_q" 2>/dev/null || echo "")
   if [ -z "$_rows" ]; then echo "[init]   本轮无新日志（timestamp > checkpoint）。"; return 0; fi
 
-  local _mid _suc_max _fail_min _suc_n _fail_n _max_ts
-  while IFS=$'\t' read -r _mid _suc_max _fail_min _suc_n _fail_n _max_ts; do
-    [ -z "$_mid" ] || [ "$_mid" = "" ] && continue
+  # #1 根因：IFS=$'\t' read 把 tab 当 IFS 空白类——折叠加空字段、剥离前导 tab，
+  # 一旦某列（model 或中间 suc_max/fail_min）NULL→空串，6 列被折叠成 <6 段，
+  # max_ts 串错位落入 _fail_n，进 $(( )) 触发八进制解析（error token "09T22"）。
+  # 修复：改用 mapfile -t -d $'\t' 数组逐字段拆行，保留空字段、不折叠不剥离首，
+  # 6 索引严格对齐 SQL 列序；数字列空时兜 0。
+  local _line _mid _suc_max _fail_min _suc_n _fail_n _max_ts
+  while IFS= read -r _line; do
+    local _acc=(); mapfile -t -d $'\t' _acc <<<"$_line"
+    _mid=${_acc[0]}; _suc_max=${_acc[1]}; _fail_min=${_acc[2]}
+    _suc_n=${_acc[3]}; _fail_n=${_acc[4]}; _max_ts=${_acc[5]}
+    [ -z "$_mid" ] && continue
     # ON CONFLICT DO UPDATE：last_success 只增不减（取 MAX(旧,新)），
     # first_failure 只减不增（取 COALESCE(MIN,旧)）。samples 累加。
     local _rec_real _conf _new_total
@@ -473,20 +481,23 @@ nim_health_pick() {
   _score_model() {
     local mid="$1" row
     [ -z "$_has_tbl" ] && { echo "NA"; return; }
+    # call_logs 3.8.43 真实列名：status（非 status_code）、model（非 model_id）、
+    # timestamp（非 created_at）、tokens_in/tokens_out、duration。无 latency_ms 列，
+    # 故移除原延迟聚合（AVG(latency_ms) 全表报错致 row 恒空 → 恒 NA，选型失效）。
+    # SELECT 仅留 成功率 + 样本数 两列；_pick_from 退化为按成功率选型。
     row=$(sqlite3 -separator '|' "$_DB_PATH" "
       SELECT
-        printf('%.0f', SUM(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1 ELSE 0 END)*100.0/COUNT(*)),
-        printf('%.0f', AVG(latency_ms)),
+        printf('%.0f', SUM(CASE WHEN status BETWEEN 200 AND 299 THEN 1 ELSE 0 END)*100.0/COUNT(*)),
         COUNT(*)
       FROM call_logs
-      WHERE provider='nvidia' AND model_id='nvidia/$(sql_escape "$mid")'
-        AND created_at > datetime('now','-1 hour');" 2>/dev/null || echo "")
+      WHERE provider='nvidia' AND model='nvidia/$(sql_escape "$mid")'
+        AND timestamp > datetime('now','-1 hour');" 2>/dev/null || echo "")
     [ -z "$row" ] || [ "${row%%|*}" = "" ] && { echo "NA"; return; }
     echo "$row"
   }
 
   _pick_from() {
-    local best="" best_ok=-1 best_ms=999999 m sc ok ms n
+    local best="" best_ok=-1 m sc ok n
     for m in "$@"; do
       grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null && continue
       grep -Fxq "$m" /tmp/nim-probe-bad.txt 2>/dev/null && continue
@@ -495,10 +506,9 @@ nim_health_pick() {
         [ -z "$best" ] && best="$m (无历史数据, 默认档位首选)"
         continue
       fi
-      ok="${sc%%|*}"; ms=$(echo "$sc" | cut -d'|' -f2); n=$(echo "$sc" | cut -d'|' -f3)
-      if [ "${ok:-0}" -gt "$best_ok" ] 2>/dev/null || \
-         { [ "${ok:-0}" -eq "$best_ok" ] 2>/dev/null && [ "${ms:-999999}" -lt "$best_ms" ] 2>/dev/null; }; then
-        best_ok=$ok; best_ms=$ms; best="$m (ok ${ok}%, ${ms}ms, n=${n})"
+      ok="${sc%%|*}"; n="${sc#*|}"
+      if [ "${ok:-0}" -gt "$best_ok" ] 2>/dev/null; then
+        best_ok=$ok; best="$m (ok ${ok}%, n=${n})"
       fi
     done
     [ -z "$best" ] && best="（无存活候选）"

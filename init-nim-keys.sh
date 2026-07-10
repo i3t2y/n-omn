@@ -425,9 +425,12 @@ context_accumulator_update() {
       _rec_real=""
     fi
 
+    # ⚠️ confidence='$_conf' 必须用变量展开；早期 '$(_conf)' 是命令替换误用——
+    # bash 执行命令 _conf → "command not found" → confidence 写空 → 下游 #2 回写
+    # WHERE confidence IN ('medium','high') 不命中 → monitor+manual 行数恒 0。
     sqlite3 "$_DB_PATH" "
       UPDATE context_recommendations
-      SET confidence='$(_conf)',
+      SET confidence='$_conf',
           recommended_real_context=$([ -n "$_rec_real" ] && echo "$_rec_real" || echo 'NULL')
       WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || true
     _cnt=$((_cnt+1))

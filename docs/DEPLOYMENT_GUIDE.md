@@ -75,6 +75,7 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 11. **DEBUG log 上传 Dataset（v4.2.3·⑨）**：DEBUG 模式 `init_*.log` 拷为 `debug_*.log` 随 `hf_snapshot` 上传 HF Dataset，本地仅留最近 `NIM_DEBUG_LOG_KEEP`(默认 5) 个
 12. **context_accumulator_update 八进制算术修复（v4.2.3）**：原 `IFS=$'\t' read` 把 tab 当 IFS 空白类折叠空字段、剥离行首，致 6 列错位、`MAX(timestamp)` 串落入 `_fail_n` 进 `$(( ))` 报八进制错误（`09T22`），累积判读整swallow 中断。改 `mapfile -t -d $'\t'` 数组逐字段拆行，6 索引严格对齐
 13. **`_score_model` 列名改 3.8.43 真实列（v4.2.3）**：原 `SELECT` 用 `status_code`/`model_id`/`created_at`/`latency_ms` 全错名 → row 恒空 → 选型退默认档。改 `status`/`model`/`timestamp`，移除无对应列的 `AVG(latency_ms)` → 选型按成功率复活
+14. **confidence 写空致 #2 回写失效修复（v4.2.3）**：原 `confidence='$(_conf)'` 误用命令替换（非变量展开 `$_conf`），`_conf` 被当命令执行 → `command not found` → confidence 写空 → `monitor+manual` override 回写恒 0。改 `$_conf`，高置信（如 382 样本 high）方落地
 
 ---
 

@@ -12,7 +12,7 @@
 - **[文档] 升级论证**：基于 GitHub Issue #6773 (NIM 404) 论证了维持 3.8.43 版本的必要性，并制定了升级复查触发条件。
 - **[修复] context-monitor 累积判读八进制算术错误**（`context_accumulator_update`，阻断性）：原 `IFS=$'\t' read` 把 tab 当 IFS 空白类——折叠连续空字段、剥离行首 tab，一旦某列（`model`/`suc_max`/`fail_min`）为 NULL→空串，6 列被折叠成 <6 段，`MAX(timestamp)` 串错位落入 `_fail_n`，进 `$(( _suc_n + _fail_n ))` 触发八进制解析报错（`error token "09T22"`），致累积更新整swallow 中断。改用 `mapfile -t -d $'\t'` 数组逐字段拆行，保留空字段、6 索引严格对齐 SQL 列序，数字列空兜 0。
 - **[修复] nim_health_pick 列名改 3.8.43 真实列**（`_score_model`，既有 bug）：原 `SELECT` 用 `status_code`/`model_id`/`created_at`/`latency_ms` 全列错名，`call_logs` 无对应列 → `sqlite3` 报错被 `2>/dev/null` 吞 → row 恒空 → 恒 `NA`，选型全程失效退默认档。按 `OmniRoute src/lib/usage/callLogs.ts` 确认真实列名后重写：`status_code→status`、`model_id→model`、`created_at→timestamp`；移除无对应列的 `AVG(latency_ms)` 聚合，`SELECT` 瘦身为 成功率+样本数 两列；`_pick_from` 同步剥 ms 延迟比较与展示，退化为按成功率选型。
-
+- **[修复] context_accumulator_update confidence 写空致 #2 回写失效**（既有 bug）：原 `confidence='$(_conf)'` 误用命令替换 `$(_conf)`（应为变量展开 `$_conf`），bash 执行命令 `_conf` → `command not found` → confidence 写空串。下游 #2 回写逻辑 `WHERE confidence IN ('medium','high')` 对空串不命中 → `model_context_overrides` 的 `monitor+manual` 行恒 0，高置信推荐（如 glm-5.2 382 样本应判 high）永不落地。改 `$_conf`，并加防回归注释区分命令替换与变量展开。
 ### **v4.2.2 (2026-07-09)**
 - **[修复] 幂等 Combo 创建**：新增 `upsert_combo` 函数，通过“先 GET 查名再决定 PUT/POST”的逻辑，彻底解决了 R2 restore 回旧 DB 后导致的 `Combo name already exists` (400) 报错。
 - **[优化] 增量判定逻辑**：放宽增量模式入口，任一 `nim-*` combo 存在或 `INIT_MARKER` 存在即跳过首次注册，提升 Space 重启速度。

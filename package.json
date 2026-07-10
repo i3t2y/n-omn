@@ -1,18 +1,17 @@
 {
-  "name": "nim-omniroute-gateway-gate",
-  "version": "1.0.0",
+  "name": "omniroute-gate",
+  "version": "4.2.0",
   "private": true,
-  "description": "External authentication and proxy gate for OmniRoute in the NIM OmniRoute Gateway deployment.",
-  "type": "commonjs",
+  "description": "PSK auth gate in front of OmniRoute (HF Space :7860 -> :20128)",
   "main": "gate.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "start": "node gate.js"
   },
   "dependencies": {
-    "express": "^4.18.3",
+    "express": "^4.21.2",
     "http-proxy-middleware": "^3.0.3"
-  },
-  "engines": {
-    "node": ">=20"
   }
 }

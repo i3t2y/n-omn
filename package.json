@@ -1,8 +1,8 @@
 {
   "name": "omniroute-gate",
-  "version": "4.2.3",
+  "version": "4.3.0",
   "private": true,
-  "description": "PSK auth gate in front of OmniRoute (HF Space :7860 -> :20128)",
+  "description": "PSK (INTERNAL_PSK for /v1) + admin-token (GATE_ADMIN_TOKEN via Basic Auth for admin UI) gate in front of OmniRoute (HF Space :7860 -> :20128)",
   "main": "gate.js",
   "engines": {
     "node": ">=22.0.0"
@@ -11,7 +11,6 @@
     "start": "node gate.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "http-proxy-middleware": "^3.0.3"
+    "express": "^4.21.2"
   }
 }

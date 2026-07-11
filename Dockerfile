@@ -4,13 +4,14 @@
 # 拿 digest：docker pull diegosouzapw/omniroute:3.8.43
 #           docker inspect --format='{{index .RepoDigests 0}}' diegosouzapw/omniroute:3.8.43
 # 用 tag+digest 双写：digest 保证不可变，tag 便于人读。
-# FROM diegosouzapw/omniroute:3.8.43@sha256:517c160643c56ad72e3e305458d961c9a4c87f711393c13020450f9f088d1570
-# FROM diegosouzapw/omniroute:3.8.46@sha256:3e254b91fffa9aa20e244b3bce89c1390fa32b1d35efa4e5b3823eec10450bd4
 FROM diegosouzapw/omniroute:3.8.43@sha256:517c160643c56ad72e3e305458d961c9a4c87f711393c13020450f9f088d1570
 
 ENV OMNIROUTE_PORT=20128
 ENV EXPOSED_PORT=7860
 ENV DATA_DIR=/data
+# ── 后台访问开关 (v4.3): GATE_ADMIN_TOKEN 空即关闭后台 (默认不设); 设强随机 token 开启后台并可 Basic Auth ──
+# 注意: 设此变量会扩大公网暴露面 (后台白名单), 后台仍受 OmniRoute 自身认证约束. 不设 IP 限制 (HF 代理拓扑未验证).
+# ENV GATE_ADMIN_TOKEN=
 
 # ── 跨版本防御 env（3.8.43 无害；若将来误漂到新版可避免静默 hang）──
 # Turbopack 逃生阀：强制走 webpack，绕开 3.8.45+ 的 Docker Turbopack 缓存 mmap 失败

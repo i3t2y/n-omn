@@ -9,7 +9,9 @@ dbs:
       secret-access-key: ${R2_SECRET_ACCESS_KEY}
       region: auto
       sync-interval: 10s
-      auto-recover: true
+      # v4.3 红线3: 改 false. entrypoint.sh 已显式 restore (含本地非空 guard + 临时路径 + quick_check);
+      # 若 auto-recover true, litestream replicate 启动时自恢复会绕过 entrypoint 的 guard, 可能覆盖有效 DB.
+      auto-recover: false
 
 snapshot:
   interval: 1h

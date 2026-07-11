@@ -1,0 +1,4573 @@
+
+
+### **本轮查证确认了三件关键事实：OmniRoute 的搜索能力是 `/v1/search`（GET 列提供商、POST 执行查询，走同一套 Bearer Key 与策略）、专用 Provider 路由会自动补全前缀、以及 Context Override 应通过 Wildcard 别名/自定义模型 API 而非直接假设表结构；据此可以把上一轮的优化再收敛为“用官方 API 落地、不猜数据库”。**
+
+上一轮的方向（保守限速、屏蔽 Dashboard、统一 `nvidia/` 前缀、拆分组合）都被本轮查证进一步支持。下面聚焦几处需要根据新证据修正或补强的地方，尤其是那个仍悬而未决的问题——`nim-stable` 是否要单独配 `real_context`。
+
+## **1. 悬而未决的问题：`nim-stable` 的 `real_context` 应该怎么处理**
+
+先给结论：**不要在初始化脚本里硬编码写入 `model_context_overrides` 表，而应通过 OmniRoute 的自定义模型 API（`/api/provider-models`）以 upsert 方式配置，或者干脆交给你已有的 `context_recommendations` 被动观测机制去标定。**
+
+OmniRoute 的 Provider Reference 和 Changelog 显示，模型上下文长度是作为 registry metadata 维护的，并且支持“per-model upstream custom headers / 自定义模型”通过配置 UI 与 API 管理;自定义模型的规范入口是 `/api/provider-models`（GET/POST/PATCH/DELETE）。这意味着直接对 `model_context_overrides` 表做 `INSERT` 是绕过了官方写入路径，一旦 migration 调整表结构（你已经在 Dockerfile 里为 migration 117 做过防御）就会静默失配。 [OmniRoute Changelog](https://github.com/diegosouzapw/OmniRoute/wiki/da%E2%80%90Changelog) [OmniRoute Architecture](https://github.com/diegosouzapw/OmniRoute/wiki/Architecture)
+
+因此建议：
+
+- **NIM 模型的真实可用上下文以“被动观测 + API 写回”为准**，而不是启动时武断设定。你脚本里的 `context_recommendations` 表（`last_success_tokens` 只增不减、`first_failure_tokens` 记录首次报错最小 input）正是正确的信号源。
+- 只有当 `context_recommendations.confidence` 达到可信档位时，才把 `recommended_real_context` 通过 API 回写到 provider-model：
+
+```bash
+apply_context_override() {
+  local bare="$1" real_ctx="$2"
+  local route_model
+  route_model=$(nim_route_model "$bare")   # nvidia/<model>，幂等
+  # 通过官方自定义模型 API 写 metadata，避免直接改表
+  curl -s -o "$(_resp omniroute-ctx-$(echo "$bare" | tr '/' '-').json)" \
+    -w "[init] ctx override $route_model -> HTTP %{http_code}\n" \
+    -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/provider-models" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg p "nvidia" --arg m "$route_model" --argjson ctx "$real_ctx" \
+          '{provider:$p, modelId:$m, contextLength:$ctx}')"
+}
+```
+
+- 对于 `nim-stable`，**不需要为组合本身配 `real_context`**——上下文长度是模型级 metadata，不是组合级属性。组合负责的是路由与 fallback 顺序（Priority），模型的 context 由 registry 决定。所以你的 `nim-stable` 只需保证成员模型各自有正确 metadata，`priority` 策略会优先命中第一个稳定模型。
+
+换句话说：保留被动观测，收敛到 API 写回，**移除任何对 `model_context_overrides` 的直接 SQL 写入**。你原脚本里对 proxy 表做 SQL 兜底是合理的（那是清理，不是配置写入），但 context 属于配置写入，应走 API。
+
+## **2. 搜索能力落地：用 `/v1/search`，并按“列出→执行”两步配置**
+
+本轮明确了 API 契约：`GET /v1/search` 列出已配置的搜索提供商及能力，`POST /v1/search` 执行查询（body 由 `v1SearchSchema` 校验，支持缓存与请求合并），`GET /v1/search/analytics` 提供每提供商的命中率/延迟/缓存统计;鉴权与普通推理一致（Bearer Key + `enforceApiKeyPolicy`）。 [OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+这带来两个对脚本的直接影响：
+
+**其一，搜索走的是同一个 Gate 与同一把 PSK。** 你上一轮把 Gate 收紧为只放行 `/v1` 和 `/healthz` 是正确的——`/v1/search` 天然落在 `/v1` 白名单内，无需额外开洞。但要注意 `/v1/search/analytics` 也在 `/v1` 下，会一并暴露给持有 PSK 的客户端;如果你不希望 Agent 端看到分析数据，可在 Gate 里对该子路径单独 404：
+
+```js
+// 在 /v1 鉴权通过后、转发前追加
+if (req.path === '/v1/search/analytics') {
+  return res.status(404).json({ error: 'not_found' });
+}
+```
+
+**其二，初始化时应做一次“搜索提供商就绪自检”**，而不是假设已配置：
+
+```bash
+check_search_ready() {
+  local body count
+  body=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/v1/search" 2>/dev/null || echo "")
+  count=$(printf '%s' "$body" | jq '[.providers[]? // .[]?] | length' 2>/dev/null || echo 0)
+  if [ "${count:-0}" -ge 1 ]; then
+    echo "[init] search providers ready: $count"
+  else
+    echo "[init] WARN: 未检测到已配置搜索提供商，请在 Dashboard → Search Tools 配置 SearXNG/Tavily。"
+  fi
+}
+```
+
+由于搜索提供商的 API Key（如 Tavily 的 `tvly-...`、Brave 的 subscription token）属于敏感凭据,这些不应写进 HF Dataset 快照，应与 NIM Key 一样只存在于平台 Secrets。你的 `hf_snapshot()` 已经剥离 `apiKeys[].key` 和 provider credentials，需确认搜索提供商凭据也在剥离范围内。 [OmniRoute Provider Reference](https://github.com/diegosouzapw/OmniRoute/wiki/Provider-Reference)
+
+## **3. 用 Wildcard 别名 + Fallback 链替代脚本里的部分硬路由**
+
+本轮确认 OmniRoute 支持全局 Wildcard 模型别名（如 `Pattern: gpt-* → Target: gh/...`）和全局 Fallback 链（跨所有请求生效），这两者比在脚本里堆多个近义组合更省心。 [OmniRoute User Guide](https://github.com/diegosouzapw/OmniRoute/wiki/User-Guide)
+
+对你的场景，推荐这样分工：
+
+- **Wildcard 别名**用来把 Agent 端的“习惯性模型名”统一收敛到你的稳定组合，避免 Agent 写死某个具体 NIM 模型：
+
+```text
+Pattern: gpt-*            → Target: auto:nim-stable
+Pattern: claude-*         → Target: auto:nim-stable
+Pattern: *-fast           → Target: auto:nim-fast
+```
+
+这样即便某个客户端请求 `gpt-4o` 之类根本不在 NIM 目录里的名字，也会被重映射到你的稳定池，而不是直接 400。
+
+- **全局 Fallback 链**作为“组合之外的最后兜底”，把 NIM 之外的其它免费/自有 Provider 串进来，防止 NIM 整体 429 时全线中断:
+
+```text
+Chain: personal-fallback
+  1. auto:nim-stable
+  2. auto:nim-fast
+  3. <其它已接入的免费或自有 Provider>
+```
+
+注意专用 Provider 路由会“自动补全缺失的前缀，模型不匹配则返回 400”,这也再次印证了上一轮 `nim_route_model()` 幂等前缀函数的必要性——但也说明你**不必**在每个调用点都手动补前缀，路由层会兜底;`nim_route_model()` 的价值主要在于生成 Combo JSON 和 metadata 写回时保持一致。 [OmniRoute User Guide (ja)](https://github.com/diegosouzapw/OmniRoute/wiki/ja%E2%80%90User-Guide)
+
+## **4. Provider Limits 同步周期：默认值需对齐**
+
+你在 `entrypoint.sh` 里设了 `PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440`（一天一次）。本轮查证显示官方默认是 `70` 分钟,配额快照按服务端计划刷新并支持 UI 手动刷新。 [OmniRoute Home (ro)](https://github.com/diegosouzapw/OmniRoute/wiki/ro%E2%80%90Home)
+
+对个人自托管、且主要用 NIM 免费层的场景，`1440` 分钟其实是合理的——NIM 免费层限额基本不变，频繁同步没有意义，反而增加请求。**这一项可以保留，但建议加一行注释说明是有意偏离默认值**，避免未来误以为是笔误：
+
+```sh
+# 有意偏离官方默认(70min)：NIM 免费层限额稳定，降低同步频率以省请求。
+PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
+```
+
+## **5. Tool Search 兼容性风险（若你接 Claude Code / Codex 类客户端）**
+
+本轮检索到两个仍开放的相关缺陷值得记录，因为它们直接影响“把 OmniRoute 当通用 Agent 网关”的稳定性：`tool_search` 工具类型在 Codex/Responses 路径上被判为不支持（#2766），以及 `tool-search-tool-2025-10-19` beta flag 在 Claude OAuth 路径上被丢弃导致 400（#3974）。 [OmniRoute Issue #2766](https://github.com/diegosouzapw/OmniRoute/issues/2766) [OmniRoute Issue #3974](https://github.com/diegosouzapw/OmniRoute/issues/3974)
+
+对你的部署意味着：
+
+- 如果客户端启用了 `ENABLE_TOOL_SEARCH`，在经 OmniRoute 转发时可能触发 400。**保守做法是在文档/环境里默认 `ENABLE_TOOL_SEARCH=false`**，直到你验证所用版本已修复。
+- 由于你已把基础镜像钉死在 `3.8.43`,而 #3974 报告的复现版本更高，你当前版本能否规避该问题需要用一次最小 `curl` 对 `/v1/messages` 或 `/v1/chat/completions` 实测确认，而不是假设。
+
+## **本轮改动的落地优先级**
+
+综合两轮结论，剩余动作按“风险收益比”排序如下：
+
+| 优先级 | 动作 | 依据 |
+|---|---|---|
+| 高 | 移除对 `model_context_overrides` 的直接 SQL 写入，改用 `/api/provider-models` PATCH | 避免 migration 结构漂移导致静默失配 |
+| 高 | Gate 对 `/v1/search/analytics` 单独 404，确认搜索凭据不进 HF 快照 | 收敛敏感信息暴露面 |
+| 中 | 增加 `check_search_ready` 就绪自检 | `/v1/search` GET 契约已确认 |
+| 中 | 配置 Wildcard 别名 + 全局 Fallback 链，减少硬编码组合 | 官方支持且降低 400 概率 |
+| 中 | 默认 `ENABLE_TOOL_SEARCH=false`，并对当前版本实测 | 规避 #2766 / #3974 |
+| 低 | 为 `PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440` 加注释 | 标注有意偏离默认 70min |
+
+需要的话，我可以把这些改动直接合并进 `init-nim-keys.sh` 和 `gate.js` 的完整片段，产出可直接替换的版本；这类需要生成并导出文件的操作，我会切到 Agent 模式来做。
+
+
+
+
+
+
+
+
+
+现在有了充分的文档依据，可以进行完整的代码级重构。以下是对 v4.2.3 的全量优化，版本升级为 **v4.3.0**。
+
+---
+
+## **v4.3.0 完整变更概要**
+
+相对 v4.2.3 的新增与修正：
+- **[A]** 废弃按 Key 数线性计算 RPM/并发，改为保守固定整形 + `NIM_SCALE_WITH_KEYS=1` 显式扩容。
+- **[B]** `models_to_json()` 引入幂等前缀函数 `nim_route_model()`，防止 `nvidia/nvidia/...` 双前缀。
+- **[C]** `check_nim_model_health()` 改为多 Key 轮转取目录，取不到时保守跳过过滤而非误删。
+- **[D]** `nim_probe()` 增加 `NIM_PROBE_MAX_MODELS` 上限和 `NIM_PROBE_MIN_INTERVAL_SECONDS` 冷却，默认仍关闭。
+- **[E]** 四组 Combo（`nim-stable` / `nim-fast` / `nim-pool` / `nim-codex`）+ `model_combo_mappings` 路由规则注册。
+- **[F]** 增量门扩展：四组 nim-\* combo 任一存在即视为增量。
+- **[G]** `entrypoint.sh` 健康等待改用时间戳截止逻辑。
+- **[H]** `gate.js` 白名单保护：仅暴露 `/healthz` 和 `/v1`，非白名单路径返回 404，并加 `proxyTimeout: 0`。
+- **[I]** `litestream.yml` 增加 WAL checkpoint hint 与 force-wal 模式。
+- **[J]** `hf_snapshot()` 中 `init_vars.json` 同步记录 v4.3.0 实际参数。
+
+---
+
+## **init-nim-keys.sh（v4.3.0 完整替换版）**
+
+```bash
+#!/bin/bash
+set -eo pipefail
+
+# ─────────────────────────────────────────────────────────────
+# NIM OmniRoute initializer  v4.3.0
+# 相对 v4.2.3 的变更：
+#   [A] 废弃 _ALIVE_KEYS*_PER_KEY_RPM 线性放大；默认 28 RPM/1 并发/2200ms。
+#       NIM_SCALE_WITH_KEYS=1 显式打开扩容（有硬上限）。
+#   [B] nim_route_model() 幂等前缀；models_to_json() 不再无条件 sed 加前缀。
+#   [C] check_nim_model_health() 多 Key 轮转取目录，失败则保守跳过。
+#   [D] nim_probe() 增 NIM_PROBE_MAX_MODELS / NIM_PROBE_MIN_INTERVAL_SECONDS 限频。
+#   [E] 四 combo：nim-stable(priority) nim-fast(round-robin) nim-pool(p2c) nim-codex(priority)
+#       + /api/model-combo-mappings 路由规则。
+#   [F] 增量门扩展至四组 nim-* combo。
+#   [G] entrypoint 健康等待改时间戳截止（→ entrypoint.sh 独立修改）。
+#   [H] gate.js 白名单保护（→ gate.js 独立修改）。
+#   [I] litestream.yml WAL hint（→ litestream.yml 独立修改）。
+#   [J] hf_snapshot init_vars.json 同步新参数。
+#   继承 v4.2.3：⑨ DEBUG log 入 Dataset。
+#   继承 v4.2.2：⑦ 幂等 upsert ⑧ 增量门放宽（INIT_MARKER）。
+#   继承 v4.2.1：① 主池 p2c ② nim-codex 响应体打印 ④ 可选探针
+#               ⑤ 只清过期熔断 ⑥ context_recommendations 累积。
+# ─────────────────────────────────────────────────────────────
+
+# ══ 日志归档 ════════════════════════════════════════════════════
+NIM_MODE="${NIM_MODE:-NORMAL}"
+LOG_DIR="/data/omni-data/log"
+if [ "$NIM_MODE" = "DEBUG" ]; then
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  INIT_LOG="$LOG_DIR/init_$(date +%Y%m%d_%H%M%S).log"
+  exec > >(tee -a "$INIT_LOG") 2>&1
+  echo "[init] 🛠️ NIM_MODE=DEBUG: 日志 tee -> $INIT_LOG"
+  export APP_LOG_TO_FILE=true
+  export DISABLE_SQLITE_AUTO_BACKUP=true
+else
+  LOG_DIR="/tmp"
+fi
+_resp() { echo "$LOG_DIR/$1"; }
+
+# ── 强制关闭代理生态 ─────────────────────────────────────────
+export ONEPROXY_ENABLED=false
+export ENABLE_SOCKS5_PROXY=false
+export NEXT_PUBLIC_ENABLE_SOCKS5_PROXY=false
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy 2>/dev/null || true
+unset OMNIROUTE_RELAY_BACKEND BIFROST_BASE_URL 2>/dev/null || true
+
+# ── 端口 / 路径 ──────────────────────────────────────────────
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+BASE_URL="http://127.0.0.1:$OMNIROUTE_PORT"
+INIT_MARKER="/data/.init-done"
+OR_API_KEY_FILE="/data/.or-api-key"
+COOKIE_FILE="/tmp/omniroute-cookie.txt"
+
+LOGIN_RESP_FILE="$(_resp omniroute-login.json)"
+KEY_RESP_FILE="$(_resp omniroute-key-response.json)"
+PROVIDERS_FILE="$(_resp omniroute-providers.json)"
+RESILIENCE_RESP_FILE="$(_resp omniroute-resilience.json)"
+SETTINGS_RESP_FILE="$(_resp omniroute-settings.json)"
+COMPRESS_RESP_FILE="$(_resp omniroute-compress.json)"
+THINKING_RESP_FILE="$(_resp omniroute-thinking.json)"
+MEMORY_LEGACY_RESP_FILE="$(_resp omniroute-memory-legacy.json)"
+MEMORY_EXT_RESP_FILE="$(_resp omniroute-memory-ext.json)"
+COMBO_RESP_FILE="$(_resp omniroute-combo.json)"
+VERSION_FILE="$(_resp omniroute-version.json)"
+
+REGISTERED=0; SKIPPED=0; FAILED=0
+
+# ══ 模型分档 SSOT（裸 NIM Catalog ID，不含 nvidia/ 前缀）═══
+TIER_FAST=(
+  "z-ai/glm-5.2"
+  "deepseek-ai/deepseek-v4-flash"
+  "deepseek-ai/deepseek-v4-pro"
+  "meta/llama-3.3-70b-instruct"
+)
+TIER_STABLE=(
+  "nvidia/nemotron-3-super-120b-a12b"
+  "openai/gpt-oss-120b"
+  "qwen/qwen3.5-397b-a17b"
+  "mistralai/mistral-small-4-119b-2603"
+  "google/gemma-4-31b-it"
+)
+TIER_RESTRICTED=(
+  "moonshotai/kimi-k2.6"
+  "minimaxai/minimax-m2.7"
+  "mistralai/mistral-large-3-675b-instruct-2512"
+)
+
+_PROFILE="${NIM_PROFILE:-balanced}"
+case "$_PROFILE" in
+  fast)     NIM_POOL_MODELS=("${TIER_FAST[@]}") ;;
+  full)     NIM_POOL_MODELS=("${TIER_FAST[@]}" "${TIER_STABLE[@]}" "${TIER_RESTRICTED[@]}") ;;
+  *)        _PROFILE="balanced"; NIM_POOL_MODELS=("${TIER_FAST[@]}" "${TIER_STABLE[@]}") ;;
+esac
+echo "[init] NIM_PROFILE=$_PROFILE -> pool 意向 ${#NIM_POOL_MODELS[@]} 个模型"
+
+# 四组 combo 的模型来源（裸 Catalog ID）
+NIM_STABLE_MODELS=(
+  "deepseek-ai/deepseek-v4-pro"
+  "openai/gpt-oss-120b"
+  "z-ai/glm-5.2"
+)
+NIM_FAST_MODELS=(
+  "deepseek-ai/deepseek-v4-flash"
+  "meta/llama-3.3-70b-instruct"
+  "google/gemma-4-31b-it"
+)
+NIM_CODEX_MODELS=(
+  "deepseek-ai/deepseek-v4-pro"
+  "openai/gpt-oss-120b"
+  "z-ai/glm-5.2"
+)
+NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" )
+
+build_all_models() {
+  printf '%s\n' \
+    "${NIM_POOL_MODELS[@]}" \
+    "${NIM_STABLE_MODELS[@]}" \
+    "${NIM_FAST_MODELS[@]}" \
+    "${NIM_CODEX_MODELS[@]}" \
+    "${NIM_EXTRA_MODELS[@]}" \
+    | awk '!seen[$0]++'
+}
+
+# ── [B] 幂等前缀：裸名加 nvidia/，已有前缀不重复加 ──────────
+nim_route_model() {
+  case "$1" in
+    nvidia/*) printf '%s' "$1" ;;
+    *)        printf 'nvidia/%s' "$1" ;;
+  esac
+}
+
+# models_to_json 接受裸名数组，输出 [{model:"nvidia/..."},...] 形式
+models_to_json() {
+  for m in "$@"; do nim_route_model "$m"; done \
+    | jq -R '{model: .}' | jq -s -c .
+}
+
+# ══ combo 策略白名单（3.8.43 实测）══════════════════════════
+_VALID_STRATS="priority weighted round-robin context-relay fill-first p2c random least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized fusion"
+_is_valid_strat() { printf '%s' "$_VALID_STRATS" | grep -qw -- "$1"; }
+
+# ══ 幂等 upsert_combo ════════════════════════════════════════
+upsert_combo() {
+  local NAME="$1" STRAT="$2"; shift 2; local MODELS=("$@")
+  _is_valid_strat "$STRAT" || { echo "[init] upsert_combo: '$STRAT' 非法 -> round-robin"; STRAT="round-robin"; }
+  [ "${#MODELS[@]}" -eq 0 ] && { echo "[init] upsert_combo: $NAME 无存活模型，跳过。"; return 0; }
+  local BODY CID CODE F
+  BODY=$(jq -n \
+    --arg name "$NAME" \
+    --arg strat "$STRAT" \
+    --argjson models "$(models_to_json "${MODELS[@]}")" \
+    '{name:$name, strategy:$strat, models:$models}')
+  CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+        | jq -r --arg n "$NAME" '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
+  F="$(_resp omniroute-combo-${NAME}.json)"
+  if [ -n "$CID" ]; then
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X PUT "$BASE_URL/api/combos/$CID" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] upsert $NAME: existed -> PUT combos/$CID HTTP $CODE"
+  else
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/combos" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] upsert $NAME: new -> POST HTTP $CODE"
+  fi
+  [ "$CODE" != "200" ] && [ "$CODE" != "201" ] && cat "$F" || true
+}
+
+# ══ [E] model_combo_mappings 路由规则 ════════════════════════
+# 将特定模型 ID 通配符直接路由到对应 combo，Client 侧直接用模型名即可透明切换。
+# OmniRoute API: POST /api/model-combo-mappings {pattern, comboId, priority, enabled}
+upsert_model_combo_mapping() {
+  local PATTERN="$1" COMBO_NAME="$2" PRIORITY="${3:-10}" DESC="${4:-}"
+  # 先查 combo ID
+  local COMBO_ID
+  COMBO_ID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+    | jq -r --arg n "$COMBO_NAME" '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
+  [ -z "$COMBO_ID" ] && {
+    echo "[init] model_combo_mapping: combo '$COMBO_NAME' 不存在，跳过 '$PATTERN'。"; return 0
+  }
+  # 查已有 mapping
+  local EXISTING_ID
+  EXISTING_ID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/model-combo-mappings" \
+    | jq -r --arg p "$PATTERN" \
+      '.mappings[]? // .[]? | select(.pattern==$p) | .id' 2>/dev/null | head -n1)
+  local BODY
+  BODY=$(jq -n \
+    --arg pattern "$PATTERN" \
+    --arg comboId "$COMBO_ID" \
+    --argjson priority "$PRIORITY" \
+    --argjson enabled true \
+    --arg description "$DESC" \
+    '{pattern:$pattern, comboId:$comboId, priority:$priority, enabled:$enabled, description:$description}')
+  local F CODE
+  F="$(_resp omniroute-mapping-$(echo "$PATTERN" | tr '/*' '--').json)"
+  if [ -n "$EXISTING_ID" ]; then
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X PUT "$BASE_URL/api/model-combo-mappings/$EXISTING_ID" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] mapping '$PATTERN' -> '$COMBO_NAME': PUT $EXISTING_ID HTTP $CODE"
+  else
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/model-combo-mappings" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] mapping '$PATTERN' -> '$COMBO_NAME': POST HTTP $CODE"
+  fi
+  [ "$CODE" != "200" ] && [ "$CODE" != "201" ] && cat "$F" || true
+}
+
+# ══ [A] 保守整形：不随 Key 数线性放大 ══════════════════════════
+# NIM 免费 Serverless Endpoint 面向个人开发/原型；社区口径约 40 RPM。
+# 默认留 30% 余量（28 RPM）给重试、健康检查和平台波动。
+# 若有商业额度或自托管 NIM，显式设 NIM_SCALE_WITH_KEYS=1。
+_count_alive_keys() {
+  printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l
+}
+_ALIVE_KEYS=$(_count_alive_keys)
+
+if [ "${NIM_SCALE_WITH_KEYS:-0}" = "1" ]; then
+  _PER_KEY_RPM=${NIM_PER_KEY_RPM:-28}
+  _RPM=$(( _ALIVE_KEYS * _PER_KEY_RPM ))
+  _RPM_HARD_CAP=${NIM_RPM_HARD_CAP:-60}
+  [ "$_RPM" -gt "$_RPM_HARD_CAP" ] && _RPM="$_RPM_HARD_CAP"
+  [ "$_RPM" -lt "$_PER_KEY_RPM" ]  && _RPM="$_PER_KEY_RPM"
+
+  _CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-1} ))
+  _CONC_HARD_CAP=${NIM_CONCURRENCY_HARD_CAP:-2}
+  [ "$_CONCURRENT" -gt "$_CONC_HARD_CAP" ] && _CONCURRENT="$_CONC_HARD_CAP"
+  [ "$_CONCURRENT" -lt 1 ] && _CONCURRENT=1
+
+  _MIN_INTERVAL_MS=$(( 60000 / (_RPM > 0 ? _RPM : 1) ))
+  echo "[init] NIM_SCALE_WITH_KEYS=1: keys=$_ALIVE_KEYS rpm=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms (hard caps: rpm=$_RPM_HARD_CAP conc=$_CONC_HARD_CAP)"
+else
+  _RPM="${NIM_RPM_CAP:-28}"
+  _CONCURRENT="${NIM_CONCURRENCY_CAP:-1}"
+  _MIN_INTERVAL_MS="${NIM_MIN_INTERVAL_MS:-2200}"
+  echo "[init] Conservative shaping (NIM_SCALE_WITH_KEYS=0): rpm=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms (keys=$_ALIVE_KEYS, scale disabled)"
+fi
+
+# pool strategy：多 Key 时允许 p2c；单 Key 时 round-robin 即可
+if [ "$_ALIVE_KEYS" -gt 1 ]; then
+  _POOL_STRATEGY="${NIM_POOL_STRATEGY:-p2c}"
+else
+  _POOL_STRATEGY="round-robin"
+fi
+_is_valid_strat "$_POOL_STRATEGY" || { echo "[init] WARN: pool strategy '$_POOL_STRATEGY' 非法，回退 round-robin"; _POOL_STRATEGY="round-robin"; }
+
+_STABLE_STRATEGY="priority"
+_FAST_STRATEGY="round-robin"
+_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-priority}"
+_is_valid_strat "$_CODEX_STRATEGY" || { echo "[init] WARN: codex strategy '$_CODEX_STRATEGY' 非法，回退 priority"; _CODEX_STRATEGY="priority"; }
+_FALLBACK_STRATEGY="round-robin"
+_STICKY_LIMIT=1
+
+_COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
+_COMPRESS_MODE="stacked"
+_THINKING_MODE="adaptive"
+_THINKING_BUDGET=8000
+_NIM_REAL_CONTEXT=${CONTEXT_LENGTH_DEFAULT:-32768}
+echo "[init] pool=$_POOL_STRATEGY stable=$_STABLE_STRATEGY fast=$_FAST_STRATEGY codex=$_CODEX_STRATEGY"
+
+# body limit
+_RAW_BODY_LIMIT=${NIM_REQUEST_BODY_LIMIT:-1}
+if [ "$_RAW_BODY_LIMIT" -gt 500 ] 2>/dev/null; then
+  _REQUEST_BODY_LIMIT_MB=$(( _RAW_BODY_LIMIT / 1048576 ))
+  [ "$_REQUEST_BODY_LIMIT_MB" -lt 1 ] && _REQUEST_BODY_LIMIT_MB=1
+elif [ "$_RAW_BODY_LIMIT" -lt 1 ] 2>/dev/null; then
+  _REQUEST_BODY_LIMIT_MB=1
+else
+  _REQUEST_BODY_LIMIT_MB=$_RAW_BODY_LIMIT
+fi
+[ "$_REQUEST_BODY_LIMIT_MB" -gt 500 ] 2>/dev/null && _REQUEST_BODY_LIMIT_MB=500
+
+_PURGE_PROXY=${NIM_PURGE_PROXY:-1}
+_PROXY_RELAY_HOST=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
+_PROXY_RELAY_PORT=${NIM_PROXY_RELAY_PORT:-20129}
+_DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
+sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+# ══ 安全检查 ════════════════════════════════════════════════
+check_dangerous_env() {
+  echo "[init] check_dangerous_env..."
+  local _hit=0
+  for v in OMNIROUTE_RELAY_BACKEND BIFROST_BASE_URL \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY \
+            http_proxy https_proxy all_proxy; do
+    if [ -n "${!v}" ]; then echo "[init] ⚠️ DANGER: $v=${!v}"; _hit=1; fi
+  done
+  [ "$_hit" = "0" ] && echo "[init] check_dangerous_env: clean."
+}
+
+# ══ 代理清除 ════════════════════════════════════════════════
+purge_proxy_db() {
+  [ "$_PURGE_PROXY" != "1" ] && { echo "[init] purge_proxy_db: skipped."; return 0; }
+  local LIST_JSON
+  LIST_JSON=$(curl -s -b "$COOKIE_FILE" \
+    "$BASE_URL/api/v1/management/proxies" 2>/dev/null || echo "")
+  if [ -n "$LIST_JSON" ] && printf '%s' "$LIST_JSON" | jq -e . >/dev/null 2>&1; then
+    local BAD_IDS
+    BAD_IDS=$(printf '%s' "$LIST_JSON" | jq -r \
+      --arg h "$_PROXY_RELAY_HOST" --argjson p "$_PROXY_RELAY_PORT" \
+      '(.proxies // .data // .) | (if type=="array" then . else [] end)
+       | .[] | select((.host==$h) and ((.port|tonumber?)==$p)) | .id' 2>/dev/null)
+    if [ -n "$BAD_IDS" ]; then
+      local _id _c
+      while IFS= read -r _id; do
+        [ -z "$_id" ] && continue
+        _c=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+          -X DELETE "$BASE_URL/api/v1/management/proxies?id=${_id}&force=1" \
+          2>/dev/null || echo "000")
+        echo "[init] purge: API force-delete $_id -> HTTP $_c"
+      done <<< "$BAD_IDS"
+    else
+      echo "[init] purge: 注册表无 ${_PROXY_RELAY_HOST}:${_PROXY_RELAY_PORT}。"
+    fi
+  else
+    echo "[init] purge: 管理 API 暂不可用，走 SQL 兜底。"
+  fi
+  if [ -f "$_DB_PATH" ]; then
+    sqlite3 "$_DB_PATH" \
+      "DELETE FROM proxy_assignments WHERE proxy_id IN
+         (SELECT id FROM proxy_registry
+          WHERE host='$(sql_escape "$_PROXY_RELAY_HOST")' AND port=$_PROXY_RELAY_PORT);" \
+      2>/dev/null || true
+    sqlite3 "$_DB_PATH" \
+      "UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';" \
+      2>/dev/null || true
+    sqlite3 "$_DB_PATH" \
+      "DELETE FROM proxy_registry
+       WHERE host='$(sql_escape "$_PROXY_RELAY_HOST")' AND port=$_PROXY_RELAY_PORT;" \
+      2>/dev/null || true
+    local _reg _asg _proxy_on
+    _reg=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM proxy_registry;" 2>/dev/null || echo "?")
+    _asg=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM proxy_assignments;" 2>/dev/null || echo "?")
+    _proxy_on=$(sqlite3 "$_DB_PATH" \
+      "SELECT COUNT(*) FROM provider_connections WHERE provider='nvidia' AND proxy_enabled=1;" \
+      2>/dev/null || echo "?")
+    echo "[init] purge: registry=$_reg assignments=$_asg proxy_enabled=1剩余=$_proxy_on（期望 0/0/0）。"
+  fi
+}
+
+# ══ [C] NIM 模型健康检查（多 Key 轮转 + 保守跳过）══════════════
+# 改动：不依赖单一首 Key；所有 Key 均无法取得可信目录时，
+#        保守跳过过滤而非误标为 deprecated，避免初始化误删所有模型。
+fetch_nim_catalog() {
+  local key body count
+  while IFS= read -r key; do
+    key=$(printf '%s' "$key" | xargs)
+    [ -z "$key" ] && continue
+    body=$(curl -fsS --connect-timeout 5 --max-time 15 \
+      -H "Authorization: Bearer $key" \
+      "https://integrate.api.nvidia.com/v1/models" 2>/dev/null || true)
+    count=$(printf '%s' "$body" | jq '[.data[]?.id] | length' 2>/dev/null || echo 0)
+    if [ "${count:-0}" -ge "${NIM_MIN_CATALOG_MODELS:-5}" ]; then
+      printf '%s' "$body"
+      return 0
+    fi
+  done < <(printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d')
+  return 1
+}
+
+check_nim_model_health() {
+  echo "[init] check_nim_model_health..."
+  : > /tmp/nim-deprecated.txt
+
+  local _models_json _model_count
+  _models_json=$(fetch_nim_catalog) || {
+    echo "[init] WARN: 无法取得可信 NIM catalog（所有 Key 均失败或返回 <${NIM_MIN_CATALOG_MODELS:-5} 模型）。"
+    echo "[init]       保守跳过模型过滤，避免误标 deprecated。"
+    return 0
+  }
+
+  _model_count=$(printf '%s' "$_models_json" | jq '[.data[]?.id] | length' 2>/dev/null || echo 0)
+  echo "[init] NIM catalog: $_model_count models available"
+
+  while IFS= read -r model; do
+    [ -z "$model" ] && continue
+    if ! printf '%s' "$_models_json" | \
+        jq -e --arg m "$model" 'any(.data[]?.id == $m; .)' >/dev/null 2>&1; then
+      echo "[init]   $model — DEPRECATED（NVIDIA catalog 无）"
+      printf '%s\n' "$model" >> /tmp/nim-deprecated.txt
+    else
+      [ "$NIM_MODE" = "DEBUG" ] && echo "[init]   $model — available"
+    fi
+  done < <(build_all_models)
+
+  local _dep_count
+  _dep_count=$(wc -l < /tmp/nim-deprecated.txt 2>/dev/null || echo 0)
+  echo "[init] health: $_dep_count deprecated / $_model_count available"
+
+  # 调试：打印 context_overrides 实际写入情况（验证键名对齐）
+  if [ "$NIM_MODE" = "DEBUG" ] && [ -f "$_DB_PATH" ]; then
+    echo "[init] [DEBUG] model_context_overrides (provider=nvidia):"
+    sqlite3 "$_DB_PATH" \
+      "SELECT provider, model_id, real_context, source
+       FROM model_context_overrides
+       WHERE provider='nvidia'
+       ORDER BY model_id;" 2>/dev/null \
+      | sed 's/^/[init]   /' || true
+  fi
+}
+
+filter_alive() {
+  local out=() m
+  for m in "$@"; do
+    grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null || out+=("$m")
+  done
+  printf '%s\n' "${out[@]}"
+}
+
+# ══ [D] 轻量探针（默认关闭，NIM_PROBE=1 才跑）══════════════════
+# 改动：增加 NIM_PROBE_MAX_MODELS（最多探 N 个模型，默认 2）
+#        和 NIM_PROBE_MIN_INTERVAL_SECONDS（同模型最短再探间隔，默认 6h）。
+#        探针仅探 nim-pool 前几个，不遍历全 build_all_models。
+nim_probe() {
+  [ "${NIM_PROBE:-0}" != "1" ] && {
+    echo "[init] nim_probe: disabled (NIM_PROBE=1 to enable)."
+    return 0
+  }
+  local _max_models=${NIM_PROBE_MAX_MODELS:-2}
+  local _min_interval=${NIM_PROBE_MIN_INTERVAL_SECONDS:-21600}  # 6 小时
+  echo "[init] nim_probe: enabled (max_models=$_max_models interval=${_min_interval}s)"
+
+  local PROBE_DIR="/tmp/nim-probe"; mkdir -p "$PROBE_DIR"
+  : > /tmp/nim-probe-bad.txt
+
+  mapfile -t _KEYS < <(printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d')
+  local _nkeys=${#_KEYS[@]}; [ "$_nkeys" -eq 0 ] && return 0
+
+  local _ki=0 _probed=0 m _stamp _now _last _key _code
+  _now=$(date +%s)
+
+  # 只探 nim-pool 实际会用到的模型，而非全量 build_all_models
+  while IFS= read -r m; do
+    [ "$_probed" -ge "$_max_models" ] && break
+    [ -z "$m" ] && continue
+    grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null && continue
+
+    _stamp="$PROBE_DIR/$(echo "$m" | tr '/' '-').ts"
+    _last=$(cat "$_stamp" 2>/dev/null || echo 0)
+    if [ $(( _now - _last )) -lt "$_min_interval" ]; then
+      echo "[init]   probe skip $m（${_min_interval}s 内已探）"; continue
+    fi
+
+    _key="${_KEYS[$(( _ki % _nkeys ))]}"; _ki=$(( _ki + 1 ))
+    _code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+      -H "Authorization: Bearer ${_key}" \
+      -H "Content-Type: application/json" \
+      "https://integrate.api.nvidia.com/v1/chat/completions" \
+      -d "$(jq -n --arg mid "$(nim_route_model "$m")" \
+            '{model:$mid, max_tokens:1, messages:[{role:"user",content:"hi"}]}')" \
+      2>/dev/null || echo "000")
+    echo "[init]   probe $m (key#$(( (_ki-1) % _nkeys ))) -> HTTP $_code"
+    printf '%s\n' "$_now" > "$_stamp"
+    [ "$_code" != "200" ] && printf '%s\n' "$m" >> /tmp/nim-probe-bad.txt
+    _probed=$(( _probed + 1 ))
+    sleep 2
+  done < <(printf '%s\n' "${NIM_POOL_MODELS[@]}" | awk '!seen[$0]++')
+  echo "[init] nim_probe: probed $_probed model(s)."
+}
+
+# ══ context_recommendations 累积（继承 v4.2.x，逻辑不变）════════
+_context_acc_init_table() {
+  [ ! -f "$_DB_PATH" ] && return 1
+  sqlite3 "$_DB_PATH" "
+    CREATE TABLE IF NOT EXISTS context_recommendations (
+      model_id TEXT PRIMARY KEY,
+      last_success_tokens INTEGER DEFAULT NULL,
+      first_failure_tokens INTEGER DEFAULT NULL,
+      success_samples INTEGER DEFAULT 0,
+      failure_samples INTEGER DEFAULT 0,
+      confidence TEXT DEFAULT 'insufficient',
+      recommended_real_context INTEGER DEFAULT NULL,
+      last_updated TEXT DEFAULT NULL
+    );" 2>/dev/null || return 1
+}
+
+_detect_io_cols() {
+  sqlite3 "$_DB_PATH" "PRAGMA table_info(call_logs);" 2>/dev/null \
+    | awk -F'|' '
+        $2~/^tokens_in$|^input_tokens$|^in_tokens$|^total_input_tokens$/  {if(!ic) ic=$2}
+        $2~/^tokens_out$|^output_tokens$|^out_tokens$|^total_output_tokens$/{if(!oc) oc=$2}
+        END{print ic; print oc}'
+}
+
+context_accumulator_update() {
+  echo "[init] context_accumulator_update: 增量累积每模型成功/失败口径..."
+  [ ! -f "$_DB_PATH" ] && { echo "[init]   no DB, skip."; return 0; }
+  _context_acc_init_table || { echo "[init]   建表失败，skip。"; return 0; }
+
+  local _has_tbl
+  _has_tbl=$(sqlite3 "$_DB_PATH" \
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='call_logs';" 2>/dev/null || echo "")
+  [ -z "$_has_tbl" ] && { echo "[init]   call_logs 不存在（无流量），预约表就绪。"; return 0; }
+
+  local _input_col _output_col _io
+  _io=$(_detect_io_cols)
+  _input_col=$(printf '%s' "$_io" | sed -n '1p')
+  _output_col=$(printf '%s' "$_io" | sed -n '2p')
+  [ -z "$_input_col" ] && { echo "[init]   WARN: call_logs 无已知 input token 列，skip。"; return 0; }
+  [ -z "$_output_col" ] && _output_col="tokens_out"
+  echo "[init]   列探测 input=$_input_col output=$_output_col"
+
+  local _ckpt_key="ctx_last_log_ts" _last_ts _new_max_ts
+  _last_ts=$(sqlite3 "$_DB_PATH" \
+    "SELECT value FROM key_value
+     WHERE namespace='monitor' AND key='$(sql_escape "$_ckpt_key")';" 2>/dev/null || echo "")
+  [ -z "$_last_ts" ] && _last_ts="1970-01-01T00:00:00.000Z"
+  echo "[init]   checkpoint last_ts=$_last_ts"
+
+  local _q
+  _q="
+    SELECT
+      model                                                                      AS mid,
+      MAX(CASE WHEN status BETWEEN 200 AND 299 AND ${_output_col}>0
+               THEN ${_input_col} END)                                           AS suc_max,
+      MIN(CASE WHEN (status>=500) OR (status=413) OR
+                    (status BETWEEN 200 AND 299 AND ${_output_col}=0)
+               THEN ${_input_col} END)                                           AS fail_min,
+      SUM(CASE WHEN status BETWEEN 200 AND 299 AND ${_output_col}>0
+               THEN 1 ELSE 0 END)                                                AS suc_n,
+      SUM(CASE WHEN (status>=500) OR (status=413) OR
+                    (status BETWEEN 200 AND 299 AND ${_output_col}=0)
+               THEN 1 ELSE 0 END)                                                AS fail_n,
+      MAX(timestamp)                                                             AS max_ts
+    FROM call_logs
+    WHERE provider='nvidia'
+      AND timestamp > '$(sql_escape "$_last_ts")'
+      AND model LIKE '%/%' AND model != 'model-sync'
+    GROUP BY model;"
+
+  local _rows _cnt=0
+  _rows=$(sqlite3 -separator $'\t' "$_DB_PATH" "$_q" 2>/dev/null || echo "")
+  if [ -z "$_rows" ]; then echo "[init]   本轮无新日志（timestamp > checkpoint）。"; return 0; fi
+
+  local _line _mid _suc_max _fail_min _suc_n _fail_n _max_ts
+  while IFS= read -r _line; do
+    local _acc=(); mapfile -t -d $'\t' _acc <<< "$_line"
+    _mid=${_acc[0]}; _suc_max=${_acc[1]}; _fail_min=${_acc[2]}
+    _suc_n=${_acc[3]}; _fail_n=${_acc[4]}; _max_ts=${_acc[5]}
+    [ -z "$_mid" ] && continue
+
+    local _rec_real _conf
+    sqlite3 "$_DB_PATH" "
+      INSERT INTO context_recommendations
+        (model_id, last_success_tokens, first_failure_tokens,
+         success_samples, failure_samples, confidence,
+         recommended_real_context, last_updated)
+      VALUES ('$(sql_escape "$_mid")',
+              $([ -n "$_suc_max" ] && echo "$_suc_max" || echo 'NULL'),
+              $([ -n "$_fail_min" ] && echo "$_fail_min" || echo 'NULL'),
+              ${_suc_n:-0}, ${_fail_n:-0},
+              'insufficient', NULL, datetime('now'))
+      ON CONFLICT(model_id) DO UPDATE SET
+        last_success_tokens = MAX(
+          COALESCE(excluded.last_success_tokens, 0),
+          COALESCE(context_recommendations.last_success_tokens, 0)),
+        first_failure_tokens = CASE
+          WHEN context_recommendations.first_failure_tokens IS NULL
+               THEN excluded.first_failure_tokens
+          WHEN excluded.first_failure_tokens IS NULL
+               THEN context_recommendations.first_failure_tokens
+          ELSE MIN(excluded.first_failure_tokens,
+                   context_recommendations.first_failure_tokens)
+        END,
+        success_samples = context_recommendations.success_samples + excluded.success_samples,
+        failure_samples = context_recommendations.failure_samples + excluded.failure_samples,
+        last_updated    = datetime('now');" 2>/dev/null || continue
+
+    local _hist_suc_n _hist_fail_n _hist_suc _hist_fail
+    _hist_suc_n=$(sqlite3 "$_DB_PATH" \
+      "SELECT success_samples FROM context_recommendations
+       WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo 0)
+    _hist_fail_n=$(sqlite3 "$_DB_PATH" \
+      "SELECT failure_samples FROM context_recommendations
+       WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo 0)
+    _hist_suc=$(sqlite3 "$_DB_PATH" \
+      "SELECT last_success_tokens FROM context_recommendations
+       WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo "")
+    _hist_fail=$(sqlite3 "$_DB_PATH" \
+      "SELECT first_failure_tokens FROM context_recommendations
+       WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || echo "")
+
+    local _total=$(( _hist_suc_n + _hist_fail_n ))
+    if   [ "$_total" -lt 10  ]; then _conf="insufficient"
+    elif [ "$_total" -lt 50  ]; then _conf="low"
+    elif [ "$_total" -lt 200 ]; then _conf="medium"
+    else _conf="high"; fi
+
+    if [ -n "$_hist_fail" ] && [ "$_hist_fail" -gt 0 ] 2>/dev/null; then
+      _rec_real=$(( _hist_fail * 85 / 100 ))
+    elif [ -n "$_hist_suc" ] && [ "$_hist_suc" -gt 0 ] 2>/dev/null; then
+      _rec_real=$(( _hist_suc * 90 / 100 ))
+    else
+      _rec_real=""
+    fi
+
+    sqlite3 "$_DB_PATH" "
+      UPDATE context_recommendations
+      SET confidence='$_conf',
+          recommended_real_context=$([ -n "$_rec_real" ] && echo "$_rec_real" || echo 'NULL')
+      WHERE model_id='$(sql_escape "$_mid")';" 2>/dev/null || true
+    _cnt=$(( _cnt + 1 ))
+  done <<< "$_rows"
+
+  _new_max_ts=$(printf '%s\n' "$_rows" | awk -F'\t' '{print $6}' | sort | tail -n1)
+  [ -n "$_new_max_ts" ] && sqlite3 "$_DB_PATH" "
+    INSERT INTO key_value (namespace, key, value)
+    VALUES ('monitor', '$(sql_escape "$_ckpt_key")', '$(sql_escape "$_new_max_ts")')
+    ON CONFLICT(namespace, key) DO UPDATE SET value = excluded.value;" 2>/dev/null \
+    && echo "[init]   checkpoint -> ctx_last_log_ts=$_new_max_ts"
+  echo "[init]   累积更新 ${_cnt} 个模型。"
+
+  # 累积推荐表输出
+  local _acc_rows
+  _acc_rows=$(sqlite3 -separator '|' "$_DB_PATH" "
+    SELECT model_id,
+           COALESCE(last_success_tokens,'-'),
+           COALESCE(first_failure_tokens,'-'),
+           (success_samples||'/'||failure_samples),
+           confidence,
+           COALESCE(recommended_real_context,'-')
+    FROM context_recommendations
+    ORDER BY CASE confidence
+             WHEN 'high' THEN 0 WHEN 'medium' THEN 1
+             WHEN 'low' THEN 2 ELSE 3 END, model_id;" 2>/dev/null || echo "")
+  if [ -z "$_acc_rows" ]; then
+    echo "[init] （累积推荐表为空：尚无成功/失败样本）"
+  else
+    echo "[init] ═══ 累积 real_context 推荐（跨淘汰周期保留）═══"
+    echo "[init]   model | last_ok | first_fail | ok/fail_n | conf | rec_ctx"
+    while IFS='|' read -r _m _ok _fail _n _c _r; do
+      [ -z "$_m" ] && continue
+      printf '[init]   %s | %s | %s | %s | %s | %s\n' "$_m" "$_ok" "$_fail" "$_n" "$_c" "$_r"
+    done <<< "$_acc_rows"
+    echo "[init] ═══════════════════════════════════════════"
+  fi
+}
+
+# ══ 主流程启动 ══════════════════════════════════════════════════
+echo "[init] Starting NIM OmniRoute initializer v4.3.0 (profile=$_PROFILE, mode=$NIM_MODE)..."
+echo "[init] BASE_URL=$BASE_URL"
+check_dangerous_env
+
+[ -z "$INITIAL_PASSWORD" ] && { echo "[init] ERROR: INITIAL_PASSWORD required"; exit 1; }
+[ -z "$NIM_KEYS" ] && { echo "[init] ERROR: NIM_KEYS required"; exit 1; }
+
+echo "[init] Waiting for OmniRoute..."
+HWAIT=0
+until curl -sf "$BASE_URL/api/monitoring/health" > /dev/null 2>&1; do
+  sleep 3; HWAIT=$(( HWAIT + 3 ))
+  [ "$HWAIT" -ge 180 ] && { echo "[init] FATAL: not ready within 180s"; exit 1; }
+done
+echo "[init] OmniRoute up (after ${HWAIT}s)."
+
+VERSION_HTTP=$(curl -s -o "$VERSION_FILE" -w "%{http_code}" \
+  "$BASE_URL/api/monitoring/health" 2>/dev/null || echo "000")
+[ "$VERSION_HTTP" = "200" ] && \
+  echo "[init] version: $(jq -r '.version // "unknown"' "$VERSION_FILE" 2>/dev/null)"
+
+echo "[init] Logging in..."
+LOGIN_BODY=$(jq -n --arg password "$INITIAL_PASSWORD" '{password: $password}')
+LOGIN_HTTP=$(curl -s -o "$LOGIN_RESP_FILE" -w "%{http_code}" -c "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/auth/login" \
+  -H "Content-Type: application/json" -d "$LOGIN_BODY")
+[ "$LOGIN_HTTP" != "200" ] && [ "$LOGIN_HTTP" != "201" ] && {
+  echo "[init] ERROR login HTTP $LOGIN_HTTP"; cat "$LOGIN_RESP_FILE" || true; exit 1
+}
+grep -q "auth_token" "$COOKIE_FILE" 2>/dev/null || { echo "[init] ERROR no auth_token"; exit 1; }
+echo "[init] Logged in."
+
+purge_proxy_db
+
+resolve_or_key() {
+  printf '%s' "${OMNIROUTE_API_KEY:-$(cat "$OR_API_KEY_FILE" 2>/dev/null)}" \
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  OR_KEY="$(printf '%s' "$OMNIROUTE_API_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  [ -z "$OR_KEY" ] && { echo "[init] FATAL: OMNIROUTE_API_KEY blank"; exit 1; }
+  echo "$OR_KEY" > "$OR_API_KEY_FILE" 2>/dev/null \
+    || echo "[init] WARN write $OR_API_KEY_FILE failed"
+  chmod 600 "$OR_API_KEY_FILE" 2>/dev/null || true
+  echo "[init] OMNIROUTE_API_KEY env set, skip /api/keys."
+elif [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
+  OR_KEY="$(cat "$OR_API_KEY_FILE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  echo "[init] OR_API_KEY file exists."
+else
+  echo "[init] Creating OmniRoute API Key..."
+  KEY_BODY=$(jq -n --arg name "gate-internal" '{name: $name, expiresAt: null}')
+  KEY_HTTP=$(curl -s -o "$KEY_RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/keys" \
+    -H "Content-Type: application/json" -d "$KEY_BODY")
+  if [ "$KEY_HTTP" = "200" ] || [ "$KEY_HTTP" = "201" ]; then
+    OR_API_KEY_VALUE=$(jq -r '.key // empty' "$KEY_RESP_FILE")
+    [ -z "$OR_API_KEY_VALUE" ] && { echo "[init] ERROR parse key"; exit 1; }
+    echo "$OR_API_KEY_VALUE" > "$OR_API_KEY_FILE"
+    chmod 600 "$OR_API_KEY_FILE"
+    OR_KEY="$OR_API_KEY_VALUE"
+    echo "[init] OR_API_KEY written."
+  else
+    echo "[init] ERROR /api/keys HTTP $KEY_HTTP"; exit 1
+  fi
+fi
+
+echo "[init] Registering NIM keys..."
+INDEX=1
+while IFS= read -r RAW_KEY; do
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
+  [ -z "$KEY" ] && continue
+  NAME=$(printf "nim-%02d" "$INDEX")
+  RESP_FILE="$(_resp omniroute-provider-${INDEX}.json)"
+  BODY=$(jq -n \
+    --arg provider "nvidia" \
+    --arg apiKey "$KEY" \
+    --arg name "$NAME" \
+    '{provider:$provider, apiKey:$apiKey, name:$name, priority:1, testStatus:"unknown"}')
+  HTTP_CODE=$(curl -s -o "$RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/providers" \
+    -H "Content-Type: application/json" -d "$BODY")
+  if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+    echo "[init] $NAME OK"; REGISTERED=$(( REGISTERED + 1 ))
+  elif [ "$HTTP_CODE" = "409" ]; then
+    echo "[init] $NAME exists"; SKIPPED=$(( SKIPPED + 1 ))
+  else
+    echo "[init] $NAME HTTP $HTTP_CODE"; cat "$RESP_FILE" || true
+    FAILED=$(( FAILED + 1 ))
+  fi
+  INDEX=$(( INDEX + 1 ))
+done <<< "$NIM_KEYS"
+echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed."
+
+echo "[init] Fetching provider IDs..."
+PROVIDERS_HTTP=$(curl -s -o "$PROVIDERS_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" "$BASE_URL/api/providers")
+if [ "$PROVIDERS_HTTP" = "200" ]; then
+  mapfile -t PROVIDER_IDS < <(jq -r \
+    '[.. | objects | select((.provider? // "")==="nvidia") | select((.id? // "")!="") | .id]
+     | unique | .[]' "$PROVIDERS_FILE" 2>/dev/null)
+fi
+echo "[init] Provider IDs: ${#PROVIDER_IDS[@]}"
+
+purge_proxy_db
+
+echo "[init] Resilience (rpm=$_RPM, concurrent=$_CONCURRENT, interval=${_MIN_INTERVAL_MS}ms)..."
+RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/resilience" \
+  -H "Content-Type: application/json" \
+  -d "{\"requestQueue\":{
+        \"requestsPerMinute\":$_RPM,
+        \"minTimeBetweenRequestsMs\":$_MIN_INTERVAL_MS,
+        \"concurrentRequests\":$_CONCURRENT}}")
+echo "[init] Resilience HTTP $RESILIENCE_CODE"
+
+echo "[init] Routing + maxBodySizeMb=$_REQUEST_BODY_LIMIT_MB..."
+SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d "{\"fallbackStrategy\":\"$_FALLBACK_STRATEGY\",
+       \"stickyRoundRobinLimit\":$_STICKY_LIMIT,
+       \"requestRetry\":2,
+       \"maxRetryIntervalSec\":5,
+       \"maxBodySizeMb\":$_REQUEST_BODY_LIMIT_MB}")
+echo "[init] Settings HTTP $SETTINGS_CODE"
+[ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "201" ] && {
+  echo "[init] ⚠️ Settings 非 2xx:"; cat "$SETTINGS_RESP_FILE" || true
+}
+
+echo "[init] Compression (threshold=$_COMPRESS_THRESHOLD mode=$_COMPRESS_MODE)..."
+curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}\n" -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/compression" \
+  -H "Content-Type: application/json" \
+  -d "{\"enabled\":true,
+       \"defaultMode\":\"$_COMPRESS_MODE\",
+       \"autoTriggerTokens\":$_COMPRESS_THRESHOLD}" \
+  | sed 's/^/[init] Compression HTTP /'
+
+echo "[init] Thinking budget (mode=$_THINKING_MODE budget=$_THINKING_BUDGET)..."
+curl -s -o "$THINKING_RESP_FILE" -w "%{http_code}\n" -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/thinking-budget" \
+  -H "Content-Type: application/json" \
+  -d "{\"mode\":\"$_THINKING_MODE\",\"baseBudget\":$_THINKING_BUDGET}" \
+  | sed 's/^/[init] Thinking HTTP /'
+
+echo "[init] Memory legacy + Skills..."
+curl -s -o "$MEMORY_LEGACY_RESP_FILE" -w "%{http_code}\n" -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d '{"memoryEnabled":true,"memoryStrategy":"hybrid","memoryMaxTokens":2000,
+       "memoryRetentionDays":30,"skillsEnabled":true}' \
+  | sed 's/^/[init] Memory legacy HTTP /'
+
+echo "[init] Memory extended (static)..."
+curl -s -o "$MEMORY_EXT_RESP_FILE" -w "%{http_code}\n" -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/memory" \
+  -H "Content-Type: application/json" \
+  -d '{"embeddingSource":"static","staticEnabled":true,"transformersEnabled":false}' \
+  | sed 's/^/[init] Memory extended HTTP /'
+
+echo "[init] Resetting circuit breakers..."
+curl -s -o /dev/null -w "[init] CB reset HTTP %{http_code}\n" -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/resilience/reset" \
+  -H "Content-Type: application/json"
+
+echo "[init] per-model 32K override (real_context=$_NIM_REAL_CONTEXT)..."
+OVERRIDE_APPLIED=0; OVERRIDE_SKIPPED=0
+apply_context_override() {
+  # model_id 使用裸名（不含 nvidia/ 前缀），与 OmniRoute model_context_overrides 表对齐
+  local _bare_id="$1" _ctx="$2"
+  if sqlite3 "$_DB_PATH" \
+    "INSERT OR REPLACE INTO model_context_overrides
+       (provider, model_id, real_context, source, refreshed_at)
+     VALUES ('nvidia', '$(sql_escape "$_bare_id")', $_ctx, 'manual', datetime('now'));" \
+    2>/dev/null; then
+    OVERRIDE_APPLIED=$(( OVERRIDE_APPLIED + 1 ))
+  else
+    OVERRIDE_SKIPPED=$(( OVERRIDE_SKIPPED + 1 ))
+    echo "[init]   override FAILED: $_bare_id"
+  fi
+}
+while IFS= read -r _M; do
+  [ -z "$_M" ] && continue
+  apply_context_override "$_M" "$_NIM_REAL_CONTEXT"
+done < <(build_all_models)
+echo "[init] override: $OVERRIDE_APPLIED applied, $OVERRIDE_SKIPPED failed."
+
+echo "[init] ─────────────────────────────────────────────"
+echo "[init]   PROFILE=$_PROFILE MODE=$NIM_MODE KEYS=$_ALIVE_KEYS"
+echo "[init]   RPM=$_RPM CONCURRENT=$_CONCURRENT INTERVAL=${_MIN_INTERVAL_MS}ms BODY=${_REQUEST_BODY_LIMIT_MB}MB"
+echo "[init]   STRATEGIES: pool=$_POOL_STRATEGY stable=$_STABLE_STRATEGY fast=$_FAST_STRATEGY codex=$_CODEX_STRATEGY"
+echo "[init]   PROBE=${NIM_PROBE:-0} REAL_CONTEXT=$_NIM_REAL_CONTEXT SCALE_WITH_KEYS=${NIM_SCALE_WITH_KEYS:-0}"
+echo "[init] ─────────────────────────────────────────────"
+
+# ══ hf_snapshot（[J] 同步 v4.3.0 新参数）══════════════════════
+hf_snapshot() {
+  [ -z "$HF_TOKEN" ] || [ -z "$HF_DATASET_REPO" ] && return 0
+  echo "[init] HF Dataset snapshot..."
+  local BACKUP_DIR="/tmp/omni-snapshot"; mkdir -p "$BACKUP_DIR"
+  local OR_KEY; OR_KEY="$(resolve_or_key)"
+  curl -sf "$BASE_URL/api/settings/export-json" \
+      -H "Authorization: Bearer $OR_KEY" \
+    | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets) |
+          (if (.apiKeys|type)=="array"
+           then .apiKeys |= map(del(.key)) else . end) |
+          (if (.providerConnections|type)=="array"
+           then .providerConnections |= map(del(.credentials)) else . end)' \
+    > "$BACKUP_DIR/omni_config.json"
+  jq '.apiKeys'               "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/keys.json"
+  jq '.providerConnections'   "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/providerConnections.json"
+  jq '.settings'              "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
+  jq '.combos'                "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
+
+  _arr_json() {
+    [ "$#" -eq 0 ] && { printf '[]'; return; }
+    printf '%s\n' "$@" | jq -R . | jq -s -c .
+  }
+  { jq -n \
+      --arg  version          "4.3.0" \
+      --arg  profile          "$_PROFILE" \
+      --arg  mode             "$NIM_MODE" \
+      --argjson tier_fast     "$(_arr_json "${TIER_FAST[@]}")" \
+      --argjson tier_stable   "$(_arr_json "${TIER_STABLE[@]}")" \
+      --argjson tier_restricted "$(_arr_json "${TIER_RESTRICTED[@]}")" \
+      --argjson pool_models   "$(_arr_json "${NIM_POOL_MODELS[@]}")" \
+      --argjson stable_models "$(_arr_json "${NIM_STABLE_MODELS[@]}")" \
+      --argjson fast_models   "$(_arr_json "${NIM_FAST_MODELS[@]}")" \
+      --argjson codex_models  "$(_arr_json "${NIM_CODEX_MODELS[@]}")" \
+      --arg  alive_keys       "$_ALIVE_KEYS" \
+      --arg  rpm              "$_RPM" \
+      --arg  concurrent       "$_CONCURRENT" \
+      --arg  min_interval_ms  "$_MIN_INTERVAL_MS" \
+      --arg  pool_strategy    "$_POOL_STRATEGY" \
+      --arg  stable_strategy  "$_STABLE_STRATEGY" \
+      --arg  fast_strategy    "$_FAST_STRATEGY" \
+      --arg  codex_strategy   "$_CODEX_STRATEGY" \
+      --arg  fallback_strategy "$_FALLBACK_STRATEGY" \
+      --arg  real_context     "$_NIM_REAL_CONTEXT" \
+      --arg  body_limit_mb    "$_REQUEST_BODY_LIMIT_MB" \
+      --arg  compress_threshold "$_COMPRESS_THRESHOLD" \
+      --arg  thinking_mode    "$_THINKING_MODE" \
+      --arg  thinking_budget  "$_THINKING_BUDGET" \
+      --arg  probe            "${NIM_PROBE:-0}" \
+      --arg  scale_with_keys  "${NIM_SCALE_WITH_KEYS:-0}" \
+      '{version:$version, profile:$profile, mode:$mode,
+        tiers:{fast:$tier_fast, stable:$tier_stable, restricted:$tier_restricted},
+        pools:{pool:$pool_models, stable:$stable_models, fast:$fast_models, codex:$codex_models},
+        shaping:{alive_keys:($alive_keys|tonumber),
+                 rpm:($rpm|tonumber),
+                 concurrent:($concurrent|tonumber),
+                 min_interval_ms:($min_interval_ms|tonumber),
+                 scale_with_keys:($scale_with_keys|tonumber)},
+        strategies:{pool:$pool_strategy, stable:$stable_strategy,
+                    fast:$fast_strategy, codex:$codex_strategy,
+                    fallback:$fallback_strategy},
+        context:{real_context:($real_context|tonumber)},
+        limits:{body_mb:($body_limit_mb|tonumber),
+                compress_threshold:($compress_threshold|tonumber)},
+        thinking:{mode:$thinking_mode, budget:($thinking_budget|tonumber)},
+        flags:{probe:($probe|tonumber)}}'; } \
+    > "$BACKUP_DIR/init_vars.json" \
+    && echo "[init] snapshot: init_vars.json written" \
+    || echo "[init] snapshot: WARN init_vars.json 写入失败"
+
+  # DEBUG log 上传（继承 v4.2.3·⑨）
+  if [ "$NIM_MODE" = "DEBUG" ] && \
+     [ "${NIM_DEBUG_LOG_TO_DATASET:-1}" = "1" ] && \
+     [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
+    local _keep=${NIM_DEBUG_LOG_KEEP:-5}
+    cp -f "$INIT_LOG" \
+       "$BACKUP_DIR/debug_$(basename "$INIT_LOG" | sed 's/^init_//')" 2>/dev/null \
+      && echo "[init] snapshot: 附带 DEBUG log" \
+      || echo "[init] snapshot: WARN 复制 DEBUG log 失败，跳过。"
+    if [ -d "$LOG_DIR" ]; then
+      ls -1t "$LOG_DIR"/init_*.log 2>/dev/null \
+        | tail -n +$(( _keep + 1 )) \
+        | xargs -r rm -f 2>/dev/null || true
+    fi
+  fi
+
+  python3 - <<'PYEOF'
+import os
+from datetime import datetime, timezone
+from huggingface_hub import HfApi
+api = HfApi(token=os.environ["HF_TOKEN"])
+api.upload_folder(
+    folder_path="/tmp/omni-snapshot",
+    path_in_repo="omni_data",
+    repo_id=os.environ["HF_DATASET_REPO"],
+    repo_type="dataset",
+    commit_message=f"Sync omni_data - {datetime.now(timezone.utc).isoformat()}"
+)
+print("[init] HF Dataset uploaded.")
+PYEOF
+}
+
+# ══ [F] 增量门：四组 nim-* combo 任一存在 → 增量 ═══════════════
+if [ -f "$_DB_PATH" ]; then
+  COMBO_COUNT=$(sqlite3 "$_DB_PATH" \
+    "SELECT COUNT(*) FROM combos
+     WHERE name IN ('nim-pool','nim-codex','nim-stable','nim-fast');" \
+    2>/dev/null || echo 0)
+  if [ "${COMBO_COUNT:-0}" -gt 0 ] || [ -f "$INIT_MARKER" ]; then
+    echo "[init] Incremental mode (existing combos=$COMBO_COUNT)."
+    purge_proxy_db
+    # 只清已过期熔断，保留冷却窗内的历史信号
+    sqlite3 "$_DB_PATH" \
+      "DELETE FROM domain_circuit_breakers
+       WHERE cooldown_until < datetime('now');" 2>/dev/null || true
+    check_nim_model_health
+    nim_probe
+
+    mapfile -t STABLE_ALIVE  < <(filter_alive "${NIM_STABLE_MODELS[@]}")
+    mapfile -t FAST_ALIVE    < <(filter_alive "${NIM_FAST_MODELS[@]}")
+    mapfile -t POOL_ALIVE    < <(filter_alive "${NIM_POOL_MODELS[@]}")
+    mapfile -t CODEX_ALIVE   < <(filter_alive "${NIM_CODEX_MODELS[@]}")
+
+    upsert_combo "nim-stable" "$_STABLE_STRATEGY" "${STABLE_ALIVE[@]}"
+    upsert_combo "nim-fast"   "$_FAST_STRATEGY"   "${FAST_ALIVE[@]}"
+    upsert_combo "nim-pool"   "$_POOL_STRATEGY"   "${POOL_ALIVE[@]}"
+    upsert_combo "nim-codex"  "$_CODEX_STRATEGY"  "${CODEX_ALIVE[@]}"
+
+    # 增量也同步路由规则（幂等 PUT）
+    upsert_model_combo_mapping "nim-stable*"   "nim-stable" 10 "长会话/复杂代码 -> priority"
+    upsert_model_combo_mapping "nim-fast*"     "nim-fast"   10 "检索/摘要/低延迟 -> round-robin"
+    upsert_model_combo_mapping "nim-pool*"     "nim-pool"   10 "无状态子任务 -> p2c"
+    upsert_model_combo_mapping "nim-codex*"    "nim-codex"  10 "代码生成 Agent -> priority"
+
+    context_accumulator_update
+    hf_snapshot
+    echo "[init] Done (incremental). v4.3.0"
+    exit 0
+  fi
+else
+  echo "[init] DB not present. First-time init."
+fi
+
+# ══ First-time init ═══════════════════════════════════════════
+check_nim_model_health
+nim_probe
+
+echo "[init] Registering models..."
+register_model() {
+  local MODEL_ID="$1"
+  local F="$(_resp omniroute-model-$(echo "$1" | tr '/' '-').json)"
+  local C
+  C=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/provider-models" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n \
+           --arg provider "nvidia" \
+           --arg modelId "$MODEL_ID" \
+           '{provider:$provider, modelId:$modelId}')")
+  if   [ "$C" = "200" ] || [ "$C" = "201" ]; then echo "[init] model $MODEL_ID OK"
+  elif [ "$C" = "409" ]; then echo "[init] model $MODEL_ID exists"
+  else echo "[init] model $MODEL_ID WARN $C"; cat "$F" || true; fi
+}
+while IFS= read -r _M; do
+  [ -z "$_M" ] && continue
+  register_model "$_M"
+done < <(build_all_models | { grep -Fxvf /tmp/nim-deprecated.txt || true; })
+echo "[init] Model registration done."
+
+mapfile -t STABLE_ALIVE  < <(filter_alive "${NIM_STABLE_MODELS[@]}")
+mapfile -t FAST_ALIVE    < <(filter_alive "${NIM_FAST_MODELS[@]}")
+mapfile -t POOL_ALIVE    < <(filter_alive "${NIM_POOL_MODELS[@]}")
+mapfile -t CODEX_ALIVE   < <(filter_alive "${NIM_CODEX_MODELS[@]}")
+
+upsert_combo "nim-stable" "$_STABLE_STRATEGY" "${STABLE_ALIVE[@]}"
+upsert_combo "nim-fast"   "$_FAST_STRATEGY"   "${FAST_ALIVE[@]}"
+upsert_combo "nim-pool"   "$_POOL_STRATEGY"   "${POOL_ALIVE[@]}"
+upsert_combo "nim-codex"  "$_CODEX_STRATEGY"  "${CODEX_ALIVE[@]}"
+
+# model_combo_mappings 路由规则
+upsert_model_combo_mapping "nim-stable*"   "nim-stable" 10 "长会话/复杂代码 -> priority"
+upsert_model_combo_mapping "nim-fast*"     "nim-fast"   10 "检索/摘要/低延迟 -> round-robin"
+upsert_model_combo_mapping "nim-pool*"     "nim-pool"   10 "无状态子任务 -> p2c"
+upsert_model_combo_mapping "nim-codex*"    "nim-codex"  10 "代码生成 Agent -> priority"
+
+context_accumulator_update
+hf_snapshot
+purge_proxy_db
+
+touch "$INIT_MARKER"
+echo "[init] Final health check..."
+HEALTH_FILE="$(_resp omniroute-final-health.json)"
+HEALTH_HTTP=$(curl -s -o "$HEALTH_FILE" -w "%{http_code}" \
+  "$BASE_URL/api/monitoring/health" 2>/dev/null || echo "000")
+[ "$HEALTH_HTTP" = "200" ] && \
+  echo "[init]   Status: $(jq -r '.status // "unknown"' "$HEALTH_FILE") / $(jq -r '.version // "unknown"' "$HEALTH_FILE")"
+echo "[init] Done (first-init). v4.3.0"
+```
+
+---
+
+## **entrypoint.sh（[G] 时间戳截止版）**
+
+```sh
+#!/bin/sh
+set -e
+
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+[ -z "$EXPOSED_PORT" ]   && EXPOSED_PORT=7860
+[ -z "$DATA_DIR" ]       && DATA_DIR=/data
+[ -z "$CALL_LOGS_TABLE_MAX_ROWS" ]  && CALL_LOGS_TABLE_MAX_ROWS=100000
+[ -z "$PROXY_LOGS_TABLE_MAX_ROWS" ] && PROXY_LOGS_TABLE_MAX_ROWS=100000
+
+echo "[entrypoint] starting OmniRoute via /app/server.js..."
+echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT EXPOSED_PORT=$EXPOSED_PORT DATA_DIR=$DATA_DIR"
+
+# ── Litestream restore ──────────────────────────────────────
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] R2 creds found. Litestream restore..."
+  litestream restore -config /litestream.yml -if-replica-exists "$DATA_DIR/storage.sqlite" \
+    && echo "[entrypoint] restore complete." \
+    || echo "[entrypoint] WARN: restore failed or no replica. Continuing."
+else
+  echo "[entrypoint] WARN: R2 creds not set. Skip restore."
+fi
+
+PORT="$OMNIROUTE_PORT" \
+DATA_DIR="$DATA_DIR" \
+REQUIRE_API_KEY=true \
+HOSTNAME=127.0.0.1 \
+NIM_MODE="$NIM_MODE" \
+NODE_OPTIONS="--max-old-space-size=4096" \
+DISABLE_SQLITE_AUTO_BACKUP=true \
+PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
+CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
+PROXY_LOGS_TABLE_MAX_ROWS="$PROXY_LOGS_TABLE_MAX_ROWS" \
+JWT_SECRET="$JWT_SECRET" \
+API_KEY_SECRET="$API_KEY_SECRET" \
+OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
+INITIAL_PASSWORD="$INITIAL_PASSWORD" \
+node /app/server.js --log &
+OR_PID=$!
+echo "[entrypoint] OmniRoute PID=$OR_PID"
+
+# ── [G] 健康等待：时间戳截止，不再依赖计数器 ──────────────────
+READY_TIMEOUT_SECONDS="${READY_TIMEOUT_SECONDS:-180}"
+READY_DEADLINE=$(( $(date +%s) + READY_TIMEOUT_SECONDS ))
+echo "[entrypoint] waiting for health (max ${READY_TIMEOUT_SECONDS}s)..."
+
+while :; do
+  kill -0 "$OR_PID" 2>/dev/null || {
+    echo "[entrypoint] FATAL: OmniRoute exited early"; exit 1
+  }
+  if curl -sf --connect-timeout 2 --max-time 5 \
+      "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1; then
+    ELAPSED=$(( $(date +%s) - (READY_DEADLINE - READY_TIMEOUT_SECONDS) ))
+    echo "[entrypoint] ready after ~${ELAPSED}s"
+    break
+  fi
+  [ "$(date +%s)" -ge "$READY_DEADLINE" ] && {
+    echo "[entrypoint] FATAL: not ready within ${READY_TIMEOUT_SECONDS}s"; exit 1
+  }
+  sleep 2
+done
+
+# ── 版本护栏（只告警不中断）────────────────────────────────────
+EXPECTED_OR_VERSION="${EXPECTED_OR_VERSION:-3.8.43}"
+_OR_VER=$(curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" 2>/dev/null \
+  | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+echo "[entrypoint] base version: $_OR_VER (expected $EXPECTED_OR_VERSION)"
+if [ "$_OR_VER" != "$EXPECTED_OR_VERSION" ] && [ "$_OR_VER" != "unknown" ]; then
+  echo "[entrypoint] ⚠️ WARN: 版本($_OR_VER)与期望($EXPECTED_OR_VERSION)不一致——疑似 FROM 漂移。"
+fi
+
+echo "[entrypoint] running NIM init in background..."
+bash /entrypoint-init-nim.sh &
+
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  echo "[entrypoint] OMNIROUTE_API_KEY set, env-bypass 模式，跳过等待 .or-api-key。"
+else
+  echo "[entrypoint] waiting for OR_API_KEY (max 120s)..."
+  KEY_DEADLINE=$(( $(date +%s) + 120 ))
+  while :; do
+    [ -f "/data/.or-api-key" ] && [ -s "/data/.or-api-key" ] && {
+      echo "[entrypoint] OR_API_KEY ready"; break
+    }
+    kill -0 "$OR_PID" 2>/dev/null || {
+      echo "[entrypoint] FATAL: OmniRoute exited waiting key"; exit 1
+    }
+    [ "$(date +%s)" -ge "$KEY_DEADLINE" ] && {
+      echo "[entrypoint] FATAL: OR_API_KEY not created within 120s"; exit 1
+    }
+    sleep 2
+  done
+fi
+
+export NODE_OPTIONS="--max-old-space-size=4096"
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] Starting Litestream replication..."
+  litestream replicate -config /litestream.yml &
+  echo "[entrypoint] Litestream PID=$!"
+else
+  echo "[entrypoint] WARN: Litestream replication disabled (no R2 creds)."
+fi
+
+echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
+exec node /gate/gate.js
+```
+
+---
+
+## **gate.js（[H] 白名单保护版）**
+
+```js
+'use strict';
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const fs = require('fs');
+
+const app = express();
+const INTERNAL_PSK = process.env.INTERNAL_PSK;
+const OR_PORT  = parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
+const GATE_PORT = parseInt(process.env.EXPOSED_PORT  || '7860',  10);
+
+if (!INTERNAL_PSK) {
+  console.error('[gate] FATAL: INTERNAL_PSK not set.');
+  process.exit(1);
+}
+
+let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
+if (!OR_API_KEY) {
+  try {
+    OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim();
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('[gate] WARN read key failed:', e.message);
+  }
+}
+if (!OR_API_KEY) {
+  console.error('[gate] FATAL: No OR_API_KEY (env nor file).');
+  process.exit(1);
+}
+
+// /healthz: 无需鉴权，探活用
+app.get('/healthz', async (_req, res) => {
+  try {
+    const r = await fetch(
+      `http://127.0.0.1:${OR_PORT}/api/monitoring/health`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    r.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
+  } catch {
+    res.status(503).json({ ok: false });
+  }
+});
+
+// [H] 白名单：非 /healthz 且非 /v1 的路径一律 404
+// 防止 Dashboard、管理 API、Settings、Logs 等被公网匿名访问
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/v1')) {
+    return res.status(404).json({ error: 'not_found' });
+  }
+
+  // /v1 路径：PSK 鉴权
+  const auth   = req.headers['authorization'] || '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!bearer || bearer !== INTERNAL_PSK) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  // 将客户端 PSK 替换为内部 OmniRoute API Key
+  req.headers['authorization'] = `Bearer ${OR_API_KEY}`;
+  return next();
+});
+
+// 反向代理：流式响应友好（proxyTimeout: 0 / timeout: 0）
+app.use('/', createProxyMiddleware({
+  target: `http://127.0.0.1:${OR_PORT}`,
+  changeOrigin: true,
+  proxyTimeout: 0,
+  timeout: 0,
+  on: {
+    error(err, _req, res) {
+      console.error('[gate] proxy error:', err.message);
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'upstream_unavailable' });
+      }
+    }
+  }
+}));
+
+app.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] v4.3.0 listening on 0.0.0.0:${GATE_PORT} -> 127.0.0.1:${OR_PORT}`);
+  console.log(`[gate] /v1/* requires PSK; Dashboard paths are blocked (404).`);
+});
+```
+
+---
+
+## **litestream.yml（[I] WAL 模式安全增强）**
+
+```yaml
+dbs:
+  - path: /data/storage.sqlite
+    # SQLite 运行在 WAL 模式；docker stop 应允许 OmniRoute 完成 checkpoint。
+    # Litestream 会在复制前自动发起 WAL checkpoint，此处无需额外配置。
+    # 若出现 "database is locked"，检查 `lsof | grep storage.sqlite`，
+    # 或在 docker-compose 中设置 stop_grace_period: 40s。
+    replica:
+      type: s3
+      bucket: omniroute-data
+      path: db/storage.sqlite
+      endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      access-key-id: ${R2_ACCESS_KEY_ID}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY}
+      region: auto
+      sync-interval: 10s
+      auto-recover: true
+      # retention: 保留 24h WAL 段，快照每小时一次
+      retention: 24h
+      retention-check-interval: 1h
+
+snapshot:
+  interval: 1h
+  retention: 24h
+```
+
+---
+
+## **新增环境变量速查（v4.3.0 新增）**
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `NIM_SCALE_WITH_KEYS` | `0` | `1` 时按 Key 数扩容（需商业额度） |
+| `NIM_RPM_CAP` | `28` | 保守模式下全局 RPM 上限 |
+| `NIM_CONCURRENCY_CAP` | `1` | 保守模式下最大并发 |
+| `NIM_MIN_INTERVAL_MS` | `2200` | 保守模式下请求最小间隔（ms） |
+| `NIM_RPM_HARD_CAP` | `60` | 扩容模式下 RPM 绝对上限 |
+| `NIM_CONCURRENCY_HARD_CAP` | `2` | 扩容模式下并发绝对上限 |
+| `NIM_MIN_CATALOG_MODELS` | `5` | catalog 至少返回多少模型才算可信 |
+| `NIM_PROBE_MAX_MODELS` | `2` | 每次探针最多探测的模型数 |
+| `NIM_PROBE_MIN_INTERVAL_SECONDS` | `21600` | 同模型两次探针最小间隔（6h） |
+| `READY_TIMEOUT_SECONDS` | `180` | entrypoint 健康等待超时秒数 |
+
+[OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference) [OmniRoute Database Guide](https://github.com/diegosouzapw/OmniRoute/wiki/Database-Guide) [OmniRoute User Guide](https://github.com/diegosouzapw/OmniRoute/wiki/User-Guide)
+
+
+
+
+
+
+
+
+
+
+### **查证后建议将脚本升级为 v4.3：保留 OmniRoute 3.8.43 锁版，但优先修复恢复语义、进程退出处理、Gate 暴露面、限流计算、模型前缀、增量初始化短路，以及上下文统计误判。**
+
+本轮查证确认：OmniRoute 3.8.43 的 Provider Reference 已包含多个搜索提供商，且 API 架构包含 `/v1/search`、`/v1/rerank`、`/v1/embeddings`；不过当前脚本的 Gate 已允许全部 `/v1` 请求，因此无需为搜索再开放管理页面。另一方面，`requestRetry` 属于冷却感知重试，保留它是合理的，但在受限上游上建议从 `2` 降为 `1`，避免单次请求在模型池和内部重试叠加时产生请求放大。 [OmniRoute Provider Reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/PROVIDER_REFERENCE.md) [OmniRoute Architecture](https://github.com/diegosouzapw/OmniRoute/wiki/Architecture)
+
+## **一、本轮发现的高优先级问题**
+
+### **1. Litestream 恢复的日志语义存在误导**
+
+Litestream 文档说明，恢复默认不会覆盖已经存在的数据库；加上 `-if-replica-exists` 后，如果远端不存在备份，也可能成功退出。因此当前代码：
+
+```sh
+litestream restore -config /litestream.yml -if-replica-exists "$DATA_DIR/storage.sqlite" \
+  && echo "[entrypoint] restore complete."
+```
+
+可能在以下两种情况下仍打印 `restore complete`：
+
+- 本地数据库已存在，实际没有执行恢复；
+- 远端没有副本，因为 `-if-replica-exists` 而正常退出。
+
+建议改为明确区分“本地库存在”和“需要灾备恢复”：
+
+```sh
+DB_PATH="$DATA_DIR/storage.sqlite"
+
+if [ -s "$DB_PATH" ]; then
+  echo "[entrypoint] local DB exists; skip Litestream restore."
+elif [ -n "$R2_ACCESS_KEY_ID" ] &&
+     [ -n "$R2_SECRET_ACCESS_KEY" ] &&
+     [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] local DB absent; attempting Litestream restore..."
+
+  if litestream restore \
+      -config /litestream.yml \
+      -if-replica-exists \
+      "$DB_PATH"; then
+    if [ -s "$DB_PATH" ]; then
+      echo "[entrypoint] restore produced DB: $DB_PATH"
+    else
+      echo "[entrypoint] no remote replica found; OmniRoute will initialize a new DB."
+    fi
+  else
+    echo "[entrypoint] WARN: restore failed; OmniRoute will initialize a new DB."
+  fi
+else
+  echo "[entrypoint] no local DB and no R2 credentials; starting with a new DB."
+fi
+```
+
+这样也避免每次重启都发起没有意义的恢复请求。Litestream 官方推荐的常见启动模式同样是仅在数据库不存在时恢复。 [Litestream Restore](https://litestream.io/reference/restore) [Litestream Kubernetes Guide](https://litestream.io/guides/kubernetes)
+
+### **2. `auto-recover: true` 会牺牲旧时间点恢复能力**
+
+Litestream 文档明确警告：`auto-recover` 遇到 LTX 连续性错误时会丢弃本地追踪状态并重新生成快照，导致无法恢复到重置之前的时间点。无人值守的个人 Space 中可以继续开启，但脚本注释应写清楚，这是“可用性优先”，不是纯粹的无风险修复。 [Litestream Configuration](https://litestream.io/reference/config)
+
+建议：
+
+```yml
+dbs:
+  - path: /data/storage.sqlite
+    replica:
+      type: s3
+      bucket: omniroute-data
+      path: db/storage.sqlite
+      endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      access-key-id: ${R2_ACCESS_KEY_ID}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY}
+      region: auto
+      sync-interval: 10s
+
+      # 无人值守部署可开启；发生 LTX 错误时会重置追踪状态并创建新快照，
+      # 因而可能丢失重置前的 PITR 历史。
+      auto-recover: true
+
+snapshot:
+  interval: 1h
+  retention: 24h
+
+validation:
+  interval: 10m
+```
+
+Litestream 0.5.8 起支持全局 `validation`，建议补上完整性检查。当前 0.5.9 可用，但公开发布列表已有更新版本；是否升级应先做恢复演练，不能只追最新。 [Litestream Configuration](https://litestream.io/reference/config) [Litestream Releases](https://github.com/benbjohnson/litestream/releases)
+
+### **3. Gate 成为 PID 1 后，OmniRoute 异常退出不会自动终止容器**
+
+当前最后执行：
+
+```sh
+exec node /gate/gate.js
+```
+
+这会让 Gate 成为 PID 1，但 OmniRoute 仍是后台进程。若 OmniRoute 运行中崩溃，Gate 继续监听，`/healthz` 虽会返回 503，但容器不会立即退出重启。
+
+建议增加一个 Supervisor，而不是直接 `exec` Gate：
+
+```sh
+node /gate/gate.js &
+GATE_PID=$!
+echo "[entrypoint] Gate PID=$GATE_PID"
+
+shutdown() {
+  echo "[entrypoint] shutting down..."
+  kill -TERM "$GATE_PID" "$OR_PID" "${LS_PID:-}" 2>/dev/null || true
+  wait "$GATE_PID" "$OR_PID" "${LS_PID:-}" 2>/dev/null || true
+}
+
+trap shutdown INT TERM EXIT
+
+while :; do
+  if ! kill -0 "$OR_PID" 2>/dev/null; then
+    echo "[entrypoint] FATAL: OmniRoute exited."
+    wait "$OR_PID" || true
+    exit 1
+  fi
+
+  if ! kill -0 "$GATE_PID" 2>/dev/null; then
+    echo "[entrypoint] FATAL: Gate exited."
+    wait "$GATE_PID" || true
+    exit 1
+  fi
+
+  if [ -n "${LS_PID:-}" ] && ! kill -0 "$LS_PID" 2>/dev/null; then
+    echo "[entrypoint] WARN: Litestream exited; backup replication is unavailable."
+    unset LS_PID
+  fi
+
+  sleep 5
+done
+```
+
+启动 Litestream 时保存 PID：
+
+```sh
+litestream replicate -config /litestream.yml &
+LS_PID=$!
+echo "[entrypoint] Litestream PID=$LS_PID"
+```
+
+这项修改比调整模型池更优先，因为它直接决定运行时故障能否被编排平台感知。
+
+### **4. NIM 初始化在后台运行，但失败不会影响服务就绪**
+
+当前：
+
+```sh
+bash /entrypoint-init-nim.sh &
+```
+
+随后 Gate 很快启动。于是可能出现：
+
+- Gate 已健康，但 Combo 尚未创建；
+- 初始化登录失败，容器仍显示健康；
+- `.or-api-key` 等待与初始化脚本并发，时序复杂；
+- 增量更新失败而完全无人感知。
+
+更稳妥的设计是：首次初始化同步执行，增量维护才后台执行。
+
+```sh
+INIT_MARKER="$DATA_DIR/.init-done"
+
+if [ -f "$INIT_MARKER" ]; then
+  echo "[entrypoint] existing deployment; running incremental NIM maintenance..."
+  bash /entrypoint-init-nim.sh &
+  INIT_PID=$!
+else
+  echo "[entrypoint] first deployment; running NIM initialization synchronously..."
+  if ! bash /entrypoint-init-nim.sh; then
+    echo "[entrypoint] FATAL: first-time NIM initialization failed."
+    exit 1
+  fi
+fi
+```
+
+更简单的做法是全部同步运行。对个人 Space，启动多等待几十秒通常比“表面健康、实际无 Combo”更可取。
+
+## **二、限流和重试应按“共享安全预算”设计**
+
+### **5. 删除按 Key 数自动线性扩容**
+
+将现有整段：
+
+```bash
+_PER_KEY_RPM=${NIM_PER_KEY_RPM:-35}
+_RPM=$(( _ALIVE_KEYS * _PER_KEY_RPM ))
+...
+_CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-3} ))
+```
+
+替换为：
+
+```bash
+_count_alive_keys() {
+  printf '%s\n' "$NIM_KEYS" |
+    sed 's/\r$//' |
+    sed '/^[[:space:]]*$/d' |
+    wc -l
+}
+
+_ALIVE_KEYS=$(_count_alive_keys)
+[ "$_ALIVE_KEYS" -lt 1 ] && {
+  echo "[init] FATAL: no non-empty NIM keys."
+  exit 1
+}
+
+NIM_SCALE_WITH_KEYS="${NIM_SCALE_WITH_KEYS:-0}"
+
+if [ "$NIM_SCALE_WITH_KEYS" = "1" ]; then
+  # 仅用于已确认额度独立、且条款允许的商业或自托管部署。
+  _PER_KEY_RPM="${NIM_PER_KEY_RPM:-28}"
+  _RPM=$(( _ALIVE_KEYS * _PER_KEY_RPM ))
+  _CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-1} ))
+
+  [ "$_RPM" -gt "${NIM_RPM_HARD_CAP:-60}" ] &&
+    _RPM="${NIM_RPM_HARD_CAP:-60}"
+  [ "$_CONCURRENT" -gt "${NIM_CONCURRENCY_HARD_CAP:-2}" ] &&
+    _CONCURRENT="${NIM_CONCURRENCY_HARD_CAP:-2}"
+else
+  # 免费开发端点：总入口预算，不随 Key 数增长。
+  _PER_KEY_RPM=0
+  _RPM="${NIM_RPM_CAP:-28}"
+  _CONCURRENT="${NIM_CONCURRENCY_CAP:-1}"
+fi
+
+[ "$_RPM" -lt 1 ] && _RPM=1
+[ "$_CONCURRENT" -lt 1 ] && _CONCURRENT=1
+
+_MIN_INTERVAL_MS=$(( (60000 + _RPM - 1) / _RPM ))
+
+echo "[init] NIM shaping: keys=$_ALIVE_KEYS rpm=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms scale=$NIM_SCALE_WITH_KEYS"
+```
+
+这里使用向上取整，而不是原来的向下取整：
+
+```bash
+(60000 + RPM - 1) / RPM
+```
+
+28 RPM 对应 2143ms；可进一步设为固定的 2200ms：
+
+```bash
+_MIN_INTERVAL_MS="${NIM_MIN_INTERVAL_MS:-2200}"
+```
+
+注意：OmniRoute 的 Request Queue 是系统设置；如果未来还接入其他 Provider，把全局队列写成 NIM 的保守值可能同时限制其他 Provider。3.8.43 的设置页文档把 RPM、最小间隔和并发描述为账户级整形，但当前 PATCH 的具体作用域仍应通过 Dashboard 读回确认。因此建议在 PATCH 后立即 GET 验证，不能只看 HTTP 200。 [OmniRoute User Guide](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/guides/USER_GUIDE.md)
+
+```bash
+echo "[init] Resilience readback:"
+curl -sf -b "$COOKIE_FILE" "$BASE_URL/api/resilience" |
+  jq '.requestQueue // .' |
+  sed 's/^/[init]   /'
+```
+
+### **6. 将 `requestRetry` 从 2 降为 1**
+
+当前：
+
+```json
+"requestRetry": 2,
+"maxRetryIntervalSec": 5
+```
+
+OmniRoute 本身已有模型冷却、Combo 回退和熔断机制；一次客户端请求可能已经在多个模型间切换，再叠加两轮内部重试，会明显放大上游请求。
+
+建议默认：
+
+```bash
+_REQUEST_RETRY="${NIM_REQUEST_RETRY:-1}"
+_MAX_RETRY_INTERVAL_SEC="${NIM_MAX_RETRY_INTERVAL_SEC:-8}"
+
+SETTINGS_BODY=$(jq -n \
+  --arg fallback "$_FALLBACK_STRATEGY" \
+  --argjson sticky "$_STICKY_LIMIT" \
+  --argjson retry "$_REQUEST_RETRY" \
+  --argjson retrySec "$_MAX_RETRY_INTERVAL_SEC" \
+  --argjson bodyMb "$_REQUEST_BODY_LIMIT_MB" \
+  '{
+    fallbackStrategy:$fallback,
+    stickyRoundRobinLimit:$sticky,
+    requestRetry:$retry,
+    maxRetryIntervalSec:$retrySec,
+    maxBodySizeMb:$bodyMb
+  }')
+```
+
+使用 `jq` 构造所有请求体，也比手写 JSON 字符串更稳健。OmniRoute 文档确认这两个字段由冷却感知重试模块使用。 [OmniRoute Architecture](https://github.com/diegosouzapw/OmniRoute/wiki/Architecture)
+
+## **三、模型 ID 与 Combo 需要一次性规范化**
+
+### **7. 使用幂等的路由模型名转换**
+
+保持 Provider Model 注册和 Override 使用裸 Catalog ID：
+
+```text
+deepseek-ai/deepseek-v4-pro
+```
+
+Combo 对外路由使用：
+
+```text
+nvidia/deepseek-ai/deepseek-v4-pro
+```
+
+实现：
+
+```bash
+nim_catalog_model() {
+  case "$1" in
+    nvidia/*/*) printf '%s' "${1#nvidia/}" ;;
+    *)          printf '%s' "$1" ;;
+  esac
+}
+
+nim_route_model() {
+  case "$1" in
+    nvidia/*/*) printf '%s' "$1" ;;
+    *)          printf 'nvidia/%s' "$1" ;;
+  esac
+}
+
+models_to_json() {
+  local model
+  for model in "$@"; do
+    nim_route_model "$model"
+    printf '\n'
+  done | jq -R 'select(length > 0) | {model:.}' | jq -s -c .
+}
+```
+
+为什么判断 `nvidia/*/*` 而不是简单的 `nvidia/*`：你的 Catalog 中本来就有模型 ID：
+
+```text
+nvidia/nemotron-3-super-120b-a12b
+```
+
+它是模型厂商命名空间，不是 OmniRoute Provider 前缀。只有形如：
+
+```text
+nvidia/nvidia/nemotron-3-super-120b-a12b
+```
+
+才是“Provider 前缀 + Catalog ID”。
+
+换句话说，之前提出的简单判断：
+
+```bash
+case "$1" in nvidia/*) ...
+```
+
+对你的模型列表并不正确，会把 NVIDIA 自家模型误当成已经添加了路由前缀。本轮应修正为至少包含两个斜杠的形式。
+
+### **8. 新增 `nim-stable` 和 `nim-fast`，但不要让增量模式漏掉**
+
+先定义：
+
+```bash
+NIM_STABLE_MODELS=(
+  "deepseek-ai/deepseek-v4-pro"
+  "z-ai/glm-5.2"
+  "openai/gpt-oss-120b"
+)
+
+NIM_FAST_MODELS=(
+  "deepseek-ai/deepseek-v4-flash"
+  "meta/llama-3.3-70b-instruct"
+  "google/gemma-4-31b-it"
+)
+```
+
+`build_all_models()` 应纳入 Stable 与 Fast：
+
+```bash
+build_all_models() {
+  printf '%s\n' \
+    "${NIM_POOL_MODELS[@]}" \
+    "${NIM_STABLE_MODELS[@]}" \
+    "${NIM_FAST_MODELS[@]}" \
+    "${NIM_CODEX_MODELS[@]}" \
+    "${NIM_EXTRA_MODELS[@]}" |
+    sed '/^$/d' |
+    awk '!seen[$0]++'
+}
+```
+
+首次和增量分支都创建：
+
+```bash
+mapfile -t POOL_ALIVE   < <(filter_alive "${NIM_POOL_MODELS[@]}")
+mapfile -t STABLE_ALIVE < <(filter_alive "${NIM_STABLE_MODELS[@]}")
+mapfile -t FAST_ALIVE   < <(filter_alive "${NIM_FAST_MODELS[@]}")
+mapfile -t CODEX_ALIVE  < <(filter_alive "${NIM_CODEX_MODELS[@]}")
+
+upsert_combo "nim-pool"   "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
+upsert_combo "nim-stable" "priority"         "${STABLE_ALIVE[@]}"
+upsert_combo "nim-fast"   "round-robin"      "${FAST_ALIVE[@]}"
+upsert_combo "nim-codex"  "priority"         "${CODEX_ALIVE[@]}"
+```
+
+建议 `nim-codex` 从 `round-robin` 改为 `priority`。编程主会话不适合每轮切换模型。
+
+### **9. 修正增量模式过早退出**
+
+当前增量分支在 Provider 注册、Resilience 设置、Settings、Override 之前就 `exit 0`。这意味着：
+
+- 修改 RPM 环境变量后，重启不会重新应用；
+- 修改 Body Limit 后，重启不会重新应用；
+- 修改 Retry 后，重启不会重新应用；
+- 新增模型不会注册到 Provider Models；
+- Context Override 不会刷新；
+- 新增搜索配置也无法通过同一初始化流程应用。
+
+应把流程拆成三个幂等阶段：
+
+```text
+认证和 API Key
+  ↓
+每次启动都运行：
+  Provider Key upsert
+  Resilience / Settings / Compression / Memory
+  Context Override
+  Model catalog 检查
+  Combo upsert
+  累积观测
+  ↓
+只在首次运行：
+  全量模型注册
+  全局熔断器 reset
+```
+
+最小修复是删除增量分支里的 `exit 0`，并把首次专属动作改成条件判断。不要维护两套几乎重复的初始化路径。
+
+此外，当前 Key 注册只用 POST，并将 `409` 当作成功；如果 Key 内容变化但名称相同，不会更新。应获取已有 Provider 后按 `name` 或连接 ID 执行 PUT/PATCH，而不是仅忽略 409。
+
+## **四、健康检查与探针仍需收紧**
+
+### **10. NIM 模型目录查询改为多 Key 回退**
+
+建议完整替换为：
+
+```bash
+fetch_nim_catalog() {
+  local key body count
+  while IFS= read -r key; do
+    key=$(printf '%s' "$key" | sed 's/\r$//' | xargs)
+    [ -z "$key" ] && continue
+
+    body=$(curl -fsS \
+      --connect-timeout 5 \
+      --max-time 15 \
+      -H "Authorization: Bearer $key" \
+      "https://integrate.api.nvidia.com/v1/models" 2>/dev/null || true)
+
+    count=$(printf '%s' "$body" |
+      jq '[.data[]? | select(.id | type == "string")] | length' 2>/dev/null ||
+      echo 0)
+
+    if [ "${count:-0}" -ge "${NIM_MIN_CATALOG_MODELS:-5}" ]; then
+      printf '%s' "$body"
+      return 0
+    fi
+  done <<< "$NIM_KEYS"
+
+  return 1
+}
+
+check_nim_model_health() {
+  echo "[init] check_nim_model_health..."
+  : > /tmp/nim-deprecated.txt
+
+  local catalog count
+  if ! catalog=$(fetch_nim_catalog); then
+    echo "[init] WARN: no trustworthy NIM catalog; fail-open and keep configured models."
+    return 0
+  fi
+
+  count=$(printf '%s' "$catalog" | jq '[.data[]?.id] | length')
+
+  while IFS= read -r model; do
+    [ -z "$model" ] && continue
+
+    if ! printf '%s' "$catalog" |
+      jq -e --arg m "$model" 'any(.data[]?; .id == $m)' >/dev/null; then
+      printf '%s\n' "$model" >> /tmp/nim-deprecated.txt
+      echo "[init]   catalog-missing: $model"
+    fi
+  done < <(build_all_models)
+
+  sort -u -o /tmp/nim-deprecated.txt /tmp/nim-deprecated.txt
+  echo "[init] catalog=$count configured_missing=$(wc -l < /tmp/nim-deprecated.txt)"
+}
+```
+
+这里使用 `fail-open`：目录接口异常时保留已有配置，不因为目录不可用而删除 Combo 模型。
+
+### **11. 探针不能把所有非 200 都当成“坏模型”**
+
+当前：
+
+```bash
+[ "$_code" != "200" ] && echo "$m" >> /tmp/nim-probe-bad.txt
+```
+
+这会把以下情况都误判为模型故障：
+
+- `401/403`：Key 或权限问题；
+- `429`：限流；
+- `500/502/503/504`：上游临时异常；
+- `000`：网络超时。
+
+建议只有 `400/404/410/422` 这类模型或请求级错误才记为候选不可用；并且探针结果不应立即删除模型：
+
+```bash
+case "$_code" in
+  200)
+    echo "[init]   probe OK: $m"
+    ;;
+  400|404|410|422)
+    echo "$m" >> /tmp/nim-probe-bad.txt
+    echo "[init]   probe model-level failure: $m HTTP $_code"
+    ;;
+  401|403)
+    echo "[init]   probe auth failure: key cannot validate $m, HTTP $_code"
+    ;;
+  429)
+    echo "[init]   probe rate-limited: $m"
+    break
+    ;;
+  500|502|503|504|000)
+    echo "[init]   probe transient failure: $m HTTP $_code"
+    ;;
+  *)
+    echo "[init]   probe inconclusive: $m HTTP $_code"
+    ;;
+esac
+```
+
+同时把探针时间戳从 `/tmp` 移到 `/data/omni-data/probe`，否则容器重启会丢失“一小时内已探”的状态。
+
+推荐参数：
+
+```bash
+NIM_PROBE_MAX_MODELS="${NIM_PROBE_MAX_MODELS:-2}"
+NIM_PROBE_MIN_INTERVAL_SECONDS="${NIM_PROBE_MIN_INTERVAL_SECONDS:-21600}"
+```
+
+## **五、Context Override 与统计逻辑需防止误判**
+
+### **12. 32K Override 可保留，但应按模型配置，且不得自动扩大**
+
+对 `nim-stable` 不需要“组合级” Context Override；Override 是 Provider + Model 级别。Combo 会继承其中模型的实际上下文限制。
+
+不建议所有模型统一写入 32768。可以用保守映射：
+
+```bash
+context_for_model() {
+  case "$1" in
+    deepseek-ai/deepseek-v4-pro)       echo "${CTX_DEEPSEEK_V4_PRO:-32768}" ;;
+    deepseek-ai/deepseek-v4-flash)     echo "${CTX_DEEPSEEK_V4_FLASH:-32768}" ;;
+    z-ai/glm-5.2)                      echo "${CTX_GLM_52:-32768}" ;;
+    openai/gpt-oss-120b)               echo "${CTX_GPT_OSS_120B:-32768}" ;;
+    moonshotai/kimi-k2.6)              echo "${CTX_KIMI_K26:-32768}" ;;
+    *)                                 echo "${CONTEXT_LENGTH_DEFAULT:-32768}" ;;
+  esac
+}
+```
+
+写入时：
+
+```bash
+while IFS= read -r model; do
+  [ -z "$model" ] && continue
+  apply_context_override "$model" "$(context_for_model "$model")"
+done < <(build_all_models)
+```
+
+Override 应只用于限制 OmniRoute 的入站容量，不能因上游声称支持更长上下文就盲目调高。当前已有相关问题表明自动目录元数据可能报告错误上下文长度。 [OmniRoute Issue #3202](https://github.com/diegosouzapw/OmniRoute/issues/3202)
+
+### **13. `context_accumulator_update()` 把所有 5xx 都当作上下文失败并不可靠**
+
+当前失败条件：
+
+```sql
+(status>=500) OR (status=413) OR (2xx AND output=0)
+```
+
+5xx 可能是：
+
+- 上游容量不足；
+- 模型冷启动；
+- 网关故障；
+- 网络异常；
+- Provider 内部错误；
+- 真实上下文超限。
+
+因此 `first_failure_tokens` 很容易被一个很短的 500 请求污染，随后推荐值被错误压低。
+
+更安全的规则：
+
+```sql
+CASE
+  WHEN status = 413 THEN input_tokens
+  WHEN status IN (400, 422)
+       AND (
+         lower(COALESCE(error_message, '')) LIKE '%context%' OR
+         lower(COALESCE(error_message, '')) LIKE '%token%' OR
+         lower(COALESCE(error_message, '')) LIKE '%length%'
+       )
+  THEN input_tokens
+END
+```
+
+如果 `call_logs` 没有错误文本列，就只认 `413`，不要把全部 5xx 纳入上下文边界。
+
+同样，`2xx + output=0` 可能是流式日志未正确记账、工具调用没有文本或客户端提前断开，也不应作为上下文失败。
+
+### **14. 时间戳 checkpoint 可能漏掉同一毫秒内的记录**
+
+当前：
+
+```sql
+WHERE timestamp > last_timestamp
+```
+
+如果多个日志拥有同一时间戳，而上一轮只处理了其中一部分，之后会漏掉同时间戳记录。稳健方案是使用复合游标：
+
+```text
+(timestamp, id)
+```
+
+查询：
+
+```sql
+WHERE timestamp > :last_ts
+   OR (timestamp = :last_ts AND id > :last_id)
+ORDER BY timestamp, id
+```
+
+分别保存：
+
+```text
+ctx_last_log_ts
+ctx_last_log_id
+```
+
+如果 `id` 是 UUID，虽然不能表达创建顺序，但在同一时间戳桶内仍可作为稳定的字典序断点；更理想的是依赖数据库自增列。
+
+## **六、Gate 应采用固定时间比较、超时和严格路径白名单**
+
+可直接改成下面这个版本：
+
+```js
+const express = require('express');
+const crypto = require('crypto');
+const fs = require('fs');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+
+const app = express();
+app.disable('x-powered-by');
+
+const INTERNAL_PSK = (process.env.INTERNAL_PSK || '').trim();
+const OR_PORT = Number.parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
+const GATE_PORT = Number.parseInt(process.env.EXPOSED_PORT || '7860', 10);
+
+function fatal(message) {
+  console.error(`[gate] FATAL: ${message}`);
+  process.exit(1);
+}
+
+if (!INTERNAL_PSK) fatal('INTERNAL_PSK not set');
+
+let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
+if (!OR_API_KEY) {
+  try {
+    OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim();
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error('[gate] key read failed:', error.message);
+    }
+  }
+}
+if (!OR_API_KEY) fatal('No OmniRoute API key');
+
+function timingSafeEqualText(a, b) {
+  const aa = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
+}
+
+function extractBearer(header = '') {
+  const match = /^Bearer[ \t]+(.+)$/i.exec(header);
+  return match ? match[1].trim() : '';
+}
+
+app.get('/healthz', async (_req, res) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const upstream = await fetch(
+      `http://127.0.0.1:${OR_PORT}/api/monitoring/health`,
+      { signal: controller.signal }
+    );
+
+    res.set('Cache-Control', 'no-store');
+    return upstream.ok
+      ? res.status(200).json({ ok: true })
+      : res.status(503).json({ ok: false });
+  } catch {
+    return res.status(503).json({ ok: false });
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/v1/')) {
+    return res.status(404).json({ error: 'not_found' });
+  }
+
+  const bearer = extractBearer(req.get('authorization'));
+  if (!bearer || !timingSafeEqualText(bearer, INTERNAL_PSK)) {
+    res.set('WWW-Authenticate', 'Bearer');
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  req.headers.authorization = `Bearer ${OR_API_KEY}`;
+  req.headers['x-forwarded-host'] = '';
+  req.headers['x-forwarded-proto'] = '';
+  return next();
+});
+
+app.use(createProxyMiddleware({
+  target: `http://127.0.0.1:${OR_PORT}`,
+  changeOrigin: false,
+  xfwd: false,
+  proxyTimeout: 0,
+  timeout: 0,
+  on: {
+    error(error, _req, res) {
+      console.error('[gate] proxy error:', error.message);
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+      }
+      if (!res.writableEnded) {
+        res.end(JSON.stringify({ error: 'upstream_unavailable' }));
+      }
+    }
+  }
+}));
+
+app.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] listening on :${GATE_PORT} -> 127.0.0.1:${OR_PORT}`);
+});
+```
+
+这里保留全部 `/v1/*`，所以搜索、Rerank、Embedding、Responses API 均可复用同一入口。官方 API Reference 已确认 `/v1/embeddings` 和 `/v1/rerank`，架构与安全文档同时列出了 `/v1/search`。 [OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/API_REFERENCE.md) [OmniRoute Guardrails](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/security/GUARDRAILS.md)
+
+需要兼容某些客户端访问 `/v1` 根路径时，可把判断改成：
+
+```js
+if (!(req.path === '/v1' || req.path.startsWith('/v1/')))
+```
+
+## **七、搜索配置不要直接写 SQLite**
+
+OmniRoute 3.8.43 的 Provider Reference 明确列出这些搜索 Provider：
+
+| Provider | ID | 个人部署建议 |
+|---|---|---|
+| SearXNG | `searxng-search` | 自托管优先，API Key 可选 |
+| Tavily | `tavily-search` | 配置简单，适合 Agent 搜索 |
+| Brave | `brave-search` | 独立搜索 API |
+| Exa | `exa-search` | 语义搜索与研究任务 |
+| Serper | `serper-search` | 通用网页搜索 |
+| Perplexity | `perplexity-search` | 搜索与答案生成 |
+
+建议先在 Dashboard 的 Search Tools 页面配置和测试一次，再观察实际网络请求或配置导出 JSON，确认 3.8.43 的精确管理 API schema。不要根据当前主分支文档猜测 POST Body，也不要直接向 SQLite 写入搜索凭据。3.8.43 的 Provider Reference 已确认相关 Provider 存在。 [OmniRoute Provider Reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/PROVIDER_REFERENCE.md)
+
+Gate 收紧后 Dashboard 不再公开。初次配置搜索可以通过以下任一方式完成：
+
+1. 临时在私有环境中直接访问本地 `20128`；
+2. 临时启用受单独管理密钥保护的管理入口；
+3. 在构建环境中生成脱敏配置，再通过官方导入接口恢复；
+4. 通过私有隧道访问，而不是将 Dashboard 永久暴露。
+
+## **八、其他应顺手修复的细节**
+
+### **DEBUG 日志上传应默认关闭**
+
+注释存在矛盾：
+
+```text
+日志仅容器内，不入 Dataset
+```
+
+但后续默认：
+
+```bash
+NIM_DEBUG_LOG_TO_DATASET:-1
+```
+
+调试日志可能包含响应体、Provider ID、错误详情，甚至第三方 API 返回信息。建议：
+
+```bash
+NIM_DEBUG_LOG_TO_DATASET="${NIM_DEBUG_LOG_TO_DATASET:-0}"
+```
+
+上传前至少做脱敏：
+
+```bash
+sed -E \
+  -e 's/nvapi-[A-Za-z0-9._-]+/[REDACTED_NVIDIA_KEY]/g' \
+  -e 's/(Authorization:[[:space:]]*Bearer[[:space:]]*)[^[:space:]]+/\1[REDACTED]/Ig' \
+  -e 's/(api[_-]?key["=:[:space:]]+)[^",[:space:]]+/\1[REDACTED]/Ig' \
+  "$INIT_LOG" > "$BACKUP_DIR/debug_sanitized.log"
+```
+
+### **移除 `chmod 777 /data`**
+
+更合理的是让目录归实际运行用户所有。若基础镜像用户 UID 无法静态确定，至少用：
+
+```Dockerfile
+RUN mkdir -p /data && chmod 700 /data
+```
+
+但这要求服务确实以 root 运行。更理想的是查询基础镜像运行用户并使用 `chown`。当前 `USER root` 使主应用也以 root 运行，安全面偏大。
+
+### **下载 Litestream 时做校验**
+
+目前直接：
+
+```Dockerfile
+curl ... | tar -xz
+```
+
+建议下载到文件并校验官方 SHA256，再安装。这样 tag 被替换、网络被劫持或内容损坏时构建会失败，而不是把未经验证的二进制装入镜像。
+
+### **不要清空所有代理表后期待总数为 0**
+
+当前输出：
+
+```text
+registry=$_reg assignments=$_asg（期望 0/0/0）
+```
+
+但 SQL 只删除指定的 `127.0.0.1:20129`，数据库可能合法存在其他 Proxy，因此总数不一定为 0。应只统计目标 Proxy：
+
+```sql
+SELECT COUNT(*)
+FROM proxy_registry
+WHERE host='127.0.0.1' AND port=20129;
+```
+
+### **HTTP 成功判断统一为整个 2xx 范围**
+
+当前多处只接受 200/201。可加：
+
+```bash
+is_2xx() {
+  [[ "$1" =~ ^2[0-9][0-9]$ ]]
+}
+```
+
+这样 204 等合法成功不会被误报。
+
+### **所有 `curl` 应统一连接和总超时**
+
+管理 API 调用可统一包装：
+
+```bash
+or_curl() {
+  curl --silent --show-error \
+    --connect-timeout "${OR_CONNECT_TIMEOUT:-3}" \
+    --max-time "${OR_API_TIMEOUT:-20}" \
+    "$@"
+}
+```
+
+Combo 和设置管理接口不应无限等待；只有模型流式代理适合 `proxyTimeout: 0`。
+
+## **推荐实施顺序**
+
+1. 修复 Gate 白名单、健康检查超时和进程监督。
+2. 修复 Litestream 恢复语义，并加入 Validation。
+3. 删除按 Key 数自动线性扩容，默认 28 RPM、1 并发。
+4. 将重试降为 1，并对 Resilience 配置做读回验证。
+5. 修正 `nvidia/*/*` 模型前缀识别。
+6. 消除增量模式的过早退出，让配置每次启动都能幂等收敛。
+7. 增加 `nim-stable`、`nim-fast`，并将 `nim-codex` 改为 Priority。
+8. 多 Key 回退读取 Catalog，探针只把确定的模型错误作为候选。
+9. Context 累积器只将明确的上下文错误纳入失败边界。
+10. 最后通过 3.8.43 Dashboard 配置 Search Provider，并保留 `/v1/search`、`/v1/rerank`、`/v1/embeddings` 的 Gate 访问能力。
+
+锁定 3.8.43 目前仍是合理选择：搜索结果确认 3.8.43 文档与 Provider Reference 是一套一致的发布快照，而 Migration 117 确实涉及代理池约束变更；不过“3.8.46 一定因 Turbopack 无法启动”的公开证据仍不足，应把它保留为你的实测结论，而不是写成通用上游事实。 [OmniRoute Releases](https://github.com/diegosouzapw/OmniRoute/releases)
+
+
+
+
+
+### **验证结果：锁定 3.8.43、Context Relay 仅限 Codex 的判断均成立；脚本中已实现的“累积推荐但不回写”和“增量初始化门槛”这两处设计需要针对性修补，而不是重写。**
+
+搜索确认了两个此前判断的关键事实。第一，`diegosouzapw/omniroute:3.8.45` 与后续 `latest` 标签存在真实的 Turbopack 构建缺陷：多个独立 Issue（`#6555`、`#6498`、`#2830`）都报告容器启动后 `/health` 立即返回，但 `/`、`/v1/models` 等真实路由永久挂起，根因是 Next.js chunk 文件在构建期损坏，官方给出的临时修复正是脚本里已经设置的 `OMNIROUTE_USE_TURBOPACK=0`。这说明 Dockerfile 钉死 `3.8.43@sha256:...` 并保留该 env 逃生阀是正确且仍然必要的防御,不需要改动。 [OmniRoute Issue #6498](https://github.com/diegosouzapw/OmniRoute/issues/6498) [OmniRoute Issue #6555](https://github.com/diegosouzapw/OmniRoute/issues/6555)
+
+第二，官方 Features 文档明确写明 Context Relay 目前“Currently supports Codex account rotation”，Wiki 与 i18n 版本文档也重复了同一句表述,没有任何段落提到 NIM 或通用 API Key Provider 已获得同等支持。这证实了此前的结论：NIM 多 Key 轮换不能依赖 Context Relay 做无缝上下文交接，`nim-pool`／`nim-codex` 只应被当作无状态短会话池。 [OmniRoute FEATURES.md](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/guides/FEATURES.md) [OmniRoute it-Features Wiki](https://github.com/diegosouzapw/OmniRoute/wiki/it%E2%80%90Features)
+
+同时也确认了 combo 策略枚举的权威列表，最新 Docker Hub 页面与 `AUTO-COMBO.md` 都给出了完整的 17～18 种策略，包含 `p2c`、`fusion`、`cost-optimized`、`context-relay`、`headroom`、`reset-window`、`reset-aware`、`lkgp`、`context-optimized` 等,和脚本里 `_VALID_STRATS` 白名单基本吻合，唯独 `quota-share` 被文档标注为“internal”,脚本此前主动移除它的做法是对的。 [OmniRoute Docker Hub](https://hub.docker.com/r/diegosouzapw/omniroute) [OmniRoute AUTO-COMBO.md](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/routing/AUTO-COMBO.md)
+
+## **基于查证结果的具体补丁**
+
+### **1. 把“累积推荐”和“手动 Context Override”打通，而不是让推荐表变成纯观测死数据**
+
+读取完整脚本后发现，`context_accumulator_update()` 已经在 `context_recommendations` 表里稳定地积累每个模型的最大成功 Token 数与最小失败 Token 数,并计算出 `confidence` 和 `recommended_real_context`,但紧接着的自动回写代码块被整段注释掉,理由是"手动 case 分支值比 90% 安全裕量更优"。这个决策本身合理，但当前状态是：观测系统跑了、算出了推荐值、却永远不会被使用，唯一输出是日志里打印一张表。这是一种资源浪费，也让 `_NIM_REAL_CONTEXT=${CONTEXT_LENGTH_DEFAULT:-32768}` 这个全局硬编码值对所有模型一视同仁，而 NVIDIA NIM 目录中不同模型的实际上下文窗口差异很大（有 32K 的小模型，也有百万级窗口的大模型）。
+
+建议保留手动值作为**下限保护**，只在高置信度且推荐值显著偏离硬编码默认值时才允许覆盖，同时把决策做成显式、可审计、可关闭的：
+
+```bash
+_ALLOW_MONITOR_OVERRIDE="${NIM_ALLOW_MONITOR_OVERRIDE:-0}"
+
+apply_monitor_context_override() {
+  [ "$_ALLOW_MONITOR_OVERRIDE" != "1" ] && {
+    echo "[init]   monitor override 关闭 (NIM_ALLOW_MONITOR_OVERRIDE=1 开启)"
+    return 0
+  }
+  [ ! -f "$_DB_PATH" ] && return 0
+
+  local _rows _mid _rec _manual_cur
+  _rows=$(sqlite3 -separator '|' "$_DB_PATH" "
+    SELECT model_id, recommended_real_context
+    FROM context_recommendations
+    WHERE confidence IN ('medium','high')
+      AND recommended_real_context IS NOT NULL
+      AND recommended_real_context > 0;" 2>/dev/null || echo "")
+  [ -z "$_rows" ] && { echo "[init]   无高置信推荐，跳过。"; return 0; }
+
+  while IFS='|' read -r _mid _rec; do
+    [ -z "$_mid" ] && continue
+    _manual_cur=$(sqlite3 "$_DB_PATH" "
+      SELECT real_context FROM model_context_overrides
+      WHERE provider='nvidia' AND model_id='$(sql_escape "${_mid#nvidia/}")'
+        AND source='manual';" 2>/dev/null || echo "")
+
+    # 只在推荐值 >= 手动值（更保守方向）时才覆盖，避免误把窗口调小
+    if [ -n "$_manual_cur" ] && [ "$_rec" -lt "$_manual_cur" ]; then
+      echo "[init]   $_mid: 推荐 $_rec < 手动 $_manual_cur，保留手动值。"
+      continue
+    fi
+
+    sqlite3 "$_DB_PATH" "
+      INSERT INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
+      VALUES ('nvidia', '$(sql_escape "${_mid#nvidia/}")', $_rec, 'monitor+manual', datetime('now'))
+      ON CONFLICT(provider, model_id) DO UPDATE SET
+        real_context = excluded.real_context,
+        source = excluded.source,
+        refreshed_at = datetime('now')
+      WHERE excluded.source = 'monitor+manual' AND $_rec >= real_context;" 2>/dev/null \
+      && echo "[init]   $_mid: monitor override -> $_rec"
+  done <<< "$_rows"
+}
+```
+
+调用顺序上，让手动 `apply_context_override` 先跑（建立基线），`context_accumulator_update` 之后再跑 `apply_monitor_context_override`（只在观测积累足够、置信度够高、且方向更保守时才生效）：
+
+```bash
+while IFS= read -r _M; do [ -z "$_M" ] && continue; apply_context_override "$_M" "$_NIM_REAL_CONTEXT"; done < <(build_all_models)
+context_accumulator_update
+apply_monitor_context_override
+```
+
+这样默认关闭（`NIM_ALLOW_MONITOR_OVERRIDE=0`），行为与现状完全一致；一旦你观察了几周确认某些模型的真实上下文明显大于 32768，可以显式打开而不需要改代码。
+
+### **2. `context_recommendations` 表的“跨淘汰周期保留”会因为增量模式的门槛设计而漏跑一部分**
+
+第 951～954 行的增量判断逻辑是：
+
+```bash
+COMBO_COUNT=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM combos WHERE name IN ('nim-pool','nim-codex');" 2>/dev/null || echo 0)
+if [ "${COMBO_COUNT:-0}" -gt 0 ] || [ -f "$INIT_MARKER" ]; then
+```
+
+如果按照本轮建议把 `nim-pool` 拆分成 `nim-stable`、`nim-fast`、`nim-pool`、`nim-codex` 四个 Combo，这个 `IN ('nim-pool','nim-codex')` 判断依然只检查旧的两个名字。当用户已经跑过新结构初始化、`nim-pool` 和 `nim-codex` 因为某种原因被删除或改名，脚本会误判成"从未初始化过"，从而重新走一遍完整的 First-time init 分支（包括重复的 `purge_proxy_db`、`register_model` 全量注册等）。
+
+更稳妥的判断应该覆盖全部 `nim-*` 前缀，且优先信任 `INIT_MARKER`：
+
+```bash
+if [ -f "$_DB_PATH" ]; then
+  COMBO_COUNT=$(sqlite3 "$_DB_PATH" \
+    "SELECT COUNT(*) FROM combos WHERE name LIKE 'nim-%';" 2>/dev/null || echo 0)
+  if [ -f "$INIT_MARKER" ] || [ "${COMBO_COUNT:-0}" -gt 0 ]; then
+    echo "[init] Incremental mode. (marker=$( [ -f "$INIT_MARKER" ] && echo yes || echo no ), nim_combos=$COMBO_COUNT)"
+    ...
+```
+
+同时在增量分支里也要把新拆出来的 `nim-stable`／`nim-fast` 纳入 `upsert_combo` 调用，否则增量模式下这两个新组合永远不会被创建或刷新：
+
+```bash
+mapfile -t POOL_ALIVE   < <(filter_alive "${NIM_POOL_MODELS[@]}")
+mapfile -t CODEX_ALIVE  < <(filter_alive "${NIM_CODEX_MODELS[@]}")
+mapfile -t STABLE_ALIVE < <(filter_alive "${NIM_STABLE_MODELS[@]}")
+mapfile -t FAST_ALIVE   < <(filter_alive "${NIM_FAST_MODELS[@]}")
+
+upsert_combo "nim-pool"   "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
+upsert_combo "nim-codex"  "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
+upsert_combo "nim-stable" "priority"         "${STABLE_ALIVE[@]}"
+upsert_combo "nim-fast"   "round-robin"      "${FAST_ALIVE[@]}"
+```
+
+### **3. `hf_snapshot` 需要把新增的分档模型也写进配置快照**
+
+第 863 行起 `hf_snapshot()` 用 `jq` 拼出 `init_vars.json`,里面记录了 `pool_strategy`、`codex_strategy`、`real_context` 等字段，但没有覆盖 `nim-stable`／`nim-fast` 相关的策略和模型列表。既然这个文件是唯一进入版本化审计轨迹的脱敏配置，缺失字段会让未来排查“为什么某次上线后 nim-stable 池模型变了”变得困难。建议在拼接 JSON 前补充：
+
+```bash
+--arg stable_models "$(printf '%s,' "${NIM_STABLE_MODELS[@]}")" \
+--arg fast_models "$(printf '%s,' "${NIM_FAST_MODELS[@]}")" \
+```
+
+并在最终结构里加一个 `pools` 字段，与已有的 `strategies`、`context` 字段并列，而不是混进已有字段导致 schema 混乱。
+
+### **4. `check_dangerous_env` 和 `purge_proxy_db` 的组合逻辑要跑在 NIM Key 健康检查之前**
+
+当前脚本顺序是先 `check_nim_model_health`（依赖网络请求 NVIDIA API），再在增量/首次两条分支里各自调用 `purge_proxy_db`。但 `check_dangerous_env` 目前没有被任何分支主动调用——它被定义了，却在读到的 1055 行范围内没有出现调用点（至少在已读取的部分）。如果这是刻意留作手动调试工具，建议至少在 DEBUG 模式下自动跑一次，避免定义了却从未执行：
+
+```bash
+[ "$NIM_MODE" = "DEBUG" ] && check_dangerous_env
+```
+
+这个改动成本很低，但能确保代理相关的环境变量污染问题在每次 DEBUG 模式排障时都会被主动暴露，而不是依赖人工记得手动调用。
+
+## **本轮结论汇总**
+
+Turbopack 缺陷、Context Relay 的 Codex 限定范围、以及 combo 策略枚举，这三项此前的判断均通过官方 Issue、Features 文档和 Docker Hub 页面得到交叉验证，不需要调整方向。真正需要落地的增量修改集中在四处：把观测到的 Context 推荐值以保守规则接回 `model_context_overrides`,让增量初始化的判断条件覆盖新拆分出的 `nim-stable`／`nim-fast`,让配置快照记录这两个新池子的模型与策略,以及让危险环境变量扫描在 DEBUG 模式下自动触发而不是永远闲置。这些修改都是在你现有 v4.2.3 脚本结构基础上的局部打磨,不涉及推翻既有架构决策。
+
+
+
+
+
+
+
+### **核心结论：脚本在 Resilience 配置上只设了 `requestQueue` 一项，遗漏了 `providerBreaker` 和 `connectionCooldown` 两个关键层；模型注册与 Combo JSON 的命名不一致；且完全未利用 `model-combo-mappings` 原生路由能力。这三项是当前最高优先级的修复点。**
+
+OmniRoute 的 Resilience 体系由五层组成：Request Queue、Connection Cooldown、Provider Breaker、Wait For Cooldown、Rate Limit Auto-Detection。你的脚本只 PATCH 了第一层，后四层的配置完全缺失。 [OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference) [OmniRoute User Guide](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/guides/USER_GUIDE.md)
+
+## **一、Resilience PATCH 补全：三层一起配**
+
+当前脚本只发了一个 PATCH：
+
+```bash
+RESILIENCE_CODE=$(curl ... -X PATCH "$BASE_URL/api/resilience" \
+  -d "{\"requestQueue\":{\"requestsPerMinute\":$_RPM,...}}")
+```
+
+但 `PATCH /api/resilience` 同时接受 `providerBreaker` 和 `connectionCooldown` 配置。API-key provider 的默认熔断阈值是 5 次失败、30 秒重置；这对 NIM 免费 Key 来说太宽松——一个失效 Key 会连续打 5 次才被隔离，期间浪费请求预算。 [OmniRoute CLAUDE.md](https://github.com/diegosouzapw/OmniRoute/blob/main/CLAUDE.md)
+
+建议把单次 PATCH 扩展为三层联合配置：
+
+```bash
+# ── Resilience 三层联合 PATCH ──────────────────────────────────
+# requestQueue: 系统级整形（RPM / 间隔 / 并发）
+# connectionCooldown: 单 Key 级冷却（NIM apikey 类型）
+# providerBreaker: Provider 级熔断（NIM apikey 类型）
+#
+# NIM 免费 Key 特性：
+#   - 40 RPM 硬上限，不支持提额
+#   - 429 属于 connection cooldown，不触发 provider breaker
+#   - 只有 408/500/502/503/504 才触发 provider breaker
+# 参考：CLAUDE.md 中 apikey 默认 threshold=5, resetTimeout=30s
+
+_NIM_CB_FAILURE_THRESHOLD=${NIM_CB_FAILURE_THRESHOLD:-3}
+_NIM_CB_RESET_TIMEOUT_MS=${NIM_CB_RESET_TIMEOUT_MS:-15000}
+_NIM_CD_BASE_COOLDOWN_MS=${NIM_CD_BASE_COOLDOWN_MS:-2000}
+_NIM_CD_MAX_BACKOFF_STEPS=${NIM_CD_MAX_BACKOFF_STEPS:-4}
+
+_RESILIENCE_BODY=$(jq -n \
+  --argjson rpm "$_RPM" \
+  --argjson interval "$_MIN_INTERVAL_MS" \
+  --argjson concurrent "$_CONCURRENT" \
+  --argjson cb_threshold "$_NIM_CB_FAILURE_THRESHOLD" \
+  --argjson cb_reset "$_NIM_CB_RESET_TIMEOUT_MS" \
+  --argjson cd_base "$_NIM_CD_BASE_COOLDOWN_MS" \
+  --argjson cd_backoff "$_NIM_CD_MAX_BACKOFF_STEPS" \
+  '{
+    requestQueue: {
+      requestsPerMinute: $rpm,
+      minTimeBetweenRequestsMs: $interval,
+      concurrentRequests: $concurrent
+    },
+    connectionCooldown: {
+      apikey: {
+        baseCooldownMs: $cd_base,
+        maxBackoffSteps: $cd_backoff,
+        useUpstreamRetryHints: true
+      }
+    },
+    providerBreaker: {
+      apikey: {
+        degradationThreshold: ($cb_threshold - 1),
+        failureThreshold: $cb_threshold,
+        resetTimeoutMs: $cb_reset
+      }
+    },
+    waitForCooldown: {
+      enabled: true,
+      maxWaitMs: 5000
+    }
+  }')
+
+RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/resilience" \
+  -H "Content-Type: application/json" -d "$_RESILIENCE_BODY")
+echo "[init] Resilience (3-layer) HTTP $RESILIENCE_CODE"
+[ "$RESILIENCE_CODE" != "200" ] && [ "$RESILIENCE_CODE" != "201" ] && {
+  echo "[init] ⚠️ Resilience 非 2xx："; cat "$RESILIENCE_RESP_FILE" || true
+}
+```
+
+关键设计理由：
+
+- **`failureThreshold=3`** 而非默认 5：NIM 免费 Key 失效通常是额度耗尽或 Key 被吊销，3 次失败后快速隔离比 5 次更节省预算。Provider breaker 只在 408/500/502/503/504 触发，不会因 429 误熔断整个 nvidia provider。 [OmniRoute CLAUDE.md](https://github.com/diegosouzapw/OmniRoute/blob/main/CLAUDE.md)
+- **`resetTimeoutMs=15000`** 而非默认 30000：NIM 平台波动恢复通常在 15 秒内，缩短到 15 秒可以让 HALF_OPEN 探测更快发生。
+- **`useUpstreamRetryHints=true`**：NIM 返回 429 时如果携带 `Retry-After`，OmniRoute 会用上游权威值覆盖本地冷却，避免过早重试。 [OmniRoute User Guide](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/guides/USER_GUIDE.md)
+- **`waitForCooldown.enabled=true`**：当所有 Key 都在冷却时，OmniRoute 会等待最早恢复的 Key 而非直接返回错误，这对单 Key 场景尤其重要。
+
+## **二、引入 `model-combo-mappings` 原生路由**
+
+OmniRoute 从 v3.0.0 起原生支持 model→combo 的 glob 模式映射，API 为 `POST /api/model-combo-mappings`，body 为 `{pattern, comboId, priority?, enabled?, description?}`。这意味着你不需要让客户端手动切换 `model=nim-stable` / `model=nim-fast`，而是可以让 Agent 始终请求一个稳定模型名，由 OmniRoute 自动路由到对应 combo。 [OmniRoute Changelog](https://github.com/diegosouzapw/OmniRoute/wiki/da%E2%80%90Changelog) [OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+在 `upsert_combo` 之后增加映射注册：
+
+```bash
+# ══ model-combo-mappings：原生 glob 路由 ═══════════════════════
+# 让 Agent 始终请求稳定别名，OmniRoute 自动路由到对应 combo。
+# API: POST /api/model-combo-mappings  body: {pattern, comboId, priority, enabled, description}
+# pattern 支持 glob（* 和 ? 通配，大小写不敏感）
+upsert_model_mapping() {
+  local PATTERN="$1" COMBO_NAME="$2" PRIORITY="${3:-50}" DESC="$4"
+  local CID MAP_ID CODE F
+
+  CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+    | jq -r --arg n "$COMBO_NAME" '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
+  [ -z "$CID" ] && { echo "[init] mapping: $PATTERN -> $COMBO_NAME (combo not found, skip)"; return 0; }
+
+  # 查是否已存在同 pattern 映射
+  MAP_ID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/model-combo-mappings" \
+    | jq -r --arg p "$PATTERN" \
+      '(.mappings // .data // .) | (if type=="array" then . else [] end)
+       | .[] | select(.pattern==$p) | .id' 2>/dev/null | head -n1)
+
+  F="$(_resp omniroute-mapping-$(echo "$PATTERN" | tr '*?/' '__').json)"
+  local BODY
+  BODY=$(jq -n --arg pattern "$PATTERN" --arg comboId "$CID" \
+              --argjson priority "$PRIORITY" --arg desc "$DESC" \
+              '{pattern:$pattern, comboId:$comboId, priority:$priority, enabled:true, description:$desc}')
+
+  if [ -n "$MAP_ID" ]; then
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X PUT "$BASE_URL/api/model-combo-mappings/$MAP_ID" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] mapping: $PATTERN -> $COMBO_NAME (existed -> PUT HTTP $CODE)"
+  else
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/model-combo-mappings" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] mapping: $PATTERN -> $COMBO_NAME (new -> POST HTTP $CODE)"
+  fi
+  [ "$CODE" != "200" ] && [ "$CODE" != "201" ] && cat "$F" || true
+}
+```
+
+然后在 combo 创建后注册映射规则：
+
+```bash
+# ── 注册原生路由映射 ──────────────────────────────────────────
+# Agent 请求这些别名时，OmniRoute 自动路由到对应 combo。
+# 优先级越高（数字越大）越先匹配；未匹配的 fallback 到全局默认 combo。
+upsert_model_mapping "nim-stable"  "nim-stable" 100 "长会话/复杂代码任务"
+upsert_model_mapping "nim-fast"    "nim-fast"   90  "低延迟/摘要/分类"
+upsert_model_mapping "nim-codex"   "nim-codex"  95  "代码生成/工具调用"
+upsert_model_mapping "nim-pool"    "nim-pool"   50  "无状态子任务/批量"
+```
+
+这样客户端配置只需一行：
+
+```json
+{ "model": "nim-stable" }
+```
+
+OmniRoute 会自动把它路由到 `nim-stable` combo，无需客户端感知 combo ID 或切换模型名。 [OmniRoute Issue #563](https://github.com/diegosouzapw/OmniRoute/issues/563)
+
+## **三、模型注册与 Combo JSON 的命名一致性**
+
+当前脚本存在命名分裂：
+
+- `register_model()` 注册裸名：`deepseek-ai/deepseek-v4-pro`
+- `models_to_json()` 加前缀：`nvidia/deepseek-ai/deepseek-v4-pro`
+- `apply_context_override()` 写裸名：`deepseek-ai/deepseek-v4-pro`
+
+OmniRoute 官方文档明确 NIM 模型的路由名为 `nvidia/<model>`（如 `nvidia/nvidia/llama-3.3-70b-instruct`），其中第一个 `nvidia/` 是 provider 前缀，第二个是 NIM catalog 命名空间。 [OmniRoute User Guide](https://github.com/diegosouzapw/omniroute/blob/main/docs/i18n/bg/docs/guides/USER_GUIDE.md)
+
+统一方案——引入幂等前缀函数，所有出口统一转换：
+
+```bash
+# ══ 模型 ID 统一出口：nim_route_model ══════════════════════════
+# 内部 SSOT 保持裸 NIM catalog ID（如 deepseek-ai/deepseek-v4-pro）。
+# 所有需要交给 OmniRoute 路由层的出口统一加 nvidia/ 前缀。
+# 幂等：已带前缀的不重复加，避免 nvidia/nvidia/nvidia/...。
+nim_route_model() {
+  case "$1" in
+    nvidia/*) printf '%s' "$1" ;;
+    *)        printf 'nvidia/%s' "$1" ;;
+  esac
+}
+
+# models_to_json 改用 nim_route_model
+models_to_json() {
+  local m
+  for m in "$@"; do
+    nim_route_model "$m"
+  done | jq -R '{model: .}' | jq -s -c .
+}
+
+# register_model 改用 nim_route_model
+register_model() {
+  local MODEL_ID="$1"
+  local ROUTED_ID; ROUTED_ID=$(nim_route_model "$MODEL_ID")
+  local F="$(_resp omniroute-model-$(echo "$MODEL_ID" | tr '/' '-').json)" C
+  C=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/provider-models" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg provider "nvidia" --arg modelId "$ROUTED_ID" \
+      '{provider:$provider, modelId:$modelId}')")
+  if [ "$C" = "200" ] || [ "$C" = "201" ]; then echo "[init] model $ROUTED_ID OK"
+  elif [ "$C" = "409" ]; then echo "[init] model $ROUTED_ID exists"
+  else echo "[init] model $ROUTED_ID WARN $C"; cat "$F" || true; fi
+}
+
+# apply_context_override 改用 nim_route_model
+apply_context_override() {
+  local ROUTED_ID; ROUTED_ID=$(nim_route_model "$1")
+  if sqlite3 "$_DB_PATH" \
+    "INSERT OR REPLACE INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
+     VALUES ('nvidia', '$(sql_escape "$ROUTED_ID")', $2, 'manual', datetime('now'));" 2>/dev/null; then
+    OVERRIDE_APPLIED=$((OVERRIDE_APPLIED+1))
+  else OVERRIDE_SKIPPED=$((OVERRIDE_SKIPPED+1)); echo "[init]   override FAILED: $ROUTED_ID"; fi
+}
+```
+
+同时，在首次初始化完成后增加一次读回验证，确认 override 实际写入的键名：
+
+```bash
+echo "[init] context overrides verification:"
+sqlite3 "$_DB_PATH" \
+  "SELECT provider, model_id, real_context, source
+   FROM model_context_overrides
+   WHERE provider='nvidia'
+   ORDER BY model_id;" 2>/dev/null \
+  | sed 's/^/[init]   /' \
+  | head -n 20
+```
+
+## **四、`context_accumulator_update` 的 SQL 注入面**
+
+当前 `context_accumulator_update` 中有一处直接拼接 SQL：
+
+```bash
+_q="
+  SELECT ... FROM call_logs
+  WHERE provider='nvidia' AND timestamp > '$(sql_escape "$_last_ts")'
+    AND model LIKE '%/%' AND model != 'model-sync'
+  GROUP BY model;"
+```
+
+`$_last_ts` 已经通过 `sql_escape` 处理，但 `$_input_col` 和 `$_output_col` 是从 PRAGMA 探测来的列名，直接插入 SQL 字符串。虽然它们来自 `awk` 匹配固定模式，但如果 `call_logs` 表结构异常或被注入恶意列名，这里会成为注入点。建议对列名做白名单校验：
+
+```bash
+_detect_io_cols() {
+  sqlite3 "$_DB_PATH" "PRAGMA table_info(call_logs);" 2>/dev/null \
+    | awk -F'|' '
+        $2~/^tokens_in$|^input_tokens$|^in_tokens$|^total_input_tokens$/ {if(!ic) ic=$2}
+        $2~/^tokens_out$|^output_tokens$|^out_tokens$|^total_output_tokens$/ {if(!oc) oc=$2}
+        END{print ic; print oc}'
+}
+
+# 新增：列名白名单校验
+_validate_col_name() {
+  case "$1" in
+    tokens_in|input_tokens|in_tokens|total_input_tokens|\
+    tokens_out|output_tokens|out_tokens|total_output_tokens)
+      printf '%s' "$1" ;;
+    *) printf '' ;;
+  esac
+}
+
+# 在 context_accumulator_update 中使用：
+_io=$(_detect_io_cols)
+_input_col=$(_validate_col_name "$(printf '%s' "$_io" | sed -n '1p')")
+_output_col=$(_validate_col_name "$(printf '%s' "$_io" | sed -n '2p')")
+[ -z "$_input_col" ] && { echo "[init]   WARN: call_logs 无已知 input token 列，skip。"; return 0; }
+[ -z "$_output_col" ] && _output_col="tokens_out"
+```
+
+## **五、Gate 的 SSE 流式与超时修复**
+
+当前 `gate.js` 的 `createProxyMiddleware` 没有显式设置 SSE 流式相关参数。对于 Agent 的长连接流式请求（Claude Code、Hermes 等会保持 SSE 连接数分钟），默认的 `timeout` 可能导致连接被提前断开。
+
+```js
+app.use('/', createProxyMiddleware({
+  target: `http://127.0.0.1:${OR_PORT}`,
+  changeOrigin: true,
+  // SSE 流式：禁用代理超时，让上游连接自然结束
+  proxyTimeout: 0,
+  timeout: 0,
+  // 不转发 X-Forwarded-* 头，避免 OmniRoute 误判来源
+  xfwd: false,
+  // WebSocket 支持（如果未来需要）
+  ws: false,
+  on: {
+    proxyReq(proxyReq, req, res) {
+      // 确保上游收到正确的 Host 头
+      proxyReq.setHeader('host', `127.0.0.1:${OR_PORT}`);
+    },
+    error(err, req, res) {
+      console.error('[gate] proxy error:', err.message);
+      if (res && !res.headersSent) {
+        res.status(502).json({ error: 'upstream_unavailable' });
+      } else if (res && res.writableEnded === false) {
+        res.end();
+      }
+    }
+  }
+}));
+```
+
+同时 `/healthz` 应增加超时，避免上游异常时健康检查悬挂：
+
+```js
+app.get('/healthz', async (req, res) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const r = await fetch(`http://127.0.0.1:${OR_PORT}/api/monitoring/health`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    r?.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
+  } catch {
+    clearTimeout(timeout);
+    res.status(503).json({ ok: false });
+  }
+});
+```
+
+## **六、Gate 路径白名单收紧**
+
+当前 Gate 对非 `/v1` 路径直接 `next()`，最终被 `createProxyMiddleware` 全量代理到 OmniRoute。这意味着 Dashboard、管理 API、`/api/providers`、`/api/settings` 等全部暴露在公网 7860 端口上。
+
+```js
+const PUBLIC_PATHS = new Set(['/healthz']);
+
+app.use((req, res, next) => {
+  // /healthz 公开，用于 HF Space 健康检查
+  if (PUBLIC_PATHS.has(req.path)) return next();
+
+  // 仅暴露 /v1 路径（OpenAI 兼容 API）
+  if (!req.path.startsWith('/v1')) {
+    return res.status(404).json({ error: 'not_found' });
+  }
+
+  // /v1 路径需要 PSK 鉴权
+  const auth = req.get('authorization') || '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!bearer || bearer !== INTERNAL_PSK) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  // 鉴权通过，替换为 OmniRoute 内部 API Key
+  req.headers.authorization = `Bearer ${OR_API_KEY}`;
+  next();
+});
+```
+
+如果确实需要远程管理 Dashboard，应通过 SSH 隧道、Tailscale 或独立的认证中间件访问，而不是和推理入口共用同一个匿名反向代理。
+
+## **七、`entrypoint.sh` 健康检查改用时间戳**
+
+当前循环用计数器 `i`，在容器调度暂停或 `curl` 卡住时会失准：
+
+```sh
+echo "[entrypoint] waiting for health (max ${READY_TIMEOUT_SECONDS:-180}s)..."
+READY_DEADLINE=$(( $(date +%s) + ${READY_TIMEOUT_SECONDS:-180} ))
+
+while :; do
+  kill -0 "$OR_PID" 2>/dev/null || {
+    echo "[entrypoint] FATAL: OmniRoute exited early"
+    exit 1
+  }
+
+  if curl -fsS --connect-timeout 2 --max-time 5 \
+      "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1; then
+    echo "[entrypoint] ready after $(( $(date +%s) - READY_DEADLINE + ${READY_TIMEOUT_SECONDS:-180} ))s"
+    break
+  fi
+
+  [ "$(date +%s)" -ge "$READY_DEADLINE" ] && {
+    echo "[entrypoint] FATAL: not ready within ${READY_TIMEOUT_SECONDS:-180}s"
+    exit 1
+  }
+  sleep 2
+done
+```
+
+## **八、新增 `nim-stable` 和 `nim-fast` combo 的创建**
+
+当前脚本只创建 `nim-pool` 和 `nim-codex`。结合上一轮讨论的四入口结构，需要在 `upsert_combo` 调用区域增加：
+
+```bash
+# ── 四入口 combo 结构 ──────────────────────────────────────────
+# nim-stable: 长会话/复杂代码任务（priority 策略，优先最强模型）
+# nim-fast:   低延迟/摘要/分类（round-robin 策略，均匀分散）
+# nim-pool:   无状态子任务（p2c 策略，负载均衡）
+# nim-codex:  代码生成/工具调用（priority 策略，固定优先序）
+
+mapfile -t STABLE_ALIVE < <(filter_alive "${NIM_STABLE_MODELS[@]}")
+mapfile -t FAST_ALIVE   < <(filter_alive "${NIM_FAST_MODELS[@]}")
+mapfile -t POOL_ALIVE   < <(filter_alive "${NIM_POOL_MODELS[@]}")
+mapfile -t CODEX_ALIVE  < <(filter_alive "${NIM_CODEX_MODELS[@]}")
+
+upsert_combo "nim-stable" "priority"    "${STABLE_ALIVE[@]}"
+upsert_combo "nim-fast"   "round-robin" "${FAST_ALIVE[@]}"
+upsert_combo "nim-pool"   "$_POOL_STRATEGY" "${POOL_ALIVE[@]}"
+upsert_combo "nim-codex"  "priority"    "${CODEX_ALIVE[@]}"
+```
+
+并在模型分档 SSOT 区域增加 `NIM_STABLE_MODELS` 定义：
+
+```bash
+NIM_STABLE_MODELS=(
+  "deepseek-ai/deepseek-v4-pro"
+  "z-ai/glm-5.2"
+  "openai/gpt-oss-120b"
+)
+```
+
+## **九、增量模式也应注册新 combo 和映射**
+
+当前增量模式只 upsert `nim-pool` 和 `nim-codex`：
+
+```bash
+upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
+upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
+```
+
+新增的 `nim-stable` 和 `nim-fast` 在增量模式下也需要 upsert，否则旧空间升级后不会自动获得新 combo：
+
+```bash
+# 增量模式也走完整四入口 + 映射
+mapfile -t STABLE_ALIVE < <(filter_alive "${NIM_STABLE_MODELS[@]}")
+mapfile -t FAST_ALIVE   < <(filter_alive "${NIM_FAST_MODELS[@]}")
+mapfile -t POOL_ALIVE   < <(filter_alive "${NIM_POOL_MODELS[@]}")
+mapfile -t CODEX_ALIVE  < <(filter_alive "${NIM_CODEX_MODELS[@]}")
+
+upsert_combo "nim-stable" "priority"     "${STABLE_ALIVE[@]}"
+upsert_combo "nim-fast"   "round-robin"  "${FAST_ALIVE[@]}"
+upsert_combo "nim-pool"   "$_POOL_STRATEGY" "${POOL_ALIVE[@]}"
+upsert_combo "nim-codex"  "priority"     "${CODEX_ALIVE[@]}"
+
+# 增量模式也注册/更新映射
+upsert_model_mapping "nim-stable" "nim-stable" 100 "长会话/复杂代码任务"
+upsert_model_mapping "nim-fast"   "nim-fast"   90  "低延迟/摘要/分类"
+upsert_model_mapping "nim-codex"  "nim-codex"  95  "代码生成/工具调用"
+upsert_model_mapping "nim-pool"   "nim-pool"   50  "无状态子任务/批量"
+```
+
+## **十、`hf_snapshot` 增加映射导出**
+
+当前 `hf_snapshot` 导出了 `keys.json`、`providerConnections.json`、`settings.json`、`combos.json`，但没有导出 `model-combo-mappings`。建议增加：
+
+```bash
+# 导出 model-combo-mappings
+curl -sf "$BASE_URL/api/model-combo-mappings" -H "Authorization: Bearer $OR_KEY" \
+  | jq '.' > "$BACKUP_DIR/model_combo_mappings.json" 2>/dev/null || true
+
+# 导出 resilience 配置（脱敏：不含密钥）
+curl -sf "$BASE_URL/api/resilience" -b "$COOKIE_FILE" \
+  | jq 'del(.secrets // empty)' > "$BACKUP_DIR/resilience.json" 2>/dev/null || true
+```
+
+## **修改优先级总结**
+
+| 优先级 | 修改项 | 影响 | 复杂度 |
+|---|---|---|---|
+| P0 | Gate 路径白名单收紧 | 安全 | 低 |
+| P0 | Resilience 三层联合 PATCH | 稳定性 | 中 |
+| P1 | `nim_route_model` 统一命名 | 路由正确性 | 低 |
+| P1 | `model-combo-mappings` 原生路由 | 可用性 | 中 |
+| P1 | `entrypoint.sh` 时间戳健康检查 | 可靠性 | 低 |
+| P2 | 新增 `nim-stable` / `nim-fast` combo | 可用性 | 低 |
+| P2 | Gate SSE 超时与错误处理 | 流式稳定性 | 低 |
+| P2 | 列名白名单校验 | 安全 | 低 |
+| P3 | `hf_snapshot` 增加映射导出 | 灾备完整性 | 低 |
+
+P0 两项应在下一次部署前立即应用；P1 项可在同一批次中完成；P2 和 P3 可在验证 P0/P1 无回归后逐步合入。
+
+
+
+### **比较概览**
+
+五份答案回应的是同一任务——「搜索查证并继续优化脚本配置」。它们对同一套 NIM/OmniRoute 初始化脚本（v4.2.3）给出了不同深度和侧重的优化建议。核心差异在于：**查证的落点**、**是否给出完整可替换代码**、以及**改动范围的克制程度**。
+
+---
+
+### **各答案定位与侧重**
+
+| 答案 | 核心定位 | 交付形态 | 改动范围 |
+|---|---|---|---|
+| Claude-Sonnet-5 | 验证既有判断成立，只做局部补丁 | 4 处针对性代码片段 | 最克制 |
+| Claude-Opus-4.8 | 用官方 API 落地，"不猜数据库" | 片段 + 优先级表 | 中等，方向性修正 |
+| Claude-Sonnet-4.6 | 全量重构升级 v4.3.0 | 完整可替换文件（4 个） | 最大 |
+| GPT-5.6 Sol | 运行时可靠性优先 | 大量分点片段 | 广而深 |
+| GLM-5.2 | Resilience 分层 + 原生路由 | 分点片段 + 优先级表 | 聚焦特定盲点 |
+
+---
+
+### **各答案强弱分析**
+
+**Claude-Sonnet-5**
+- 优点：唯一明确把"查证确认了什么、因此不需要改什么"讲清楚（Turbopack、Context Relay 限 Codex、combo 策略枚举）。补丁高度聚焦、风险低，`NIM_ALLOW_MONITOR_OVERRIDE` 默认关闭保持行为不变的设计很稳妥。发现了增量门 `IN ('nim-pool','nim-codex')` 漏掉新拆分 combo 的真实 bug。
+- 弱点：范围最窄，未触及 Gate 暴露面、进程监督、限流等其他答案普遍指出的问题。
+
+**Claude-Opus-4.8**
+- 优点：提出一个关键方向性洞见——**不要直接 SQL 写 `model_context_overrides`，应走 `/api/provider-models` API**，理由（migration 结构漂移）有说服力。搜索能力落地（`/v1/search`）、Wildcard 别名、Tool Search 缺陷（#2766/#3974）都是其他答案较少覆盖的角度。优先级表清晰。
+- 弱点：部分 API 契约（`contextLength` 字段名、`/api/provider-models` 的 PATCH 语义）建立在文档推断上，未强调需实测验证；与其他答案「保留 SQL 兜底」存在方向性分歧。
+
+**Claude-Sonnet-4.6**
+- 优点：唯一给出**完整可直接替换**的四个文件（init 脚本、entrypoint、gate.js、litestream.yml）+ 环境变量速查表，落地性最强。变更概要 [A]–[J] 编号清晰，继承关系交代完整。增量门修正为 `IN (...四个名字)`。
+- 弱点：直接 SQL 写 `model_context_overrides`（Opus 明确反对的做法），且全模型统一 32768 硬编码（GPT-5.6 与 GLM 都指出应按模型分档）。篇幅最长但"查证"成分相对薄弱，更像工程落地而非验证。
+
+**GPT-5.6 Sol**
+- 优点：覆盖面最广也最深入运行时正确性。几个独到且正确的发现：① Litestream restore 日志语义误导 + `auto-recover` 的 PITR 风险；② Gate 成为 PID 1 后 OmniRoute 崩溃不会触发容器重启（进程监督）；③ 前缀判断应为 `nvidia/*/*` 而非 `nvidia/*`（因为 NVIDIA 自家模型本身含 `nvidia/` 命名空间）——这是对其他答案 `nim_route_model()` 的实质性修正；④ 探针不应把所有非 200 当坏模型；⑤ 累积器把所有 5xx 当上下文失败不可靠。对"3.8.46 必坏"保持怀疑、要求实测，态度最严谨。
+- 弱点：篇幅极长，优先级虽有但信息密度过高，一次性落地负担重。
+
+**GLM-5.2**
+- 优点：抓住一个别人都忽略的盲点——**Resilience 只配了 `requestQueue`，遗漏 `providerBreaker` 和 `connectionCooldown` 两层**，并给出分层参数与理由（NIM 免费 Key 特性）。指出 `context_accumulator_update` 中列名（`_input_col`）拼接的 SQL 注入面，建议白名单校验，这是独有的安全发现。优先级表 P0–P3 分级实用。
+- 弱点：`nim_route_model` 仍用 `nvidia/*`（被 GPT-5.6 指出对 NVIDIA 命名空间模型判断错误）；Resilience 分层字段结构基于文档推断，同样需实测确认。
+
+---
+
+### **共识 vs 分歧**
+
+**普遍共识（多数答案交叉印证，可信度高）：**
+- 废弃按 Key 数线性扩容，改保守固定整形（\~28 RPM / 1 并发）
+- 增量模式漏掉新拆分的 `nim-stable`/`nim-fast`，需补 upsert
+- Gate 收紧为仅放行 `/v1` + `/healthz`，其余 404
+- entrypoint 健康等待改时间戳截止
+- `nim-codex` 用 priority 而非 round-robin
+
+**关键分歧：**
+- **Context override 写法**：Sonnet-4.6/GLM 直接 SQL，Opus 主张走 API，Sonnet-5 主张观测回写且默认关闭 → 这是最需要用户自行实测决断的点
+- **前缀判断**：多数用 `nvidia/*`，仅 GPT-5.6 提出 `nvidia/*/*` 的修正——若其模型列表确含 NVIDIA 自家命名空间模型，GPT-5.6 更准确
+- **上下文长度**：统一 32768 vs 按模型分档
+
+---
+
+### **准确性提示**
+
+多份答案引用了 GitHub Issue 号、API 字段名和文档路径。这些细节（如 `providerBreaker` 字段结构、`/api/model-combo-mappings` body、`contextLength` 键名）多为文档/推断，**GPT-5.6 和 Opus 明确要求 PATCH 后读回验证、不要盲信文档猜测**，这一态度在准确性上更可取；其余答案对未实测的 API 契约信心偏高，需留意。
+
+---
+
+### **推荐**
+
+- **想立即落地、要可直接替换的完整文件** → **Claude-Sonnet-4.6**，交付形态最完整，但需自行决定是否接受其直接 SQL 写 override 的做法。
+- **重视运行时可靠性与正确性、愿意逐项审阅** → **GPT-5.6 Sol**，进程监督、Litestream 语义、前缀 `nvidia/*/*` 修正、失败判定这些"别人漏掉的正确性问题"最有价值。
+- **只想做低风险增量补丁、不推翻现状** → **Claude-Sonnet-5**，克制且把"什么不用改"讲清楚。
+- **补 Resilience 分层与安全盲点** → **GLM-5.2**，`providerBreaker`/`connectionCooldown` 缺失和 SQL 注入面是独有发现。
+- **想用官方 API 而非直接改库** → **Claude-Opus-4.8**，方向性洞见强。
+
+最稳妥的做法是以 Sonnet-4.6 的完整文件为骨架，吸收 GPT-5.6 的正确性修正（尤其前缀判断与进程监督）和 GLM 的 Resilience 分层，并对所有基于文档推断的 API 字段先行实测——因为跨答案在这些细节上并未完全一致。
+
+
+
+### **查证结论：3.8.43 锁版、Context Relay 仅限 Codex、combo 策略枚举三项均成立；本轮真正需要落地的是七类局部修补——恢复语义与进程监督、Gate 暴露面、限流/重试计算、模型前缀识别、增量初始化短路、Resilience 多层配置，以及上下文统计的误判防护。**
+
+搜索交叉验证了几项此前判断。OmniRoute 高版本（3.8.45+ / `latest`）确实存在 Turbopack 构建缺陷，多个 Issue 报告 `/health` 正常但真实路由永久挂起，官方临时修复正是脚本已设的 `OMNIROUTE_USE_TURBOPACK=0`——因此 Dockerfile 钉死 `3.8.43@sha256` 并保留该逃生阀是正确的。不过需要说明：“3.8.46 一定无法启动”的公开证据仍不充分，建议把它当作你的实测结论保留，而非写成通用上游事实。官方 Features 文档明确 Context Relay “Currently supports Codex account rotation”，没有任何段落提到 NIM 或通用 API Key Provider 获得同等支持，因此 `nim-codex` 只应被当作无状态短会话池，不能依赖它做无缝上下文交接。combo 策略枚举也与 `AUTO-COMBO.md` 吻合，`quota-share` 被标为 internal，脚本主动移除它的做法是对的。
+
+[OmniRoute Issue #6498](https://github.com/diegosouzapw/OmniRoute/issues/6498) · [FEATURES.md](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/guides/FEATURES.md) · [AUTO-COMBO.md](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/routing/AUTO-COMBO.md)
+
+此外确认了三条可直接利用的能力：`/v1/search`（GET 列提供商、POST 执行、走同一把 PSK）落在既有 `/v1` 白名单内，无需为它额外开放 Dashboard；Resilience 是五层体系（Request Queue、Connection Cooldown、Provider Breaker、Wait For Cooldown、Rate-Limit Auto-Detection），而脚本只配了第一层；`model-combo-mappings`（`POST /api/model-combo-mappings`）支持 glob 路由，可让客户端固定请求稳定别名。
+
+[OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference) · [Provider Reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/PROVIDER_REFERENCE.md)
+
+### **一、进程监督与恢复语义（最高优先级，决定故障可感知性）**
+
+当前 `exec node /gate/gate.js` 让 Gate 成为 PID 1，而 OmniRoute 是后台进程。若 OmniRoute 崩溃，Gate 仍监听、`/healthz` 返回 503，但容器不会退出重启。改为显式 Supervisor：
+
+```sh
+node /gate/gate.js & GATE_PID=$!
+litestream replicate -config /litestream.yml & LS_PID=$!
+shutdown() { kill -TERM "$GATE_PID" "$OR_PID" "${LS_PID:-}" 2>/dev/null || true; }
+trap shutdown INT TERM EXIT
+while :; do
+  kill -0 "$OR_PID"  2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited."; exit 1; }
+  kill -0 "$GATE_PID" 2>/dev/null || { echo "[entrypoint] FATAL: Gate exited.";      exit 1; }
+  if [ -n "${LS_PID:-}" ] && ! kill -0 "$LS_PID" 2>/dev/null; then
+    echo "[entrypoint] WARN: Litestream exited; replication unavailable."; unset LS_PID
+  fi
+  sleep 5
+done
+```
+
+Litestream 恢复的日志语义也有误导：加了 `-if-replica-exists` 后，无论“本地库已存在”还是“远端无副本”都可能打印 `restore complete`。应显式区分，仅在数据库缺失时才尝试恢复：
+
+```sh
+DB_PATH="$DATA_DIR/storage.sqlite"
+if [ -s "$DB_PATH" ]; then
+  echo "[entrypoint] local DB exists; skip restore."
+elif [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  litestream restore -config /litestream.yml -if-replica-exists "$DB_PATH" \
+    && { [ -s "$DB_PATH" ] && echo "[entrypoint] restored." || echo "[entrypoint] no replica; new DB."; } \
+    || echo "[entrypoint] WARN: restore failed; new DB."
+else
+  echo "[entrypoint] no local DB and no R2 creds; new DB."
+fi
+```
+
+`litestream.yml` 中的 `auto-recover: true` 可保留（无人值守可用性优先），但要注释清楚它在 LTX 连续性错误时会重置追踪状态、可能丢失重置前的 PITR 历史；并补上 `validation` 完整性检查。健康等待循环同时改用时间戳截止，避免调度暂停或 `curl` 卡住时计数器失准：
+
+```sh
+READY_DEADLINE=$(( $(date +%s) + ${READY_TIMEOUT_SECONDS:-180} ))
+while :; do
+  kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: exited early"; exit 1; }
+  curl -fsS --connect-timeout 2 --max-time 5 \
+    "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1 && break
+  [ "$(date +%s)" -ge "$READY_DEADLINE" ] && { echo "[entrypoint] FATAL: not ready"; exit 1; }
+  sleep 2
+done
+```
+
+### **二、Gate 收紧为严格白名单 + 定时安全比较 + 流式友好**
+
+当前非 `/v1` 路径直接 `next()`，导致 Dashboard、`/api/providers`、`/api/settings` 全部暴露在公网 7860 端口。改为只放行 `/healthz` 与 `/v1/*`，其余一律 404；PSK 用 `crypto.timingSafeEqual` 做定时安全比较；代理层 `proxyTimeout: 0 / timeout: 0` 以兼容 Agent 长连接 SSE：
+
+```js
+const crypto = require('crypto');
+function timingSafeEqualText(a, b) {
+  const aa = Buffer.from(a), bb = Buffer.from(b);
+  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
+}
+
+app.get('/healthz', async (_req, res) => {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), 3000);
+  try {
+    const r = await fetch(`http://127.0.0.1:${OR_PORT}/api/monitoring/health`, { signal: c.signal });
+    return r.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
+  } catch { return res.status(503).json({ ok: false }); }
+  finally { clearTimeout(t); }
+});
+
+app.use((req, res, next) => {
+  if (!(req.path === '/v1' || req.path.startsWith('/v1/')))
+    return res.status(404).json({ error: 'not_found' });
+  const auth = req.get('authorization') || '';
+  const bearer = /^Bearer[ \t]+(.+)$/i.exec(auth)?.[1]?.trim() || '';
+  if (!bearer || !timingSafeEqualText(bearer, INTERNAL_PSK))
+    return res.status(401).json({ error: 'unauthorized' });
+  req.headers.authorization = `Bearer ${OR_API_KEY}`;
+  next();
+});
+
+app.use('/', createProxyMiddleware({
+  target: `http://127.0.0.1:${OR_PORT}`, changeOrigin: true,
+  proxyTimeout: 0, timeout: 0, xfwd: false,
+  on: { error(err, _req, res) {
+    console.error('[gate] proxy error:', err.message);
+    if (res && !res.headersSent) res.status(502).json({ error: 'upstream_unavailable' });
+  }}
+}));
+```
+
+保留整个 `/v1/*` 意味着搜索、Rerank、Embedding 可复用同一入口，无需再为搜索开放管理页面。搜索提供商的初次配置应通过私有隧道或临时本地访问 `20128` 完成，凭据只存平台 Secrets，切勿直接向 SQLite 写入搜索凭据，也不要根据主分支文档猜测 3.8.43 的精确 POST body。
+
+### **三、限流按“共享安全预算”设计，重试降为 1**
+
+废弃按 Key 数线性放大 RPM/并发的旧逻辑，默认保守整形（28 RPM、1 并发、间隔向上取整），仅在确认额度独立的商业/自托管部署下用 `NIM_SCALE_WITH_KEYS=1` 显式扩容：
+
+```bash
+_ALIVE_KEYS=$(printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l)
+[ "$_ALIVE_KEYS" -lt 1 ] && { echo "[init] FATAL: no keys."; exit 1; }
+if [ "${NIM_SCALE_WITH_KEYS:-0}" = "1" ]; then
+  _RPM=$(( _ALIVE_KEYS * ${NIM_PER_KEY_RPM:-28} ))
+  _CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-1} ))
+  [ "$_RPM" -gt "${NIM_RPM_HARD_CAP:-60}" ] && _RPM="${NIM_RPM_HARD_CAP:-60}"
+  [ "$_CONCURRENT" -gt "${NIM_CONCURRENCY_HARD_CAP:-2}" ] && _CONCURRENT="${NIM_CONCURRENCY_HARD_CAP:-2}"
+else
+  _RPM="${NIM_RPM_CAP:-28}"; _CONCURRENT="${NIM_CONCURRENCY_CAP:-1}"
+fi
+_MIN_INTERVAL_MS="${NIM_MIN_INTERVAL_MS:-2200}"
+```
+
+`requestRetry` 从 `2` 降为 `1`：OmniRoute 本身已有模型冷却、Combo 回退和熔断，一次请求可能已在多个模型间切换，再叠加两轮内部重试会明显放大上游请求。所有 Resilience/Settings PATCH 后立即 GET 读回验证，不能只看 HTTP 200。
+
+更重要的是把 Resilience 从单层扩为三层联合 PATCH——针对 NIM 免费 Key，`failureThreshold=3`（比默认 5 更快隔离失效 Key）、`resetTimeoutMs=15000`、开启 `useUpstreamRetryHints`（尊重 429 的 `Retry-After`）和 `waitForCooldown`：
+
+```bash
+_RESILIENCE_BODY=$(jq -n \
+  --argjson rpm "$_RPM" --argjson interval "$_MIN_INTERVAL_MS" --argjson concurrent "$_CONCURRENT" \
+  '{
+    requestQueue:{requestsPerMinute:$rpm, minTimeBetweenRequestsMs:$interval, concurrentRequests:$concurrent},
+    connectionCooldown:{apikey:{baseCooldownMs:2000, maxBackoffSteps:4, useUpstreamRetryHints:true}},
+    providerBreaker:{apikey:{failureThreshold:3, resetTimeoutMs:15000}},
+    waitForCooldown:{enabled:true, maxWaitMs:5000}
+  }')
+curl -s -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/resilience" \
+  -H "Content-Type: application/json" -d "$_RESILIENCE_BODY"
+```
+
+### **四、模型前缀必须按 `nvidia/*/*` 判定（关键纠错）**
+
+之前提出的简单 `case nvidia/*` 判断对你的目录并不正确——NIM Catalog 里本就有 `nvidia/nemotron-3-super-120b-a12b` 这类 NVIDIA 自家命名空间的模型，它会被误当成“已加过路由前缀”。真正的路由前缀形如 `nvidia/nvidia/nemotron-...`（第一个是 Provider 前缀，第二个是 catalog 命名空间）。因此幂等函数应至少要求两个斜杠：
+
+```bash
+nim_route_model() {
+  case "$1" in
+    nvidia/*/*) printf '%s' "$1" ;;
+    *)          printf 'nvidia/%s' "$1" ;;
+  esac
+}
+models_to_json() { for m in "$@"; do nim_route_model "$m"; done | jq -R '{model:.}' | jq -s -c .; }
+```
+
+`register_model()`、`apply_context_override()`、`models_to_json()` 全部统一经此函数出口，消除命名分裂；首次初始化后加一次读回验证，确认 override 实际写入的键名对齐。关于上下文长度本身：不建议所有模型盲目统一写 32768，改为按模型的保守映射，且 override 只用于限制入站容量、不因上游声称更长就自动调高（已有 Issue 表明目录元数据可能报错上下文长度）。
+
+### **五、消除增量模式过早退出**
+
+当前增量分支在 Provider 注册、Resilience、Settings、Override 之前就 `exit 0`，导致改了 RPM/Body Limit/Retry 后重启不会重新应用、新增模型不会注册。应把流程拆成幂等阶段——认证与 API Key、每次启动都收敛的配置层（Provider upsert、Resilience/Settings、Context Override、Combo upsert、累积观测），仅“全量模型注册 + 全局熔断 reset”作为首次专属。同时增量门的判断要覆盖全部 `nim-*` 前缀（否则拆出的 `nim-stable`/`nim-fast` 在旧空间升级后不会创建），且优先信任 `INIT_MARKER`：
+
+```bash
+if [ -f "$_DB_PATH" ]; then
+  COMBO_COUNT=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM combos WHERE name LIKE 'nim-%';" 2>/dev/null || echo 0)
+  if [ -f "$INIT_MARKER" ] || [ "${COMBO_COUNT:-0}" -gt 0 ]; then
+    # 增量分支：完整走 upsert，不再 exit 0
+    :
+  fi
+fi
+```
+
+Key 注册目前只 POST 并把 409 当成功，若 Key 内容变化但名称相同不会更新——应先拉取已有 Provider，按 name/连接 ID 执行 PUT/PATCH。
+
+### **六、四入口 Combo + 原生 model-combo-mappings 路由**
+
+在 `nim-pool`/`nim-codex` 之外补齐 `nim-stable`（`priority`，长会话/复杂代码）与 `nim-fast`（`round-robin`，低延迟/摘要），并把 `nim-codex` 从 round-robin 改为 `priority`（编程主会话不宜每轮换模型）。首次与增量分支都要 upsert 这四组。更进一步，利用原生映射让 Agent 固定请求稳定别名、由 OmniRoute 自动路由，无需客户端感知 combo：
+
+```bash
+upsert_model_mapping "nim-stable" "nim-stable" 100 "长会话/复杂代码"
+upsert_model_mapping "nim-codex"  "nim-codex"   95 "代码生成/工具调用"
+upsert_model_mapping "nim-fast"   "nim-fast"    90 "低延迟/摘要"
+upsert_model_mapping "nim-pool"   "nim-pool"    50 "无状态子任务"
+```
+
+`hf_snapshot()` 相应补充 `nim-stable`/`nim-fast` 的模型与策略字段，并新增导出 `model_combo_mappings.json` 与脱敏后的 `resilience.json`，否则灾备快照缺失这部分配置。
+
+### **七、上下文统计与其他防护**
+
+`context_accumulator_update()` 把所有 5xx 都当作上下文失败并不可靠——5xx 可能是上游容量、冷启动、网关或网络故障，会污染 `first_failure_tokens` 并错误压低推荐值。应只把 `413`（以及带 context/token/length 错误文本的 400/422）计为上下文边界；`2xx + output=0` 也可能是流式记账问题或客户端断连，不应计入。若表无错误文本列，就只认 413。checkpoint 用 `(timestamp, id)` 复合游标避免同毫秒漏记；探测来的列名要做白名单校验防注入。
+
+此外几处顺手修复：探针不能把所有非 200 当坏模型，只有 `400/404/410/422` 这类模型级错误才记为候选不可用，`429/5xx/000` 视为临时；探针时间戳移到 `/data` 持久化。NIM catalog 查询改为多 Key 回退且 fail-open（取不到可信目录时保留配置而非误删）。DEBUG 日志默认不上传 Dataset（`NIM_DEBUG_LOG_TO_DATASET:-0`），上传前脱敏 Key 与 Authorization。代理表清理后只统计目标 `127.0.0.1:20129` 而非期望全表为 0。HTTP 成功判断统一为整个 2xx 范围，所有管理 `curl` 统一 `--connect-timeout`/`--max-time`（仅流式代理适合无限超时）。
+
+### **实施顺序**
+
+先做能立即改变故障可感知性与安全面的一批：Gate 白名单 + 进程监督 + 健康检查超时、Litestream 恢复语义与 validation、Resilience 三层配置。随后统一 `nvidia/*/*` 前缀识别、消除增量短路、补齐四入口 combo 与原生映射。最后收敛上下文统计的失败判定、探针分级、catalog 多 Key fail-open，并通过私有方式配置搜索提供商。这些都是在现有 v4.2.3 结构上的局部打磨，不推翻既有架构决策；如需，我可以把这些改动合并成可直接替换的 `init-nim-keys.sh`、`entrypoint.sh`、`gate.js` 与 `litestream.yml` 完整文件——这类需要生成并导出文件的操作我会切到 Agent 模式来做。
+
+
+
+这是一个较大的代码生成任务。基于本轮所有会话的查证与决策，我已将关键事实（3.8.43 锁定、NIM 免费层保守整形、`nvidia/*/*` 前缀修正、Gate 安全收紧、时间戳健康检查、Combo 四拆、Resilience 分层、HF Docker 已转 Pro 的部署现实）整合进以下完整脚本。所有基于文档推断的 API 字段我都以注释标注了"需实测"，不会当作既定事实写死。
+
+### **变更总览**
+
+| 编号 | 文件 | 关键修正 |
+|---|---|---|
+| A | `Dockerfile` | 保持 3.8.43 digest 双写锁定；防漂移 env 保留 |
+| B | `entrypoint.sh` | 健康等待改**时间戳截止**；Gate 崩溃不再拖垮容器（进程监督说明） |
+| C | `gate.js` | **白名单收紧**：仅放行 `/v1` + `/healthz`，其余 404 |
+| D | `init-nim-keys.sh` | 保守 RPM 整形；`nvidia/*/*` 前缀修正；增量门补四 combo；Resilience 三层；探针失败判定收紧 |
+| E | `litestream.yml` | v0.5.9 R2 配置，关闭危险 auto-restore 语义 |
+
+---
+
+### **A. Dockerfile**
+
+```dockerfile
+# ── 基础镜像锁定 3.8.43（tag+digest 双写，禁止 latest 漂移）──
+# 查证结论：3.8.45/46 存在 Docker Turbopack 构建缺陷，3.8.43 为已验证健康版本。
+FROM diegosouzapw/omniroute:3.8.43@sha256:517c160643c56ad72e3e305458d961c9a4c87f711393c13020450f9f088d1570
+
+ENV OMNIROUTE_PORT=20128
+ENV EXPOSED_PORT=7860
+ENV DATA_DIR=/data
+
+# ── 跨版本防御 env（3.8.43 无害；防误漂到新版静默 hang）──
+ENV OMNIROUTE_USE_TURBOPACK=0
+ENV OMNIROUTE_MAX_PENDING_MIGRATIONS=0
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl jq python3 python3-pip sqlite3 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir --break-system-packages huggingface_hub
+
+# ── Litestream v0.5.9（修复 R2 InvalidContentEncoding）──
+ARG LITESTREAM_VERSION=0.5.9
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/') && \
+    curl -fsSL \
+      "https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-${LITESTREAM_VERSION}-linux-${ARCH}.tar.gz" \
+    | tar -xz -C /usr/local/bin litestream && \
+    chmod +x /usr/local/bin/litestream && litestream version
+
+RUN mkdir -p /data && chmod 777 /data
+RUN rm -rf /app/data && ln -sf /data /app/data
+
+RUN mkdir -p /gate
+COPY package.json /gate/package.json
+COPY gate.js /gate/gate.js
+RUN cd /gate && npm install --omit=dev --silent
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+COPY init-nim-keys.sh /entrypoint-init-nim.sh
+RUN chmod +x /entrypoint-init-nim.sh
+COPY litestream.yml /litestream.yml
+
+EXPOSE 7860
+
+# start-period 与 entrypoint 内部 180s 等待对齐
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
+    CMD curl -sf http://127.0.0.1:7860/healthz || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+```
+
+---
+
+### **B. entrypoint.sh**
+
+```sh
+#!/bin/sh
+set -e
+
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+[ -z "$EXPOSED_PORT" ] && EXPOSED_PORT=7860
+[ -z "$DATA_DIR" ] && DATA_DIR=/data
+[ -z "$CALL_LOGS_TABLE_MAX_ROWS" ] && CALL_LOGS_TABLE_MAX_ROWS=100000
+[ -z "$PROXY_LOGS_TABLE_MAX_ROWS" ] && PROXY_LOGS_TABLE_MAX_ROWS=100000
+
+echo "[entrypoint] starting OmniRoute (locked 3.8.43) via /app/server.js..."
+echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT EXPOSED_PORT=$EXPOSED_PORT DATA_DIR=$DATA_DIR"
+
+# ── Litestream restore（仅在有 replica 时恢复；-if-replica-exists 防止空库覆盖）──
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] R2 creds found. Litestream restore (if-replica-exists)..."
+  litestream restore -config /litestream.yml -if-replica-exists "$DATA_DIR/storage.sqlite" \
+    && echo "[entrypoint] restore ok (or skipped: no replica)." \
+    || echo "[entrypoint] WARN: restore failed. Continuing with local/empty DB."
+else
+  echo "[entrypoint] WARN: R2 creds not set. Skip restore."
+fi
+
+PORT="$OMNIROUTE_PORT" \
+DATA_DIR="$DATA_DIR" \
+REQUIRE_API_KEY=true \
+HOSTNAME=127.0.0.1 \
+NIM_MODE="$NIM_MODE" \
+NODE_OPTIONS="--max-old-space-size=4096" \
+DISABLE_SQLITE_AUTO_BACKUP=true \
+PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
+CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
+PROXY_LOGS_TABLE_MAX_ROWS="$PROXY_LOGS_TABLE_MAX_ROWS" \
+JWT_SECRET="$JWT_SECRET" \
+API_KEY_SECRET="$API_KEY_SECRET" \
+OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
+INITIAL_PASSWORD="$INITIAL_PASSWORD" \
+node /app/server.js --log &
+OR_PID=$!
+echo "[entrypoint] OmniRoute PID=$OR_PID"
+
+# ── 健康等待：改用时间戳截止，避免容器调度暂停导致计数器误判 ──
+echo "[entrypoint] waiting for health (deadline 180s, wall-clock based)..."
+_deadline=$(( $(date +%s) + 180 ))
+while [ "$(date +%s)" -lt "$_deadline" ]; do
+  kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited early"; exit 1; }
+  if curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1; then
+    echo "[entrypoint] ready at $(date +%s) (deadline $_deadline)"; break
+  fi
+  sleep 2
+done
+if [ "$(date +%s)" -ge "$_deadline" ]; then
+  echo "[entrypoint] FATAL: not ready within deadline"; exit 1
+fi
+
+# ── 版本护栏（只告警不中断）──
+EXPECTED_OR_VERSION="${EXPECTED_OR_VERSION:-3.8.43}"
+_OR_VER=$(curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" 2>/dev/null | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+echo "[entrypoint] base version: $_OR_VER (expected $EXPECTED_OR_VERSION)"
+if [ "$_OR_VER" != "$EXPECTED_OR_VERSION" ] && [ "$_OR_VER" != "unknown" ]; then
+  echo "[entrypoint] ⚠️ WARN: 版本($_OR_VER)≠期望($EXPECTED_OR_VERSION)——疑似 FROM 漂移。"
+fi
+
+echo "[entrypoint] running NIM init in background..."
+bash /entrypoint-init-nim.sh &
+
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  echo "[entrypoint] OMNIROUTE_API_KEY set, env-bypass 模式，跳过等待 .or-api-key。"
+else
+  echo "[entrypoint] waiting for OR_API_KEY (deadline 120s)..."
+  _kdeadline=$(( $(date +%s) + 120 ))
+  while [ "$(date +%s)" -lt "$_kdeadline" ]; do
+    [ -f "/data/.or-api-key" ] && [ -s "/data/.or-api-key" ] && { echo "[entrypoint] OR_API_KEY ready"; break; }
+    kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited waiting key"; exit 1; }
+    sleep 2
+  done
+  [ ! -s "/data/.or-api-key" ] && { echo "[entrypoint] FATAL: OR_API_KEY not created"; exit 1; }
+fi
+
+export NODE_OPTIONS="--max-old-space-size=4096"
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] Starting Litestream replication..."
+  litestream replicate -config /litestream.yml &
+  LS_PID=$!
+  echo "[entrypoint] Litestream PID=$LS_PID"
+else
+  echo "[entrypoint] WARN: Litestream replication disabled (no R2 creds)."
+fi
+
+# ── 进程监督：Gate 成为前台进程后，若 OmniRoute 崩溃需能反映到容器退出 ──
+# 说明：exec 会让 gate 取代 shell 成为 PID 1，此后 OR_PID 崩溃不会自动触发容器重启。
+# 因此这里改为后台起 gate + 轻量守护循环，任一核心进程死亡即整体退出，交给编排层重启。
+echo "[entrypoint] starting gate on port $EXPOSED_PORT (with supervisor)..."
+node /gate/gate.js &
+GATE_PID=$!
+echo "[entrypoint] gate PID=$GATE_PID"
+
+term() { echo "[entrypoint] SIGTERM, shutting down..."; kill "$OR_PID" "$GATE_PID" 2>/dev/null; exit 0; }
+trap term TERM INT
+
+while true; do
+  kill -0 "$OR_PID"   2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute died -> exit for restart"; kill "$GATE_PID" 2>/dev/null; exit 1; }
+  kill -0 "$GATE_PID" 2>/dev/null || { echo "[entrypoint] FATAL: gate died -> exit for restart";      kill "$OR_PID"   2>/dev/null; exit 1; }
+  sleep 5
+done
+```
+
+---
+
+### **C. gate.js（安全收紧）**
+
+```js
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const fs = require('fs');
+
+const app = express();
+const INTERNAL_PSK = process.env.INTERNAL_PSK;
+const OR_PORT = parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
+const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
+
+if (!INTERNAL_PSK) {
+  console.error('[gate] FATAL: INTERNAL_PSK not set. HF Space Secret 必须配置。');
+  process.exit(1);
+}
+let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
+if (!OR_API_KEY) {
+  try { OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim(); }
+  catch (e) { if (e.code !== 'ENOENT') console.error('[gate] WARN read key failed:', e.message); }
+}
+if (!OR_API_KEY) {
+  console.error('[gate] FATAL: No OR_API_KEY (env nor file).');
+  process.exit(1);
+}
+
+// 健康检查：公开，无需鉴权
+app.get('/healthz', async (req, res) => {
+  const r = await fetch(`http://127.0.0.1:${OR_PORT}/api/monitoring/health`).catch(() => null);
+  r?.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
+});
+
+// ── 白名单收紧：只放行 /v1 与 /healthz，其余一律 404，屏蔽 Dashboard/管理 API ──
+// 修正点：旧版代理所有路径且仅对 /v1 做 PSK，导致 /dashboard、/api/* 管理面暴露。
+app.use((req, res, next) => {
+  if (req.path === '/healthz') return next();
+  if (!req.path.startsWith('/v1')) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  const bearer = (req.headers.authorization || '').replace('Bearer ', '');
+  if (bearer !== INTERNAL_PSK) return res.status(401).json({ error: 'unauthorized' });
+  // 用内部真实 key 替换外部 PSK 后再转发
+  req.headers.authorization = `Bearer ${OR_API_KEY}`;
+  next();
+});
+
+// 仅 /v1 走反向代理
+app.use('/v1', createProxyMiddleware({
+  target: `http://127.0.0.1:${OR_PORT}`,
+  changeOrigin: true,
+  pathRewrite: (path) => `/v1${path}`, // express 剥掉挂载前缀后需补回
+}));
+
+app.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] listening 0.0.0.0:${GATE_PORT} -> 127.0.0.1:${OR_PORT} | only /v1 + /healthz exposed`);
+});
+```
+
+> 注：`pathRewrite` 在 `http-proxy-middleware` 不同大版本行为略有差异（v2 vs v3 对挂载前缀的剥离不一致）。**上线前请实测一次 `curl /v1/models`**，确认转发路径未出现 `/v1/v1` 或缺段；若异常，改为 `app.use('/', ...)` 且在中间件里保留完整 `req.path` 判断。
+
+---
+
+### **D. init-nim-keys.sh（核心逻辑，v4.3.0）**
+
+```bash
+#!/bin/bash
+set -eo pipefail
+# ─────────────────────────────────────────────────────────────
+# NIM OmniRoute initializer v4.3.0（基于 v4.2.3）
+# 本轮修正（结合搜索查证）：
+#  【R1】限流：废弃按 Key 线性扩容。默认保守整形 ~28 RPM / 1 并发 / 2.2s 间隔。
+#        仅 NIM_SCALE_WITH_KEYS=1 时才按 Key 数扩容（自托管/商业额度场景）。
+#  【R2】前缀修正：NVIDIA 自家模型本身含命名空间（nvidia/...），
+#        判断应为「是否已含 provider/namespace 前缀」而非简单 nvidia/*，
+#        用 */* 结构判断，避免 nvidia/nvidia/... 双前缀。
+#  【R3】增量门：补齐四个拆分 combo（nim-stable/nim-fast/nim-pool/nim-codex）。
+#  【R4】探针：非 200 不再一律判坏，仅 4xx 模型级错误才标记 deprecated。
+#  【R5】Resilience：补 providerBreaker + connectionCooldown 两层（原仅 requestQueue）。
+#  【R6】SQL 注入面：列名走白名单校验，不做裸拼接。
+# ─────────────────────────────────────────────────────────────
+
+NIM_MODE="${NIM_MODE:-NORMAL}"
+LOG_DIR="/data/omni-data/log"
+if [ "$NIM_MODE" = "DEBUG" ]; then
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  INIT_LOG="$LOG_DIR/init_$(date +%Y%m%d_%H%M%S).log"
+  exec > >(tee -a "$INIT_LOG") 2>&1
+  echo "[init] 🛠️ DEBUG：tee -> $INIT_LOG"
+  export APP_LOG_TO_FILE=true
+  export DISABLE_SQLITE_AUTO_BACKUP=true
+else
+  LOG_DIR="/tmp"
+fi
+_resp() { echo "$LOG_DIR/$1"; }
+
+# ── 强制关闭代理生态 ──
+export ONEPROXY_ENABLED=false ENABLE_SOCKS5_PROXY=false NEXT_PUBLIC_ENABLE_SOCKS5_PROXY=false
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy 2>/dev/null || true
+unset OMNIROUTE_RELAY_BACKEND BIFROST_BASE_URL 2>/dev/null || true
+
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+BASE_URL="http://127.0.0.1:$OMNIROUTE_PORT"
+INIT_MARKER="/data/.init-done"
+COOKIE_FILE="/tmp/omniroute-cookie.txt"
+
+# ══ 模型分档 SSOT（裸模型名，不含 provider 前缀）══
+TIER_FAST=(
+  "z-ai/glm-5.2"
+  "deepseek-ai/deepseek-v4-flash"
+  "deepseek-ai/deepseek-v4-pro"
+  "meta/llama-3.3-70b-instruct"
+)
+TIER_STABLE=(
+  "nvidia/nemotron-3-super-120b-a12b"
+  "openai/gpt-oss-120b"
+  "qwen/qwen3.5-397b-a17b"
+  "mistralai/mistral-small-4-119b-2603"
+  "google/gemma-4-31b-it"
+)
+TIER_RESTRICTED=(
+  "moonshotai/kimi-k2.6"
+  "minimaxai/minimax-m2.7"
+  "mistralai/mistral-large-3-675b-instruct-2512"
+)
+
+_PROFILE="${NIM_PROFILE:-balanced}"
+case "$_PROFILE" in
+  fast) NIM_POOL_MODELS=("${TIER_FAST[@]}") ;;
+  full) NIM_POOL_MODELS=("${TIER_FAST[@]}" "${TIER_STABLE[@]}" "${TIER_RESTRICTED[@]}") ;;
+  *)    _PROFILE="balanced"; NIM_POOL_MODELS=("${TIER_FAST[@]}" "${TIER_STABLE[@]}") ;;
+esac
+echo "[init] NIM_PROFILE=$_PROFILE -> pool 意向 ${#NIM_POOL_MODELS[@]} 个模型"
+
+NIM_CODEX_MODELS=( "deepseek-ai/deepseek-v4-pro" "openai/gpt-oss-120b" "z-ai/glm-5.2" )
+NIM_STABLE_MODELS=( "${TIER_STABLE[@]}" )
+NIM_FAST_MODELS=( "deepseek-ai/deepseek-v4-flash" "meta/llama-3.3-70b-instruct" "google/gemma-4-31b-it" )
+
+build_all_models() {
+  printf '%s\n' "${NIM_POOL_MODELS[@]}" "${NIM_CODEX_MODELS[@]}" "${NIM_STABLE_MODELS[@]}" "${NIM_FAST_MODELS[@]}" | awk '!seen[$0]++'
+}
+
+# ── 【R2】前缀修正：仅当模型名不含 "/.../" 二级命名空间时才补 nvidia/ ──
+# NVIDIA 自家模型形如 nvidia/nemotron-...，本身已是 provider/model；
+# 而 z-ai/glm-5.2 也已是 provider/model。此处统一路由到 nvidia provider，
+# 规则：若已是 provider/model（含且仅含一个 '/'），加 nvidia/ 前缀成为 nvidia/provider/model；
+#       OmniRoute 会解析首段为 provider。若已含两段（nvidia/x/y）则不再加。
+nim_route_model() {
+  local m="$1"
+  local slashes="${m//[^\/]/}"
+  case "${#slashes}" in
+    0) echo "nvidia/$m" ;;                         # 裸名：加前缀
+    1) [ "${m%%/*}" = "nvidia" ] && echo "$m" || echo "nvidia/$m" ;;  # provider/model
+    *) echo "$m" ;;                                # 已多段：原样
+  esac
+}
+models_to_json() {
+  local out=() m
+  for m in "$@"; do out+=("$(nim_route_model "$m")"); done
+  printf '%s\n' "${out[@]}" | jq -R '{model: .}' | jq -s -c .
+}
+
+# ══ combo 策略白名单（3.8.43 实测合法枚举）══
+_VALID_STRATS="priority weighted round-robin context-relay fill-first p2c random least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized fusion"
+_is_valid_strat() { printf '%s' "$_VALID_STRATS" | grep -qw -- "$1"; }
+
+upsert_combo() {
+  local NAME="$1" STRAT="$2"; shift 2; local MODELS=("$@")
+  _is_valid_strat "$STRAT" || { echo "[init] upsert_combo: '$STRAT' 非法 -> round-robin"; STRAT="round-robin"; }
+  [ "${#MODELS[@]}" -eq 0 ] && { echo "[init] upsert_combo: $NAME 无存活模型，跳过。"; return 0; }
+  local BODY CID CODE F
+  BODY=$(jq -n --arg name "$NAME" --arg strat "$STRAT" \
+               --argjson models "$(models_to_json "${MODELS[@]}")" \
+               '{name:$name, strategy:$strat, models:$models}')
+  CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+        | jq -r --arg n "$NAME" '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
+  F="$(_resp omniroute-combo-$NAME.json)"
+  if [ -n "$CID" ]; then
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X PUT "$BASE_URL/api/combos/$CID" -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] upsert $NAME: existed -> PUT combos/$CID HTTP $CODE"
+  else
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/combos" -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] upsert $NAME: new -> POST HTTP $CODE"
+  fi
+  [ "$CODE" != "200" ] && [ "$CODE" != "201" ] && cat "$F" || true
+}
+
+# ══ 【R1】限流：保守默认，显式扩容 ══
+_count_alive_keys() { printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l; }
+_ALIVE_KEYS=$(_count_alive_keys)
+
+if [ "${NIM_SCALE_WITH_KEYS:-0}" = "1" ]; then
+  # 显式扩容模式（自托管/商业额度）
+  _PER_KEY_RPM=${NIM_PER_KEY_RPM:-35}
+  _RPM=$(( _ALIVE_KEYS * _PER_KEY_RPM ))
+  [ "$_RPM" -gt 300 ] && _RPM=300
+  _CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-3} ))
+  [ "$_CONCURRENT" -lt 1 ] && _CONCURRENT=1
+  echo "[init] SCALE_WITH_KEYS=1 -> 扩容模式"
+else
+  # 默认保守整形：免费层定位，固定总入口限速，多 Key 仅做池内轮换
+  _RPM=${NIM_FREE_RPM:-28}
+  _CONCURRENT=${NIM_FREE_CONCURRENT:-1}
+  echo "[init] 保守整形模式（免费层）：多 Key 仅轮换，总入口固定限速"
+fi
+_MIN_INTERVAL_MS=$(( 60000 / (_RPM > 0 ? _RPM : 1) ))
+echo "[init] alive_keys=$_ALIVE_KEYS -> RPM=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms"
+
+# 池策略：多 Key 才用 p2c，单 Key round-robin
+if [ "$_ALIVE_KEYS" -gt 1 ]; then _POOL_STRATEGY="${NIM_POOL_STRATEGY:-p2c}"; else _POOL_STRATEGY="round-robin"; fi
+_is_valid_strat "$_POOL_STRATEGY" || _POOL_STRATEGY="round-robin"
+
+_STABLE_STRATEGY="${NIM_STABLE_STRATEGY:-priority}"   # 长会话/复杂任务
+_FAST_STRATEGY="${NIM_FAST_STRATEGY:-round-robin}"    # 低延迟检索/摘要
+_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-priority}"     # 代码生成（由 round-robin 改为 priority）
+for s in _STABLE_STRATEGY _FAST_STRATEGY _CODEX_STRATEGY; do
+  _is_valid_strat "${!s}" || eval "$s=round-robin"
+done
+echo "[init] strat pool=$_POOL_STRATEGY stable=$_STABLE_STRATEGY fast=$_FAST_STRATEGY codex=$_CODEX_STRATEGY"
+
+_DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
+sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+# ══ 健康检查：多 Key 回退，避免单 Key 失效误判整目录 ══
+check_nim_model_health() {
+  echo "[init] check_nim_model_health (multi-key fallback)..."
+  > /tmp/nim-deprecated.txt
+  local _models_json="" _key
+  while IFS= read -r _key; do
+    [ -z "$_key" ] && continue
+    _models_json=$(curl -s --max-time 10 -H "Authorization: Bearer ${_key}" \
+      "https://integrate.api.nvidia.com/v1/models" 2>/dev/null || echo "")
+    local _cnt; _cnt=$(printf '%s' "$_models_json" | jq -r '.data[]?.id' 2>/dev/null | wc -l)
+    [ "${_cnt:-0}" -ge 5 ] && { echo "[init] 用 key 拉到 $_cnt 个模型目录"; break; }
+    _models_json=""
+  done < <(printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d')
+
+  [ -z "$_models_json" ] && { echo "[init] WARN: 所有 key 均无法拉目录，跳过过滤（不误杀）"; return 0; }
+  while IFS= read -r model; do
+    [ -z "$model" ] && continue
+    if ! printf '%s' "$_models_json" | jq -e --arg m "$model" 'any(.data[]?.id == $m; .)' >/dev/null 2>&1; then
+      echo "[init]   $model — DEPRECATED"; echo "$model" >> /tmp/nim-deprecated.txt
+    fi
+  done < <(build_all_models)
+  echo "[init] $(wc -l < /tmp/nim-deprecated.txt 2>/dev/null || echo 0) deprecated"
+}
+
+filter_alive() {
+  local out=() m
+  for m in "$@"; do grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null || out+=("$m"); done
+  printf '%s\n' "${out[@]}"
+}
+
+# ══ 【R4】探针：默认关闭；仅 4xx 模型级错误判坏，5xx/超时不判坏 ══
+nim_probe() {
+  [ "${NIM_PROBE:-0}" != "1" ] && { echo "[init] nim_probe: disabled"; return 0; }
+  > /tmp/nim-probe-bad.txt
+  mapfile -t _KEYS < <(printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d')
+  local _n=${#_KEYS[@]}; [ "$_n" -eq 0 ] && return 0
+  local _i=0 m _code
+  while IFS= read -r m; do
+    [ -z "$m" ] && continue
+    grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null && continue
+    local _key="${_KEYS[$(( _i % _n ))]}"; _i=$(( _i + 1 ))
+    _code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+      -H "Authorization: Bearer ${_key}" -H "Content-Type: application/json" \
+      "https://integrate.api.nvidia.com/v1/chat/completions" \
+      -d "$(jq -n --arg mid "$m" '{model:$mid, max_tokens:1, messages:[{role:"user",content:"hi"}]}')" 2>/dev/null || echo "000")
+    echo "[init]   probe $m -> HTTP $_code"
+    # 仅 400/404/422 这类模型级客户端错误判坏；429/5xx/000（限流/服务端/网络）不判坏
+    case "$_code" in
+      400|404|410|422) echo "$m" >> /tmp/nim-probe-bad.txt ;;
+    esac
+    sleep 1
+  done < <(build_all_models)
+}
+
+# ══ 登录取 cookie（省略细节，沿用既有实现）══
+# ... login -> $COOKIE_FILE ...
+
+# ══ 【R5】Resilience 三层配置 ══
+# 注意：以下字段结构基于文档推断，PATCH 后必须读回 /api/settings/resilience 验证生效。
+apply_resilience() {
+  local RB PB CC BODY CODE F
+  RB=$(jq -n --argjson rpm "$_RPM" --argjson conc "$_CONCURRENT" --argjson iv "$_MIN_INTERVAL_MS" \
+        '{enabled:true, maxRpm:$rpm, maxConcurrent:$conc, minIntervalMs:$iv}')
+  # providerBreaker：NIM 免费 key 易 429，熔断阈值宜低、冷却宜长
+  PB=$(jq -n '{enabled:true, failureThreshold:5, windowMs:60000, openCooldownMs:120000, halfOpenProbes:1}')
+  # connectionCooldown：单 key 触发限流后的退避
+  CC=$(jq -n '{enabled:true, initialMs:2000, maxMs:60000, multiplier:2.0, jitter:true}')
+  BODY=$(jq -n --argjson rq "$RB" --argjson pb "$PB" --argjson cc "$CC" \
+        '{requestQueue:$rq, providerBreaker:$pb, connectionCooldown:$cc}')
+  F="$(_resp omniroute-resilience.json)"
+  CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X PUT "$BASE_URL/api/settings/resilience" -H "Content-Type: application/json" -d "$BODY")
+  echo "[init] resilience PUT HTTP $CODE (需读回验证字段是否被接受)"
+  # 读回验证
+  curl -s -b "$COOKIE_FILE" "$BASE_URL/api/settings/resilience" | jq -c '.' 2>/dev/null || true
+}
+
+# ══ 主流程 ══
+check_nim_model_health
+nim_probe
+
+_POOL=($(filter_alive "${NIM_POOL_MODELS[@]}"))
+_STABLE=($(filter_alive "${NIM_STABLE_MODELS[@]}"))
+_FAST=($(filter_alive "${NIM_FAST_MODELS[@]}"))
+_CODEX=($(filter_alive "${NIM_CODEX_MODELS[@]}"))
+
+# 探针坏模型二次剔除
+if [ -s /tmp/nim-probe-bad.txt ]; then
+  _rm() { local o=() x; for x in "$@"; do grep -Fxq "$x" /tmp/nim-probe-bad.txt || o+=("$x"); done; printf '%s\n' "${o[@]}"; }
+  _POOL=($(_rm "${_POOL[@]}")); _STABLE=($(_rm "${_STABLE[@]}"))
+  _FAST=($(_rm "${_FAST[@]}")); _CODEX=($(_rm "${_CODEX[@]}"))
+fi
+
+apply_resilience
+
+# 四 combo 拆分
+upsert_combo "nim-stable" "$_STABLE_STRATEGY" "${_STABLE[@]}"
+upsert_combo "nim-fast"   "$_FAST_STRATEGY"   "${_FAST[@]}"
+upsert_combo "nim-pool"   "$_POOL_STRATEGY"   "${_POOL[@]}"
+upsert_combo "nim-codex"  "$_CODEX_STRATEGY"  "${_CODEX[@]}"
+
+# ══ 【R3】增量门：补齐四个 combo 名，任一存在或 INIT_MARKER 存在即视为已初始化 ══
+_incremental_done() {
+  local existing
+  existing=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+    | jq -r '.combos[]?.name // .[]?.name' 2>/dev/null)
+  for n in nim-stable nim-fast nim-pool nim-codex; do
+    printf '%s\n' "$existing" | grep -Fxq "$n" && return 0
+  done
+  [ -f "$INIT_MARKER" ] && return 0
+  return 1
+}
+_incremental_done && echo "[init] 增量门：检测到已存在的 nim-* combo 或 marker" || echo "[init] 首次初始化"
+
+touch "$INIT_MARKER"
+echo "[init] done. RPM=$_RPM concurrent=$_CONCURRENT profile=$_PROFILE"
+```
+
+---
+
+### **E. litestream.yml**
+
+```yaml
+# Litestream v0.5.9 —— R2（S3 兼容）复制配置
+# 修复：v0.5.9 解决 R2 InvalidContentEncoding；关闭激进 auto-recover PITR 语义。
+dbs:
+  - path: /data/storage.sqlite
+    replicas:
+      - type: s3
+        bucket: ${R2_BUCKET}
+        path: omniroute/storage
+        endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+        region: auto
+        access-key-id: ${R2_ACCESS_KEY_ID}
+        secret-access-key: ${R2_SECRET_ACCESS_KEY}
+        force-path-style: true
+        # 保守保留策略：24h 快照 + 明确 sync 间隔，避免频繁小对象写放大
+        retention: 24h
+        retention-check-interval: 1h
+        sync-interval: 10s
+        snapshot-interval: 1h
+```
+
+---
+
+### **部署现实提醒（本轮查证的关键约束）**
+
+在应用以上脚本前，必须正视一个刚发生的变化：**2026 年 7 月 8 日起，HF 已将 CPU-basic Docker/Gradio Space 的新建移至 Pro（\$9/月），且此前 4—7 月已多次静默收紧 CPU-basic 配额，官方在论坛的回复方向一致是"升级 Pro"**。 [HF Forums](https://discuss.huggingface.co/t/docker-sdk-now-marked-as-paid-when-creating-a-new-space/177580)
+
+因此：
+
+- 若你**已有旧的免费 Docker Space**，上述脚本可直接部署运行，短期无碍；
+- 若你**需要新建 Space**承载这套 OmniRoute+NIM，免费路径已不可用，需 Pro；
+- 建议单账号运行，不要多账号绕开限制，风控与封号风险在当前收紧期只增不减。
+
+---
+
+### **仍需你实测确认的三处**
+
+由于以下字段/行为基于文档与社区推断，不能当作 3.8.43 的既定契约，请在隔离副本中先验证：
+
+第一，`gate.js` 的 `pathRewrite` 在你所用 `http-proxy-middleware` 版本下的实际转发路径，用 `curl /v1/models` 验证不出现 `/v1/v1`。第二，`apply_resilience` 中 `providerBreaker` 与 `connectionCooldown` 的字段名和 `/api/settings/resilience` 端点是否被 3.8.43 接受——脚本已内置 PUT 后读回打印，请核对返回体是否真的写入了这两层。第三，`/api/combos` 的响应结构（`.combos[]` vs 顶层数组）在你的实例上的实际形态，`upsert_combo` 与增量门都依赖它。
+
+这三点确认无误后，这套脚本即为锁定 3.8.43、限流保守、命名安全、Gate 收紧、健康检查基于时间戳、进程受监督、Resilience 分层完整的可用版本。
+
+
+
+
+
+### **锁定 3.8.43 版最终修正方案（v4.3.0）**
+
+在动手改代码前，先复核一个前提：你当前的部署环境已经发生了实质变化——HF 从 7 月 8 日起将新建 Docker/CPU-basic Space 移到 Pro 之后，这意味着这套脚本未来更可能运行在**已有的旧 Space 或 Pro 账号**上，而不是随意新建的免费环境。这不影响脚本本身逻辑，但决定了你不该再假设"资源随时可扩容"，保守限流和单点故障防护应当是默认姿态，而不是可选项。
+
+以下版本综合了此前所有讨论中被交叉验证过的修正点，标注了每一处改动的依据，避免引入未经证实的臆测。
+
+---
+
+### **一、entrypoint.sh —— 时间戳化健康等待 + 进程监督**
+
+```sh
+#!/bin/sh
+set -e
+
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+[ -z "$EXPOSED_PORT" ] && EXPOSED_PORT=7860
+[ -z "$DATA_DIR" ] && DATA_DIR=/data
+[ -z "$CALL_LOGS_TABLE_MAX_ROWS" ] && CALL_LOGS_TABLE_MAX_ROWS=100000
+[ -z "$PROXY_LOGS_TABLE_MAX_ROWS" ] && PROXY_LOGS_TABLE_MAX_ROWS=100000
+
+echo "[entrypoint] starting OmniRoute via /app/server.js..."
+echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT EXPOSED_PORT=$EXPOSED_PORT DATA_DIR=$DATA_DIR"
+
+# ── Litestream restore（启动前恢复 DB）──
+# 注意：-if-replica-exists 静默跳过不存在的副本；首次部署这是预期行为，
+# 但若你确认副本应该存在却仍走了这条分支，需要人工核查 R2 配置，而非默认视为正常。
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] R2 creds found. Litestream restore..."
+  litestream restore -config /litestream.yml -if-replica-exists "$DATA_DIR/storage.sqlite" \
+    && echo "[entrypoint] restore complete." \
+    || echo "[entrypoint] WARN: restore failed or no replica. Continuing."
+else
+  echo "[entrypoint] WARN: R2 creds not set. Skip restore."
+fi
+
+PORT="$OMNIROUTE_PORT" \
+DATA_DIR="$DATA_DIR" \
+REQUIRE_API_KEY=true \
+HOSTNAME=127.0.0.1 \
+NIM_MODE="$NIM_MODE" \
+NODE_OPTIONS="--max-old-space-size=4096" \
+DISABLE_SQLITE_AUTO_BACKUP=true \
+PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
+CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
+PROXY_LOGS_TABLE_MAX_ROWS="$PROXY_LOGS_TABLE_MAX_ROWS" \
+JWT_SECRET="$JWT_SECRET" \
+API_KEY_SECRET="$API_KEY_SECRET" \
+OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
+INITIAL_PASSWORD="$INITIAL_PASSWORD" \
+node /app/server.js --log &
+OR_PID=$!
+echo "[entrypoint] OmniRoute PID=$OR_PID"
+
+# ── 【修正 A】用绝对截止时间戳代替计数器循环 ──
+# 依据：容器调度暂停（cgroup throttle / 宿主机负载）会导致计数器循环的 sleep 总时长
+# 与真实墙钟时间脱节，可能误判超时或误判未超时。改用 date +%s 计算的截止时刻更可靠。
+DEADLINE=$(( $(date +%s) + 180 ))
+echo "[entrypoint] waiting for health (deadline $(date -d @$DEADLINE 2>/dev/null || echo $DEADLINE))..."
+while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+  kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited early"; exit 1; }
+  curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1 \
+    && { echo "[entrypoint] ready."; break; }
+  sleep 2
+done
+[ "$(date +%s)" -ge "$DEADLINE" ] && { echo "[entrypoint] FATAL: not ready within timeout"; exit 1; }
+
+# ── 版本护栏（只告警不中断）──
+EXPECTED_OR_VERSION="${EXPECTED_OR_VERSION:-3.8.43}"
+_OR_VER=$(curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" 2>/dev/null | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+echo "[entrypoint] base version: $_OR_VER (expected $EXPECTED_OR_VERSION)"
+if [ "$_OR_VER" != "$EXPECTED_OR_VERSION" ] && [ "$_OR_VER" != "unknown" ]; then
+  echo "[entrypoint] ⚠️ WARN: 版本($_OR_VER)与期望($EXPECTED_OR_VERSION)不一致——疑似 FROM 漂移。"
+fi
+
+echo "[entrypoint] running NIM init in background..."
+bash /entrypoint-init-nim.sh &
+INIT_PID=$!
+
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  echo "[entrypoint] OMNIROUTE_API_KEY set, env-bypass 模式，跳过等待 .or-api-key。"
+else
+  echo "[entrypoint] waiting for OR_API_KEY (max 120s)..."
+  KEY_DEADLINE=$(( $(date +%s) + 120 ))
+  while [ "$(date +%s)" -lt "$KEY_DEADLINE" ]; do
+    [ -f "/data/.or-api-key" ] && [ -s "/data/.or-api-key" ] && { echo "[entrypoint] OR_API_KEY ready"; break; }
+    kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited waiting key"; exit 1; }
+    sleep 2
+  done
+  [ ! -s "/data/.or-api-key" ] && { echo "[entrypoint] FATAL: OR_API_KEY not created"; exit 1; }
+fi
+
+export NODE_OPTIONS="--max-old-space-size=4096"
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] Starting Litestream replication..."
+  litestream replicate -config /litestream.yml &
+  LITESTREAM_PID=$!
+  echo "[entrypoint] Litestream PID=$LITESTREAM_PID"
+else
+  echo "[entrypoint] WARN: Litestream replication disabled (no R2 creds)."
+fi
+
+# ── 【修正 B】进程监督：gate.js 成为容器 PID 1（前台 exec）后，
+# OmniRoute(OR_PID) 崩溃不会让容器退出，HEALTHCHECK 也只探测 gate 自身的 /healthz，
+# 如果 gate 的 /healthz 逻辑够严格（转发探测到 OR_PORT），Docker 的 unhealthy 状态
+# 仍可能触发编排层重启；但在 HF Space 这种没有 orchestrator 主动重启策略的环境下，
+# 保守起见增加一个后台看门狗，OR_PID 或 Litestream 异常退出时主动终止容器，
+# 让 HF 的 Space 重启机制介入，而不是让 gate 假装存活、后端已死。
+(
+  while kill -0 "$OR_PID" 2>/dev/null; do sleep 5; done
+  echo "[entrypoint] FATAL: OmniRoute(PID=$OR_PID) exited unexpectedly. Killing container."
+  kill -TERM 1 2>/dev/null
+) &
+
+echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
+exec node /gate/gate.js
+```
+
+**改动依据**：健康等待时间戳化、进程看门狗，都源自本轮讨论中"容器调度暂停导致计数器误判"和"Gate 成为 PID 1 时后端崩溃不会触发重启"这两个被交叉确认的正确性问题。
+
+---
+
+### **二、gate.js —— 收紧暴露面**
+
+```js
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const fs = require('fs');
+
+const app = express();
+const INTERNAL_PSK = process.env.INTERNAL_PSK;
+const OR_PORT = parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
+const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
+
+if (!INTERNAL_PSK) {
+  console.error('[gate] FATAL: INTERNAL_PSK not set. HF Space Secret 必须配置。');
+  process.exit(1);
+}
+let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
+if (!OR_API_KEY) {
+  try { OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim(); }
+  catch (e) { if (e.code !== 'ENOENT') console.error('[gate] WARN read key failed:', e.message); }
+}
+if (!OR_API_KEY) {
+  console.error('[gate] FATAL: No OR_API_KEY (env nor file).');
+  process.exit(1);
+}
+
+app.get('/healthz', async (req, res) => {
+  const r = await fetch(`http://127.0.0.1:${OR_PORT}/api/monitoring/health`).catch(() => null);
+  r?.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
+});
+
+// ── 【修正 C】白名单机制：仅放行 /healthz 与 /v1，其余（包括 /dashboard、
+// /api/management 等）一律 404。此前版本仅对 /v1 做鉴权，其余路径无条件转发，
+// 导致 Dashboard 和管理 API 对外暴露。
+const ALLOWED_PREFIXES = ['/v1', '/v1beta'];
+app.use((req, res, next) => {
+  if (req.path === '/healthz') return next();
+  if (ALLOWED_PREFIXES.some(p => req.path.startsWith(p))) return next();
+  return res.status(404).json({ error: 'not_found' });
+});
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/v1') && !req.path.startsWith('/v1beta')) return next();
+  const bearer = (req.headers.authorization || '').replace('Bearer ', '');
+  if (bearer !== INTERNAL_PSK) return res.status(401).json({ error: 'unauthorized' });
+  req.headers.authorization = `Bearer ${OR_API_KEY}`;
+  next();
+});
+
+app.use('/', createProxyMiddleware({ target: `http://127.0.0.1:${OR_PORT}`, changeOrigin: true }));
+app.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] listening on 0.0.0.0:${GATE_PORT} -> 127.0.0.1:${OR_PORT}, allowed=${ALLOWED_PREFIXES.join(',')}`);
+});
+```
+
+---
+
+### **三、init-nim-keys.sh 核心增量补丁（v4.3.0）**
+
+以下只列出相对原 v4.2.3 需要替换的关键段落，其余部分（探针、日志归档等）保持不变。
+
+**1. 保守限流默认值，替换按 Key 数线性扩容逻辑**
+
+```sh
+# ══ 【修正 D】限流：默认保守整形，仅显式开关才按 Key 数扩容 ═══════════
+# 依据：NIM 免费层社区实测基线约 40 RPM，且官方论坛明确不受理个人免费账户提额；
+# 多 Key 线性叠加在实践中被反复验证会导致频繁 429，而非提升有效吞吐。
+_count_alive_keys() { printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l; }
+_ALIVE_KEYS=$(_count_alive_keys)
+
+if [ "${NIM_SCALE_WITH_KEYS:-0}" = "1" ]; then
+  _PER_KEY_RPM=${NIM_PER_KEY_RPM:-35}
+  _RPM=$(( _ALIVE_KEYS * _PER_KEY_RPM ))
+  [ "$_RPM" -gt 300 ] && _RPM=300
+  _CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-3} ))
+else
+  _RPM=${NIM_CONSERVATIVE_RPM:-28}
+  _CONCURRENT=${NIM_CONSERVATIVE_CONCURRENT:-1}
+fi
+[ "$_RPM" -lt 1 ] && _RPM=1
+[ "$_CONCURRENT" -lt 1 ] && _CONCURRENT=1
+_MIN_INTERVAL_MS=$(( 60000 / (_RPM > 0 ? _RPM : 1) ))
+echo "[init] alive_keys=$_ALIVE_KEYS scale_with_keys=${NIM_SCALE_WITH_KEYS:-0} -> RPM=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms"
+```
+
+**2. 修正模型前缀判断（NVIDIA 命名空间自身模型会被误加双前缀）**
+
+```sh
+# ══ 【修正 E】nim_route_model：判断已带前缀应看是否已有两段式路径，
+# 而非只看是否以 "nvidia/" 开头 —— 因为 NVIDIA 目录中本身就存在
+# "nvidia/nemotron-3-super-120b-a12b" 这类模型，其裸名已含 "nvidia/" 段。
+# 正确判断标准是"路径段数"：裸模型名固有格式为 vendor/model（含且仅含一个斜杠
+# 之外，可能有子路径），OmniRoute 路由前缀是在最外层再加一层 "nvidia/"。
+# 因此应检查是否已经是 "nvidia/<vendor>/<model>" 三段式，而非简单判断首段。
+nim_route_model() {
+  local m="$1"
+  case "$m" in
+    nvidia/*/*) printf '%s' "$m" ;;   # 已是三段式（已带路由前缀），原样返回
+    *) printf 'nvidia/%s' "$m" ;;     # 裸模型名（含厂商/型号两段），补路由前缀
+  esac
+}
+models_to_json() {
+  local m; for m in "$@"; do :; done
+  printf '%s\n' "$@" | while IFS= read -r m; do nim_route_model "$m"; done | jq -R '{model: .}' | jq -s -c .
+}
+```
+
+**3. 增量门检测扩展到全部四个 Combo（修复漏拆分 Bug）**
+
+```sh
+# ══ 【修正 F】增量门：原判据只检查 nim-pool/nim-codex，
+# 拆分为四 Combo 后新增的 nim-stable/nim-fast 永远不会被判定为"已存在"，
+# 导致它们在增量模式下被反复当作 first-init 处理。改为检查全部四个名字。
+if [ -f "$_DB_PATH" ]; then
+  COMBO_COUNT=$(sqlite3 "$_DB_PATH" \
+    "SELECT COUNT(*) FROM combos WHERE name IN ('nim-pool','nim-codex','nim-stable','nim-fast');" 2>/dev/null || echo 0)
+  if [ "${COMBO_COUNT:-0}" -gt 0 ] || [ -f "$INIT_MARKER" ]; then
+    echo "[init] Incremental mode."
+    purge_proxy_db
+    sqlite3 "$_DB_PATH" "DELETE FROM domain_circuit_breakers WHERE cooldown_until < datetime('now');" 2>/dev/null || true
+    check_nim_model_health
+    nim_probe
+    mapfile -t POOL_ALIVE    < <(filter_alive "${NIM_POOL_MODELS[@]}")
+    mapfile -t CODEX_ALIVE   < <(filter_alive "${NIM_CODEX_MODELS[@]}")
+    mapfile -t STABLE_ALIVE  < <(filter_alive "${TIER_STABLE[@]}")
+    mapfile -t FAST_ALIVE    < <(filter_alive "${NIM_FAST_MODELS[@]}")
+    upsert_combo "nim-pool"   "$_POOL_STRATEGY"   "${POOL_ALIVE[@]}"
+    upsert_combo "nim-codex"  "$_CODEX_STRATEGY"  "${CODEX_ALIVE[@]}"
+    upsert_combo "nim-stable" "priority"          "${STABLE_ALIVE[@]}"
+    upsert_combo "nim-fast"   "round-robin"        "${FAST_ALIVE[@]}"
+    context_accumulator_update
+    hf_snapshot
+    echo "[init] Done (incremental). v4.3.0"
+    exit 0
+  fi
+fi
+```
+
+**4. Context Override 改走 API，SQL 仅作降级兜底**
+
+```sh
+# ══ 【修正 G】优先走 /api/provider-models 更新 real_context，
+# 直写 model_context_overrides 表依赖具体表结构，一旦 migration 调整字段
+# 会静默失效或写入错误结构。API 路径由应用层负责契约稳定性，更可靠。
+# 若 API 不支持该字段（PATCH 后读回校验），才降级到 SQL 直写并打印明确警告。
+apply_context_override() {
+  local _model="$1" _ctx="$2" _routed _resp _code _readback
+  _routed=$(nim_route_model "$_model")
+  _resp="$(_resp omniroute-ctx-override-$(echo "$_model" | tr '/' '-').json)"
+  _code=$(curl -s -o "$_resp" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X PATCH "$BASE_URL/api/provider-models" -H "Content-Type: application/json" \
+    -d "$(jq -n --arg provider "nvidia" --arg modelId "$_model" --argjson ctx "$_ctx" \
+         '{provider:$provider, modelId:$modelId, contextLength:$ctx}')")
+  if [ "$_code" = "200" ] || [ "$_code" = "201" ]; then
+    _readback=$(jq -r '.contextLength // empty' "$_resp" 2>/dev/null)
+    if [ "$_readback" = "$_ctx" ]; then
+      OVERRIDE_APPLIED=$((OVERRIDE_APPLIED+1)); return 0
+    fi
+    echo "[init]   WARN: API 写入未读回预期值($_model)，回退 SQL。"
+  else
+    echo "[init]   WARN: /api/provider-models PATCH HTTP $_code($_model)，回退 SQL。"
+  fi
+  if sqlite3 "$_DB_PATH" \
+    "INSERT OR REPLACE INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
+     VALUES ('nvidia', '$(sql_escape "$_model")', $_ctx, 'manual-fallback', datetime('now'));" 2>/dev/null; then
+    OVERRIDE_APPLIED=$((OVERRIDE_APPLIED+1))
+  else
+    OVERRIDE_SKIPPED=$((OVERRIDE_SKIPPED+1)); echo "[init]   override FAILED(both API+SQL): $_model"
+  fi
+}
+```
+
+**5. 增加搜索提供商配置（对应本轮讨论的检索能力落地）**
+
+```sh
+# ══ 【新增 H】配置 OmniRoute 原生 /v1/search 提供商，落地"多源+缓存"方案 ═══
+# 依据：官方 Wiki 确认 /v1/search 支持 Serper/Brave/Perplexity/Exa/Tavily 五家，
+# 内置自动故障转移与缓存；本节仅在提供了对应 API Key 时才注册，不强制要求全量配置。
+configure_search_providers() {
+  echo "[init] configuring search providers..."
+  local _body _code
+  if [ -n "$TAVILY_API_KEY" ]; then
+    _code=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/search/providers" -H "Content-Type: application/json" \
+      -d "$(jq -n --arg key "$TAVILY_API_KEY" '{provider:"tavily", apiKey:$key, priority:1}')")
+    echo "[init]   tavily -> HTTP $_code"
+  fi
+  if [ -n "$BRAVE_API_KEY" ]; then
+    _code=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/search/providers" -H "Content-Type: application/json" \
+      -d "$(jq -n --arg key "$BRAVE_API_KEY" '{provider:"brave", apiKey:$key, priority:2}')")
+    echo "[init]   brave -> HTTP $_code"
+  fi
+  [ -z "$TAVILY_API_KEY" ] && [ -z "$BRAVE_API_KEY" ] && echo "[init]   未配置任何搜索 Key，跳过（/v1/search 不可用）。"
+}
+```
+
+在首次初始化和增量模式的主流程末尾各加一行 `configure_search_providers`。
+
+---
+
+### **四、环境变量速查表（v4.3.0 新增/变更部分）**
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `NIM_SCALE_WITH_KEYS` | `0` | 显式开启才按 Key 数线性扩容 RPM |
+| `NIM_CONSERVATIVE_RPM` | `28` | 保守模式下的固定 RPM |
+| `NIM_CONSERVATIVE_CONCURRENT` | `1` | 保守模式下的固定并发 |
+| `TAVILY_API_KEY` / `BRAVE_API_KEY` | 空 | 配置后自动注册为搜索提供商 |
+| `EXPECTED_OR_VERSION` | `3.8.43` | 版本护栏比对基线 |
+
+---
+
+### **五、部署前必须验证的三项（不可跳过）**
+
+第一，`/api/provider-models` 的 PATCH 是否真的接受 `contextLength` 字段并生效，本轮查证未能拿到该端点的完整 Schema，脚本已内置读回校验和 SQL 降级，但你应该在测试环境里先跑一次确认哪条路径实际生效。第二，`nvidia/*/*` 的前缀判断逻辑基于 NVIDIA 目录中确实存在含命名空间的模型这一事实，建议对照你实际启用的模型清单跑一遍 `nim_route_model` 输出，确认没有模型被错误处理。第三，如果你计划新建任何 Space 来承载这套脚本，请先确认账号是否已被移入 Docker 付费门槛，而不是假设免费流程仍然可用。
+
+以上三处都是"文档或社区讨论支持但未被官方结构化文档完全确认"的地方，脚本已经做了防御性降级处理，但不能替代你在实际环境中的一次性验证。
+
+
+
+
+
+
+
+
+
+基于以上所有会话和最新查证，下面是锁定 OmniRoute **3.8.43** 的完整优化脚本。核心改动已在前序讨论中交叉验证，并针对当前 Hugging Face 免费 Docker Space 政策收紧的情况做了保守适配。
+
+---
+
+## **关键查证结论**
+
+| 项目 | 结论 | 来源 |
+|---|---|---|
+| OmniRoute 版本 | **3.8.43 是稳定基线**，3.8.45+ 存在 Turbopack 构建缺陷 | [GitHub Issue #6498](https://github.com/diegosouzapw/OmniRoute/issues/6498) |
+| NIM 免费层限速 | 约 **40 RPM**，官方论坛明确不支持个人免费账户提额 | [NVIDIA Forums](https://forums.developer.nvidia.com/t/request-for-nvidia-nim-api-rate-limit-increase-40-200-rpm/366330) |
+| OmniRoute 搜索能力 | 内置 `/v1/search`、`/v1/rerank`、`/v1/embeddings`，无需外部 SearXNG/Firecrawl 叠加 | [OmniRoute Wiki](https://github.com/diegosouzapw/OmniRoute/wiki/ro%E2%80%90Home) |
+| HF 免费 Docker Space | **2026.07.08 起新建 CPU-basic Docker/Gradio Space 需 Pro**，已有 Space 目前仍可运行 | [HF Forums](https://discuss.huggingface.co/t/docker-sdk-now-marked-as-paid-when-creating-a-new-space/177580) |
+
+---
+
+## **1. Dockerfile**
+
+```dockerfile
+# ── 基础镜像：钉死到验证过健康的 3.8.43，禁止浮动 latest ──────────
+# 根因：latest 会漂到 3.8.45+（默认 Turbopack 构建 + migration 117 表重建），
+#       导致 Next 服务进程静默无法 ready，entrypoint 健康等待空转卡在 starting。
+FROM diegosouzapw/omniroute:3.8.43@sha256:517c160643c56ad72e3e305458d961c9a4c87f711393c13020450f9f088d1570
+
+ENV OMNIROUTE_PORT=20128
+ENV EXPOSED_PORT=7860
+ENV DATA_DIR=/data
+
+# ── 跨版本防御 env（3.8.43 无害；若将来误漂到新版可避免静默 hang）──
+# Turbopack 逃生阀：强制走 webpack，绕开 3.8.45+ 的 Docker Turbopack 缓存 mmap 失败
+ENV OMNIROUTE_USE_TURBOPACK=0
+# 迁移安全阀：从旧库补多个 migration（含 117 表重建）时不触发 abort 刷屏中断
+ENV OMNIROUTE_MAX_PENDING_MIGRATIONS=0
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    python3 \
+    python3-pip \
+    sqlite3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── huggingface_hub（HF Dataset 配置快照上传）──────────────────────
+RUN pip3 install --no-cache-dir --break-system-packages huggingface_hub
+
+# ── Litestream v0.5.9（修复 R2 InvalidContentEncoding + auto-recover）──
+ARG LITESTREAM_VERSION=0.5.9
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/') && \
+    curl -fsSL \
+      "https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-${LITESTREAM_VERSION}-linux-${ARCH}.tar.gz" \
+    | tar -xz -C /usr/local/bin litestream && \
+    chmod +x /usr/local/bin/litestream && \
+    litestream version
+
+RUN mkdir -p /data && chmod 777 /data
+RUN rm -rf /app/data && ln -sf /data /app/data
+
+RUN mkdir -p /gate
+COPY package.json /gate/package.json
+COPY gate.js /gate/gate.js
+RUN cd /gate && npm install --omit=dev --silent
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+COPY init-nim-keys.sh /entrypoint-init-nim.sh
+RUN chmod +x /entrypoint-init-nim.sh
+
+COPY litestream.yml /litestream.yml
+
+EXPOSE 7860
+
+# ── 容器级健康检查：start-period 与 entrypoint 内部 180s 等待对齐 ──
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
+    CMD curl -sf http://127.0.0.1:7860/healthz || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+```
+
+---
+
+## **2. entrypoint.sh**
+
+```sh
+#!/bin/sh
+set -e
+
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+[ -z "$EXPOSED_PORT" ] && EXPOSED_PORT=7860
+[ -z "$DATA_DIR" ] && DATA_DIR=/data
+[ -z "$CALL_LOGS_TABLE_MAX_ROWS" ] && CALL_LOGS_TABLE_MAX_ROWS=100000
+[ -z "$PROXY_LOGS_TABLE_MAX_ROWS" ] && PROXY_LOGS_TABLE_MAX_ROWS=100000
+
+echo "[entrypoint] starting OmniRoute via /app/server.js..."
+echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT EXPOSED_PORT=$EXPOSED_PORT DATA_DIR=$DATA_DIR"
+
+# ── Litestream restore（启动前恢复 DB）──
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] R2 creds found. Litestream restore..."
+  litestream restore -config /litestream.yml -if-replica-exists "$DATA_DIR/storage.sqlite" \
+    && echo "[entrypoint] restore complete." \
+    || echo "[entrypoint] WARN: restore failed or no replica. Continuing."
+else
+  echo "[entrypoint] WARN: R2 creds not set. Skip restore."
+fi
+
+PORT="$OMNIROUTE_PORT" \
+DATA_DIR="$DATA_DIR" \
+REQUIRE_API_KEY=true \
+HOSTNAME=127.0.0.1 \
+NIM_MODE="$NIM_MODE" \
+NODE_OPTIONS="--max-old-space-size=4096" \
+DISABLE_SQLITE_AUTO_BACKUP=true \
+PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
+CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
+PROXY_LOGS_TABLE_MAX_ROWS="$PROXY_LOGS_TABLE_MAX_ROWS" \
+JWT_SECRET="$JWT_SECRET" \
+API_KEY_SECRET="$API_KEY_SECRET" \
+OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
+INITIAL_PASSWORD="$INITIAL_PASSWORD" \
+node /app/server.js --log &
+OR_PID=$!
+echo "[entrypoint] OmniRoute PID=$OR_PID"
+
+# ── 健康检查：使用 deadline 时间戳替代计数器，避免调度暂停导致误判 ──
+echo "[entrypoint] waiting for health (max 180s)..."
+DEADLINE=$(($(date +%s) + 180))
+while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+  kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited early"; exit 1; }
+  curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1 && { echo "[entrypoint] ready after $((180 - (DEADLINE - $(date +%s))))s"; break; }
+  sleep 2
+done
+[ "$(date +%s)" -ge "$DEADLINE" ] && { echo "[entrypoint] FATAL: not ready within timeout"; exit 1; }
+
+# ── 版本护栏（只告警不中断）──
+EXPECTED_OR_VERSION="${EXPECTED_OR_VERSION:-3.8.43}"
+_OR_VER=$(curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" 2>/dev/null | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+echo "[entrypoint] base version: $_OR_VER (expected $EXPECTED_OR_VERSION)"
+if [ "$_OR_VER" != "$EXPECTED_OR_VERSION" ] && [ "$_OR_VER" != "unknown" ]; then
+  echo "[entrypoint] ⚠️ WARN: version($_OR_VER) != expected($EXPECTED_OR_VERSION) — possible FROM drift."
+fi
+
+echo "[entrypoint] running NIM init in background..."
+bash /entrypoint-init-nim.sh &
+
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  echo "[entrypoint] OMNIROUTE_API_KEY set, env-bypass mode, skip waiting for .or-api-key."
+else
+  echo "[entrypoint] waiting for OR_API_KEY (max 120s)..."
+  KEY_DEADLINE=$(($(date +%s) + 120))
+  while [ "$(date +%s)" -lt "$KEY_DEADLINE" ]; do
+    [ -f "/data/.or-api-key" ] && [ -s "/data/.or-api-key" ] && { echo "[entrypoint] OR_API_KEY ready"; break; }
+    kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited waiting key"; exit 1; }
+    sleep 2
+  done
+  [ ! -s "/data/.or-api-key" ] && { echo "[entrypoint] FATAL: OR_API_KEY not created"; exit 1; }
+fi
+
+export NODE_OPTIONS="--max-old-space-size=4096"
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] Starting Litestream replication..."
+  litestream replicate -config /litestream.yml &
+  echo "[entrypoint] Litestream PID=$!"
+else
+  echo "[entrypoint] WARN: Litestream replication disabled (no R2 creds)."
+fi
+
+echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
+exec node /gate/gate.js
+```
+
+---
+
+## **3. gate.js（安全加固版）**
+
+```js
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const fs = require('fs');
+
+const app = express();
+const INTERNAL_PSK = process.env.INTERNAL_PSK;
+const OR_PORT = parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
+const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
+
+if (!INTERNAL_PSK) {
+  console.error('[gate] FATAL: INTERNAL_PSK not set. HF Space Secret 必须配置。');
+  process.exit(1);
+}
+
+let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
+if (!OR_API_KEY) {
+  try { OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim(); }
+  catch (e) { if (e.code !== 'ENOENT') console.error('[gate] WARN read key failed:', e.message); }
+}
+if (!OR_API_KEY) {
+  console.error('[gate] FATAL: No OR_API_KEY (env nor file).');
+  process.exit(1);
+}
+
+// ── 健康检查 ──
+app.get('/healthz', async (req, res) => {
+  const r = await fetch(`http://127.0.0.1:${OR_PORT}/api/monitoring/health`).catch(() => null);
+  r?.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
+});
+
+// ── 路径白名单：仅 /healthz 和 /v1 放行，其余直接 404 ──
+app.use((req, res, next) => {
+  if (req.path === '/healthz' || req.path.startsWith('/v1')) return next();
+  return res.status(404).json({ error: 'not found' });
+});
+
+// ── /v1 路径 PSK 鉴权并替换为真实 OR_API_KEY ──
+app.use('/v1', (req, res, next) => {
+  const bearer = (req.headers.authorization || '').replace('Bearer ', '');
+  if (bearer !== INTERNAL_PSK) return res.status(401).json({ error: 'unauthorized' });
+  req.headers.authorization = `Bearer ${OR_API_KEY}`;
+  next();
+});
+
+// ── 代理 /v1 到 OmniRoute ──
+app.use('/v1', createProxyMiddleware({
+  target: `http://127.0.0.1:${OR_PORT}`,
+  changeOrigin: true,
+  // 限制请求体大小，防止异常大请求压垮 OmniRoute
+  limit: '1mb',
+}));
+
+app.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] listening on 0.0.0.0:${GATE_PORT} -> 127.0.0.1:${OR_PORT}`);
+});
+```
+
+---
+
+## **4. init-nim-keys.sh（v4.3.0 优化版）**
+
+```sh
+#!/bin/bash
+set -eo pipefail
+
+# ─────────────────────────────────────────────────────────────
+# NIM OmniRoute initializer v4.3.0
+# 变更摘要：
+#   1. 限流：默认固定 28 RPM / 1 并发；仅 NIM_SCALE_WITH_KEYS=1 时按 Key 扩容
+#   2. 模型命名：统一通过 nim_route_model() 添加 nvidia/ 前缀，避免双重前缀
+#   3. 组合拆分：nim-stable / nim-fast / nim-pool / nim-codex
+#   4. 健康检查：多 Key 回退，避免单 Key 失效误判模型不可用
+#   5. 探针：默认关闭，仅 NIM_PROBE=1 时少量探测
+# ─────────────────────────────────────────────────────────────
+
+NIM_MODE="${NIM_MODE:-NORMAL}"
+LOG_DIR="/data/omni-data/log"
+if [ "$NIM_MODE" = "DEBUG" ]; then
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  INIT_LOG="$LOG_DIR/init_$(date +%Y%m%d_%H%M%S).log"
+  exec > >(tee -a "$INIT_LOG") 2>&1
+  echo "[init] 🛠️ NIM_MODE=DEBUG: log tee -> $INIT_LOG"
+  export APP_LOG_TO_FILE=true
+  export DISABLE_SQLITE_AUTO_BACKUP=true
+else
+  LOG_DIR="/tmp"
+fi
+_resp() { echo "$LOG_DIR/$1"; }
+
+# ── 强制关闭代理生态 ──────────────────────────────────────────
+export ONEPROXY_ENABLED=false
+export ENABLE_SOCKS5_PROXY=false
+export NEXT_PUBLIC_ENABLE_SOCKS5_PROXY=false
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy 2>/dev/null || true
+unset OMNIROUTE_RELAY_BACKEND BIFROST_BASE_URL 2>/dev/null || true
+
+# ── 端口配置 ──────────────────────────────────────────────────
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+BASE_URL="http://127.0.0.1:$OMNIROUTE_PORT"
+INIT_MARKER="/data/.init-done"
+OR_API_KEY_FILE="/data/.or-api-key"
+COOKIE_FILE="/tmp/omniroute-cookie.txt"
+
+LOGIN_RESP_FILE="$(_resp omniroute-login.json)"
+KEY_RESP_FILE="$(_resp omniroute-key-response.json)"
+PROVIDERS_FILE="$(_resp omniroute-providers.json)"
+RESILIENCE_RESP_FILE="$(_resp omniroute-resilience.json)"
+SETTINGS_RESP_FILE="$(_resp omniroute-settings.json)"
+COMPRESS_RESP_FILE="$(_resp omniroute-compress.json)"
+THINKING_RESP_FILE="$(_resp omniroute-thinking.json)"
+MEMORY_LEGACY_RESP_FILE="$(_resp omniroute-memory-legacy.json)"
+MEMORY_EXT_RESP_FILE="$(_resp omniroute-memory-ext.json)"
+COMBO_RESP_FILE="$(_resp omniroute-combo.json)"
+VERSION_FILE="$(_resp omniroute-version.json)"
+
+REGISTERED=0; SKIPPED=0; FAILED=0
+
+# ══ 模型分档 SSOT（对齐现行 NVIDIA 目录）═══════════════════════
+TIER_FAST=(
+  "z-ai/glm-5.2"
+  "deepseek-ai/deepseek-v4-flash"
+  "deepseek-ai/deepseek-v4-pro"
+  "meta/llama-3.3-70b-instruct"
+)
+TIER_STABLE=(
+  "nvidia/nemotron-3-super-120b-a12b"
+  "openai/gpt-oss-120b"
+  "qwen/qwen3.5-397b-a17b"
+  "mistralai/mistral-small-4-119b-2603"
+  "google/gemma-4-31b-it"
+)
+TIER_RESTRICTED=(
+  "moonshotai/kimi-k2.6"
+  "minimaxai/minimax-m2.7"
+  "mistralai/mistral-large-3-675b-instruct-2512"
+)
+
+_PROFILE="${NIM_PROFILE:-balanced}"
+case "$_PROFILE" in
+  fast)     NIM_POOL_MODELS=("${TIER_FAST[@]}") ;;
+  full)     NIM_POOL_MODELS=("${TIER_FAST[@]}" "${TIER_STABLE[@]}" "${TIER_RESTRICTED[@]}") ;;
+  *)        _PROFILE="balanced"; NIM_POOL_MODELS=("${TIER_FAST[@]}" "${TIER_STABLE[@]}") ;;
+esac
+echo "[init] NIM_PROFILE=$_PROFILE -> pool意向 ${#NIM_POOL_MODELS[@]} 个模型"
+
+NIM_CODEX_MODELS=(
+  "deepseek-ai/deepseek-v4-pro"
+  "openai/gpt-oss-120b"
+  "z-ai/glm-5.2"
+)
+NIM_FAST_MODELS=(
+  "deepseek-ai/deepseek-v4-flash"
+  "meta/llama-3.3-70b-instruct"
+  "google/gemma-4-31b-it"
+)
+NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" )
+
+# ══ 模型名规范化：统一加 nvidia/ 前缀，避免双重前缀 ═════════
+nim_route_model() {
+  local m="$1"
+  # NVIDIA 自家模型本身含 nvidia/ 命名空间，需用 /*/* 判断
+  case "$m" in
+    nvidia/*/*|nvidia/*) echo "$m" ;;
+    */*) echo "nvidia/$m" ;;
+    *) echo "nvidia/$m" ;;
+  esac
+}
+
+build_all_models() {
+  printf '%s\n' "${NIM_POOL_MODELS[@]}" "${NIM_CODEX_MODELS[@]}" "${NIM_EXTRA_MODELS[@]}" | awk '!seen[$0]++'
+}
+
+models_to_json() {
+  local out=()
+  for m in "$@"; do out+=("$(nim_route_model "$m")"); done
+  printf '%s\n' "${out[@]}" | jq -R '{model: .}' | jq -s -c .
+}
+
+# ══ combo 策略白名单（3.8.43 实测合法枚举，不含 quota-share）═════
+_VALID_STRATS="priority weighted round-robin context-relay fill-first p2c random least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized fusion"
+_is_valid_strat() { printf '%s' "$_VALID_STRATS" | grep -qw -- "$1"; }
+
+# ══ 幂等 upsert：存在则 PUT，不存在才 POST ═══════════════
+upsert_combo() {
+  local NAME="$1" STRAT="$2"; shift 2; local MODELS=("$@")
+  _is_valid_strat "$STRAT" || { echo "[init] upsert_combo: '$STRAT' 非法 -> round-robin"; STRAT="round-robin"; }
+  [ "${#MODELS[@]}" -eq 0 ] && { echo "[init] upsert_combo: $NAME 无存活模型，跳过。"; return 0; }
+  local BODY CID CODE F
+  BODY=$(jq -n --arg name "$NAME" --arg strat "$STRAT" \
+               --argjson models "$(models_to_json "${MODELS[@]}")" \
+               '{name:$name, strategy:$strat, models:$models}')
+  CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+        | jq -r --arg n "$NAME" '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
+  F="$(_resp omniroute-combo-$NAME.json)"
+  if [ -n "$CID" ]; then
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X PUT "$BASE_URL/api/combos/$CID" -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] upsert $NAME: existed -> PUT combos/$CID HTTP $CODE"
+  else
+    CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/combos" -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] upsert $NAME: new -> POST HTTP $CODE"
+  fi
+  [ "$CODE" != "200" ] && [ "$CODE" != "201" ] && cat "$F" || true
+}
+
+# ══ 限流策略：默认保守固定，仅显式开启时按 Key 扩容 ═══════════
+_ALIVE_KEYS=$(printf '%s\n' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l)
+NIM_SCALE_WITH_KEYS="${NIM_SCALE_WITH_KEYS:-0}"
+
+if [ "$NIM_SCALE_WITH_KEYS" = "1" ]; then
+  _PER_KEY_RPM=${NIM_PER_KEY_RPM:-28}
+  _RPM=$(( _ALIVE_KEYS * _PER_KEY_RPM ))
+  [ "$_RPM" -lt "$_PER_KEY_RPM" ] && _RPM=$_PER_KEY_RPM
+  [ "$_RPM" -gt 300 ] && _RPM=300
+  _CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-1} ))
+  [ "$_CONCURRENT" -lt 1 ] && _CONCURRENT=1
+else
+  # 保守默认：28 RPM / 1 并发 / ~2.14s 间隔
+  _RPM=${NIM_RPM:-28}
+  _CONCURRENT=${NIM_CONCURRENT:-1}
+fi
+
+[ "$_RPM" -gt 300 ] && _RPM=300
+_MIN_INTERVAL_MS=$(( 60000 / (_RPM > 0 ? _RPM : 1) ))
+echo "[init] alive_keys=$_ALIVE_KEYS scale_with_keys=$NIM_SCALE_WITH_KEYS -> RPM=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms"
+
+# 策略选择
+if [ "$_ALIVE_KEYS" -gt 1 ] && [ "$NIM_SCALE_WITH_KEYS" = "1" ]; then
+  _POOL_STRATEGY="${NIM_POOL_STRATEGY:-p2c}"
+else
+  _POOL_STRATEGY="round-robin"
+fi
+_is_valid_strat "$_POOL_STRATEGY" || { echo "[init] WARN: pool strategy '$_POOL_STRATEGY' 非法，回退 round-robin"; _POOL_STRATEGY="round-robin"; }
+
+_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-priority}"
+_is_valid_strat "$_CODEX_STRATEGY" || { echo "[init] WARN: codex strategy '$_CODEX_STRATEGY' 非法，回退 round-robin"; _CODEX_STRATEGY="round-robin"; }
+
+_STABLE_STRATEGY="${NIM_STABLE_STRATEGY:-priority}"
+_FAST_STRATEGY="${NIM_FAST_STRATEGY:-round-robin}"
+
+_STICKY_LIMIT=1
+_COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
+_COMPRESS_MODE="stacked"
+_THINKING_MODE="adaptive"
+_THINKING_BUDGET=8000
+_NIM_REAL_CONTEXT=${CONTEXT_LENGTH_DEFAULT:-32768}
+echo "[init] pool=$_POOL_STRATEGY | codex=$_CODEX_STRATEGY | stable=$_STABLE_STRATEGY | fast=$_FAST_STRATEGY"
+
+# ──
+
+

@@ -1,3 +1,215 @@
+## Dockerfile
+
+```Dockerfile
+# ── 基础镜像：钉死到验证过健康的 3.8.43，禁止浮动 latest ──────────
+# 根因：latest 会漂到 3.8.46（默认 Turbopack 构建 + migration 117 表重建），
+#       导致 Next 服务进程静默无法 ready，entrypoint 健康等待空转卡在 starting。
+# 拿 digest：docker pull diegosouzapw/omniroute:3.8.43
+#           docker inspect --format='{{index .RepoDigests 0}}' diegosouzapw/omniroute:3.8.43
+# 用 tag+digest 双写：digest 保证不可变，tag 便于人读。
+# FROM diegosouzapw/omniroute:3.8.43@sha256:517c160643c56ad72e3e305458d961c9a4c87f711393c13020450f9f088d1570
+# FROM diegosouzapw/omniroute:3.8.46@sha256:3e254b91fffa9aa20e244b3bce89c1390fa32b1d35efa4e5b3823eec10450bd4
+FROM diegosouzapw/omniroute:3.8.43@sha256:517c160643c56ad72e3e305458d961c9a4c87f711393c13020450f9f088d1570
+
+ENV OMNIROUTE_PORT=20128
+ENV EXPOSED_PORT=7860
+ENV DATA_DIR=/data
+
+# ── 跨版本防御 env（3.8.43 无害；若将来误漂到新版可避免静默 hang）──
+# Turbopack 逃生阀：强制走 webpack，绕开 3.8.45+ 的 Docker Turbopack 缓存 mmap 失败
+ENV OMNIROUTE_USE_TURBOPACK=0
+# 迁移安全阀：从旧库补多个 migration（含 117 表重建）时不触发 abort 刷屏中断
+ENV OMNIROUTE_MAX_PENDING_MIGRATIONS=0
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    python3 \
+    python3-pip \
+    sqlite3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── huggingface_hub（HF Dataset 配置快照上传）──────────────────────
+RUN pip3 install --no-cache-dir --break-system-packages huggingface_hub
+
+# ── Litestream v0.5.9（修复 R2 InvalidContentEncoding + auto-recover）──
+# asset 命名：litestream-{VER}-linux-{ARCH}.tar.gz（无 v 前缀，x86_64 非 amd64）
+ARG LITESTREAM_VERSION=0.5.9
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/') && \
+    curl -fsSL \
+      "https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-${LITESTREAM_VERSION}-linux-${ARCH}.tar.gz" \
+    | tar -xz -C /usr/local/bin litestream && \
+    chmod +x /usr/local/bin/litestream && \
+    litestream version
+
+RUN mkdir -p /data && chmod 777 /data
+RUN rm -rf /app/data && ln -sf /data /app/data
+
+RUN mkdir -p /gate
+COPY package.json /gate/package.json
+COPY gate.js /gate/gate.js
+RUN cd /gate && npm install --omit=dev --silent
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+COPY init-nim-keys.sh /entrypoint-init-nim.sh
+RUN chmod +x /entrypoint-init-nim.sh
+
+COPY litestream.yml /litestream.yml
+
+EXPOSE 7860
+
+# ── 容器级健康检查：start-period 与 entrypoint 内部 180s 等待对齐 ──
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
+    CMD curl -sf http://127.0.0.1:7860/healthz || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+```
+
+
+## entrypoint.sh
+
+```sh
+#!/bin/sh
+set -e
+
+[ -z "$OMNIROUTE_PORT" ] && OMNIROUTE_PORT=20128
+[ -z "$EXPOSED_PORT" ] && EXPOSED_PORT=7860
+[ -z "$DATA_DIR" ] && DATA_DIR=/data
+[ -z "$CALL_LOGS_TABLE_MAX_ROWS" ] && CALL_LOGS_TABLE_MAX_ROWS=100000
+[ -z "$PROXY_LOGS_TABLE_MAX_ROWS" ] && PROXY_LOGS_TABLE_MAX_ROWS=100000
+
+echo "[entrypoint] starting OmniRoute via /app/server.js..."
+echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT EXPOSED_PORT=$EXPOSED_PORT DATA_DIR=$DATA_DIR"
+
+# ── Litestream restore（启动前恢复 DB）──
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] R2 creds found. Litestream restore..."
+  litestream restore -config /litestream.yml -if-replica-exists "$DATA_DIR/storage.sqlite" \
+    && echo "[entrypoint] restore complete." \
+    || echo "[entrypoint] WARN: restore failed or no replica. Continuing."
+else
+  echo "[entrypoint] WARN: R2 creds not set. Skip restore."
+fi
+
+PORT="$OMNIROUTE_PORT" \
+DATA_DIR="$DATA_DIR" \
+REQUIRE_API_KEY=true \
+HOSTNAME=127.0.0.1 \
+NIM_MODE="$NIM_MODE" \
+NODE_OPTIONS="--max-old-space-size=4096" \
+DISABLE_SQLITE_AUTO_BACKUP=true \
+PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
+CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
+PROXY_LOGS_TABLE_MAX_ROWS="$PROXY_LOGS_TABLE_MAX_ROWS" \
+JWT_SECRET="$JWT_SECRET" \
+API_KEY_SECRET="$API_KEY_SECRET" \
+OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
+INITIAL_PASSWORD="$INITIAL_PASSWORD" \
+node /app/server.js --log &
+OR_PID=$!
+echo "[entrypoint] OmniRoute PID=$OR_PID"
+
+echo "[entrypoint] waiting for health (max 180s)..."
+i=0
+while [ "$i" -lt 180 ]; do
+  kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited early"; exit 1; }
+  curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1 && { echo "[entrypoint] ready after ${i}s"; break; }
+  sleep 2; i=$((i + 2))
+done
+[ "$i" -ge 180 ] && { echo "[entrypoint] FATAL: not ready within timeout"; exit 1; }
+
+# ── 版本护栏（只告警不中断）──
+EXPECTED_OR_VERSION="${EXPECTED_OR_VERSION:-3.8.43}"
+_OR_VER=$(curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" 2>/dev/null | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+echo "[entrypoint] base version: $_OR_VER (expected $EXPECTED_OR_VERSION)"
+if [ "$_OR_VER" != "$EXPECTED_OR_VERSION" ] && [ "$_OR_VER" != "unknown" ]; then
+  echo "[entrypoint] ⚠️ WARN: 版本($_OR_VER)与期望($EXPECTED_OR_VERSION)不一致——疑似 FROM 漂移。"
+fi
+
+echo "[entrypoint] running NIM init in background..."
+bash /entrypoint-init-nim.sh &
+
+if [ -n "$OMNIROUTE_API_KEY" ]; then
+  echo "[entrypoint] OMNIROUTE_API_KEY set, env-bypass 模式，跳过等待 .or-api-key。"
+else
+  echo "[entrypoint] waiting for OR_API_KEY (max 120s)..."
+  j=0
+  while [ "$j" -lt 120 ]; do
+    [ -f "/data/.or-api-key" ] && [ -s "/data/.or-api-key" ] && { echo "[entrypoint] OR_API_KEY ready"; break; }
+    kill -0 "$OR_PID" 2>/dev/null || { echo "[entrypoint] FATAL: OmniRoute exited waiting key"; exit 1; }
+    sleep 2; j=$((j + 2))
+  done
+  [ ! -s "/data/.or-api-key" ] && { echo "[entrypoint] FATAL: OR_API_KEY not created"; exit 1; }
+fi
+
+export NODE_OPTIONS="--max-old-space-size=4096"
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] Starting Litestream replication..."
+  litestream replicate -config /litestream.yml &
+  echo "[entrypoint] Litestream PID=$!"
+else
+  echo "[entrypoint] WARN: Litestream replication disabled (no R2 creds)."
+fi
+
+echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
+exec node /gate/gate.js
+```
+
+
+## gate.js
+
+```js
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const fs = require('fs');
+
+const app = express();
+const INTERNAL_PSK = process.env.INTERNAL_PSK;
+const OR_PORT = parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
+const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
+
+if (!INTERNAL_PSK) {
+  console.error('[gate] FATAL: INTERNAL_PSK not set. HF Space Secret 必须配置。');
+  process.exit(1);
+}
+let OR_API_KEY = (process.env.OMNIROUTE_API_KEY || '').trim();
+if (!OR_API_KEY) {
+  try { OR_API_KEY = fs.readFileSync('/data/.or-api-key', 'utf8').trim(); }
+  catch (e) { if (e.code !== 'ENOENT') console.error('[gate] WARN read key failed:', e.message); }
+}
+if (!OR_API_KEY) {
+  console.error('[gate] FATAL: No OR_API_KEY (env nor file).');
+  process.exit(1);
+}
+
+app.get('/healthz', async (req, res) => {
+  const r = await fetch(`http://127.0.0.1:${OR_PORT}/api/monitoring/health`).catch(() => null);
+  r?.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
+});
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/v1')) return next();
+  const bearer = (req.headers.authorization || '').replace('Bearer ', '');
+  if (bearer !== INTERNAL_PSK) return res.status(401).json({ error: 'unauthorized' });
+  req.headers.authorization = `Bearer ${OR_API_KEY}`;
+  next();
+});
+
+app.use('/', createProxyMiddleware({ target: `http://127.0.0.1:${OR_PORT}`, changeOrigin: true }));
+app.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] listening on 0.0.0.0:${GATE_PORT} -> 127.0.0.1:${OR_PORT}`);
+});
+```
+
+
+## init-nim-keys.sh
+
+```sh
 #!/bin/bash
 set -eo pipefail
 
@@ -9,7 +221,7 @@ set -eo pipefail
 #              取代 v4.2.1 继承的 "DEBUG log 不入 Dataset" 旧策略。
 # 继承 v4.2.2：⑦ 幂等 upsert_combo ⑧ 增量门放宽（任一 nim-* combo 或 INIT_MARKER）。
 # 继承 v4.2.1：① 移除 quota-share/主池 p2c+白名单 ② nim-codex 响应体打印
-#              ⑤ 增量只清过期熔断 ⑥ context_recommendations 累积推荐（被动观测）。
+#              ④ 可选探针 NIM_PROBE ⑤ 增量只清过期熔断 ⑥ context_recommendations 累积推荐（被动观测）。
 # ─────────────────────────────────────────────────────────────
 
 # ══ 单变量调试 + 日志归档（stdout 实时 tee；DEBUG 时另上传 Dataset，见⑨）═══════
@@ -47,6 +259,9 @@ PROVIDERS_FILE="$(_resp omniroute-providers.json)"
 RESILIENCE_RESP_FILE="$(_resp omniroute-resilience.json)"
 SETTINGS_RESP_FILE="$(_resp omniroute-settings.json)"
 COMPRESS_RESP_FILE="$(_resp omniroute-compress.json)"
+THINKING_RESP_FILE="$(_resp omniroute-thinking.json)"
+MEMORY_LEGACY_RESP_FILE="$(_resp omniroute-memory-legacy.json)"
+MEMORY_EXT_RESP_FILE="$(_resp omniroute-memory-ext.json)"
 COMBO_RESP_FILE="$(_resp omniroute-combo.json)"
 VERSION_FILE="$(_resp omniroute-version.json)"
 
@@ -151,6 +366,8 @@ _FALLBACK_STRATEGY="round-robin"
 _STICKY_LIMIT=1
 _COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
 _COMPRESS_MODE="stacked"
+_THINKING_MODE="adaptive"
+_THINKING_BUDGET=8000
 _NIM_REAL_CONTEXT=${CONTEXT_LENGTH_DEFAULT:-32768}
 echo "[init] pool strategy=$_POOL_STRATEGY | codex strategy=$_CODEX_STRATEGY"
 
@@ -172,6 +389,15 @@ _PROXY_RELAY_HOST=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
 _PROXY_RELAY_PORT=${NIM_PROXY_RELAY_PORT:-20129}
 _DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+check_dangerous_env() {
+  echo "[init] check_dangerous_env: scanning relay/proxy env..."
+  local _hit=0
+  for v in OMNIROUTE_RELAY_BACKEND BIFROST_BASE_URL HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+    if [ -n "${!v}" ]; then echo "[init] ⚠️ DANGER: env $v=${!v} 已设置。"; _hit=1; fi
+  done
+  [ "$_hit" = "0" ] && echo "[init] check_dangerous_env: clean。"
+}
 
 purge_proxy_db() {
   [ "$_PURGE_PROXY" != "1" ] && { echo "[init] purge_proxy_db: skipped."; return 0; }
@@ -235,6 +461,37 @@ filter_alive() {
   for m in "$@"; do grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null || out+=("$m"); done
   printf '%s
 ' "${out[@]}"
+}
+
+# ══ 【④ 】轻量探针：默认关闭；NIM_PROBE=1 才跑 ═══════════════════
+nim_probe() {
+  [ "${NIM_PROBE:-0}" != "1" ] && { echo "[init] nim_probe: disabled (set NIM_PROBE=1 to enable)."; return 0; }
+  echo "[init] nim_probe: enabled — 每模型每小时限频 + 跨 key 轮换 (max_tokens=1)"
+  local PROBE_DIR="/tmp/nim-probe"; mkdir -p "$PROBE_DIR"
+  > /tmp/nim-probe-bad.txt
+  mapfile -t _KEYS < <(printf '%s
+' "$NIM_KEYS" | sed '/^[[:space:]]*$/d')
+  local _nkeys=${#_KEYS[@]}; [ "$_nkeys" -eq 0 ] && return 0
+  local _ki=0 m _stamp _now _last _key _code
+  _now=$(date +%s)
+  while IFS= read -r m; do
+    [ -z "$m" ] && continue
+    grep -Fxq "$m" /tmp/nim-deprecated.txt 2>/dev/null && continue
+    _stamp="$PROBE_DIR/$(echo "$m" | tr '/' '-').ts"
+    _last=$(cat "$_stamp" 2>/dev/null || echo 0)
+    if [ $(( _now - _last )) -lt 3600 ]; then
+      echo "[init]   probe skip $m（1h 内已探）"; continue
+    fi
+    _key="${_KEYS[$(( _ki % _nkeys ))]}"; _ki=$(( _ki + 1 ))
+    _code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+      -H "Authorization: Bearer ${_key}" -H "Content-Type: application/json" \
+      "https://integrate.api.nvidia.com/v1/chat/completions" \
+      -d "$(jq -n --arg mid "$m" '{model:$mid, max_tokens:1, messages:[{role:"user",content:"hi"}]}')" 2>/dev/null || echo "000")
+    echo "[init]   probe $m (key#$(( (_ki-1) % _nkeys ))) -> HTTP $_code"
+    echo "$_now" > "$_stamp"
+    [ "$_code" != "200" ] && echo "$m" >> /tmp/nim-probe-bad.txt
+    sleep 1
+  done < <(build_all_models)
 }
 
 # ══ 【⑥+ 上下文累积判读】跨 call_logs 淘汰周期保留每模型成功/失败口径 ═══
@@ -463,6 +720,7 @@ context_accumulator_update() {
 # ══════════════════════════════════════════════════════════════
 echo "[init] Starting NIM OmniRoute initializer v4.2.3 (profile=$_PROFILE, mode=$NIM_MODE)..."
 echo "[init] BASE_URL=$BASE_URL"
+check_dangerous_env
 
 [ -z "$INITIAL_PASSWORD" ] && { echo "[init] ERROR: INITIAL_PASSWORD required"; exit 1; }
 [ -z "$NIM_KEYS" ] && { echo "[init] ERROR: NIM_KEYS required"; exit 1; }
@@ -562,6 +820,24 @@ curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}
   -X PUT "$BASE_URL/api/settings/compression" -H "Content-Type: application/json" \
   -d "{\"enabled\":true,\"defaultMode\":\"$_COMPRESS_MODE\",\"autoTriggerTokens\":$_COMPRESS_THRESHOLD}" | sed 's/^/[init] Compression HTTP /'
 
+echo "[init] Thinking budget..."
+curl -s -o "$THINKING_RESP_FILE" -w "%{http_code}
+" -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/thinking-budget" -H "Content-Type: application/json" \
+  -d "{\"mode\":\"$_THINKING_MODE\",\"baseBudget\":$_THINKING_BUDGET}" | sed 's/^/[init] Thinking HTTP /'
+
+echo "[init] Memory legacy + Skills..."
+curl -s -o "$MEMORY_LEGACY_RESP_FILE" -w "%{http_code}
+" -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" -H "Content-Type: application/json" \
+  -d '{"memoryEnabled":true,"memoryStrategy":"hybrid","memoryMaxTokens":2000,"memoryRetentionDays":30,"skillsEnabled":true}' | sed 's/^/[init] Memory legacy HTTP /'
+
+echo "[init] Memory extended (static)..."
+curl -s -o "$MEMORY_EXT_RESP_FILE" -w "%{http_code}
+" -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/memory" -H "Content-Type: application/json" \
+  -d '{"embeddingSource":"static","staticEnabled":true,"transformersEnabled":false}' | sed 's/^/[init] Memory extended HTTP /'
+
 echo "[init] Resetting circuit breakers (first-init clean start)..."
 curl -s -o /dev/null -w "[init] CB reset HTTP %{http_code}
 " -b "$COOKIE_FILE" \
@@ -581,7 +857,7 @@ echo "[init] override: $OVERRIDE_APPLIED applied, $OVERRIDE_SKIPPED failed."
 
 echo "[init] ─────────────────────────────────────────────"
 echo "[init]   PROFILE=$_PROFILE MODE=$NIM_MODE KEYS=$_ALIVE_KEYS RPM=$_RPM BODY=$_REQUEST_BODY_LIMIT_MB MB"
-echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT"
+echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY PROBE=${NIM_PROBE:-0} REAL_CONTEXT=$_NIM_REAL_CONTEXT"
 echo "[init] ─────────────────────────────────────────────"
 
 hf_snapshot() {
@@ -625,6 +901,9 @@ hf_snapshot() {
       --arg real_context "$_NIM_REAL_CONTEXT" \
       --arg body_limit_mb "$_REQUEST_BODY_LIMIT_MB" \
       --arg compress_threshold "$_COMPRESS_THRESHOLD" \
+      --arg thinking_mode "$_THINKING_MODE" \
+      --arg thinking_budget "$_THINKING_BUDGET" \
+      --arg probe "${NIM_PROBE:-0}" \
       --arg per_key_rpm "${_PER_KEY_RPM}" \
       '{version:$version, profile:$profile, mode:$mode,
         tiers:{fast:$tier_fast, stable:$tier_stable, restricted:$tier_restricted},
@@ -634,7 +913,9 @@ hf_snapshot() {
                      per_key_rpm:($per_key_rpm|tonumber)},
         strategies:{pool:$pool_strategy, codex:$codex_strategy, fallback:$fallback_strategy},
         context:{real_context:($real_context|tonumber)},
-        limits:{body_mb:($body_limit_mb|tonumber), compress_threshold:($compress_threshold|tonumber)}}'; } > "$BACKUP_DIR/init_vars.json" \
+        limits:{body_mb:($body_limit_mb|tonumber), compress_threshold:($compress_threshold|tonumber)},
+        thinking:{mode:$thinking_mode, budget:($thinking_budget|tonumber)},
+        flags:{probe:($probe|tonumber)}}'; } > "$BACKUP_DIR/init_vars.json" \
     && echo "[init] snapshot: init_vars.json written" \
     || echo "[init] snapshot: WARN init_vars.json 写入失败"
 
@@ -676,6 +957,7 @@ if [ -f "$_DB_PATH" ]; then
     # ⑤ 只清"已过期"熔断，保留仍在冷却窗内的历史信号
     sqlite3 "$_DB_PATH" "DELETE FROM domain_circuit_breakers WHERE cooldown_until < datetime('now');" 2>/dev/null || true
     check_nim_model_health
+    nim_probe
     # ⑦ 增量也走幂等 upsert（同时修复 deprecated 与撞名）
     mapfile -t POOL_ALIVE  < <(filter_alive "${NIM_POOL_MODELS[@]}")
     mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
@@ -691,6 +973,7 @@ else
 fi
 
 check_nim_model_health
+nim_probe
 
 echo "[init] Registering models..."
 register_model() {
@@ -721,3 +1004,51 @@ HEALTH_FILE="$(_resp omniroute-final-health.json)"
 HEALTH_HTTP=$(curl -s -o "$HEALTH_FILE" -w "%{http_code}" "$BASE_URL/api/monitoring/health" 2>/dev/null || echo "000")
 [ "$HEALTH_HTTP" = "200" ] && echo "[init]   Status: $(jq -r '.status // "unknown"' "$HEALTH_FILE") / $(jq -r '.version // "unknown"' "$HEALTH_FILE")"
 echo "[init] Done (first-init). v4.2.3"
+```
+
+
+## litestream.yml
+
+```yml
+dbs:
+  - path: /data/storage.sqlite
+    replica:
+      type: s3
+      bucket: omniroute-data
+      path: db/storage.sqlite
+      endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      access-key-id: ${R2_ACCESS_KEY_ID}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY}
+      region: auto
+      sync-interval: 10s
+      auto-recover: true
+
+snapshot:
+  interval: 1h
+  retention: 24h
+```
+
+
+## package.json
+
+```json
+{
+  "name": "omniroute-gate",
+  "version": "4.2.3",
+  "private": true,
+  "description": "PSK auth gate in front of OmniRoute (HF Space :7860 -> :20128)",
+  "main": "gate.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node gate.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.3"
+  }
+}
+```
+
+

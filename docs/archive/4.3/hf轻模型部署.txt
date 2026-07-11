@@ -1,0 +1,2172 @@
+
+
+### **最优方案：以 OmniRoute 内置 `/v1/search` 为统一入口，用「多 Provider 免费额度轮换 + Firecrawl 抓取 + Rerank 重排」三段式提升搜索力，而非再叠加外部搜索栈**
+
+结合前面对话已确认的事实（OmniRoute 内置搜索、无需外部叠加 SearXNG/Firecrawl 层），这次搜索进一步查到了关键的**官方能力细节**和**社区实证的最佳实践**，可以把「提高搜索力」这件事落到具体、可验证的配置上。
+
+---
+
+### **查证到的关键新事实（修正/强化之前的判断）**
+
+之前对话结论是「OmniRoute 内置 `/v1/search`、无需外部搜索层」——这次在官方 Wiki 得到了更精确的口径：OmniRoute 的 `/v1/search` 内置 **5 家 Provider（Serper、Brave、Perplexity、Exa、Tavily）**，合计 **6,500+ 次/月免费额度**，并自带 **auto-failover（自动故障转移）和 cache（结果缓存）**；同时 `/v1/rerank` 做相关性重排、`/v1/embeddings` 支持 6 家 Provider、9+ 模型用于 RAG 管线。[GitHub](https://github.com/diegosouzapw/OmniRoute/wiki/ro%E2%80%90Home)
+
+这条信息很重要，因为它意味着**提升搜索力的第一杠杆不是换工具，而是把这几家 Provider 的 Key 都填进去、打开 failover 与 cache**——这与你在 NIM 侧「多 Key 池化轮换、总入口限速固定」的思路完全同构，可以直接复用同一套治理心智。
+
+---
+
+### **提高搜索力的三个层次（按投入产出排序）**
+
+**第一层：把 OmniRoute 原生 `/v1/search` 用满（零额外运维，最高优先级）**
+
+社区对 Provider 的定位高度一致，可据此分工而非二选一：
+
+| Provider | 定位 | 免费额度 | 适用场景 |
+|---|---|---|---|
+| Tavily | AI 优化、带 answer/内容抽取 | 约 1,000/月 | 多步研究、事实核查（质量最佳） |
+| Brave | 独立索引、隐私、最稳 | 约 2,000/月 | 通用查询、新闻（默认起点） |
+| Perplexity | 多源综合 + 引用 | 依计划 | 需要带引用的深度研究 |
+| Exa | 语义/神经检索 | 按量 | 概念相近但措辞不同的检索 |
+| Serper | Google 结果、快 | 按量 | 需要贴近 Google 排序 |
+
+做法是把这几家的 Key 全部配置到 OmniRoute 的 `search-tools`，让 auto-failover 在额度耗尽或超时时自动切换，cache 减少重复消耗。这样单靠免费额度叠加就有 6,500+/月，且对上游 Agent 只暴露一个 `/v1/search` 端点。[openclawlaunch.com](https://openclawlaunch.com/guides/openclaw-web-search) [Octoparse](https://www.octoparse.com/blog/openclaw-search-provider)
+
+**第二层：搜索与抓取分离（search 用 Tavily/Brave，extract 用自托管 Firecrawl）**
+
+社区反复提到的一个成本/质量陷阱：如果用 Tavily 同时做「搜索」和「网页抽取」，1,000 免费额度会被抽取快速吃光。更优结构是——**search 阶段用 Tavily/Brave 保证结果质量，extract/scrape 阶段改用自托管 Firecrawl（`FIRECRAWL_API_URL`）**，抽取量大且几乎零边际成本。这也正好呼应你之前「Firecrawl 不必做搜索层，但可做抓取层」的隐含分工。[GitHub](https://github.com/NousResearch/hermes-agent/issues/21003) [codenote.net](https://codenote.net/en/posts/tavily-alternatives-cost-comparison-search-extract-api)
+
+若追求极致自托管与隐私，SearXNG 仍是免费兜底（聚合 200+ 源、JSON 输出、自己掌控限流），适合内部工具场景；但 Google 查询易触发 CAPTCHA、商用条款处于灰区，建议只作 failover 末端而非主力。[codenote.net](https://codenote.net/en/posts/tavily-alternatives-cost-comparison-search-extract-api)
+
+**第三层：检索质量本身的提升——Hybrid Search + Rerank（这是"搜索力"的真正天花板）**
+
+如果你的目标不止是"联网查资料"，而是让 Agent 对自有知识库/抓取内容做高质量检索，那么单纯向量检索会明显丢分。业界当前的共识管线是：
+
+1. **Hybrid Search**：BM25（稀疏，擅长版本号、错误码、feature flag 等精确 token）+ 向量检索（稠密，擅长语义），用 **RRF（Reciprocal Rank Fusion）** 融合。纯向量对 `v3.8.43`、`ERR_xxx` 这类判别性 token 系统性偏弱，这恰恰是你这套脚本/日志场景的高频查询形态。[InfoQ](https://www.infoq.com/articles/vector-search-hybrid-retrieval-rag) [Superlinked](https://superlinked.com/blog/optimizing-rag-with-hybrid-search-reranking)
+2. **Overfetch + Rerank**：先多召回（如 top-50），再用 cross-encoder / LLM reranker 收敛到 top-k——直接调 OmniRoute 的 `/v1/rerank` 即可，无需再引第三方。
+3. **Query 理解**：query expansion / HyDE 弥补措辞鸿沟提升召回；再用 context compression 只喂信息密度高的 chunk。[Neo4j](https://neo4j.com/blog/genai/advanced-rag-techniques)
+
+推荐的落地顺序是：先稳住 embeddings+分块+reranker 建立 baseline → 加 Hybrid（BM25+向量 RRF）→ 再上 query expansion/HyDE → 最后做 context 蒸馏。[Neo4j](https://neo4j.com/blog/genai/advanced-rag-techniques)
+
+---
+
+### **给你这套部署的具体建议**
+
+考虑到你已有 OmniRoute 网关 + Gate 收窄 + NIM 池化的整体架构，"提高搜索力"的最省事且最稳的路径是：
+
+在 OmniRoute 侧配置 Tavily + Brave（+ 可选 Perplexity）三家 Key，打开 failover 与 cache，让 `/v1/search` 成为唯一搜索入口；把网页抽取指向自托管 Firecrawl，避免吃掉 Tavily 免费额度；对自有知识检索走 `/v1/embeddings` + `/v1/rerank` 组成 Hybrid+Rerank 管线。由于你之前已在 `gate.js` 收紧为只放行 `/v1` 与 `/healthz`，这些搜索/重排端点天然处于 `/v1` 白名单内，无需额外开洞。
+
+有一点需要你自行实测确认：官方 Wiki 列出的 5 家 Provider 名单和 6,500+/月额度对应的是 Wiki 当前版本，你锁定的是镜像 **3.8.43**，建议部署后用 `GET /api/search-tools`（或 Dashboard 搜索配置页）读回实际支持的 Provider 枚举与字段名，再据此填 Key——避免按文档猜测导致配置不生效。这与前面几轮"不盲信文档、PATCH 后读回验证"的原则一致。
+
+
+
+
+
+
+
+
+
+基于以上查证，以下是结合你的具体部署场景（OmniRoute v3.8.43 自托管在 HuggingFace Space、NVIDIA NIM 免费层、`init-nim-keys.sh` v4.2.3）得出的完整分析。
+
+---
+
+## **核心结论：OmniRoute 搜索层已自足，问题在于配置深度不足而非缺少工具**
+
+查证确认，OmniRoute v3.0.5 起正式引入 `/v1/search` 统一搜索路由，v3.8.x 的 MCP Server 文档明确列出 `omniroute_web_search` 工具，支持 Serper / Brave / Perplexity / Exa / Tavily / Google PSE / Linkup / SearchAPI / SearXNG 共 **9 个提供商**，带自动 failover 和内存缓存（request coalescing + TTL）。你的脚本目前完全没有配置这一层，等于把最有价值的能力留空了。 [OmniRoute Wiki - MCP Server](https://github.com/diegosouzapw/OmniRoute/wiki/MCP-Server) [OmniRoute Wiki - API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+---
+
+## **第一步：选对搜索提供商组合**
+
+这是影响搜索力最大的单一决策，需要在质量、成本、免费额度、延迟四个维度权衡。独立 benchmark（AIMultiple Agentic Search Benchmark 2026，100 条查询 × 8 个 API）给出了迄今最具参考价值的实测数据：**Brave Search 以 Agent Score 14.89 排名第一**，669ms 延迟也最低，优于 Tavily（13.67 分，998ms）。差距约 1 分，被判定为统计显著。 [AIMultiple Agentic Search](https://aimultiple.com/agentic-search) [o-mega.ai](https://o-mega.ai/articles/top-10-ai-search-apis-for-agents-2026)
+
+Brave 能跑出这个成绩，根本原因是它拥有自建索引（30 亿+ 页面，每日百万级更新），既不封装 Bing 也不封装 Google，没有中间商的额外延迟和反爬机制。对需要多样性结论或不想被单一索引限制的 Agent 任务，这是重要优势。需要注意的是，Brave 在 2026 年初悄然取消了纯免费档，新注册用户改为每月 \$5 抵用额度（约 1000 次查询），存量免费用户保持 2000 次/月。 [Firecrawl Blog](https://www.firecrawl.dev/blog/brave-search-api-alternatives)
+
+Tavily 是另一个值得保留的主力，它在**内容提取**上有独特优势：不止返回摘要，还能返回清洗过的正文 Markdown，适合需要精读原文的深度研究任务（但每次抽取会消耗额外 credit）。对以检索增强为主的 Agent 工作流，Tavily 比 Brave 更"全链路"。免费档 1000 credits/月，付费从 \$30/月起。 [codenote.net](https://codenote.net/en/posts/tavily-alternatives-cost-comparison-search-extract-api)
+
+**SearXNG 自托管**解决的是完全不同的问题——零成本、无额度限制、完全私有。但它的查询质量依赖你配置了哪些后端引擎：Google 子引擎在公共实例中 CAPTCHA 触发率高，Yandex 引擎在 2025 年底出现持续解析错误。对个人项目，SearXNG 的最大价值是作为 **fallback 保底层**，而非第一优先级。 [OpenWebUI Docs](https://docs.openwebui.com/features/chat-conversations/web-search/providers/searxng)
+
+基于以上，**推荐的提供商优先级**如下：
+
+| 优先级 | 提供商 | 用途定位 | 月免费额度 | 理由 |
+|---|---|---|---|---|
+| P1 主力 | Brave | 实时检索、快速问答 | ~1000 次（\$5 抵扣） | 独立索引，benchmark 最优，延迟最低 |
+| P1 主力 | Tavily | 深度研究、内容提取 | 1000 credits | 全链路 AI-optimized，内容质量高 |
+| P2 备用 | Serper | Google 结果补充 | 2500 次（一次性） | Google 索引覆盖深尾部查询，最便宜 |
+| P3 保底 | SearXNG | 本地离线 / 无凭证 failover | 无限（自托管） | 零成本，但需在同一 Space 或外部部署 |
+
+---
+
+## **第二步：在 init-nim-keys.sh 里完成搜索层配置**
+
+这是当前脚本最大的空白。OmniRoute 通过 `/api/settings` 的 `searchProviders` 字段（或 Dashboard → Endpoint → Search Tools）配置提供商列表，`/v1/search` 路由会按 failover 顺序依次尝试。需要在 `init-nim-keys.sh` 的初始化流程里补入以下逻辑：
+
+```bash
+# ══ 搜索提供商配置（幂等 patch，已有则只更新，不重复创建）════════
+configure_search_providers() {
+  echo "[init] configuring search providers..."
+
+  # 构造 provider 列表（按优先级排列，OmniRoute 会按顺序 failover）
+  local SEARCH_BODY
+  SEARCH_BODY=$(jq -n \
+    --arg brave_key  "${BRAVE_API_KEY:-}" \
+    --arg tavily_key "${TAVILY_API_KEY:-}" \
+    --arg serper_key "${SERPER_API_KEY:-}" \
+    --arg searxng_url "${SEARXNG_URL:-}" \
+    '{
+      searchProviders: [
+        (if $brave_key  != "" then {provider:"brave",  apiKey:$brave_key,  priority:1, enabled:true} else empty end),
+        (if $tavily_key != "" then {provider:"tavily", apiKey:$tavily_key, priority:2, enabled:true} else empty end),
+        (if $serper_key != "" then {provider:"serper", apiKey:$serper_key, priority:3, enabled:true} else empty end),
+        (if $searxng_url != "" then {provider:"searxng", baseUrl:$searxng_url, priority:4, enabled:true} else empty end)
+      ]
+    }')
+
+  local CODE
+  CODE=$(curl -s -o /tmp/search-cfg.json -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X PATCH "$BASE_URL/api/settings" \
+    -H "Content-Type: application/json" \
+    -d "$SEARCH_BODY")
+  echo "[init] search providers config: HTTP $CODE"
+  [ "$CODE" != "200" ] && cat /tmp/search-cfg.json || true
+
+  # 启用 search 缓存（TTL=300s，合并相同查询请求）
+  local CACHE_CODE
+  CACHE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X PATCH "$BASE_URL/api/settings" \
+    -H "Content-Type: application/json" \
+    -d '{"searchCache":{"enabled":true,"ttlSeconds":300,"coalescing":true}}')
+  echo "[init] search cache config: HTTP $CACHE_CODE"
+}
+```
+
+然后在主流程的 `upsert_combo` 调用之后插入：
+
+```bash
+configure_search_providers
+```
+
+`BRAVE_API_KEY`、`TAVILY_API_KEY`、`SERPER_API_KEY` 作为 HF Space Secret 注入。`SEARXNG_URL` 仅在你额外部署了 SearXNG 实例时填入（如 `http://searxng:8080`），否则留空即被过滤掉。
+
+---
+
+## **第三步：MCP 层开启 execute:search 权限**
+
+`omniroute_web_search` 是当前 MCP 工具里唯一需要 `execute:search` scope 的工具，但该 scope 不在 OmniRoute 的默认宽泛 key 中。需要在 `init-nim-keys.sh` 创建或更新 API Key 时显式加入：
+
+```bash
+# 在创建/更新 internal OR API Key 时，确保包含 execute:search
+# （原有 key 如需追加，用 PUT /api/keys/<id> 更新 scopes 字段）
+_key_scopes='["read:*","write:combos","write:resilience","execute:completions","execute:search","write:budget"]'
+```
+
+同时在 `gate.js` 的 PSK 校验通过后，确保转发给 OmniRoute 的请求不会剥离 `/v1/search` 路径（目前 gate 对非 `/v1` 路径返回 404 的方案需要保留 `/v1/search` 白名单，它已是 `/v1` 前缀，所以不受影响）。
+
+---
+
+## **第四步：MCP Server 对外开放给 Agent 客户端**
+
+这是把 `omniroute_web_search` 真正暴露给 Agent 的最后一步。OmniRoute MCP Server 默认只监听 loopback，v3.8.2 起允许携带 `manage` scope 的 Bearer key 从非 loopback 客户端连接。你的 Cline / Continue / RooCode 需要配置如下：
+
+```json
+{
+  "mcpServers": {
+    "omniroute": {
+      "url": "https://<your-hf-space>.hf.space/api/mcp/stream",
+      "headers": {
+        "Authorization": "Bearer <OR_API_KEY_WITH_MANAGE_SCOPE>"
+      }
+    }
+  }
+}
+```
+
+这样 Agent 在执行任务时可以直接调用 `omniroute_web_search`，而不需要另建任何外部搜索服务。
+
+---
+
+## **第五步：Rerank 加 Embeddings——搜索力的第二级放大**
+
+OmniRoute 同时暴露 `/v1/rerank` 和 `/v1/embeddings`，可以直接对接 NVIDIA NeMo Retriever 模型（你的 NIM 账号已有权限）。对 RAG 流水线的提升幅度远超换一个搜索 API：召回的候选文档先用 `/v1/rerank` 重排，再喂给 LLM，能有效消除"搜索结果相关但 LLM 读不到重点"的问题。
+
+NVIDIA 推荐的 rerank 模型是 `nvidia/llama-3.2-nv-rerankqa-1b-v2`（走 `/v1/ranking` 端点）或 `nvidia/llama-nemotron-rerank-vl-1b-v2`（支持文本+图像混合 passage，走 `/v1/retrieval/{model}/reranking`）。在 `init-nim-keys.sh` 里注册这些模型到 NIM Provider 之后，`/v1/rerank` 就直接可用，无需额外部署。 [NVIDIA NeMo Retriever Docs](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/overview.html)
+
+---
+
+## **你当前脚本需要补的最小集合**
+
+综合以上，不需要引入任何新的外部服务，**仅在现有脚本里补三件事**即可将搜索力从零提升到完备状态：
+
+`configure_search_providers()` 函数写入 `init-nim-keys.sh`，把 Brave/Tavily/Serper 的 API Key 配置进 OmniRoute（10 分钟完成）。API Key 的 scope 在创建时加入 `execute:search`（一行改动）。在 Agent 客户端的 MCP 配置里指向 OmniRoute 的 `/api/mcp/stream`，这样 `omniroute_web_search` 就能被 Agent 直接调用。
+
+SearXNG 自托管作为可选的 P3 保底，仅在你的 HF Space 能部署 sidecar 或有外部 VPS 时才值得折腾；否则 Brave+Tavily 的双主力在免费额度内已足够个人 Agent 使用。 [GitHub OmniRoute MCP Server Wiki](https://github.com/diegosouzapw/OmniRoute/wiki/MCP-Server)
+
+
+
+
+
+
+
+### **最适合你当前架构的方法，是把 OmniRoute 升级到支持原生搜索管线的稳定版本，并采用“多查询改写 → 双搜索源 → 去重融合 → Rerank → 定向抓取 → 引证回答”的两阶段检索；仅增加模型或堆更多搜索引擎，提升不会同样明显。**
+
+需要先纠正一个重要的版本事实：你当前锁定的 **OmniRoute 3.8.43 已经比早期具备 Search Tools 的版本新**，官方资料显示其原生提供 `/v1/search`、`/v1/rerank`、搜索缓存和多提供商自动故障转移。因此不必另建一套独立搜索网关；真正需要加强的是 Agent 侧的检索编排，以及验证 3.8.43 对 WebSearch/tool-search 的兼容性。 [OmniRoute Wiki](https://github.com/diegosouzapw/OmniRoute/wiki/ro%E2%80%90Home) [OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+### **推荐的搜索架构**
+
+```mermaid
+flowchart LR
+    U[用户问题] --> C{是否需要联网}
+    C -->|否| L[直接交给模型]
+    C -->|是| Q[意图识别与查询改写]
+
+    Q --> Q1[精确事实查询]
+    Q --> Q2[官方资料查询]
+    Q --> Q3[反向验证查询]
+
+    Q1 --> S1[主搜索源]
+    Q2 --> S1
+    Q3 --> S2[备用搜索源]
+
+    S1 --> D[URL 规范化与去重]
+    S2 --> D
+    D --> F[RRF 融合]
+    F --> R[相关性 Rerank]
+    R --> T[保留前 5 至 8 条]
+    T --> X[定向抓取前 3 至 5 页]
+    X --> E[证据抽取与冲突检测]
+    E --> A[带来源和日期的答案]
+```
+
+这条管线的关键不是“搜得更多”，而是将**候选发现**与**正文取证**分开。搜索接口擅长发现 URL，但摘要常被截断、失去上下文或不是原文；因此应该先搜出候选，再只抓取排名靠前的原始页面。Tavily 的官方最佳实践也明确建议：复杂问题拆成多个聚焦查询，先搜索 URL，再对入选页面执行正文提取，同时限制结果数、去重、设置超时并只重试失败请求。 [Tavily Docs](https://docs.tavily.com/documentation/best-practices/best-practices-search)
+
+### **搜索源如何选择**
+
+最实用的组合是：
+
+1. **Brave 或 Tavily 作为主源**
+2. **另一家作为自动回退或第二路验证**
+3. **SearXNG 作为可选的隐私型补充，而不是质量主力**
+4. **Exa 用于语义型发现，可作为后续增强项**
+
+对于个人 Agent，建议优先从 **Tavily 主搜 + Brave 复核**开始。Tavily 输出对 Agent 更友好，包含较干净的摘要和提取能力；Brave 更接近独立的通用搜索索引，适合补充覆盖面和交叉验证。OmniRoute 官方资料列出的原生搜索提供商包括 Serper、Brave、Perplexity、Exa 和 Tavily，并支持自动故障转移及缓存，正好可以承载这套组合。 [OmniRoute Wiki](https://github.com/diegosouzapw/OmniRoute/wiki/ro%E2%80%90Home)
+
+SearXNG 的优势是自托管、隐私和聚合多个引擎，但结果质量取决于所启用引擎、地区、反爬状态和实例配置。它更适合作为“补召回”或无商业 API 时的兜底。若使用，必须启用 JSON 输出，并合理配置引擎权重、语言、类别、超时和重试；官方文档支持这些参数。 [SearXNG Documentation](https://docs.searxng.org/admin/settings/settings_engines.html)
+
+### **最能提高搜索力的五个改动**
+
+#### **1. 不把用户整段问题直接送进搜索引擎**
+
+先让 `nim-fast` 将问题改写成最多三个短查询：
+
+- **直接查询**：查核心事实；
+- **官方查询**：加入产品名、文档、API、版本或发布日期；
+- **反证查询**：搜索 bug、限制、迁移、deprecated、issue 等反向证据。
+
+例如，“OmniRoute 3.8.43 的搜索能力是否可靠”不应只搜一次，而应拆为：
+
+```text
+OmniRoute 3.8.43 /v1/search rerank documentation
+OmniRoute 3.8.43 WebSearch tool compatibility issue
+OmniRoute search-tools changelog provider failover cache
+```
+
+复杂问题拆分查询、对低相关结果二次改写，是提高召回率最稳定的方法之一。 [IBM](https://www.ibm.com/think/tutorials/build-corrective-rag-agent-granite-tavily)
+
+#### **2. 搜索候选后必须 Rerank**
+
+把两个搜索源返回的结果按规范化 URL 去重，然后用 RRF 合并各源排序，再把标题、摘要、域名和日期发送到 `/v1/rerank`。推荐参数：
+
+| 阶段 | 建议数量 | 作用 |
+|---|---:|---|
+| 每个子查询、每个搜索源 | 5–8 | 保持召回且控制噪声 |
+| 去重融合后 | 10–20 | 提供足够候选 |
+| Rerank 后 | 5–8 | 进入正文抓取 |
+| 最终重点抓取 | 3–5 | 控制延迟和上下文 |
+
+OmniRoute 已原生提供 `/v1/rerank`，因此没有必要在网关之外重复实现转发层。 [OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+#### **3. 加入来源质量和时效评分**
+
+不要只依赖语义相关度。最终排序建议综合：
+
+$$
+S = 0.55R + 0.20A + 0.15F + 0.10D
+$$
+
+其中：
+
+- $R$：Rerank 相关度；
+- $A$：来源权威度；
+- $F$：时效性；
+- $D$：多来源交叉支持度。
+
+官方文档、代码仓库、发行说明和直接数据源应高于二手博客；产品功能和版本缺陷应优先采用发布日期较新的材料；同一说法被两个独立来源支持时再提高置信度。论坛和 Issue 可以证明“有人复现了问题”，但不能自动证明所有部署都受影响。
+
+#### **4. 把“搜索成功”定义为获得可引用证据**
+
+仅返回五个标题和摘要不算成功。完整标准应该是：
+
+- 至少两条相关候选；
+- 至少一条第一方来源；
+- 前三条页面正文能够抓取；
+- 关键结论能映射到具体页面；
+- 冲突事实被标记，而非静默选择其中之一；
+- 最终答案附带来源链接和资料日期。
+
+如果证据不足，应触发一次查询改写；最多两轮，避免 Agent 无限制搜索。
+
+#### **5. 缓存“原始结果”，而不是缓存最终判断**
+
+建议使用两层缓存：
+
+- 搜索结果缓存：10–30 分钟；
+- 抓取正文缓存：6–24 小时；
+- 对版本、价格、状态和新闻类查询降低 TTL；
+- 对固定文档、规范和历史资料延长 TTL。
+
+OmniRoute 已声明支持搜索缓存和请求合并，可利用其能力减少免费配额消耗；Agent 侧只需保存规范化结果和证据元数据。 [OmniRoute Changelog](https://github.com/diegosouzapw/OmniRoute/wiki/da%E2%80%90Changelog)
+
+### **与你现有 Combo 的配合**
+
+`nim-fast` 最适合负责：
+
+- 联网意图识别；
+- 查询拆分与改写；
+- 搜索摘要压缩；
+- 从网页中抽取时间、版本、数字和结论。
+
+`nim-stable` 最适合负责：
+
+- 多来源冲突分析；
+- 判断证据是否支持结论；
+- 综合生成带引用的最终答案。
+
+`nim-pool` 可以处理并行、无状态的页面摘要，但不宜承担最终事实判断。这样既能提升搜索质量，又不会让 NIM 免费层因每个阶段都调用复杂模型而迅速触发限流。
+
+推荐给搜索任务预留独立预算：一次普通查询最多 1 次改写、2–3 次搜索、1 次 Rerank、3 次正文提取、1 次综合回答。正文提取不经过 LLM 时不会消耗 NIM 配额；多个页面摘要可以合批，而不是每页单独调用一次模型。
+
+### **3.8.43 上需要特别验证的兼容性风险**
+
+`/v1/search` 和模型原生的 `WebSearch`/`tool_search` **不是同一条路径**。前者是 OmniRoute 自己的显式搜索 API；后两者是不同客户端或模型协议中的工具类型。
+
+项目 Issue 曾报告：
+
+- Responses 路径不支持 `tool_search`；
+-部分 OAuth 路径丢失相关 beta 标头；
+- WebSearch 工具调用成功但返回空结果。
+
+这些报告涉及不同版本和调用路径，不能直接断言 3.8.43 必然存在同样问题，但足以说明：**最稳妥的方案是让 Agent 显式调用 `/v1/search` 和 `/v1/rerank`，不要把核心搜索能力押在模型原生 `tool_search` 的透明转译上。** [GitHub Issue #2766](https://github.com/diegosouzapw/OmniRoute/issues/2766) [GitHub Issue #3974](https://github.com/diegosouzapw/OmniRoute/issues/3974) [GitHub Issue #1852](https://github.com/diegosouzapw/OmniRoute/issues/1852)
+
+### **建议的落地顺序**
+
+1. 继续保留当前锁定版本，不为搜索功能盲目升级。
+2. 在隔离副本中确认 3.8.43 的 `/v1/search`、`/v1/rerank` 和 Search Tools 配置契约。
+3. 先接入 Tavily 与 Brave，配置主源和自动回退。
+4. 在 Agent 中实现三路查询改写、URL 去重、RRF 和 Rerank。
+5. 加入定向正文抓取及来源权威度规则。
+6. 建立 20–50 条真实问题的本地评测集，以“关键事实命中率、第一方来源率、引用正确率、延迟、每问成本”进行 A/B 测试。
+7. 确认效果后，再考虑 SearXNG 补召回或 Exa 语义检索。
+
+因此，**当前投入产出比最高的提升不是再部署一个大型搜索系统，而是在 OmniRoute 原生端点之上建立可靠的检索编排和证据验证层**。主源用 Tavily、复核用 Brave、结果经 RRF 与 `/v1/rerank`，只抓取排名靠前的正文，并由 `nim-stable` 做最终证据综合。这比单纯扩大模型池、提高 RPM 或堆叠更多元搜索引擎更能稳定提高“搜索力”。
+
+
+
+
+
+### **结论先行**
+
+结合已查证的事实——OmniRoute v3.8.43 原生内置 `/v1/search`（支持 Serper、Brave、Perplexity、Exa、Tavily 五个提供商，聚合 6,500+/月免费额度、自动故障切换与缓存）以及独立的 `/v1/rerank` 端点——最适合你这套自托管网关的提升搜索力方案是：**在 OmniRoute 内配置「SearXNG（自托管兜底）+ 1\~2 个免费 API 提供商（互为主备）+ 统一走 /v1/rerank 做二次排序」的三层组合**，而不是重新引入外部 SearXNG-MCP 或 Firecrawl 管线。
+
+### **为什么不需要额外的外部搜索管道**
+
+社区中确实存在大量围绕 SearXNG + Firecrawl + 自建 rerank 服务（如 FlashRank 包一层兼容 `/v1/rerank` 协议）的方案，这类方案通常是给**没有网关层**的裸 Agent 用的，本质是在补齐搜索、抓取、排序三个能力。但你现在的场景不同：OmniRoute 已经把这三层能力做成了网关内建功能——`/v1/search` 统一了多个搜索提供商的调用与缓存/去重逻辑,`/v1/rerank` 直接接入 Cohere 等 rerank 模型，Dashboard 的 `search-tools` 页面也已经支持 SearXNG 作为一个可配置的 provider（连同 Brave、Tavily、Serper、Exa、Perplexity、You.com、Google PSE、Linkup、SearchAPI 等共 11 种）。 [GitHub](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/PROVIDER_REFERENCE.md) [OneRouterTavily](https://www.octoparse.com/blog/openclaw-search-provider)
+
+再叠加一套外部管道，等于在网关外面又造一个网关,会直接违背你之前确立的"保守默认、减少运维复杂度、统一暴露面"的原则,也会让 `gate.js` 新增的路径白名单机制形同虚设,因为 Agent 端还得记住两套搜索入口的调用方式和鉴权逻辑。
+
+### **具体配置建议**
+
+**第一层：SearXNG 作为免费兜底，而不是主力**
+
+自托管 SearXNG 的优势是零 API Key、无限速、隐私可控,但结果排序质量天然弱于 AI 优化过的商业 API（因为它只是聚合 70+ 引擎的原始顺序）。 [OneRouterTavily](https://openclawlaunch.com/guides/openclaw-searxng)建议在 Dashboard 的 `search-tools` 页面把 SearXNG 配置为 `searxng-search` provider,`baseUrl` 指向内网自托管实例,并在其 `settings.yml` 里显式开启 JSON 输出格式，否则 OmniRoute 会拿不到结构化结果：
+
+```yaml
+search:
+  formats:
+    - html
+    - json
+```
+
+同时把请求超时适度放宽（`outgoing.request_timeout: 6.0`、`max_request_timeout: 15.0`），避免自托管实例在高并发时因单个慢引擎拖垮整批查询。 [OneRouterTavily](https://openclawlaunch.com/guides/openclaw-searxng)
+
+**第二层：一个轻量商业 API 作为质量兜底**
+
+考虑到你的 NIM 免费层已经因限速问题吃过亏，商业搜索 API 的选择也应遵循同一保守逻辑——优先选免费额度稳定、无需信用卡的 Tavily（1,000 次/月）或 Brave（2,000 次/月），二者接入 OmniRoute 都只需一个 API Key,无需额外基础设施。 [OneRouterTavily](https://openclawlaunch.com/guides/openclaw-searxng)在 OmniRoute 里把它配置成 SearXNG 的 fallback,依托 `/v1/search` 内建的自动故障切换机制，即 SearXNG 超时或返回空结果时自动切到 Tavily/Brave,而不需要你在 Agent 侧写切换逻辑。
+
+**第三层：统一走 `/v1/rerank` 做二次排序**
+
+这是最容易被忽略但价值最高的一环。SearXNG 聚合多引擎结果时的默认顺序只是"上游引擎协商的顺序"，对需要精读 Top 结果的 Agent 场景并不友好。 [OneRouterTavily](https://dev.to/tadmstr/i-didnt-want-to-pay-for-web-search-in-my-own-homelab-so-i-built-the-pipeline-5h2l)由于 OmniRoute 已经原生暴露 `/v1/rerank`（`v1RerankSchema` 校验,支持如 `cohere/rerank-3` 等模型），不需要像社区方案那样额外部署 FlashRank 服务包一层协议,直接在 Agent 的检索流程里加一步：
+
+```json
+{
+  "model": "cohere/rerank-3",
+  "query": "...",
+  "documents": ["...search结果1...", "...search结果2...", "..."]
+}
+```
+
+把 `/v1/search` 返回的原始结果集传入 `/v1/rerank` 精排后再截取 Top-K 喂给 LLM,能显著减少无关网页占用上下文窗口,这对你已经在做的 token compression（RTK+Caveman）策略是互补而非冲突的。
+
+**路由层面的整合**
+
+考虑到你已经把模型路由拆成了 `nim-stable` / `nim-fast` / `nim-pool` / `nim-codex` 四个 combo,搜索能力建议不要混入这套 combo 体系,而是作为独立的 `search-tools` 配置维护,在 `init-nim-keys.sh` 里新增一个幂等的 `upsert_search_provider()` 函数,通过 Dashboard 对应的 API（而非直接写库,呼应此前"不要盲改数据库表结构"的结论）注册 SearXNG 与 Tavily/Brave,并设置合理的调用超时与失败切换阈值,这样搜索能力的初始化就能纳入你现有脚本的幂等 upsert 模式,和模型 combo 的初始化逻辑保持一致的运维体验。
+
+### **一点提醒**
+
+`/v1/search` 与 `/v1/rerank` 的具体请求/响应字段（如 `v1SearchSchema` 的必填参数）来自 OmniRoute Wiki 文档,建议在正式接入前先用 curl 空跑一次实际返回结构,确认字段名与你此前讨论中"不要对未实测的 API 契约信心过高"的原则保持一致。 [GitHub](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+
+
+
+
+
+
+### **OmniRoute 已内置完整的搜索+重排基础设施，最佳方案是配置 Tavily（主）+ SearXNG（自托管兜底）+ 本地 Rerank，通过 `/v1/search` 统一暴露，无需外部叠加搜索服务**
+
+经查证 OmniRoute 官方 Wiki 与 API Reference，v3.8.43 已内置 11 个搜索提供商、`/v1/search` 统一入口、自动故障转移、内存缓存与请求合并、本地 Rerank 路由、搜索分析面板，以及嵌入 MCP Server（95 个工具）。你的 `gate.js` 已放行 `/v1/*` 路径，因此 `/v1/search` 和 `/v1/rerank` 对外已可达——核心缺口不在端点暴露，而在于**搜索提供商尚未配置**且 **Dashboard 配置页被 Gate 屏蔽**。 [OmniRoute Wiki - API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference) [OmniRoute Wiki - Provider Reference](https://github.com/diegosouzapw/OmniRoute/wiki/Provider-Reference)
+
+---
+
+## 搜索提供商选型对比
+
+基于 2026 年 7 月的市场实况（Bing API 已于 2025 年 8 月退役、Brave 免费层于 2026 年 2 月取消、Tavily 被 Nebius 收购），以下是适合你「自托管 + 免费/低成本 + AI Agent 场景」的提供商排序：
+
+| 提供商 | 免费额度 | AI 适配度 | 独立索引 | 自托管 | 推荐角色 |
+|---|---|---|---|---|---|
+| **Tavily** | 1,000 次/月 | ★★★★★ 原生为 LLM 设计，含 extract 端点 | 否（混合聚合） | 否 | **主搜索** |
+| **SearXNG** | 无限（自托管） | ★★★ 元搜索聚合，需后处理 | 否（聚合 Google/Bing/DuckDuckGo） | **是** | **兜底搜索** |
+| **Serper** | 2,500 次注册赠金 | ★★★ Google 结果，JSON 结构化 | 否（Google 代理） | 否 | 备用 |
+| **Exa** | 有限免费层 | ★★★★ 语义搜索 + 内容提取 | 是 | 否 | 可选增强 |
+| **Brave** | 已取消免费层 | ★★★★ 独立索引，Agent 基准第一 | 是 | 否 | 不推荐（成本） |
+
+关键判断依据：Brave 在 2026 年 2 月无预警取消免费层后仅给 \$5 注册赠金，对个人自托管场景性价比骤降；Tavily 虽被 Nebius 收购但 API 仍独立运营且 1,000 次/月免费额度对个人 Agent 足够；SearXNG 自托管无限免费且极轻量（Python Flask），作为兜底可覆盖 Tavily 额度耗尽后的场景。 [Best Search API for AI Agents 2026](https://webscraft.org/blog/search-api-dlya-ai-agentiv-scho-obirayut-rozrobniki-i-de-pomilyayutsya?lang=en) [Best Web Search APIs - Olostep](https://www.olostep.com/blog/best-web-search-apis) [Beyond Tavily - AI Search APIs](http://websearchapi.ai/blog/tavily-alternatives)
+
+---
+
+## 推荐架构
+
+```mermaid
+flowchart TB
+    subgraph External["外部客户端 / AI Agent"]
+        A[Claude Code / Cursor / Cline]
+        B[自定义应用]
+    end
+
+    subgraph Gate["Gate.js :7860"]
+        G["PSK 鉴权<br/>仅放行 /v1/* + /healthz"]
+    end
+
+    subgraph OmniRoute["OmniRoute :20128"]
+        V1S["/v1/search<br/>统一搜索入口"]
+        V1R["/v1/rerank<br/>本地重排路由"]
+        MCP["MCP Server<br/>95 tools (含 search)"]
+        CACHE["内存缓存 + 请求合并<br/>可配置 TTL"]
+        FAILOVER["自动故障转移<br/>Tavily → SearXNG → Serper"]
+        DASH["/dashboard/search-tools<br/>配置页（被 Gate 屏蔽）"]
+    end
+
+    subgraph Providers["搜索提供商"]
+        T["Tavily<br/>1,000/月 免费"]
+        S["SearXNG<br/>自托管 无限"]
+        SE["Serper<br/>2,500 赠金"]
+    end
+
+    subgraph Rerank["重排层"]
+        LR["OmniRoute 本地 Rerank<br/>无需外部 API"]
+    end
+
+    A --> G
+    B --> G
+    G --> V1S
+    G --> V1R
+    A -.->|"同机直连 :20128"| MCP
+
+    V1S --> CACHE
+    CACHE --> FAILOVER
+    FAILOVER --> T
+    FAILOVER -.->|"Tavily 限额耗尽"| S
+    FAILOVER -.->|"SearXNG 不可达"| SE
+
+    V1S --> LR
+    V1R --> LR
+```
+
+架构要点：外部客户端经 Gate 的 PSK 鉴权后访问 `/v1/search`，OmniRoute 内部按配置的提供商顺序做自动故障转移，结果经本地 Rerank 后返回。同机运行的 AI Agent 可绕过 Gate 直连 `:20128` 的 MCP Server，获取包含搜索在内的 95 个工具。
+
+---
+
+## 具体配置步骤
+
+### 第一步：在 init 脚本中通过管理 API 配置搜索提供商
+
+由于 `gate.js` 屏蔽了 Dashboard 和管理 API，搜索提供商需在 `init-nim-keys.sh` 中通过已有的 cookie 认证调用 `/api/providers` 配置。搜索提供商在 OmniRoute 中属于标准 Provider 类型（Provider Reference 中标记为 `Search`），通过 `POST /api/providers` 创建连接：
+
+```sh
+# ══ 搜索提供商配置（OmniRoute 内置 /v1/search 统一入口）═════════
+configure_search_providers() {
+  echo "[init] configuring search providers..."
+
+  # ── Tavily（主搜索：AI 原生，1,000 次/月免费）──
+  if [ -n "$TAVILY_API_KEY" ]; then
+    local TAV_BODY
+    TAV_BODY=$(jq -n \
+      --arg key "$TAVILY_API_KEY" \
+      '{provider:"tavily-search", connectionName:"tavily-main",
+        apiKey:$key, enabled:true, priority:1}')
+    _upsert_provider "tavily-search" "tavily-main" "$TAV_BODY"
+  else
+    echo "[init] WARN: TAVILY_API_KEY not set, Tavily search disabled."
+  fi
+
+  # ── SearXNG（兜底搜索：自托管，无限免费）──
+  if [ -n "$SEARXNG_BASE_URL" ]; then
+    local SX_BODY
+    SX_BODY=$(jq -n \
+      --arg url "$SEARXNG_BASE_URL" \
+      '{provider:"searxng-search", connectionName:"searxng-fallback",
+        baseUrl:$url, enabled:true, priority:2}')
+    _upsert_provider "searxng-search" "searxng-fallback" "$SX_BODY"
+  else
+    echo "[init] WARN: SEARXNG_BASE_URL not set, SearXNG fallback disabled."
+  fi
+
+  # ── Serper（末位兜底：Google 结果，2,500 次赠金）──
+  if [ -n "$SERPER_API_KEY" ]; then
+    local SER_BODY
+    SER_BODY=$(jq -n \
+      --arg key "$SERPER_API_KEY" \
+      '{provider:"serper-search", connectionName:"serper-last",
+        apiKey:$key, enabled:true, priority:3}')
+    _upsert_provider "serper-search" "serper-last" "$SER_BODY"
+  fi
+}
+
+# 幂等 upsert provider（复用已有 cookie 认证）
+_upsert_provider() {
+  local PID="$1" NAME="$2" BODY="$3"
+  local EXIST CID CODE
+  EXIST=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/providers" \
+    | jq -r --arg p "$PID" --arg n "$NAME" \
+      '.providers[]? // .[]? | select(.provider==$p and .connectionName==$n) | .id' \
+    | head -n1)
+  if [ -n "$EXIST" ]; then
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X PUT "$BASE_URL/api/providers/$EXIST" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] search provider $NAME: existed -> PUT HTTP $CODE"
+  else
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/providers" \
+      -H "Content-Type: application/json" -d "$BODY")
+    echo "[init] search provider $NAME: new -> POST HTTP $CODE"
+  fi
+  [ "$CODE" != "200" ] && [ "$CODE" != "201" ] && \
+    echo "[init] WARN: provider $NAME config failed (HTTP $CODE)"
+}
+```
+
+在 `entrypoint.sh` 的 NIM 初始化之后追加调用：
+
+```sh
+# 在 bash /entrypoint-init-nim.sh & 之后追加
+echo "[entrypoint] configuring search providers..."
+bash /entrypoint-init-search.sh &
+```
+
+> **注意**：`POST /api/providers` 的 body 字段名（`baseUrl` vs `baseURL`、`connectionName` 等）基于 Provider Reference 推断，**首次配置后务必 `GET /v1/search` 验证返回的 providers 列表**，若字段名不符则按实际响应修正。 [OmniRoute Wiki - API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+### 第二步：部署 SearXNG 轻量侧车（可选但推荐）
+
+SearXNG 极其轻量，可在同一容器或 HF Space 的 sidecar 中运行：
+
+```dockerfile
+# Dockerfile 中追加 SearXNG 侧车
+RUN pip3 install --no-cache-dir --break-system-packages searxng && \
+    mkdir -p /etc/searxng && \
+    printf 'use_default_settings: true\nserver:\n  bind_address: 127.0.0.1\n  port: 8888\n  limiter: false\n' \
+    > /etc/searxng/settings.yml
+```
+
+在 `entrypoint.sh` 中后台启动：
+
+```sh
+# OmniRoute 启动前启动 SearXNG
+if command -v searxng-run >/dev/null 2>&1; then
+  echo "[entrypoint] starting SearXNG on 127.0.0.1:8888..."
+  searxng-run --config /etc/searxng/settings.yml &
+fi
+```
+
+设置环境变量 `SEARXNG_BASE_URL=http://127.0.0.1:8888` 即可让 init 脚本自动配置为兜底搜索。
+
+### 第三步：启用 MCP Server 暴露搜索工具给 AI Agent
+
+OmniRoute 的 MCP Server 内嵌 95 个工具，搜索能力包含其中。AI Agent（Claude Code、Cursor 等）可通过 MCP 协议直接调用搜索，无需手动构造 `/v1/search` 请求。
+
+MCP Server 默认监听在 OmniRoute 同端口（20128），路径为 `/api/mcp/sse`（SSE 传输）或 `/api/mcp/stream`（Streamable HTTP）。由于这些路径不在 `/v1` 下，**同机 Agent 可直连 `:20128` 使用，外部 Agent 需在 Gate 中放行**。
+
+若需外部 Agent 通过 Gate 访问 MCP，在 `gate.js` 中追加白名单：
+
+```js
+// gate.js 中追加 MCP 路径放行
+app.use((req, res, next) => {
+  // 已有的 /v1 和 /healthz 放行逻辑...
+
+  // MCP Server 路径（可选：仅当需要外部 Agent 访问时开启）
+  if (req.path.startsWith('/api/mcp/')) {
+    // MCP 传输层有自己的 Bearer 鉴权（mcp scope），无需 PSK
+    return next();
+  }
+
+  // 其余路径返回 404
+  return res.status(404).json({ error: 'not found' });
+});
+```
+
+> **安全提示**：MCP 的 SSE/Stream 传输层有独立的 Bearer API key 鉴权（`mcp` scope），与 Gate 的 PSK 是不同体系。若不希望外部访问 MCP，保持 Gate 返回 404 即可，同机 Agent 直连 `:20128` 不受影响。 [OmniRoute Wiki - API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+
+### 第四步：配置本地 Rerank 管道
+
+OmniRoute 的 `/v1/rerank` 支持本地重排路由，无需外部 Cohere/Voyage API。在 Dashboard 的 `/dashboard/search-tools` 页面可配置 Rerank Pipeline，但由于该页被 Gate 屏蔽，需通过管理 API 或一次性 Dashboard 访问配置。
+
+若你已有 Jina AI 或 Voyage AI 的 API key，也可配置为外部 Rerank 提供商以获得更高质量：
+
+```sh
+# 可选：配置外部 Rerank（Jina AI，免费层可用）
+if [ -n "$JINA_API_KEY" ]; then
+  _upsert_provider "jina-ai" "jina-rerank" \
+    "$(jq -n --arg key "$JINA_API_KEY" \
+      '{provider:"jina-ai", connectionName:"jina-rerank",
+        apiKey:$key, enabled:true}')"
+fi
+```
+
+OmniRoute 的 `/v1/rerank` 会自动路由到已配置的 Rerank 提供商，未配置时使用本地重排算法。
+
+---
+
+## 验证搜索配置
+
+配置完成后，通过 Gate 验证搜索端点是否正常工作：
+
+```sh
+# 列出已配置的搜索提供商
+curl -s -H "Authorization: Bearer $INTERNAL_PSK" \
+  http://127.0.0.1:7860/v1/search | jq .
+
+# 执行一次测试搜索
+curl -s -X POST -H "Authorization: Bearer $INTERNAL_PSK" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"OmniRoute search configuration","max_results":5}' \
+  http://127.0.0.1:7860/v1/search | jq '.results[0:3]'
+
+# 查看搜索分析（命中率、延迟、缓存率）
+curl -s -H "Authorization: Bearer $INTERNAL_PSK" \
+  http://127.0.0.1:7860/v1/search/analytics | jq .
+```
+
+---
+
+## 总结：为什么这是最优方案
+
+OmniRoute 已内置搜索基础设施的全部组件——多提供商聚合、自动故障转移、内存缓存与请求合并、本地 Rerank、搜索分析、MCP 工具暴露。叠加外部 SearXNG/Firecrawl 不仅增加运维复杂度，还与 OmniRoute 的统一入口设计冲突。
+
+最佳组合是 **Tavily（主，1,000 次/月 AI 原生搜索）+ SearXNG（自托管兜底，无限免费）+ OmniRoute 本地 Rerank**，通过 `/v1/search` 统一暴露给外部客户端，通过 MCP Server 暴露给同机 AI Agent。总免费搜索量约 1,000 次/月（Tavily）+ 无限（SearXNG），配合 OmniRoute 的内存缓存和请求合并，实际可用搜索量远超线性叠加。 [OmniRoute Wiki - API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference) [OmniRoute Wiki - Provider Reference](https://github.com/diegosouzapw/OmniRoute/wiki/Provider-Reference)
+
+
+
+### **Comparison of Search Power Enhancement Strategies**
+
+The four provided answers analyze how to optimize search capabilities within a self-hosted environment using **OmniRoute v3.8.43**. All models agree that the internal `/v1/search` and `/v1/rerank` endpoints of OmniRoute are the superior choice over external pipelines, but they differ in provider selection, configuration depth, and architectural focus.
+
+#### **1. Key Themes and Common Ground**
+*   **Infrastructure:** All models identify that OmniRoute already possesses the necessary "gateway" logic (caching, failover, and provider aggregation). Adding external layers like Firecrawl or standalone SearXNG-MCP is discouraged as it adds redundant complexity.
+*   **Provider Strategy:** There is a consensus on using a tiered approach: a high-quality AI-optimized provider (Tavily), a robust general index (Brave), and a self-hosted fallback (SearXNG).
+*   **Reranking:** All answers emphasize that raw search results are insufficient for Agents; a reranking step (using OmniRoute’s `/v1/rerank`) is essential to filter noise before feeding data to the LLM.
+
+#### **2. Detailed Comparison**
+
+| Feature | Claude-Sonnet-5 | Claude-Opus-4.8 | GPT-5.6 Sol | GLM-5.2 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Primary Focus** | OmniRoute internal config & `/v1/rerank` logic. | Hybrid Search (BM25 + Vector) & Extraction. | Agent-side query expansion & evidence verification. | Implementation via `init` scripts & MCP setup. |
+| **Search Provider Mix** | SearXNG (base) + Tavily/Brave (fallback). | Tavily (Search) + Firecrawl (Extract). | Tavily + Brave + SearXNG. | Tavily + SearXNG (Sidecar) + Serper. |
+| **Technical Depth** | High on API schema and gate/path logic. | High on RAG theory (Hybrid Search/RRF). | High on prompt engineering for search. | High on shell scripting and Docker sidecars. |
+| **Unique Contribution** | Warns against "blindly trusting" unverified API contracts. | Highlights the cost-trap of using Tavily for extraction vs search. | Provides a mathematical scoring formula for source quality. | Details the exact `PATCH` calls for automated configuration. |
+
+#### **3. Strengths and Weaknesses**
+
+*   **Claude-Sonnet-5 & GLM-5.2:**
+    *   *Strengths:* Highly actionable for DevOps. They provide shell script snippets and API call logic to automate the setup within existing deployment workflows (`init-nim-keys.sh`).
+    *   *Weaknesses:* Focus heavily on the "plumbing" rather than the quality of the search queries themselves.
+
+*   **Claude-Opus-4.8:**
+    *   *Strengths:* Understands the "Search vs. Extraction" cost bottleneck. It correctly identifies that 1,000 free Tavily credits disappear quickly if used for full-page scraping, suggesting Firecrawl for the heavy lifting.
+    *   *Weaknesses:* The hybrid search (BM25) suggestions might be overly complex for a simple gateway setup.
+
+*   **GPT-5.6 Sol:**
+    *   *Strengths:* Focuses on "Search Literacy" at the Agent level. It suggests "Query Rewriting" (breaking one question into three types: Fact, Official, and Counter-evidence), which is the most effective way to improve results regardless of the provider.
+    *   *Weaknesses:* Less focus on the specific shell-script automation requested by the user's context.
+
+### **Concise Recommendation**
+
+For **immediate technical implementation**, use **GLM-5.2** or **Claude-Sonnet-5**. They provide the exact shell commands needed to configure OmniRoute’s search providers via the API, which is necessary since the Dashboard is blocked by the `gate.js` security layer.
+
+For **long-term search quality**, follow the logic in **GPT-5.6 Sol**. The most significant "search power" multiplier is not the engine, but the **Query Expansion** and **Reranking** phases. By forcing the Agent to generate multiple search queries and then scoring the results based on source authority and recency, you significantly reduce "hallucination by omission."
+
+**Final Setup Suggestion:** Use the automation scripts from **GLM-5.2** to enable **Tavily + Brave**, and implement the multi-step search prompt logic from **GPT-5.6 Sol** in your Agent's system instructions.
+
+
+结合你的自托管网关架构（OmniRoute v3.8.43、NVIDIA NIM 免费层、`gate.js` 路径管控），提高搜索力的最有效路径不是引入复杂的外部搜索管线，而是**深度激活 OmniRoute 原生内置的搜索与重排能力**。
+
+以下是查证后得出的最适合你的“三位一体”搜索增强方案。
+
+### **核心逻辑：从“外挂”转向“内生”**
+
+查证确认，OmniRoute v3.8.43 已原生内置 `/v1/search` 和 `/v1/rerank` 端点，支持多达 11 个搜索提供商的聚合、自动故障切换（Failover）和结果缓存。你无需再额外部署一套 SearXNG-MCP 或 Firecrawl 搜索层，这会增加运维复杂度并违背你现有的“保守默认、统一暴露面”原则。
+
+### **第一阶段：构建“多层级”搜索源配置**
+
+提高搜索力的第一杠杆是**配置合理的 Provider 组合**。建议在 OmniRoute 内配置以下三层结构：
+
+1.  **主力层：Brave Search + Tavily**
+    *   **Brave Search**：Agent 场景下的 Benchmark 冠军，延迟最低且拥有独立索引（不依赖 Google/Bing）。虽然取消了纯免费档，但新注册提供的 \$5 抵扣额度（约 1000 次查询）适合作为实时检索起点。
+    *   **Tavily**：AI 原生搜索，擅长返回清洗后的 Markdown 正文。每月 1,000 次免费额度，是深度研究任务的首选。
+2.  **兜底层：SearXNG（自托管）**
+    *   利用其零成本、无限速的特性。建议作为 OmniRoute 内部配置的最后一个 Fallback。若在同一 Space 运行，需开启 JSON 输出格式。
+3.  **补充层：Serper (Google)**
+    *   利用其 2,500 次初始赠金，用于覆盖那些需要 Google 索引深度的尾部查询。
+
+### **第二阶段：利用 `/v1/rerank` 实现质量飞跃**
+
+搜索力不只是“搜到”，更是“排准”。单纯依靠搜索引擎返回的原始顺序对 LLM 并不友好。
+*   **统一重排**：将 `/v1/search` 返回的 Top-20 原始结果集传入 `/v1/rerank`。OmniRoute 支持接入 Cohere 或 NVIDIA NeMo Retriever 模型。
+*   **减少噪声**：经过 Rerank 后截取 Top-5 喂给 LLM。这能显著减少无关网页占用的上下文窗口，与你现有的 Token 压缩策略（RTK+Caveman）形成互补。
+
+### **第三阶段：在 `init-nim-keys.sh` 中实现自动化治理**
+
+为了保持运维的一致性，不建议手动在 Dashboard 配置，而是将搜索能力纳入你的初始化脚本：
+
+1.  **幂等配置函数**：在脚本中新增 `configure_search_providers()`，通过 `PATCH /api/settings` 注册 API Key 和 Provider。
+2.  **开启缓存与合并**：显式启用 `searchCache`。设置 TTL 为 300s 并开启请求合并（Coalescing），这能有效保护你的免费 API 额度，避免并发查询导致的浪费。
+3.  **权限白名单**：在创建内部 API Key 时，确保 Scopes 包含 `execute:search`。由于你已在 `gate.js` 放行了 `/v1/*`，搜索端点无需额外开洞即可被外部 Agent 调用。
+
+### **进阶：Agent 侧的检索策略改进**
+
+即便后端能力再强，如果 Agent 只发送一个简单的关键词，效果依然有限。建议在 Agent 提示词或编排层引入以下逻辑：
+
+*   **查询改写（Query Transformation）**：不要直接搜索用户原话。利用 `nim-fast` 将问题拆分为“核心事实”、“官方文档”、“反向证据（Bug/Issue）”三个短查询并行搜索。
+*   **搜索与抓取分离**：使用 `/v1/search` 获取 URL，再针对高相关度页面进行正文抓取（Extract）。
+*   **来源权威度加权**：在排序逻辑中，给予官方文档（如 `github.com`、`docs.*`）更高的权重，而非泛泛的博客内容。
+
+### **总结建议**
+
+最适合你的方法是：**在 OmniRoute 侧配置「Tavily + Brave」双主力，利用内置的自动 Failover 机制，并强制所有搜索结果经过 `/v1/rerank` 过滤。**
+
+这套方案通过 API 层的池化治理，既解决了 NIM 免费层的限速焦虑，又通过网关内建的缓存机制最大化了搜索配额的利用率，是目前投入产出比最高、架构最优雅的路径。
+
+
+
+
+*
+
+### **在 HF 免费 Space（CPU Basic：2 vCPU / 16 GB RAM / 50 GB 非持久磁盘、无常驻 GPU）上，只应本地跑「轻量且常驻友好」的三件套——bge-m3 检索、bge-reranker 排序、SearXNG 搜索；而 7B/14B 级的 router、压缩、Guard 模型不应本地部署，应通过 OmniRoute 路由到 NIM。**
+
+先纠正一个决定成败的硬约束：HF 免费 Space 是 **CPU Basic（2 vCPU、16 GB RAM、50 GB 非持久磁盘、无常驻 GPU）**。ZeroGPU（H200/Blackwell）虽免费，但是**按配额、面向 Gradio 交互 Demo 的动态调度**（认证用户约每天几分钟），无法给一个需要 7×24 常驻的 OmniRoute 网关或推理 sidecar 提供稳定 GPU。因此“在免费 Space 上配合 OmniRoute”实际等价于**纯 CPU、2 核、16 GB、进程要与 OmniRoute + Litestream + Gate 抢内存**。 [Hugging Face Pricing](https://huggingface.co/pricing) [Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview)
+
+在这个前提下，你清单里的模型必须分成“**能本地跑**”和“**必须外包给 NIM**”两类。
+
+### **逐项现实核对**
+
+| 角色 | 你的候选 | 参数量 | 免费 CPU Space 可行性 | 结论 |
+|---|---|---:|---|---|
+| Embedding 检索 | bge-m3 | 568M | 可行，多语言强 | **本地部署** |
+| Reranker 排序 | bge-reranker-large | 560M | 可行但偏慢 | 建议换 **bge-reranker-v2-m3** |
+| Router 路由 | Qwen2.5-7B / Phi-4 | 7B / 14B | 2 核 CPU 上不可行 | **改由 NIM 承担** |
+| Context Relay 压缩 | Llama-3.2-3B / Qwen2.5-7B | 3B / 7B | 3B 勉强但慢，7B 不行 | **改由 NIM 承担** |
+| Guard 安全 | 待定 | — | 视模型而定 | **优先用 OmniRoute 内置 Guardrails** |
+| Research 搜索 | SearXNG | 轻量 | 可行 | **本地部署** |
+
+关键判断依据：bge-reranker-large 为 560M（XLM-RoBERTa-Large 底座），bge-reranker-v2-m3 为 568M 但更新、多语言更强、部署更轻、推理更快；社区实测即使只加载 reranker，CPU 常驻内存也可能吃到 10 GB 量级，因此在 16 GB 且要与其他进程共存的 Space 上，**内存预算是首要瓶颈**。 [BGE 文档](https://bge-model.com/tutorial/5_Reranking/5.2.html) [text-embeddings-inference Issue #280](https://github.com/huggingface/text-embeddings-inference/issues/280)
+
+### **推荐的最佳组合（分层落地）**
+
+#### **第一层：本地跑在 HF 免费 Space（仅 3 个轻量服务）**
+
+- **Embedding：`BAAI/bge-m3`** — 多语言、支持稠密/稀疏/ColBERT 多粒度检索，568M，CPU 上可接受，是检索层最佳性价比选择。
+- **Reranker：`BAAI/bge-reranker-v2-m3`（替代 large）** — 与 large 同级参数但更新更快、多语言更好；用 `fp16`、`max_length=256~512`、`batch_size=8` 控制内存与延迟。
+- **Research：SearXNG** — Docker SDK 部署，务必在 `settings.yml` 里启用 `json` 输出格式，否则 API 只返回 HTML；合理配置 `engines`、`categories`、`timeout`、`weight`。 [SearXNG 引擎设置](https://docs.searxng.org/admin/settings/settings_engines.html) [LiteLLM SearXNG](https://docs.litellm.ai/docs/search/searxng)
+
+强烈建议用 **Hugging Face 官方的 `text-embeddings-inference`（TEI）** 同时承载 embedding 与 rerank，而不是各自手写 Python 服务——它对 CPU 内存和吞吐做过优化，且原生暴露 OpenAI 兼容接口，方便被 OmniRoute 的 `/v1/embeddings` 和 `/v1/rerank` 上游对接。
+
+这一层的总内存预算大致是：bge-m3 约 2\~3 GB + reranker 约 2\~3 GB（加载态可能更高）+ SearXNG 约 0.3\~0.5 GB + OmniRoute/Node/Litestream/Gate 约 2\~4 GB。**这已经接近 16 GB 的安全上限**，因此不能再往里塞任何 3B 以上的本地 LLM。
+
+#### **第二层：交给 NIM（通过 OmniRoute 路由，不本地部署）**
+
+- **Router 路由** → 用你既有的 **`nim-fast`** 组合（`deepseek-v4-flash` / `llama-3.3-70b` / `gemma` 之类）做意图识别和查询改写，延迟低、无需占用 Space 内存。
+- **Context Relay 压缩总结** → 短会话摘要用 `nim-fast`，长会话/复杂压缩用 `nim-stable`。注意此前已确认 **Context Relay 主要面向 Codex 账号轮换**，NIM 多 Key 应视为无状态池，压缩本身当作普通 chat 调用即可。
+- **Guard 安全** → 见下。
+
+把 7B/14B 的三类角色全部“上浮”到 NIM，是这套架构在免费 Space 上唯一稳定的做法。
+
+### **Guard 模型：优先用内置，其次才本地/外包**
+
+Guard 有三条路，按推荐度排序：
+
+1. **OmniRoute 内置 Guardrails（首选）** — 官方明确提供“每条路由的 prompt-injection 防护、可选 PII 脱敏、安全内容过滤归一化”，以及 `/v1/moderations` 端点。既然网关自带，就**不必在免费 Space 上再单独跑一个 Guard 模型**，可直接在路由层开启。 [OmniRoute 官网](https://omniroute.online) [OmniRoute API Reference](https://github.com/diegosouzapw/OmniRoute/wiki/API-Reference)
+2. **NIM 上的安全模型** — 若需要更强判别，可把 `meta/llama-guard` 类模型（若目录中可用）作为一个专用 combo，通过 OmniRoute 调用，同样不占本地内存。
+3. **本地小 Guard（最后选项）** — 只有在必须离线判别时，才考虑 `Llama-Guard-3-1B` 或 `Qwen`-系小分类模型；但要注意它会再吃掉 1\~2 GB，与前面三件套抢内存，通常不划算。
+
+结论是：**Guard 用 OmniRoute 内置能力兜底 + NIM 侧安全模型增强**，本地不部署。
+
+### **数据流与 OmniRoute 对接**
+
+```mermaid
+flowchart TB
+    subgraph HF["HF 免费 Space（CPU 2核/16GB）"]
+        OR[OmniRoute 网关 3.8.43]
+        TEI[TEI: bge-m3 + bge-reranker-v2-m3]
+        SX[SearXNG JSON API]
+    end
+    subgraph NIM["NVIDIA NIM（外部，经 OmniRoute 路由）"]
+        RT[nim-fast: 路由/查询改写]
+        CP[nim-fast/nim-stable: 压缩总结]
+        GD[nim: Guard 安全模型]
+    end
+
+    Q[Agent 请求] --> OR
+    OR -->|/v1/embeddings| TEI
+    OR -->|/v1/rerank| TEI
+    OR -->|/v1/search| SX
+    OR -->|chat 路由| RT
+    OR -->|压缩| CP
+    OR -->|Guardrails + moderations| GD
+```
+
+对接要点：让 OmniRoute 把 **本地 TEI 与 SearXNG 登记为本地 provider**，对外统一暴露 `/v1/embeddings`、`/v1/rerank`、`/v1/search`；而 router / 压缩 / Guard 走 NIM combo。这样 Agent 只需面对 OmniRoute 一个入口，本地 Space 只承担“检索 + 排序 + 搜索 + 网关”，重计算全部外包。
+
+### **持久化与部署注意**
+
+免费 Space 的 **50 GB 磁盘是非持久的**，重启即清空。因此：
+
+- OmniRoute 的 `storage.sqlite` 必须继续依赖你已有的 **Litestream → R2** 恢复链路，否则配置与 Key 会丢。
+- bge-m3 / reranker 模型权重每次冷启动都要重新下载（约 2\~3 GB），建议在 Dockerfile 构建期预拉取或用 HF 缓存挂载，缩短冷启动。
+- SearXNG 与 TEI、OmniRoute 可以在同一容器内多进程，或用多个内部端口（Space 允许内部任意端口，仅对外暴露 7860）。 [Docker Spaces](https://huggingface.co/docs/hub/en/spaces-sdks-docker)
+
+### **一句话选型**
+
+在 HF 免费 Space 上配合 OmniRoute 的最佳组合是：**本地只留 `bge-m3`（检索）+ `bge-reranker-v2-m3`（排序，替代 large）+ SearXNG（搜索），用 TEI 统一承载并接入 OmniRoute 的 `/v1/embeddings`、`/v1/rerank`、`/v1/search`；router、Context Relay 压缩、Guard 三类 7B/14B 角色全部交给 NIM 经 OmniRoute 路由，Guard 优先用 OmniRoute 内置 Guardrails 与 `/v1/moderations`**。这样才能在 2 核 16 GB 的硬约束下既保住检索质量，又不至于 OOM 或被冷启动拖垮。
+
+如果后续检索/重排的 CPU 延迟不可接受，唯一稳妥的升级是把这三件套迁到 **HF Inference Endpoints 的 CPU 实例（约 \$0.03/小时，支持 scale-to-zero）** 或 TEI 专用端点，而不是继续在免费 Space 上加码本地大模型。
+
+
+
+
+
+
+
+*
+
+查证完成，现在整理成综合评估。
+
+
+
+以下是完整的逐项查证结果与建议。
+
+### **HF 免费 Space 的硬性约束**
+
+CPU Basic 提供 2 vCPU、**16 GB RAM**、50 GB 临时磁盘，这是整个方案的绝对天花板。同账号最多约 3 个并发活跃 Space（社区实测），所以必须合理规划跨 Space 拆分策略。ZeroGPU 提供按需共享 H200（最高 70 GB VRAM），但配额时间有限，不适合常驻服务；Router/Guard 这类需要低延迟常驻的组件更不能依赖 ZeroGPU。 [HuggingFace 定价参考](https://www.metacto.com/blogs/the-true-cost-of-hugging-face-a-guide-to-pricing-and-integration) [HF Spaces 官方文档](https://huggingface.co/docs/hub/en/spaces-overview)
+
+---
+
+### **Embedding：BAAI/bge-m3 ✓ 保留**
+
+bge-m3 是 570M 参数、约 1.1 GB 内存，在 CPU 下做小批量向量化完全可行，稠密+稀疏+多向量三合一的能力对 RAG 检索尤为重要。OmniRoute 的 `/v1/embeddings` 直接对接，无需改动。这是方案中唯一建议保留原选型的组件。 [LangChain BGE 文档](https://docs.langchain.com/oss/python/integrations/embeddings/bge_huggingface)
+
+---
+
+### **Reranker：强烈建议替换为 bge-reranker-v2-m3**
+
+这是方案中**最值得纠正的选型错误**。`bge-reranker-large` 最大上下文窗口仅 **512 tokens**，对搜索结果摘要（通常 300\~1000 字）而言严重不足，会大量截断输入，导致 Rerank 质量几乎失效。[BAAI 官方说明](https://huggingface.co/BAAI/bge-reranker-v2-m3/discussions/5)
+
+`bge-reranker-v2-m3` 参数量相同（568M）、内存占用相当（\~1.1 GB），但上下文窗口扩展到 **8192 tokens**（16 倍），在多语言场景表现更优，且由 bge-m3 微调而来，与 Embedding 层天然对齐。替换成本几乎为零，收益极大。
+
+---
+
+### **Router / 记忆压缩：降级到 3B，两任务复用一个实例**
+
+Qwen2.5-7B-Instruct 的 Q4\_K\_M 量化需要约 **4.7 GB RAM**，加上其他组件后总预算会突破 16 GB 红线。Microsoft Phi-4 的完整版本约 14B，更是远超限制；Phi-4-mini 虽然约 3.8 GB，但路由任务的指令跟随能力不如 Qwen2.5 系列。 [Qwen2.5 GGUF 参数表](https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF)
+
+**建议使用 Qwen2.5-3B-Instruct Q4\_K\_M，约 2.0 GB RAM**，CPU 推理约 5\~8 tok/s，对于意图分类、查询改写、摘要压缩这类短输出任务延迟在 2\~5 秒，可接受。关键优化点是：Router 与记忆压缩复用同一个 llama.cpp 进程，通过串行队列调度，避免两个模型同时常驻内存消耗双倍。 [Llama-3.2-3B 内存参数](https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF)
+
+---
+
+### **Guard Model：答案是 DuoGuard-0.5B**
+
+查证显示，这个方向你选的 **"待定"** 有了明确答案。`DuoGuard/DuoGuard-0.5B` 基于 Qwen2.5-0.5B 微调为序列分类器，仅约 **0.4 GB 内存**，支持 29 种语言，12 维多标签分类，推理速度比 Llama Guard（需要生成文本）快 5\~10 倍，是所有开源轻量 Guard 中最适合常驻 CPU Space 的选择。 [DuoGuard-0.5B 模型卡](https://huggingface.co/DuoGuard/DuoGuard-0.5B)
+
+准确率层面它低于大模型 Guard（基准平均 ~70 vs 大模型的 84\~89），**应定位为前置快速过滤层，而非终审**。高置信度的违规请求直接拦截；低置信度（分数 0.3\~0.7）再转发到 OmniRoute 内置 `/v1/moderations` 作双重确认。这个分层设计既省内存又不牺牲最终安全性。 [Guard 模型基准对比](https://arxiv.org/html/2605.28830v1)
+
+---
+
+### **SearXNG：独立一个 Docker Space，单 worker 模式**
+
+SearXNG 本身很轻，单 worker 约 **150 MB RAM**，完全可以运行在独立的免费 CPU Basic Space。关键配置点有三个：
+
+第一，在 `settings.yml` 中必须显式开启 JSON 输出格式，否则 API 返回 HTML，OmniRoute 无法解析：
+
+```yaml
+search:
+  formats:
+    - html
+    - json
+```
+
+第二，将 `uwsgi.ini` 里的 `workers = %k` 改为 `workers = 1`，可将内存从 600 MB 压缩到 150 MB。
+
+第三，HF Space 出站网络仅放行 80、443、8080 端口，SearXNG 的上游引擎（Google、Bing 等）均走 443，理论上可达，但实际可用性取决于引擎反爬策略，建议配置多引擎分散风险，并把 OmniRoute 的 Brave/Tavily 作为备用主路径。 [SearXNG Docker 文档](https://docs.searxng.org/admin/installation-docker.html) [LiteLLM SearXNG 配置](https://docs.litellm.ai/docs/search/searxng)
+
+SearXNG 独立 Space 后，主 Space 释放出那 150\~200 MB，也为 KV 缓存和其他运行时留出更多余量。
+
+---
+
+### **总体内存拓扑**
+
+最终推荐的单 Space 组件分配约 **6.3 GB**（含系统 + OmniRoute），剩余约 9.7 GB 作为 KV 缓存、模型加载临时内存和运行时堆，安全裕量充足。SearXNG 独立部署为第二个 Space。
+
+| 组件 | 推荐模型 | 内存 | 变更 |
+|---|---|---|---|
+| Embedding | bge-m3 | ~1.1 GB | 保留 |
+| Reranker | bge-reranker-v2-m3 | ~1.1 GB | 替换 large |
+| Router + 记忆压缩 | Qwen2.5-3B Q4\_K\_M | ~2.0 GB | 降级复用 |
+| Guard | DuoGuard-0.5B | ~0.4 GB | 新增（填"待定"） |
+| 系统 + OmniRoute | — | ~1.5 GB | — |
+| SearXNG | 独立 Space | ~0.15 GB | 独立部署 |
+
+这个组合能在免费额度内稳定运行，且比原始方案在 Reranker 质量（上下文窗口 16 倍）、Guard 覆盖（从"待定"变为实际运行）、以及内存安全裕量上均有实质性提升。
+
+
+
+
+
+
+
+
+
+
+### **HF 免费 CPU Space 上的最佳组合不是把清单全部本地化，而是只部署轻量检索服务：SearXNG + BGE-M3 + 轻量 Reranker；路由、记忆压缩和主要安全判断继续经 OmniRoute 调用远端 NIM。7B/14B 生成模型与两个 560M 检索模型常驻同一免费 Space，会超出合理的内存和 CPU 延迟预算。**
+
+HF 免费 CPU Basic 当前默认只有 **2 vCPU、16 GB RAM、50 GB 非持久磁盘**。在这套资源上，单独运行 BGE-M3、Reranker 和 SearXNG可行，但再常驻 Qwen 7B、Phi-4 或多个生成/Guard 模型，会造成冷启动长、内存峰值高、请求串行拥堵等问题。 [Hugging Face](https://huggingface.co/docs/hub/en/spaces-overview)
+
+### **逐项查证与选择**
+
+| 功能 | 原提议 | 免费 Space 结论 | 最佳选择 |
+|---|---|---|---|
+| Embedding | BGE-M3 | 可用，但要限制长度和批量 | `BAAI/bge-m3` |
+| Reranker | BGE Reranker Large | 可用但 CPU 偏慢 | 首选 `bge-reranker-base`；质量优先选 `v2-m3` |
+| Router | Qwen2.5-7B / Phi-4 | 不适合常驻免费 CPU | 用 OmniRoute 的 `nim-fast` |
+| 记忆压缩 | Llama 3.2 3B / Qwen 7B | 可量化运行，但不值得占常驻内存 | 用 OmniRoute `nim-stable` 或 `nim-fast` |
+| Guard | 待定 | 1B 可选，仍增加常驻压力 | 默认规则层；必要时 `Llama-Guard-3-1B INT4` |
+| Research | SearXNG | 很适合 CPU Space | 单 worker、只开放 JSON API |
+
+### **Embedding：保留 BGE-M3**
+
+`BAAI/bge-m3` 是合理选择。它约 568M 参数、输出 1024 维向量，支持多语言、最长 8192 tokens，并同时支持 dense、sparse 和 multi-vector 检索。对于中英文混合的个人 Agent，它比仅英语模型更合适。 [NVIDIA Model Card](https://build.nvidia.com/baai/bge-m3/modelcard) [LangChain](https://docs.langchain.com/oss/python/integrations/embeddings/bge_huggingface)
+
+不过不要在免费 CPU Space 上直接使用它的最大长度。建议：
+
+```text
+文档分块：384–512 tokens
+重叠：48–64 tokens
+查询上限：256 tokens
+单块编码上限：512 或 768 tokens
+batch_size：4
+并发：1
+向量归一化：true
+只输出 dense embedding
+```
+
+BGE-M3 的 FP16 模型权重约 1.06 GB，但 Python、PyTorch、分词器、计算中间量和长序列注意力还会占用额外内存。8192 tokens 虽然是模型能力，不代表适合在 2 vCPU 免费实例上作为默认长度。 [Hugging Face](https://huggingface.co/BAAI/bge-m3/discussions/64)
+
+如果主要任务只是对网页搜索结果排序，而不是构建长期知识库，Embedding 可以暂缓部署：网页检索首先依靠搜索引擎，随后直接 Rerank，Embedding 只在“记忆库、书签库、历史页面库”中才发挥核心作用。
+
+### **Reranker：不要默认使用旧版 Large**
+
+`BAAI/bge-reranker-large` 有 560M 参数、约 2.24 GB 权重，CPU 上对几十个候选逐对评分时延迟明显。它能运行，但不适合作为免费 Space 的高频接口。`bge-reranker-base` 只有 278M 参数、约 1.11 GB，吞吐和资源占用更合理。 [BGE Documentation](https://bge-model.com/bge/bge_reranker.html)
+
+建议按优先级选择：
+
+1. **免费 CPU 最稳妥**：`BAAI/bge-reranker-base`
+2. **中英文质量优先、可以接受较慢**：`BAAI/bge-reranker-v2-m3`
+3. **不建议新部署**：旧的 `BAAI/bge-reranker-large`
+
+运行参数建议：
+
+```text
+候选输入：最多 12–16 条
+最终 top_n：5–8
+max_length：512
+batch_size：2 或 4
+并发：1
+超时：20–30 秒
+```
+
+搜索阶段先做 URL 去重和 RRF，再让 Reranker 处理十余条候选，不要把几十条长网页正文全部交给交叉编码器。
+
+### **Router：Qwen 7B 和 Phi-4 都不应部署在该 Space**
+
+原版 `microsoft/phi-4` 是 **14B** 参数模型，不是适合免费 CPU 的“小模型”。即使量化后能勉强装入内存，也会与 Embedding、Reranker 和搜索服务争抢资源，生成延迟很差。 [Hugging Face](https://huggingface.co/microsoft/phi-4)
+
+Qwen2.5-7B 的 4-bit 版本虽然理论上可装入 16 GB RAM，但在 2 vCPU 上执行查询拆分、意图分类和路由，投入产出比仍低。你已经有 OmniRoute 与 NIM 模型池，最合理的设计是：
+
+- 路由、查询改写：`nim-fast`
+- 复杂检索规划：`nim-stable`
+- 无状态并行摘要：`nim-pool`
+
+如果必须离线保底，才部署 `Qwen2.5-1.5B-Instruct` 的 INT8/GGUF 量化版，而不是 7B。已有 CPU INT8 测试显示其模型约 1.6 GB、峰值 RSS 约 2.0–2.2 GB，远比 7B 实际。 [Hugging Face](https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct)
+
+因此 Router 的推荐顺序为：
+
+```text
+主路由：OmniRoute nim-fast
+失败回退：规则路由
+可选离线回退：Qwen2.5-1.5B-Instruct INT8
+```
+
+规则路由其实足以处理大部分一级决策：
+
+```text
+需要实时资料、网址、政策、版本 → search
+查个人存档或既有材料 → embeddings
+候选结果超过 5 条 → rerank
+长对话超过阈值 → compress
+代码任务 → nim-codex
+复杂综合任务 → nim-stable
+其他短任务 → nim-fast
+```
+
+### **记忆压缩：不要和 Context Relay 混为一谈**
+
+Context Relay 是 OmniRoute 的账号/会话接力路由策略，不等于通用的“长期记忆压缩模型”。你的 NIM 多 Key 池应继续视为无状态池，记忆压缩需要由 Agent 明确调用摘要模型，并保存结构化结果。
+
+不建议在检索 Space 常驻 Llama 3.2 3B。其 BF16 运行内存示例约 7.4 GB；量化后仍约 3.7–4.1 GB RSS，这会明显挤压 BGE 与 Reranker。 [Hugging Face](https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct)
+
+最佳方案是通过 OmniRoute 调用 `nim-stable` 压缩，同时采用结构化记忆格式：
+
+```json
+{
+  "stable_facts": [],
+  "user_preferences": [],
+  "decisions": [],
+  "open_questions": [],
+  "entities": [],
+  "source_refs": [],
+  "recent_context_summary": ""
+}
+```
+
+压缩触发条件建议设为：
+
+- 对话估算超过 12K–16K tokens；
+- 每 20–30 轮形成一个增量摘要；
+- 只合并新消息，不反复重写全部历史；
+- 事实和引用单独保留，不让摘要覆盖原始证据；
+- 重要决定保留时间戳和来源。
+
+若一定要有本地离线压缩回退，优先复用 `Qwen2.5-1.5B-Instruct INT8`，不要再加载第二个生成模型。
+
+### **Guard：采用“规则优先、模型可选”**
+
+个人 Agent 不宜让每次请求都串行经过 1B Guard 模型，否则会增加明显延迟。建议分三层：
+
+1. Gate 层限制路径、请求体大小、鉴权和速率；
+2. 规则层检测提示词注入、秘密外泄指令、危险工具参数和不可信网页指令；
+3. 只有高风险或不确定请求才调用 Guard 模型。
+
+如果需要本地模型，`meta-llama/Llama-Guard-3-1B` 比 ShieldGemma 2B 更适合有限资源：它用于同时分类输入和输出，提供 1B 及剪枝量化版本，并支持自定义安全类别。 [Hugging Face](https://huggingface.co/meta-llama/Llama-Guard-3-1B)
+
+但它存在模型访问许可和中文分类质量需要实测的问题。因此建议：
+
+```text
+默认：规则 Guard，不加载模型
+可选：Llama-Guard-3-1B INT4，按需懒加载
+失败策略：Guard 不可用时，不阻断普通检索；高风险工具调用默认拒绝
+```
+
+网页搜索还需要专门的提示注入防护：抓取页面里的“忽略之前要求”“调用工具”“上传密钥”等文本只能作为数据，不能进入系统指令或工具参数。
+
+### **Research：SearXNG 适合，但只承担候选发现**
+
+SearXNG 是这份清单里最适合免费 CPU Space 的服务。它自身资源需求较低；个人实例使用单 worker 可显著降低内存。社区实践中，将 worker 数降为 1 后，空闲内存可从约 600 MB 降到约 150 MB。 [SearXNG GitHub](https://github.com/searxng/searxng/discussions/1892)
+
+建议配置：
+
+```yaml
+search:
+  formats:
+    - json
+  safe_search: 1
+  autocomplete: ""
+  default_lang: auto
+
+server:
+  limiter: true
+  image_proxy: false
+```
+
+并采用以下运行原则：
+
+- 单 worker；
+- 不开放公共 HTML 搜索页面；
+- 只允许 OmniRoute/Gate 持有的 PSK 访问；
+- 每次启用 4–6 个可靠引擎，而不是全部引擎；
+- 总搜索超时 8–12 秒；
+- 每个引擎超时 2–4 秒；
+- 对相同查询缓存 10–30 分钟；
+- 禁用图片代理和不需要的类别；
+- JSON API 必须启用，否则上层可能收到 HTML。SearXNG 官方支持引擎权重、类别、语言、超时和重试等配置。 [SearXNG Documentation](https://docs.searxng.org/admin/settings/settings_engines.html)
+
+不过，之前查证的 OmniRoute 原生 `/v1/search` 提供商列表主要是 Brave、Tavily、Exa、Serper、Perplexity，并未在当前官方摘要中确认 SearXNG 是其原生 `/v1/search` 提供商。因此不要预设 3.8.43 的 Search Tools 页面一定能直接注册 SearXNG；应先在实际 Dashboard/API 中确认。若不能原生注册，可让 Agent 把 SearXNG 作为独立 MCP/HTTP 搜索工具，结果再交给 OmniRoute `/v1/rerank`，而不是修改 OmniRoute 数据库猜字段。
+
+### **最适合的最终部署组合**
+
+#### **推荐方案：一个 HF Space，三个服务进程**
+
+```mermaid
+flowchart LR
+    A[Agent] --> O[OmniRoute Gate]
+    O --> N[NIM 模型池]
+    O -->|Embedding/Rerank| H[HF Retrieval Space]
+    A -->|Web Search| H
+
+    subgraph H[HF 免费 CPU Space]
+        API[统一私有 API]
+        S[SearXNG 单 Worker]
+        E[BGE-M3 Dense]
+        R[BGE Reranker Base]
+        G[规则 Guard]
+        API --> S
+        API --> E
+        API --> R
+        API --> G
+    end
+
+    S --> D[去重与 RRF]
+    D --> R
+    R --> F[前 5 至 8 条结果]
+    F --> N
+```
+
+建议服务清单：
+
+```text
+SearXNG
+BAAI/bge-m3
+BAAI/bge-reranker-base
+FastAPI 统一适配层
+规则型 Guard
+可选 Qwen2.5-1.5B INT8，仅作离线回退
+```
+
+不部署：
+
+```text
+Qwen2.5-7B-Instruct
+microsoft/phi-4
+Llama-3.2-3B-Instruct
+bge-reranker-large
+第二套独立研究 Agent
+```
+
+### **内存预算**
+
+| 组件 | 预计常驻或峰值 | 控制方式 |
+|---|---:|---|
+| 系统、Python、API | 1.0–1.5 GB | 精简 Docker 镜像 |
+| SearXNG | 0.2–0.5 GB | 单 worker |
+| BGE-M3 | 1.5–3 GB | 短序列、batch 4 |
+| Reranker Base | 1–2 GB | batch 2–4 |
+| 缓存与处理峰值 | 2–4 GB | 并发 1、队列化 |
+| 可选 1.5B INT8 | 2–3 GB | 懒加载或二选一 |
+| 安全余量 | 3–5 GB | 防止 OOM |
+
+不加载本地生成模型时，整体较稳；加 Qwen 1.5B 后仍可能运行，但会显著降低并发和冷启动表现。Embedding 与 Reranker 应避免同时处理长批次，使用全局信号量将模型推理并发限制为 1。
+
+### **OmniRoute 对接端点**
+
+统一适配层可以暴露：
+
+```text
+POST /v1/embeddings
+POST /v1/rerank
+POST /v1/search
+GET  /healthz
+```
+
+鉴权统一使用：
+
+```http
+Authorization: Bearer <INTERNAL_PSK>
+```
+
+`/v1/search` 内部执行：
+
+```text
+查询拆分
+→ SearXNG 搜索
+→ URL 规范化与去重
+→ RRF
+→ Reranker Base
+→ 返回 top 5–8
+```
+
+如果 OmniRoute 3.8.43 可以把该 Space 注册成 OpenAI-compatible embedding/rerank provider，就分别接入；SearXNG 则通过原生 Search Provider、MCP 或 Agent HTTP Tool 三种方式择一。不要让 HF Space 公开 OmniRoute 管理接口，也不要把 SearXNG 直接暴露成无鉴权公共代理。
+
+最终推荐可压缩为：
+
+```text
+检索：BAAI/bge-m3
+排序：BAAI/bge-reranker-base
+研究搜索：SearXNG 单 worker
+路由：OmniRoute nim-fast
+复杂综合与压缩：OmniRoute nim-stable
+安全：Gate + 规则 Guard
+可选模型 Guard：Llama-Guard-3-1B INT4
+离线 LLM 回退：Qwen2.5-1.5B-Instruct INT8
+```
+
+这是 HF 免费 CPU Space 上质量、延迟、内存和可维护性最均衡的组合。
+
+
+
+
+
+
+
+### **在 HF 免费 CPU Space（2 vCPU / 16GB RAM，无持久 GPU、闲置会休眠）上,同时塞下 embedding、reranker、7B 路由、3B 摘要、Guard 模型和 SearXNG 是不现实的,必须拆分到多个 Space 并对模型做量化降级,否则大概率会撞显存/内存墙或响应慢到不可用。**
+
+先说清楚硬性事实:HF 官方文档明确 CPU Basic 免费档是 **2 vCPU、16GB RAM、50GB 非持久磁盘**，且没有 GPU；ZeroGPU 虽然免费但配额只有每天几分钟，不适合作为常驻推理后端。 [Hugging Face Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview) [Hugging Face Pricing](https://huggingface.co/pricing) 一些用户反馈免费 CPU-Basic 还存在并发运行数量的隐性限额，多个 Space 同时跑可能被限流，这意味着你不能假设可以无限制并行开多个常驻服务。 [Hugging Face Forums](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628)
+
+### **逐项查证结果**
+
+#### **Embedding：bge-m3 —— 合适，但要用轻量运行时**
+
+bge-m3 本身只有约 0.6B 参数、约 2 到 2.5GB 显存/内存占用，属于这批组件里对 CPU 最友好的一个，官方与第三方资料都把它列为轻量级多语言检索模型。 [Spheron](https://www.spheron.network/blog/self-host-embedding-reranker-tei-gpu-cloud) 在 16GB CPU Space 上跑 bge-m3 是可行的,但建议用 `sentence-transformers` 或 Text Embeddings Inference（TEI）的 CPU 构建,并限制单批文本长度和批大小,避免一次性对大量文档做长文本编码导致内存峰值。
+
+#### **Reranker：bge-reranker-large —— 建议替换为 bge-reranker-v2-m3**
+
+这里查证后发现一个关键问题:**bge-reranker-large 是旧代（基于 xlm-roberta-large，约 560M 参数,单语言优化较弱）**，BGE 官方文档目前推荐的是新一代 **bge-reranker-v2-m3**（同样约 568M 参数、基于 bge-m3 训练），多语言能力更强,而参数量与旧版相近，几乎没有额外算力代价。 [BGE Documentation](https://bge-model.com/tutorial/5_Reranking/5.2.html) [BAAI/bge-reranker-v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3)
+
+实测数据也支持替换：一份第三方 CPU 基准显示,bge-reranker-large 在 CPU 上对同批文档重排耗时约 255 秒，明显慢于同代小模型，而 v2-m3 结构更紧凑，速度更有优势。 [Medium](https://medium.com/@xiweizhou/speed-showdown-reranker-1f7987400077) 因此，如果你的目标是“HF 免费 Space 上配合 OmniRoute 使用”，**bge-reranker-v2-m3 是比 bge-reranker-large 更适合的搭配**，尤其是你的检索层本身就是多语言的 bge-m3，两者同源训练在效果上更一致。
+
+#### **Router：Qwen2.5-7B-Instruct 与 Phi-4 —— 两者都不适合免费 CPU Space 常驻，需要降级**
+
+查证结果明确指出，7B 级模型在纯 CPU 环境下速度非常受限。一份针对 llama.cpp CPU 部署的测评显示，Qwen2.5-7B-Instruct 在中等桌面级 CPU（Core i7-13700H）上 4-bit 量化后约为 **15 tokens/秒**，在更老的服务器 CPU 上仅 **8 tokens/秒**；而 HF 免费 CPU Space 的 2 vCPU 规格通常弱于这些测试平台。 [CEUR-WS](https://ceur-ws.org/Vol-4164/paper11.pdf) 这意味着把 7B 模型作为“路由”这种需要低延迟决策的组件，会成为整条链路里最大的瓶颈。
+
+Phi-4（14B 完整版）比 Qwen2.5-7B 更大，内存和延迟压力更重，官方对比资料也显示 Phi-4 系列在基准上并非全面领先 Qwen2.5-7B，价格和上下文窗口方面 Qwen2.5-7B 反而更有优势。 [Price Per Token](https://pricepertoken.com/compare/microsoft-phi-4-vs-qwen-qwen-2.5-7b-instruct) 如果你说的是 **Phi-4-mini-instruct（3.8B）**，情况会不同——同一份 CPU 测评显示 Phi-4-mini-instruct 在强 CPU 上可达 **80 tokens/秒**，量化后仅需约 8GB 内存，比 7B 模型快 5 倍以上。 [CEUR-WS](https://ceur-ws.org/Vol-4164/paper11.pdf)
+
+综合结论：**在免费 CPU Space 上，路由模型应该用 Phi-4-mini-instruct（3.8B，Q4 量化）而不是 Qwen2.5-7B-Instruct 或完整版 Phi-4**。如果一定要保留 Qwen 系列，应换成 **Qwen2.5-3B-Instruct** 或更小档,而不是 7B。7B 模型建议放在 OmniRoute 已接入的免费云端 API（NIM、其它 Provider）里跑，不要把它塞进自托管 CPU Space。
+
+#### **记忆压缩／总结：Llama-3.2-3B 与 Qwen2.5-7B —— 应选 Llama-3.2-3B，不要选 7B**
+
+摘要/压缩任务对延迟不算极端敏感，但仍需要频繁调用。3B 级模型量化后内存占用约在 2GB 左右，CPU 上速度可观（同类 1-3B 模型在测评里能达到 70-120 tokens/秒），远优于 7B 档。 [CEUR-WS](https://ceur-ws.org/Vol-4164/paper11.pdf) 因此这一项应直接采用 **Llama-3.2-3B-Instruct**，把 Qwen2.5-7B 排除在自托管方案之外，理由与路由模型相同：7B 在免费 CPU 上的吞吐量不足以支撑高频调用的压缩任务。
+
+#### **Guard Model：待定 —— 建议用 Llama-Guard-3-1B 或 ShieldGemma-2B，而不是 Llama-Guard-3-8B**
+
+这是原方案里唯一没有定型的部分，查证后给出明确建议。Meta 官方模型卡指出 **Llama-Guard-3-1B 是专门为降低部署成本设计的版本**，基于 Llama-3.2-1B 微调，支持 MLCommons 13 类危害分类，并有额外的剪裁量化版本，专为资源受限场景优化。 [Hugging Face](https://huggingface.co/meta-llama/Llama-Guard-3-1B) [Azure AI Foundry](https://ai.azure.com/catalog/models/Llama-Guard-3-1B) 相比之下，Llama-Guard-3-8B 虽然分类效果更好，但参数量是 1B 版本的 8 倍，在免费 CPU Space 上会显著拖慢整体延迟。 [Hugging Face](https://huggingface.co/meta-llama/Llama-Guard-3-8B)
+
+另一个可选项是 Google 的 **ShieldGemma-2B**，基于 Gemma-2-2B，仅 2.6B 参数，量化后可在约 1.5GB 显存/内存内运行，支持 CPU-only 推理，官方给出的部署门槛是 4GB 内存起步。 [Local AI Master](https://localaimaster.com/models/shieldgemma-2b) 两者的差异在于:Llama-Guard-3-1B 覆盖 13 类危害分类体系更细，多语言能力继承自 Llama 3.2；ShieldGemma-2B 分类粒度更粗（4 大类）但模型更小、部署更轻。**如果你的 Agent 面向多语言、需要更细分类，选 Llama-Guard-3-1B；如果只想要一个尽量轻、尽量快的粗粒度过滤器，选 ShieldGemma-2B。** 两者都明显优于把 8B 级 Guard 模型也塞进同一个 CPU Space 的方案。
+
+#### **Research：SearXNG —— 能在 HF Space 上部署，但要清楚它的角色和限制**
+
+SearXNG 可以通过 Docker 方式部署到 HF Space，本质是纯反向代理聚合器，不占用推理算力，对 CPU/RAM 压力很小，与前面几个模型服务并不冲突。但需要注意两个官方文档明确提到的问题：一是必须在 `settings.yml` 里显式开启 `json` 输出格式，否则默认只返回 HTML，OmniRoute 或你的 Agent 无法解析；二是 SearXNG 内置了 **Limiter（机器人检测与限流模块）**，其存在原因正是因为 SearXNG 转发的请求会被上游搜索引擎（Google、Bing 等）当作机器人流量，进而触发验证码或封锁，社区反馈里也确实有用户反映部署后频繁遇到 "too many requests"。 [SearXNG Documentation](https://docs.searxng.org/admin/searx.limiter.html) [GitHub Discussion](https://github.com/searxng/searxng/discussions/4429)
+
+这意味着把 SearXNG 部署在 HF 免费 Space 上，**应该把它当作“兜底补召回源”，而不是主搜索源**——与你此前讨论中得出的结论一致：主搜索应交给 OmniRoute 原生接入的 Tavily/Brave，SearXNG 仅在配额耗尽或需要额外覆盖面时启用。另外 HF Space 的公共出口 IP 是共享池，容易比家用 IP 更快被上游引擎标记，需要预期更高的失败率。
+
+### **给出的完整推荐组合**
+
+| 组件 | 原方案 | 查证后建议 | 理由 |
+|---|---|---|---|
+| Embedding | bge-m3 | 保留 bge-m3 | CPU 友好，多语言，与 reranker 同源 |
+| Reranker | bge-reranker-large | **改为 bge-reranker-v2-m3** | 同参数量级，多语言更强，与 bge-m3 同代 |
+| Router | Qwen2.5-7B / Phi-4 | **改为 Phi-4-mini-instruct（3.8B，Q4）** | CPU 吞吐量是 7B 的 5 倍以上 |
+| 记忆压缩/总结 | Llama-3.2-3B / Qwen2.5-7B | **固定用 Llama-3.2-3B-Instruct** | 7B 在免费 CPU 上频繁调用不现实 |
+| Guard | 待定 | **Llama-Guard-3-1B（细分类）或 ShieldGemma-2B（更轻）** | 官方为降本设计的轻量安全分类器 |
+| Research | SearXNG | 保留，作为**补召回源** | 内置限流机制说明其本身要防止被上游封锁，不适合当主源 |
+
+### **部署拓扑建议**
+
+由于免费 CPU Space 单实例只有 16GB RAM，不建议把全部模型塞进同一个 Space。较稳妥的拆分方式是：
+
+```mermaid
+flowchart TB
+    OR[OmniRoute 网关] --> S1[Space 1: bge-m3 + bge-reranker-v2-m3]
+    OR --> S2[Space 2: Phi-4-mini-instruct 路由 + Llama-Guard-3-1B]
+    OR --> S3[Space 3: Llama-3.2-3B 记忆压缩]
+    OR --> S4[Space 4: SearXNG 补召回]
+    OR --> CLOUD[云端 API: NIM / 其它 Provider 承担 7B+ 重任务]
+```
+
+把 Embedding+Reranker 放同一个 Space 是合理的，因为两者都是轻量、无状态、调用频繁但单次耗时短；Router 和 Guard 可以合并到第二个 Space，因为两者都基于同一量级的小模型，且往往在同一次请求里连续调用（先安全检查，再路由）；记忆压缩单独一个 Space，避免和高频短任务抢占同一进程的 CPU 队列；SearXNG 完全独立，因为它不做模型推理，重启和限流策略与其他服务不同。真正的 7B 及以上模型，包括你原方案里的 Qwen2.5-7B，最合适的位置仍然是通过 OmniRoute 已经接入的云端 Provider，而不是自托管在免费 CPU Space 上。
+
+
+
+
+
+
+
+
+### **在 HF 免费 Space（2 vCPU / 16GB RAM）上，最佳组合是：SearXNG + TEI(bge-m3) + TEI(bge-reranker-v2-m3) 部署在 2 个独立 Space，路由、记忆压缩与安全全部交给 OmniRoute 已有的 nim 组合处理，不额外部署 7B 级 LLM；Reranker 应从 bge-reranker-large 升级为 v2-m3（同体量但支持 8192 上下文与多语）。**
+
+---
+
+### **核心约束：HF 免费 Space 的真实边界**
+
+在选型前必须明确免费层的硬限制，因为它直接决定了哪些模型能跑、哪些不能：
+
+- **CPU Basic**：2 vCPU、16GB RAM、50GB 非持久磁盘，免费；[Hugging Face Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview)
+- **休眠机制**：`cpu-basic` 硬件**无法配置自定义休眠时间**，空闲 48 小时后自动暂停，下次访问触发冷启动；[Hugging Face Hub Guides](https://huggingface.co/docs/huggingface_hub/en/guides/manage-spaces)
+- **出站端口限制**：Space 只能向 80、443、8080 发起网络请求，其他端口被阻断——这意味着 Space 之间只能通过公网 URL（443）互访，不能用自定义内部端口；[Hugging Face Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview)
+- **冷启动**：免费 Serverless 推理对冷门模型冷启动可达 10–30 秒；[klymentiev.com](https://klymentiev.com/blog/huggingface-inference-api)
+
+这些约束推出一个关键结论：**你无法把所有模型塞进一个 16GB Space**。bge-m3（~1GB）+ bge-reranker（~2.3GB）+ 一个 7B LLM（Q4 ~3.7GB，运行需 8GB+）+ guard 模型 + SearXNG，加上各运行时开销，会远超 16GB。而且 7B 模型在 2 vCPU 上只有约 8–15 tok/s，不适合实时路由决策。[CEUR-WS CPU LLM Benchmark](https://ceur-ws.org/Vol-4164/paper11.pdf)
+
+---
+
+### **推荐组合 vs 你的提案**
+
+| 角色 | 你的提案 | 推荐方案 | 内存占用 | 理由 |
+|---|---|---|---:|---|
+| Embedding | bge-m3 | **bge-m3 via TEI**（保留） | ~1–2GB | fp16 仅 1.06GB，多语 100+ 语言，CPU 友好；[bge-m3 Memory](https://huggingface.co/BAAI/bge-m3/discussions/64) |
+| Reranker | bge-reranker-large | **bge-reranker-v2-m3 via TEI** | ~2.3–3GB | 同体量 568M，但上下文 8192 vs 512，多语 18+，且与 bge-m3 同源；[BGE Reranker v2 Docs](https://bge-model.com/bge/bge_reranker_v2.html) |
+| Router | Qwen2.5-7B / Phi-4 | **OmniRoute nim-fast + auto-combo** | 0（用 NIM） | 7B 在 2vCPU 太慢；Phi-4 实为 14B 不可行；OmniRoute 已内置 6 因子路由 |
+| 记忆压缩 | Llama-3.2-3B / Qwen2.5-7B | **OmniRoute nim-stable + nim-fast** | 0（用 NIM） | 长会话用 nim-stable，摘要用 nim-fast，避免本地 7B |
+| Guard | 待定 | **OmniRoute 内置 + 可选 PromptGuard 2（86M）** | ~0.5GB | OmniRoute 已有 prompt-injection guard；如需纵深防御，86M 可 CPU 秒级运行；[Guardrails Guide](https://pub.towardsai.net/the-architecture-of-trust-guardrails-for-production-generative-ai-applications-and-the-llama-57a30c73fc93) |
+| Research | SearXNG | **SearXNG（HF Space）+ OmniRoute /v1/search** | ~1GB | SearXNG 提供免费无限聚合搜索；OmniRoute 统一暴露 Tavily/Brave |
+
+---
+
+### **为什么这样调整**
+
+#### **1. Reranker 必须从 large 换成 v2-m3**
+
+这是查证后最明确的升级。两者参数量几乎相同（568M vs 560M），但：
+
+- **bge-reranker-large**：基于 XLM-RoBERTa，max_length 仅 **512**，仅支持中英；
+- **bge-reranker-v2-m3**：基于 bge-m3，max_length **8192**，多语 18+，与你的 embedding 模型同源。
+
+BGE 官方文档明确推荐：多语场景用 v2-m3，效率优先也用 v2-m3。在几乎相同的内存代价下，v2-m3 是全面更优的选择。[BGE Reranker v2](https://bge-model.com/bge/bge_reranker_v2.html) [bge-reranker-v2-m3 Discussion](https://huggingface.co/BAAI/bge-reranker-v2-m3/discussions/5)
+
+需要注意一个已知问题：TEI 加载 bge-reranker-v2-m3 时，有用户报告 GPU 仅 1.5GB 但 CPU 内存消耗达 11GB。这通常与批大小和序列长度有关，部署时应显式限制 `--max-batch-tokens` 和 `--max-concurrent-requests` 来控制内存峰值。[TEI Issue #280](https://github.com/huggingface/text-embeddings-inference/issues/280)
+
+#### **2. 不要在免费 CPU 上部署 7B/14B LLM**
+
+你提案中的 Qwen2.5-7B 和 microsoft/Phi-4 都不适合：
+
+- **Qwen2.5-7B**：Q4 量化约 3.7GB，但运行需 8GB+ RAM，在 2 vCPU 上约 8–15 tok/s；
+- **microsoft/Phi-4**：实际是 **14B** 参数（不是 mini 版），Q4 约 8GB，在免费 CPU 上约 3–5 tok/s，基本不可用；Phi-4-mini（3.8B）才是 CPU 可行的尺寸。[CEUR-WS CPU LLM Benchmark](https://ceur-ws.org/Vol-4164/paper11.pdf)
+
+更关键的是：**OmniRoute 本身就是路由器**。它内置 auto-combo 引擎（6 因子评分、自愈）、combo 管理、Context Relay。你已经有 nim-fast（快速分类/改写）、nim-stable（长会话/综合）、nim-pool（无状态子任务）。再部署一个 7B 来做路由决策，既慢又冗余。
+
+#### **3. Guard 模型选型：小而专**
+
+OmniRoute 官方资料已声明"每条路由上的 prompt-injection guard，可选 PII 脱敏与安全内容过滤归一化"，因此基础安全已覆盖。[OmniRoute](https://omniroute.online) 如果要纵深防御，应选 CPU 友好的小模型：
+
+- **PromptGuard 2（86M / 22M）**：专攻越狱与 prompt 注入检测，86M 版本可在 CPU 上快速运行；[Guardrails Architecture](https://pub.towardsai.net/the-architecture-of-trust-guardrails-for-production-generative-ai-applications-and-the-llama-57a30c73fc93)
+- **DuoGuard（0.5B）**：12 类安全分类，Qwen2.5 基座，极轻；[ICLR 2026 Guard Benchmark](https://arxiv.org/html/2605.28830v1)
+- **ShieldGemma（2B）**：4 类，基准最高（RTP 0.7369），但仍可在 CPU 上跑；[ICLR 2026 Guard Benchmark](https://arxiv.org/html/2605.28830v1)
+
+Llama Guard 4（12B）对免费 CPU 不可行。推荐组合：OmniRoute 内置 guard + 本地 PromptGuard 2 86M 做注入检测，两者互补。
+
+---
+
+### **推荐部署拓扑**
+
+```mermaid
+flowchart TB
+    subgraph HF["HF 免费 Space 集群"]
+        S1["Space 1: SearXNG<br/>Docker / port 7860<br/>~1GB RAM"]
+        S2["Space 2: TEI bge-m3<br/>Embedding /v1/embeddings<br/>~2GB RAM"]
+        S3["Space 3: TEI bge-reranker-v2-m3<br/>Rerank /v1/rerank<br/>~3GB RAM"]
+        S4["Space 4 可选: PromptGuard 2<br/>86M 注入检测<br/>~0.5GB RAM"]
+    end
+
+    subgraph OR["OmniRoute 网关 已有"]
+        NF["nim-fast<br/>查询改写/路由决策/摘要"]
+        NS["nim-stable<br/>长会话/Context Relay/综合"]
+        NP["nim-pool<br/>无状态并行子任务"]
+        SRCH["/v1/search<br/>Tavily+Brave 聚合"]
+        GRD["内置 prompt-injection guard"]
+    end
+
+    S1 -- "免费聚合搜索" --> OR
+    S2 -- "/v1/embeddings" --> OR
+    S3 -- "/v1/rerank" --> OR
+    S4 -- "注入检测" --> OR
+
+    OR -- "OpenAI 兼容 /v1" --> AGT["你的 Agent"]
+```
+
+这个拓扑的核心思想是**职责分离**：HF Space 只承载轻量、无 LLM 的基础服务（搜索、嵌入、重排、小 guard），所有需要生成式推理的工作（路由、摘要、记忆压缩、最终综合）全部交给 OmniRoute 的 NIM 组合，因为它们免费、快速且已部署。
+
+---
+
+### **关键运维约束与对策**
+
+#### **休眠与冷启动**
+
+免费 `cpu-basic` Space 48 小时无活动后自动暂停，且不能改这个阈值。对策是用外部定时探活（如 UptimeRobot、cron-job.org）每隔 10–15 分钟 ping 一次各 Space 的健康端点，保持唤醒。SearXNG 冷启动约 10–20 秒，TEI 加载模型约 30–60 秒，探活能避免每次使用都等冷启动。[Hugging Face Hub Guides](https://huggingface.co/docs/huggingface_hub/en/guides/manage-spaces)
+
+#### **端口限制**
+
+Space 出站只能访问 80/443/8080。SearXNG 调用 Google/Bing 等引擎走 443，没问题；OmniRoute 调用各 Space 的公网 URL（`https://user-space.hf.space`）也走 443，没问题。但**不能**在 Space 之间用自定义端口直连。所有 Space 必须通过 HF 分配的公网 URL 暴露服务，OmniRoute 端在 search-tools 配置页填入这些 URL 即可。[Hugging Face Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview)
+
+#### **SearXNG 必须启用 JSON 输出**
+
+SearXNG 默认只输出 HTML，必须在 `settings.yml` 中显式开启：
+
+```yaml
+search:
+  formats:
+    - html
+    - json
+```
+
+否则 OmniRoute 调用会拿到 HTML 而非 JSON。同时建议配置引擎权重、语言、类别和超时，因为 SearXNG 的结果质量高度依赖所启用引擎与实例配置。[SearXNG Engine Settings](https://docs.searxng.org/admin/settings/settings_engines.html) [LiteLLM SearXNG Docs](https://docs.litellm.ai/docs/search/searxng)
+
+#### **TEI 部署要点**
+
+TEI 官方支持 CPU 推理，Docker 镜像小、启动快、支持动态批处理，是部署 bge-m3 和 bge-reranker 的最佳运行时。每个 TEI 实例服务一个模型，因此 embedding 和 rerank 需要两个实例（两个 Space，或用 Infinity 多模型服务器合并到一个 Space）。[Text Embeddings Inference](https://huggingface.co/docs/text-embeddings-inference/en/index) [TEI GitHub](https://github.com/huggingface/text-embeddings-inference)
+
+---
+
+### **最终落地建议**
+
+最小可行免费部署只需 **2 个 HF Space**：
+
+1. **Space A（搜索）**：SearXNG Docker，配置 JSON 输出 + 多引擎，提供免费无限聚合搜索；
+2. **Space B（嵌入+重排）**：两个 TEI 实例（或一个 Infinity 实例）服务 bge-m3 和 bge-reranker-v2-m3，合计约 5–6GB RAM，在 16GB 内绰绰有余。
+
+所有 LLM 角色——路由、查询改写、记忆压缩、Context Relay、最终综合——全部由 OmniRoute 的 nim-fast / nim-stable / nim-pool 承担，不额外消耗 HF 资源。安全方面，OmniRoute 内置 guard 已够用；如需纵深防御，在 Space B 上加挂 PromptGuard 2（86M）几乎不增加内存。
+
+这样你用零额外成本获得了：免费无限搜索、本地多语嵌入与重排、OmniRoute 统一路由与安全，且每个服务都在免费层资源范围内，避免了 7B/14B LLM 在 2 vCPU 上的性能陷阱。
+
+
+
+### **总体判断**
+
+五个回答高度共识：HF 免费 Space 是 **2 vCPU / 16GB / 无常驻 GPU**，因此不该本地跑 7B/14B 模型，Reranker 应从 `bge-reranker-large` 升级为 `v2-m3`（或 base），路由/压缩/安全大部分交给 OmniRoute + NIM。分歧主要在**架构拓扑（单 Space vs 多 Space）**、**Guard 模型的具体选型**，以及**是否保留任何本地 LLM**。
+
+### **各答案要点与定位**
+
+| 答案 | 核心架构主张 | Guard 选型 | Reranker 建议 |
+|---|---|---|---|
+| Claude-Opus-4.8 | 全部堆在 1 个 Space，用 TEI 统一承载 | OmniRoute 内置为主 | v2-m3 |
+| Claude-Sonnet-5 | 拆 4 个 Space，路由用 Phi-4-mini(3.8B) | Llama-Guard-3-1B / ShieldGemma-2B | v2-m3 |
+| GPT-5.6 Sol | 1 Space 三进程，规则 Guard 优先 | 规则层 + 可选 Llama-Guard-3-1B | base 优先 |
+| GLM-5.2 | 2 个 Space，7B 全交 NIM | 内置 + PromptGuard-2(86M) | v2-m3 |
+| Claude-Sonnet-4.6 | 1 主 Space + SearXNG 独立，本地保留 Qwen2.5-3B | DuoGuard-0.5B | v2-m3 |
+
+### **共同正确点（可信度高）**
+
+- **硬约束一致**：2 vCPU / 16GB / 50GB 非持久磁盘、无常驻 GPU、ZeroGPU 不适合常驻。多数附了 HF 官方文档链接，属实。
+- **Reranker 升级**：一致指出 `large`（512 上下文、XLM-RoBERTa）应换 `v2-m3`（同体量、8192 上下文、多语、与 bge-m3 同源），论证扎实，是全场最有价值的共识纠正。
+- **7B/14B 不本地化**：一致强调 Phi-4 实为 14B、Qwen2.5-7B 在 CPU 上仅 8–15 tok/s，应交 NIM。
+- **SearXNG 细节**：多数正确指出必须显式开 JSON 输出、单 worker 降内存、出站端口限制、被上游引擎限流的风险。
+
+### **各答案的强弱**
+
+**Claude-Opus-4.8** — 逻辑最干净，"能本地跑 vs 外包 NIM"二分清晰，TEI 统一承载 embedding+rerank 的建议实用。弱点：坚持全塞一个 Space，自己也承认内存已逼近上限，容错空间小；Guard 讨论偏原则性。
+
+**Claude-Sonnet-5** — 引用最丰富（CPU 基准、模型卡、限流讨论），Guard 两方案对比（细分类 vs 轻量）很实用。弱点：主张拆到 4 个 Space，却又提到免费档并发数隐性限制，两者存在张力；仍保留一个本地路由 LLM（Phi-4-mini），与"全交 NIM"的主流不完全一致。
+
+**GPT-5.6 Sol** — 最工程化，给出具体分块参数、内存预算表、规则路由伪码、`/v1/search` 内部流程。且**唯一质疑** SearXNG 是否是 OmniRoute 原生 `/v1/search` provider，提醒先在 Dashboard 验证——这是最谨慎、最贴近落地的一点。弱点：篇幅最长，信息密度稀释；reranker 默认推 base 而非 v2-m3，与其他答案略有取向差异（更偏速度）。
+
+**GLM-5.2** — 拓扑最清晰（最小 2 Space），运维章节（休眠 48h、探活、出站端口 80/443/8080）最完整实用。引用了几个 2026 年 arxiv/ICLR 链接（如 DuoGuard、Guard benchmark），**这些引用的真实性存疑**，需警惕。
+
+**Claude-Sonnet-4.6（末条）** — 最果断，给出唯一具体的 Guard 答案 **DuoGuard-0.5B**（0.4GB、29 语言、序列分类），并设计"轻量前置过滤 + moderations 终审"分层，且保留 Qwen2.5-3B 复用于路由+压缩。内存拓扑表最落地。弱点：保留本地 3B LLM 与多数"全外包"结论相左，属于更激进的自托管取向；同样引用了存疑的 2605.28830 arxiv。
+
+### **关键分歧点**
+
+1. **单 Space vs 多 Space**：Opus/GPT/Sonnet-4.6 倾向集中，GLM/Sonnet-5 倾向拆分。集中省管理、拆分抗 OOM——取决于你能否接受多 Space 并发限制。
+2. **是否保留本地 LLM**：GLM/Opus 主张完全不留；Sonnet-5 留 Phi-4-mini 路由；Sonnet-4.6 留 Qwen2.5-3B。若追求纯稳定，前者更安全。
+3. **Guard 从模糊到具体**：DuoGuard-0.5B（Sonnet-4.6）、PromptGuard-2 86M（GLM）、Llama-Guard-3-1B（Sonnet-5/GPT）都是合理答案，粒度和语言覆盖各异。
+
+### **推荐**
+
+- **若你要一份直接照抄的落地方案**：GLM-5.2 或 GPT-5.6 Sol 最合适——前者拓扑与运维（休眠探活、端口）最清晰，后者参数与验证提醒最谨慎。
+- **若你想要最果断的完整选型（含 Guard 定案）**：Claude-Sonnet-4.6（DuoGuard-0.5B + Qwen2.5-3B 复用）给了最明确的"填空"答案，但要接受它保留本地 LLM 的取向。
+- **若你重视决策逻辑的清晰度而非细节**：Claude-Opus-4.8 的"本地/外包"二分最易理解。
+
+注意：几处对 2026 年 arxiv/ICLR 的引用（DuoGuard、Guard benchmark 等）我无法核实，采用前应自行验证真实性；SearXNG 是否为 OmniRoute 原生搜索 provider 也应按 GPT-5.6 Sol 的提醒先在实际 Dashboard 确认。
+
+
+
+### **核心结论**
+
+在 HF 免费 Space（CPU Basic：2 vCPU / 16 GB RAM / 50 GB 非持久磁盘、无常驻 GPU）上配合 OmniRoute 使用，最佳做法**不是把清单全部本地化**，而是分层：本地只跑「轻量、无生成式推理」的服务——SearXNG 搜索 + bge-m3 检索 + bge-reranker-**v2-m3** 排序；而 7B/14B 级的 router、记忆压缩、以及主要安全判断，全部交给 OmniRoute 已接入的 NIM 组合处理，不额外自托管大模型。
+
+先明确硬约束，因为它直接决定选型：免费档是 **2 vCPU、16 GB RAM、50 GB 非持久磁盘**，无常驻 GPU；ZeroGPU 虽免费但按配额、面向交互 Demo，不适合 7×24 常驻后端；`cpu-basic` 空闲会自动休眠、重启即冷启动；出站网络仅放行 80/443/8080 端口，Space 间只能通过公网 URL（443）互访。这些约束意味着：**你无法把 embedding + reranker + 7B router + 3B 摘要 + Guard + SearXNG 全塞进一个 16 GB Space，否则必然 OOM 或延迟到不可用**。 [Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview) · [HF Pricing](https://huggingface.co/pricing)
+
+### **逐项查证与最终建议**
+
+| 角色 | 你的候选 | 查证后建议 | 内存 | 理由 |
+|---|---|---|---:|---|
+| Embedding 检索 | bge-m3 | **保留 `BAAI/bge-m3`** | ~1.1 GB | 568M、多语 100+、支持稠密/稀疏/多向量，CPU 最友好 |
+| Reranker 排序 | bge-reranker-large | **改为 `BAAI/bge-reranker-v2-m3`** | ~1.1–2.3 GB | 同体量但上下文 512→8192，多语更强，与 bge-m3 同源 |
+| Router 路由 | Qwen2.5-7B / Phi-4 | **交给 OmniRoute `nim-fast`** | 0 | 7B 在 2 vCPU 仅 8–15 tok/s；Phi-4 实为 14B 不可行 |
+| 记忆压缩总结 | Llama-3.2-3B / Qwen2.5-7B | **交给 OmniRoute `nim-stable`/`nim-fast`** | 0 | 3B BF16 约 7.4 GB、量化后仍挤占检索层 |
+| Guard 安全 | 待定 | **OmniRoute 内置 Guardrails + 可选轻量小模型** | ~0.4 GB | 规则优先、模型可选 |
+| Research 搜索 | SearXNG | **保留，独立 Space，单 worker** | ~0.15 GB | 纯聚合代理，不占推理算力 |
+
+### **为什么 Reranker 必须从 large 换成 v2-m3**
+
+这是清单里**最值得纠正的选型**。`bge-reranker-large` 基于 XLM-RoBERTa，最大上下文窗口仅 **512 tokens**——对搜索结果摘要（常 300\~1000 字）而言会大量截断输入，Rerank 质量严重受损；且 CPU 上对同批文档重排耗时可达数百秒。`bge-reranker-v2-m3` 参数量几乎相同（568M vs 560M）、内存代价相当，但上下文扩展到 **8192 tokens**、多语更强、且由 bge-m3 微调而来与检索层天然对齐。替换成本几乎为零，收益极大。 [BGE Reranker v2 文档](https://bge-model.com/bge/bge_reranker_v2.html) · [v2-m3 说明](https://huggingface.co/BAAI/bge-reranker-v2-m3/discussions/5)
+
+部署要点：无论是 embedding 还是 rerank，都建议用 Hugging Face 官方 **Text Embeddings Inference（TEI）** 承载——CPU 优化好、原生暴露 OpenAI 兼容接口、便于 OmniRoute 对接。需注意一个已知问题：TEI 加载 v2-m3 时有用户报告 CPU 内存峰值可达 11 GB，务必显式限制 `--max-batch-tokens`、`--max-concurrent-requests`、`max_length`（512）和 batch_size（2\~4）来压住内存峰值。 [TEI Issue #280](https://github.com/huggingface/text-embeddings-inference/issues/280) · [TEI 文档](https://huggingface.co/docs/text-embeddings-inference/en/index)
+
+### **为什么 Router 与记忆压缩不本地部署**
+
+`microsoft/phi-4` 实际是 **14B** 参数（不是 mini 版），Q4 约 8 GB、在免费 CPU 上仅 3\~5 tok/s，基本不可用。Qwen2.5-7B 的 Q4 虽约 3.7 GB，但运行需 8 GB+ 且吞吐只有 8\~15 tok/s，用它做需要低延迟的路由决策是整条链路最大瓶颈。 [CPU LLM 基准](https://ceur-ws.org/Vol-4164/paper11.pdf)
+
+更关键的是：**OmniRoute 本身就是路由器**，内置 auto-combo 引擎与 Context Relay，你已有 `nim-fast`（快速分类/改写/摘要）、`nim-stable`（长会话/综合/压缩）、`nim-pool`（无状态并行子任务）。再自托管一个 7B 做路由既慢又冗余。因此：
+
+- **路由/查询改写** → `nim-fast`，失败回退到规则路由（如「需实时资料→search / 候选>5→rerank / 长对话→compress」）。
+- **记忆压缩/总结** → `nim-stable`。注意 **Context Relay 是账号/会话接力策略，不等于通用记忆压缩模型**；NIM 多 Key 池应视为无状态池，压缩需 Agent 明确调用摘要并保存结构化结果（stable_facts / decisions / open_questions / source_refs 等）。
+- 若必须离线保底，才考虑 `Qwen2.5-1.5B-Instruct INT8`（约 2.0\~2.2 GB RSS），而非 7B。
+
+### **Guard：规则优先、模型可选**
+
+OmniRoute 官方已提供「每条路由的 prompt-injection 防护、可选 PII 脱敏、安全内容过滤归一化」及 `/v1/moderations`，基础安全已覆盖，因此**不必在免费 Space 上强行常驻一个 Guard 模型**。建议分层：
+
+1. Gate 层限制路径、请求体大小、鉴权与速率；
+2. 规则层检测提示注入、密钥外泄指令、危险工具参数（网页抓取内容里的「忽略之前要求」「调用工具」等只能当数据，绝不进入系统指令）；
+3. 仅高风险/低置信请求才调用 Guard 模型。
+
+若要本地纵深防御，按资源占用从轻到重可选：`meta-llama/PromptGuard-2`（86M，秒级注入检测）、`DuoGuard/DuoGuard-0.5B`（约 0.4 GB、29 语言、12 类分类、比生成式 Guard 快 5\~10 倍）、或 `Llama-Guard-3-1B INT4`（13 类、多语，但需访问许可且中文分类质量需实测）。定位为**前置快速过滤**：高置信直接拦截，低置信再转 `/v1/moderations` 复核。Llama-Guard-3-8B 及以上不适合免费 CPU。 [Llama-Guard-3-1B](https://huggingface.co/meta-llama/Llama-Guard-3-1B) · [DuoGuard-0.5B](https://huggingface.co/DuoGuard/DuoGuard-0.5B)
+
+### **SearXNG：保留，但定位为「补召回源」**
+
+SearXNG 是清单里最适合免费 CPU Space 的服务，纯聚合代理不占推理算力。三个关键配置：
+
+第一，`settings.yml` 必须显式开启 JSON 输出，否则 API 只返回 HTML：
+
+```yaml
+search:
+  formats:
+    - html
+    - json
+  safe_search: 1
+```
+
+第二，把 `uwsgi.ini` 的 `workers` 设为 1，内存可从约 600 MB 降到约 150 MB。
+
+第三，SearXNG 内置 Limiter，因为其转发请求常被上游引擎（Google/Bing）当机器人流量触发验证码；加上 HF Space 出口 IP 是共享池，更易被标记。因此**主搜索应交给 OmniRoute 原生接入的 Tavily/Brave，SearXNG 作为配额耗尽或需扩大覆盖面时的兜底补召回**。同时注意 OmniRoute 3.8.43 是否原生支持注册 SearXNG 需在实际 Dashboard 确认；若不能原生注册，可将其作为独立 HTTP/MCP 搜索工具，结果再交给 `/v1/rerank`。 [SearXNG 引擎设置](https://docs.searxng.org/admin/settings/settings_engines.html) · [Limiter](https://docs.searxng.org/admin/searx.limiter.html) · [LiteLLM SearXNG](https://docs.litellm.ai/docs/search/searxng)
+
+### **推荐部署拓扑**
+
+最小可行方案是 **2 个 HF Space + OmniRoute 承担全部 LLM 角色**：
+
+```mermaid
+flowchart TB
+  subgraph HF["HF 免费 Space（CPU 2核/16GB）"]
+    SA["Space A: SearXNG 单 worker（补召回）"]
+    SB["Space B: TEI bge-m3 + TEI bge-reranker-v2-m3"]
+    SG["(可选) PromptGuard-2 86M 注入检测"]
+  end
+  subgraph OR["OmniRoute 网关（已有）"]
+    NF["nim-fast: 路由/查询改写/摘要"]
+    NS["nim-stable: 长会话/Context Relay/综合压缩"]
+    NP["nim-pool: 无状态并行子任务"]
+    SRCH["/v1/search: Tavily+Brave 主源"]
+    GRD["内置 prompt-injection guard + /v1/moderations"]
+  end
+  AGT[Agent] --> OR
+  OR -->|/v1/embeddings| SB
+  OR -->|/v1/rerank| SB
+  OR -->|补召回| SA
+```
+
+Space B 合计约 5\~6 GB RAM，在 16 GB 内绰绰有余（也可用 Infinity 多模型服务器把两模型合到一个实例）。`/v1/search` 内部执行「查询拆分 → SearXNG/Brave 搜索 → URL 去重与 RRF → v2-m3 重排 → 返回 top 5\~8」，Reranker 只处理十余条候选，不要把几十条长正文全丢给交叉编码器。
+
+### **运维要点**
+
+免费 `cpu-basic` 空闲约 48 小时自动暂停且阈值不可改，建议用外部定时探活（UptimeRobot / cron-job.org）每 10\~15 分钟 ping 各 Space 健康端点避免冷启动。50 GB 磁盘非持久、重启清空：OmniRoute 的 `storage.sqlite` 应继续依赖 Litestream → R2 恢复链路；模型权重在 Dockerfile 构建期预拉取或用 HF 缓存挂载以缩短冷启动。对外统一暴露 `/v1/embeddings`、`/v1/rerank`、`/v1/search`、`/healthz`，用 `Authorization: Bearer <INTERNAL_PSK>` 鉴权，不要把 SearXNG 暴露成无鉴权公共代理，也不要公开 OmniRoute 管理接口。 [Manage Spaces](https://huggingface.co/docs/huggingface_hub/en/guides/manage-spaces) · [Docker Spaces](https://huggingface.co/docs/hub/en/spaces-sdks-docker)
+
+### **最终选型一览**
+
+```text
+检索:      BAAI/bge-m3 (TEI)
+排序:      BAAI/bge-reranker-v2-m3 (TEI, 替代 large)
+研究搜索:  SearXNG 单 worker（补召回）+ OmniRoute Tavily/Brave（主源）
+路由:      OmniRoute nim-fast（失败回退规则路由）
+压缩/综合: OmniRoute nim-stable（Context Relay 仅作会话接力，非记忆模型）
+安全:      OmniRoute 内置 Guardrails + /v1/moderations（规则优先）
+可选模型 Guard: PromptGuard-2 86M 或 DuoGuard-0.5B 或 Llama-Guard-3-1B INT4
+离线 LLM 回退:  Qwen2.5-1.5B-Instruct INT8（非 7B/14B）
+```
+
+若日后 CPU 检索/重排延迟不可接受，最稳妥的升级是把 Space B 迁到 **HF Inference Endpoints 的 CPU 实例（支持 scale-to-zero）**，而不是在免费 Space 上继续加码本地大模型。
+
+
+
+I'll verify Hugging Face's current free Space limits and the rules around running multiple Spaces or accounts.
+
+### **结论先讲**
+
+在 2026 年当前的免费额度下，**单账号完全够用**：HF 免费档允许**同时运行约 8 个 CPU-basic 运行单元**，而你要部署的这套（Embedding、Reranker、SearXNG，以及少量轻量 Guard）**用 2–3 个 Space 即可覆盖**，没有必要拆成很多 Space，更**不建议用多账号"叠额度"**——这恰恰是 HF 服务条款重点防范的行为，风险大于收益。 [Hugging Face Forums](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628) [Hugging Face TOS](https://huggingface.co/terms-of-service)
+
+### **先把免费额度的硬事实核实清楚**
+
+免费 CPU-basic Space 的规格是 **2 vCPU / 16GB RAM**，48 小时无访问后进入休眠，且**磁盘非持久**——重启或 Factory Rebuild 后本地存储会清空，持久化需要付费存储或改用私有 dataset 仓库做备份。 [metacto.com](https://www.metacto.com/blogs/the-true-cost-of-hugging-face-a-guide-to-pricing-and-integration) [eesel.ai](https://www.eesel.ai/blog/hugging-face-pricing) [Hugging Face Forums](https://discuss.huggingface.co/t/huggingface-space-memory-resets-24h-since-last-run/168401)
+
+关于"能开几个"，最关键的一条是**并发运行限制而非总数限制**。官方套餐对比文档把免费账号列为 **"Spaces – CPU-based runtime: 8 units running at the same time"**，社区实测也反映有人只能同时保持 3–5 个活跃 Space，超出就报配额限制、需要先暂停旧 Space。也就是说：你**可以创建很多 Space，但同时"跑着"的 CPU-basic 数量大约上限 8 个，且实际可能更低或随时间调整**。 [Hugging Face Forums](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628)
+
+### **单个 Space 还是拆多个？**
+
+真正的约束不是"账号能开几个"，而是**单个 Space 的 16GB 内存和 2 vCPU 能塞下多少常驻服务**。据此给出分档建议：
+
+| 部署内容 | 常驻内存量级 | 建议归属 |
+|---|---|---|
+| bge-m3 Embedding | ~1.5–2.5GB | 可与 Reranker 合并 |
+| bge-reranker-v2-m3（建议替代 large） | ~1–2GB | 可与 Embedding 合并 |
+| SearXNG | ~0.3–0.8GB（但需出站访问） | 独立 Space |
+| 轻量 Guard（如 <1B 分类模型） | ~0.4–1GB | 可与嵌入/排序合并 |
+| 7B/14B 路由/压缩 | 不适合本地 | 交给 OmniRoute + NIM |
+
+由此得出最恰当的拓扑是**一个账号、2 个 Space**：
+
+- **Space A（推理层）**：用 TEI 或统一服务同时承载 **Embedding + Reranker（+ 可选轻量 Guard）**。三者都是短请求、无状态、体量小，合并后内存仍在 16GB 内，且能减少一个休眠/冷启动面。
+- **Space B（检索层）**：**SearXNG 独立部署**。它需要频繁对外发起网络请求、行为特征不同、也更容易被上游引擎限流，隔离出来可避免拖累推理层，也便于单独重启和排查。
+
+如果你希望更强的容错和独立重启能力，可以扩到 **3 个 Space**（Embedding / Reranker / SearXNG 各一），仍在单账号的并发上限之内。**没有任何理由为这套配置去拆到 5 个以上 Space**——那只会增加冷启动、跨 Space 网络跳转和运维负担，而所有 7B/14B 模型本来就应交给 NIM，不占 Space。
+
+### **要不要用多账号组合？**
+
+从额度角度看，**你的需求根本触不到单账号上限**（2–3 个活跃 Space vs 约 8 个并发额度），所以多账号在"省额度"上没有实际收益。而从合规角度看，这样做有明确风险：
+
+Hugging Face 服务条款要求账号信息真实、每个自然人对其账号负责；业界对"为绕过免费额度而批量注册多个免费账号"的普遍认定是**违反条款、可能触发风控封禁**。论坛与同类平台（如 GitHub）的一致口径是：**个人/工作分账、或组织下的合法多账号是被容忍的，但"用小号刷免费资源、规避限额"属于滥用**。你的场景显然属于后者会被判定的情形。 [Hugging Face TOS](https://huggingface.co/terms-of-service) [GitHub Community](https://github.com/orgs/community/discussions/189661)
+
+因此，多账号只在下面这类**正当**情形下才合理，且不应以"叠免费额度"为目的：
+
+- 一个账号用于**生产/对外**（配合 OmniRoute 的稳定服务），另一个用于**开发测试**，彼此隔离、互不刷量；
+- 团队协作时用 **Organization**（HF 明确支持一个用户属于多个组织），而不是私开多个个人小号。
+
+### **落地建议**
+
+最恰当的方式是**单个 HF 账号 + 2 个 Space（推理层合并、SearXNG 独立）**，把路由、记忆压缩、Guard 的重模型部分全部交给 OmniRoute + NIM，本地只留小体量、无状态的嵌入与排序，最多加一个 <1B 的轻量 Guard 分类器。
+
+配套两个运维要点必须做：其一，因免费 Space **磁盘非持久**，所有配置、索引、缓存要么放付费持久存储，要么用**私有 dataset 仓库定时快照备份**（你现有脚本里的 HF Dataset 快照逻辑正好可复用）。 [Hugging Face Forums](https://discuss.huggingface.co/t/huggingface-space-memory-resets-24h-since-last-run/168401) 其二，因 **48 小时无访问即休眠**，若希望 OmniRoute 随时可用，需用定时任务（如每 24 小时一次的探活请求）保活，避免冷启动延迟。 [dev.to](https://dev.to/0xkoji/prevent-hugging-face-spaces-from-sleeping-with-github-actions-agent-browser-2p4f)
+
+如果将来嵌入/排序的并发量或稳定性开始吃紧，比起"再开账号刷免费额度"，更稳妥、也更合规的路径是**升级到 PRO（$9/月）** 或把嵌入/排序迁到 **CPU Inference Endpoint（约 \$0.03/小时、可缩容到零）**——这两者的性价比和风险，都优于多账号规避限额。 [klymentiev.com](https://klymentiev.com/blog/huggingface-inference-api)
+
+
+
+
+
+
+
+先把所有约束数据对齐到一张图，再给出推荐拓扑。
+
+---
+
+## **HF 免费 Space 的真实硬约束**
+
+每个免费账号的 CPU Basic Space 规格是 **2 vCPU / 16 GB RAM / 50 GB 非持久化磁盘**，官方文档明确这是默认且免费的选项，网络出站只开放 80、443、8080 三个端口，其余全部屏蔽。 [Hugging Face Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview)
+
+关于同时运行的 Space 数量，官方计划对比页写的是"Free 账号：8 个 CPU-based runtime 单元可同时运行"，但论坛实测显示实际有效上限正在被动态收紧，部分用户反映超过 3 个就触发配额错误，平台的论坛回复也承认这个数字"可能随时间变化或被动态执行"。**因此安全上限应按 3 个活跃 Space 规划，而不是 8 个。** [HuggingFace Forum](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628) [Hugging Face Pricing 2026](https://www.metacto.com/blogs/the-true-cost-of-hugging-face-a-guide-to-pricing-and-integration)
+
+ZeroGPU 对于你的场景几乎不可用：免费用户每日仅 3.5 分钟 H200 时长，且存在每日 3 次请求硬上限，不适合持续服务化的 embedding/reranker。 [HuggingFace Forum](https://discuss.huggingface.co/t/free-account-zerogpu-quota-issue/175180)
+
+50 GB 磁盘**不持久化**，每次 Space 重启或 48 小时无访问后自动工厂重置，模型权重每次都需要重新从 Hub 拉取，这个冷启动开销对 bge-m3（约 2.2 GB）是显著的。 [Argilla Documentation](https://docs.v1.argilla.io/en/v1.28.0/getting_started/installation/deployments/huggingface-spaces.html)
+
+---
+
+## **你的六个组件在 CPU 16 GB 下的内存占用估算**
+
+| 组件 | 模型 | 内存占用（推断） | CPU 适配性 |
+|---|---|---|---|
+| Embedding | bge-m3 (FP32) | \~2.5 GB | ✅ 可接受，吞吐低 |
+| Reranker | bge-reranker-v2-m3 | \~2.5 GB | ✅ 可接受，延迟较高 |
+| Router | Qwen2.5-7B | \~14 GB | ❌ 16 GB 不够，OOM |
+| Router | Phi-4 (14B) | \~28 GB | ❌ 远超 |
+| 记忆压缩 | Llama-3.2-3B | \~6 GB | ⚠️ 勉强，但与其他共存困难 |
+| 记忆压缩 | Qwen2.5-7B | \~14 GB | ❌ 同 Router 问题 |
+| Guard | DuoGuard-0.5B | \~0.8 GB | ✅ 适合 |
+| SearXNG | — | \~0.5–1 GB | ✅ 单 worker 可行 |
+| OmniRoute | — | \~0.5–1 GB | ✅ |
+
+TEI（text-embeddings-inference）CPU 版本可以在 CPU 上同时承载 bge-m3 和 bge-reranker-v2-m3，合计约 5–6 GB，剩余 10 GB 供系统和 OmniRoute 使用，这是可行的。但任何 7B 以上的模型在 CPU 16 GB 下都无法运行，Router 和记忆压缩的大模型必须全部外包给 NIM。 [Spheron Blog](https://www.spheron.network/blog/self-host-embedding-reranker-tei-gpu-cloud)
+
+---
+
+## **最恰当的部署方案：2 个账号，各 1 个活跃 Space**
+
+```mermaid
+flowchart TB
+    subgraph A1["账号 A — Space A（OmniRoute 主体）"]
+        OR[OmniRoute 3.8.43\nport 20128]
+        GATE[gate.js\nport 7860]
+        LITE[Litestream → R2]
+        OR --> GATE
+        OR --> LITE
+    end
+
+    subgraph A2["账号 B — Space B（TEI 推理服务）"]
+        TEI["TEI CPU\nEmbedding: bge-m3\nReranker: bge-reranker-v2-m3\n/embed  /rerank\nport 7860"]
+    end
+
+    subgraph NIM["NIM 免费层（不占 Space 配额）"]
+        ROUTER["Router / 压缩\nQwen2.5-7B 或\nmeta/llama-3.2-3b-instruct"]
+        GUARD["Guard\nLlama-Guard-3-1B 等"]
+    end
+
+    subgraph SEARCH["搜索（不占 GPU/LLM）"]
+        SR[SearXNG\nSpace C（账号 A 或 B 的第 2 个）]
+    end
+
+    GATE -->|OMNIROUTE_API_KEY| NIM
+    GATE -->|HTTP /embed /rerank| TEI
+    GATE -->|HTTP /search| SR
+    NIM -->|结果| OR
+```
+
+---
+
+## **为什么是 2 个账号而不是 1 个**
+
+每个账号实际安全活跃 Space 上限约 3 个，但这 3 个 Space 共享同一个账号的 IP 信誉和配额桶。OmniRoute 需要出站访问 NIM API；TEI 需要首次从 Hub 拉取大量模型权重（bge-m3 约 2.2 GB、reranker-v2-m3 约 2.2 GB）；SearXNG 需要出站访问众多搜索引擎。这三者堆在同一账号的同一 Space 会导致：RAM 超限 OOM、冷启动拉模型耗时极长、单个 Space 崩溃带倒全部服务。
+
+分到 2 个账号、各有独立活跃 Space 的好处是：独立的重启生命周期（TEI 崩溃不影响 OmniRoute）、独立的出站 IP 信誉（对 SearXNG 的上游引擎限流更友好）、单账号最多用 2 个活跃 Space（主服务 + 搜索），远离 3 个上限的边缘。
+
+如果只用 1 个账号，把 TEI 和 OmniRoute 放在同一个 Space 里（约 7–8 GB），同时把 SearXNG 放第二个 Space，技术上也可行——代价是 OmniRoute + TEI 的合体 Space 启动时间会更长，且两个模型都加载进内存后剩余空间只有约 8–10 GB，留给 OmniRoute 和系统进程相对紧张。
+
+---
+
+## **各 Space 的具体组件分配**
+
+**Space A（账号 A）— OmniRoute 主体**
+
+这是你现有的 `omn-merge-bundle` 部署，保持现有 Dockerfile 不变。Router、Guard、记忆压缩全部通过 NIM 的 API Key 调用，不在本 Space 本地运行。内存峰值约 0.8–1.5 GB，启动稳定，符合现有 entrypoint 的健康等待逻辑。
+
+**Space B（账号 B）— TEI 推理服务**
+
+使用 TEI CPU 镜像 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.5`，同时提供 `/embed`（bge-m3）和 `/rerank`（bge-reranker-v2-m3）。冷启动时从 Hub 拉取约 4.4 GB 模型权重，之后驻留约 5–6 GB RAM。Space B 对外暴露的端点由 OmniRoute 的 Embedding 和 Reranker 配置项直接指向，不经过 Gate 的 PSK 鉴权（内网调用 + 仅 HF Space 内可访问）。两个模型建议用一个 TEI 进程加载，而非两个容器，因为 16 GB 下双进程会更快触碰上限。 [BAAI bge-reranker-v2-m3 Discussion](https://huggingface.co/BAAI/bge-reranker-v2-m3/discussions/30)
+
+**Space C（账号 A 或 B，作为第 2 个活跃 Space）— SearXNG**
+
+使用官方 SearXNG Docker 镜像，单 worker，`settings.yml` 中显式开启 JSON 输出格式（默认只有 HTML，不开 JSON 则 `/search?format=json` 会返回 HTML 而非结构化数据）。只启用少量稳定引擎（如 Google、Bing、DuckDuckGo），避免依赖不稳定的引擎导致整体 Space 超时。Space C 的 URL 填入 OmniRoute 的搜索提供商配置，不需要额外的 API Key。内存约 0.5–1 GB。 [SearXNG on LiteLLM Docs](https://docs.litellm.ai/docs/search/searxng)
+
+**NIM（不占 Space 配额）**
+
+Router（查询改写、意图判断）→ `meta/llama-3.3-70b-instruct` 或 `deepseek-ai/deepseek-v4-flash`（你的 `nim-fast` combo）。记忆压缩（Context Relay 总结）→ `meta/llama-3.3-70b-instruct`（7B 本地化在 CPU 上过慢，用 NIM 的 70B 反而更快且不占 RAM）。Guard → OmniRoute 自身的 moderations 端点或 `nvidia/llama-guard-4-12b`（NIM 有此模型），无需本地部署。
+
+---
+
+## **实际需要几个账号**
+
+**最低可行：1 个账号，2 个活跃 Space（Space A + Space B/C 合并）**
+
+- Space A：OmniRoute 主体（\~1.5 GB）
+- Space B：TEI（bge-m3 + reranker-v2-m3，\~6 GB）+ SearXNG（\~1 GB）合并在同一容器（总计 \~8 GB，仍在 16 GB 以内）
+
+代价是 Space B 启动慢（约 3–5 分钟冷启动），TEI 和 SearXNG 任一崩溃需要整个 Space 重启，且内存余量不到 7 GB。
+
+**推荐：2 个账号，每账号 1–2 个活跃 Space（共 3 个活跃 Space）**
+
+- 账号 A：Space A（OmniRoute）+ Space C（SearXNG）
+- 账号 B：Space B（TEI）
+
+这样每个账号最多使用 2 个活跃 Space，远低于约 3 个的实测上限，单个 Space 崩溃不会拖垮其余，冷启动互不干扰，且 TEI 的出站拉模型流量和 SearXNG 的搜索引擎出站流量来自不同 IP，互不干扰。
+
+**没有必要用 3 个以上账号**，除非你计划扩展到生产级别（多副本、灰度发布等）。路由、压缩、Guard 全部依赖 NIM API，这部分与 HF 账号无关，不占 Space 配额。
+
+
+
+
+
+### **一个 HF 账号、3 个免费 CPU Space 最合适；不建议为了叠加免费额度注册多个账号。**
+
+官方当前列出的免费账户额度是**最多 8 个同时运行的 CPU Space 单元**，而不是只能建一个 Space；但社区近期报告实际可运行数有时低至约 3 个，说明有效配额可能动态收紧。因此，个人部署应按 **1 个账号、3 个运行 Space**设计，最多扩到 4 个，并预留配额余量。创建多个账号规避限制既增加密钥与休眠管理成本，也不应作为生产架构基础。 [Hugging Face Plans](https://huggingface.co/docs/hub/enterprise) [Hugging Face Forum](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628)
+
+### **为什么不是单个 Space**
+
+免费 CPU Basic 的每个 Space 提供 **2 vCPU、16GB 内存和50GB非持久磁盘**。单个 Space 从内存上或许能同时装入量化后的 BGE-M3、Reranker、轻量 Guard 和 SearXNG，但只有 2 个 CPU 核：Embedding 与 Rerank 同时请求时会竞争线程，SearXNG 的并发网络请求又会加剧尾延迟；任一进程异常还会拖垮整个检索链。 [Hugging Face Spaces](https://huggingface.co/docs/hub/spaces-overview)
+
+单 Space 还存在以下问题：
+
+- 修改 SearXNG 配置会迫使全部模型重启；
+- 模型加载可能拖慢搜索服务冷启动；
+- 爬取或搜索流量可能造成内存突增；
+- Embedding 与 Rerank 无法独立设置队列和超时；
+- 整个搜索链只有一个故障域。
+
+因此，单 Space 更适合验证原型，而不是长期配合 OmniRoute 使用。
+
+### **为什么也不建议拆成五六个 Space**
+
+每多拆一个 Space，就多一个冷启动、健康检查、Secret、日志和跨服务调用点。免费 CPU Space 在持续无访问约 48 小时后会休眠，下一次访问会自动唤醒；模型 Space 的唤醒还包括镜像启动和权重加载，可能明显慢于普通 API 服务。免费硬件无法设为永不休眠。 [Hugging Face GPU Spaces](https://huggingface.co/docs/hub/spaces-gpus)
+
+虽然公开计划表列出免费层可同时运行 8 个 CPU-based runtime units，但这只是上限，不意味着每个账号应该用满。近期用户报告只运行三个左右就可能遇到额度限制，因此架构上最好保留至少一半余量，而不是依赖理论上限。
+
+### **最佳三 Space 拓扑**
+
+| Space | 部署内容 | 原因 |
+|---|---|---|
+| Space A：Retrieval | BGE-M3 Embedding | 向量检索计算独立，便于排队和批处理 |
+| Space B：Ranking | BGE-Reranker-v2-m3 + 轻量 Guard | 都是短序列判别任务，可共享 CPU 和运行时 |
+| Space C：Search | SearXNG | 网络密集型服务，与模型推理解耦 |
+| HF 之外 | OmniRoute + NIM | 路由、压缩、最终生成和复杂安全判断 |
+
+这套组合使用三个免费 Space，合计可获得三个隔离的 2-vCPU/16GB 环境，但不应将它理解成一个可以透明合并的 6 核/48GB实例；每个服务仍受单个 Space 限制。
+
+#### **Space A：Embedding**
+
+部署 `BAAI/bge-m3`，仅开放 Embeddings API。建议：
+
+- CPU 线程限制为 2；
+- 请求批量设为 4–8；
+- 单批文本数量和总 token 数设硬上限；
+- 做输入哈希缓存；
+- 容器启动时预加载模型；
+- 不在这里运行 LLM 或网页抓取。
+
+Embedding 通常可以预计算，因此吞吐压力可通过批量索引、缓存和增量更新降低。
+
+#### **Space B：Reranker + Guard**
+
+首选 `BAAI/bge-reranker-v2-m3`，而不是较旧的 `bge-reranker-large`。Guard 只放极轻量分类器或规则层；若 Guard 模型实际内存或延迟过高，就把 Guard 移除，保留：
+
+1. Gate 层长度、类型和注入模式过滤；
+2. OmniRoute 内置 Guard/Moderation；
+3. 必要时调用远端安全模型终审。
+
+Embedding 和 Rerank 不建议合并，是因为它们都属于计算密集型服务；Reranker 和小型 Guard 可以合并，则是因为二者通常按顺序执行，且 Guard 参数量可以很小。
+
+#### **Space C：SearXNG**
+
+SearXNG 单独运行，配置：
+
+- 开启 JSON 输出；
+- 仅开放带内部密钥的 API；
+- 单 worker 或低并发；
+- 上游引擎配置短超时；
+- 对查询做缓存；
+- 禁止暴露管理界面；
+- 仅使用 80、443 或 8080 出站端口。
+
+HF 官方说明 Space 的常规出站访问只允许 80、443 和 8080，因此所有搜索上游和 OmniRoute 回调都应走这些端口。 [Hugging Face Spaces](https://huggingface.co/docs/hub/spaces-overview)
+
+### **路由和记忆压缩不应占免费 Space**
+
+你原方案中的：
+
+- `Qwen/Qwen2.5-7B-Instruct`
+- `microsoft/Phi-4`
+- `Llama-3.2-3B`
+- `Qwen2.5-7B`
+
+都不适合常驻在 2-vCPU 免费 Space 上承担在线服务。问题不仅是模型能否通过量化塞进16GB内存，而是实际 CPU 延迟、并发和冷启动。尤其 Phi-4 并不是轻量路由模型。
+
+更恰当的处理方式是：
+
+| 工作 | 推荐位置 | 推荐实现 |
+|---|---|---|
+| 简单路由 | OmniRoute/Gate | 规则、关键词、请求元数据 |
+| 模糊路由 | NIM `nim-fast` | 小提示词、结构化输出 |
+| 记忆压缩 | NIM `nim-stable` 或 `nim-fast` | 仅在超过 token 阈值时触发 |
+| Context Relay | OmniRoute | 仅在实际支持的账号/协议路径使用 |
+| 最终综合 | NIM | 长上下文模型 |
+
+需要特别区分：**Context Relay 是路由和会话衔接策略，不等于通用的记忆摘要模型**。NIM 多 Key 池不应依赖 Context Relay 保持状态；摘要应由 Agent/记忆层显式执行并保存。
+
+### **是否需要第二个 HF 账号**
+
+正常情况下，**不需要**。
+
+如果只为自己使用，最恰当的是：
+
+- **账号数：1**
+- **活动 Space：3**
+- **备用/测试 Space：0–1 个，平时暂停**
+- **总创建数：可以更多，但不要都保持运行**
+
+多个账号不会解决单 Space 只有 2 vCPU 的核心性能瓶颈，也不会自动形成高可用。反而会带来：
+
+- Token 和 Secret 分散；
+- Space 所有权及协作者管理复杂；
+- 冷启动无法统一控制；
+- 日志和监控分裂；
+- 模型缓存无法共享；
+- 架构依赖平台对免费配额的持续宽松执行。
+
+不要为了突破免费层并发限制建立“账号池”。若资源确实不足，更合理的升级顺序是：先优化批处理和缓存，再减少本地模型，最后升级一个热点 Space 的硬件，而不是继续增加账号。
+
+### **确实有两名真实维护者时**
+
+若项目确实由两名独立成员共同维护，可以分别拥有 Space，但应通过一个组织和协作者机制管理，而不是把多个账号当计算分片。合理的容灾拓扑可以是：
+
+- 账号/维护者 A：Embedding、Reranker；
+- 账号/维护者 B：SearXNG、备用 Search；
+- OmniRoute：主健康检查与故障回退。
+
+但这属于真实团队的所有权与容灾设计，不是个人用来叠加免费配额的策略。对于个人项目，第二账号带来的收益远小于复杂度。
+
+### **如果坚持最少组件**
+
+可采用 **2 个 Space**：
+
+| Space | 内容 |
+|---|---|
+| ML Space | BGE-M3 + BGE-Reranker-v2-m3 + 规则 Guard |
+| Search Space | SearXNG |
+
+这是成本和运维最小的版本，但 ML Space 必须串行执行 Embedding/Rerank，并设置并发为 1，否则两个 CPU 密集模型会互相争抢。该方案适合低频个人调用，不适合批量索引与在线检索并发发生的场景。
+
+### **最终建议配置**
+
+```text
+1 个 HF 免费账号
+├── Space 1: bge-m3-embedding
+├── Space 2: bge-reranker-v2-m3 + lightweight-guard
+├── Space 3: searxng
+└── Space 4: staging（默认暂停，可选）
+
+OmniRoute
+├── /v1/search -> 原生搜索提供商或 SearXNG 适配层
+├── /v1/embeddings -> Space 1
+├── /v1/rerank -> Space 2
+├── 路由/摘要 -> NVIDIA NIM
+└── 健康检查、超时、熔断及缓存
+```
+
+因此，最恰当的答案不是“几个账号”，而是：**一个账号拆成三个职责清晰的免费 Space；低流量时可压缩为两个。不要按免费额度设计多账号集群，也不要在一个 Space 中塞下全部模型。**
+
+
+
+
+
+
+
+
+### **每个账号能稳定跑的 CPU Space 数量已经缩水，不再是"无限"**
+
+官方文档写的是 CPU-Basic Space 理论上"无限托管"（配合闲置自动休眠），但 2026 年多个 Hugging Face 社区帖子证实，平台近期开始对**免费账号的并发 CPU 运行时**做隐性配额限制。多名用户反馈同时只能稳定运行 **3 到 5 个** CPU-Basic Space，超出后新建或唤醒会直接报错提示"已达到 Spaces 配额"，官方客服的标准回复是建议升级 PRO 以解锁更高配额。文档层面能查到的公开数字显示免费账号大约拥有 **8 个并发 CPU 运行单位**的额度，但社区普遍认为这个数字并不稳定，可能会被平台动态调整或收紧，不应当作可靠上限来设计架构。 [Hugging Face Forums](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628) [Hugging Face Forums](https://discuss.huggingface.co/t/cpu-basic-spaces-hitting-quota-limits-despite-unlimited-hosting-inconsistent-behavior-with-restart-and-factory-rebuild/175681)
+
+结合硬件规格，每个免费 CPU Space 固定是 **2 vCPU、16GB 内存、50GB 临时磁盘**（非持久，重启即清空），ZeroGPU 每天只有 3.5 分钟额度，完全不适合承载常驻推理任务。 [MetaCTO](https://www.metacto.com/blogs/the-true-cost-of-hugging-face-a-guide-to-pricing-and-integration) [Hugging Face Docs](https://huggingface.co/docs/hub/en/spaces-storage)
+
+### **单账号内怎么分配最合适**
+
+结合你要部署的五个组件——bge-m3、bge-reranker-v2-m3、路由模型、记忆压缩模型、Guard 模型——以及 SearXNG，如果只用一个账号，最务实的做法不是每个组件单开一个 Space，而是**按内存互斥关系合并**，控制在 3 个 Space 以内，明显低于社区反馈的"3 到 5 个可稳定跑"的经验上限，留出安全余量：
+
+| Space | 承载内容 | 理由 |
+|---|---|---|
+| Space 1 | bge-m3 embedding + bge-reranker-v2-m3 | 两者都基于 XLM-RoBERTa 系列骨干，可用同一套 TEI（Text Embeddings Inference）容器统一承载，内存占用可控 |
+| Space 2 | Guard 模型（DuoGuard-0.5B 或 Llama-Guard-3-1B 级别） | 体量小，可与轻量路由/压缩模型共存，若内存紧张再拆出 |
+| Space 3 | SearXNG | 需要独立出站网络行为和端口策略，与推理容器分离更利于稳定性和排障 |
+
+路由和记忆压缩模型不建议本地化 7B 级别参数——CPU 上跑 Qwen2.5-7B 或 Phi-4（实际 14B）推理速度极慢，且与 embedding/rerank/guard 挤在同一 16GB 空间中极易触发内存驱逐（`Storage Limit Exceeded` 或 OOM），社区帖子也证实了 Spaces 在 swap 使用较低时仍可能被判定超限驱逐。这两项功能更适合直接转发给 OmniRoute 背后的 NIM 免费池处理，而不是占用你紧张的 Space 配额。 [Hugging Face Forums](https://discuss.huggingface.co/t/workload-evicted-storage-limit-exceeded-50g-when-swap-is-merely-at-16g/169386)
+
+### **是否应该用多个账号组合部署**
+
+这里需要分两层来看：**技术可行性**和**平台条款风险**。
+
+从技术上看，多账号确实能突破单账号 3\~8 个的并发配额瓶颈，把 embedding、rerank、guard、search 分散到不同账号名下各开 1\~2 个 Space，理论上可以规避"同账号并发过多被限流"的问题。
+
+但从条款角度看，Hugging Face 的《服务条款》和《内容政策》并未在公开条款文本中明确写出"禁止个人注册多个账号"这类字眼，我检索到的官方 ToS 和 Content Policy 页面主要约束的是内容合规与平台行为规范，并没有查到类似"一人一号"的显式禁令段落。但需要注意，**配额限制本身正是平台用来控制免费资源滥用的机制**；刻意用多账号绕开同一实际使用者的并发配额，属于游走在服务条款精神边缘的做法，一旦被判定为滥用免费资源（尤其是在同一 IP、同一部署脚本模式下批量注册和自动化运维），存在账号被限制或封禁的风险，这类判定通常由平台按具体情况自行裁量，没有公开的、可预测的规则可以保证安全。 [Hugging Face Terms of Service](https://huggingface.co/terms-of-service) [Hugging Face Content Policy](https://huggingface.co/content-policy)
+
+### **更稳妥的组合方式**
+
+如果你的目标是长期稳定运行，而不是短期规避限制，更推荐的路径是：
+
+优先在**同一个账号内**把 Space 数量压缩到 2\~3 个，通过合并同构服务（embedding+rerank 共享一个 TEI 容器）、把重推理任务外包给 OmniRoute+NIM，来适配社区已验证的"3\~5 个可稳定并发"的现实配额，而不是账号数量。如果确实需要分散负载（例如 SearXNG 的出站流量与推理服务的资源需求差异较大，容易互相影响），比较合理的折中是用**第二个账号**单独运行 SearXNG 或 Guard 这类相对独立、低耦合的组件，形成"主账号跑核心检索链路 + 第二账号跑边缘/网络敏感服务"的两账号结构，而不是为每个模型都单独开一个账号。这样既能缓解单账号并发压力,也把条款风险控制在较低、较难被判定为系统性滥用的范围内。
+
+如果长期负载确实需要更高并发保障,更稳妥且完全合规的替代方案是升级到 **PRO（9 美元/月/用户）**，官方文档明确其包含更高的 ZeroGPU 配额、更大存储和更宽松的资源上限，这是唯一被官方正式认可、不存在条款灰色地带的扩容路径。 [MetaCTO](https://www.metacto.com/blogs/the-true-cost-of-hugging-face-a-guide-to-pricing-and-integration) [TechJack Solutions](https://techjacksolutions.com/ai-tools/hugging-face/hugging-face-pricing)
+
+
+
+
+
+
+
+
+### **单账号、1–2 个 Space 是最优解；多账号主动互代理封号风险高，不推荐。免费账号约 8 个并发 CPU 运行单元（实际常只到 3–4 个），而你的本地真实负载（bge-m3 + reranker + SearXNG + 轻量 Guard）在 LLM 外包给 NIM 后只需 5–7GB，一个 16GB Space 就能装下；拆成同账号 2 个 Space 只为隔离与内存余量，完全不必引入第二个账号。** [Hugging Face Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview) [HF Forum: CPU-Basic quota](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628)
+
+---
+
+### **免费额度的真实约束**
+
+先把可查证的硬限制列清楚，这是拓扑决策的基础。
+
+每个免费 CPU Basic Space 提供 2 vCPU、16GB RAM、50GB 非持久磁盘。免费账号的并发 CPU 运行单元官方文档标注约 8 个，但论坛实测反馈有效上限常更低，有用户报告只能同时跑 3–4 个。Space 在 48 小时无访问后自动休眠，再次访问触发冷启动。出站网络仅放行 80、443、8080 端口（部分场景另开 5432、27017），其余端口被阻断。 [Hugging Face Spaces Overview](https://huggingface.co/docs/hub/en/spaces-overview) [HF Forum: CPU-Basic quota](https://discuss.huggingface.co/t/question-about-the-cpu-basic-quota-limit/176628) [Hugging Face GPU Spaces](https://huggingface.co/docs/hub/en/spaces-gpus)
+
+ZeroGPU 免费配额仅约每天 3.5 分钟（认证用户），不适合常驻推理，因此本地模型只能跑在 CPU 上。
+
+### **三种部署方式的对比**
+
+| 维度 | 单 Space 全合一 | 同账号 2 个 Space | 多账号多 Space |
+|---|---|---|---|
+| 配额占用 | 1 / 8 单元 | 2 / 8 单元 | 各账号独立 8 单元 |
+| 内存余量 | 紧（6–8GB / 16GB） | 宽裕（每 Space 独占 16GB） | 宽裕 |
+| 组件隔离 | 差，一崩全崩 | 好，独立重启 | 好 |
+| 跨服务延迟 | 进程内调用，最低 | HTTP 本地回环，中 | 跨账号公网，高 |
+| 休眠协调 | 单一休眠周期 | 各自独立休眠，需协调 | 各自独立，更难协调 |
+| 封号风险 | 低 | 低 | **高**（代理/保活/API 路由模式） |
+| 运维复杂度 | 最低 | 中 | 高 |
+
+### **为什么多账号主动互代理风险高**
+
+这是最需要警惕的一点。Hugging Face 内容政策设有"平台滥用、安全违规与垃圾信息"专节，明确将**代理/隧道绕过限制、保活行为、API 路由、重复 Space、异常存储或上传模式**列为监控信号。OmniRoute 本质上就是一个 API 网关/反向代理，如果你再用多个账号互相转发流量，其行为特征与上述信号高度重合。论坛已有用户因类似模式（代理、保活、API 路由、凭证）导致账号被锁的案例。 [Hugging Face Content Policy](https://huggingface.co/content-policy) [HF Forum: Account Locked](https://discuss.huggingface.co/t/need-help-my-account-was-locked/177071)
+
+因此，多账号"主动互代理"不是免费额度的合理扩展方式，而是封号的高风险操作。
+
+### **推荐拓扑**
+
+```mermaid
+flowchart TB
+    subgraph HF1["免费账号 A（主）"]
+        S1["Space 1: OmniRoute 网关<br/>+ SearXNG（共置）<br/>~3-4GB"]
+        S2["Space 2: TEI<br/>bge-m3 + bge-reranker-v2-m3<br/>~4-5GB 独占 16GB"]
+    end
+
+    NIM["NIM API（外部）<br/>路由/压缩/安全 LLM"]
+    OR["OmniRoute /v1/search<br/>原生搜索 + rerank"]
+
+    S1 -->|"本地 443/8080"| S2
+    S1 -->|"出站 443"| NIM
+    S1 -->|"内置"| OR
+```
+
+具体分配如下：
+
+**Space 1（主，与现有 OmniRoute 同账号）**：OmniRoute 网关 + SearXNG 共置。SearXNG 仅占约 0.5GB，与 OmniRoute 同进程组运行，省去跨 Space 调用。OmniRoute 已内置 `/v1/search`、`/v1/rerank`，SearXNG 作为其搜索 provider 之一接入即可。
+
+**Space 2（同账号）**：用 TEI（Text Embeddings Inference）单独承载 bge-m3 与 bge-reranker-v2-m3。独立 Space 的好处是模型加载可独占 16GB，且 TEI 崩溃不影响 OmniRoute 网关。两个 Space 合计占用 2/8 配额单元，留有充足余量。
+
+**不本地部署的组件**：路由 LLM（Qwen2.5-7B / Phi-4）、记忆压缩（Llama-3.2-3B / Qwen2.5-7B）全部交给 NIM。7B 模型在 2 vCPU 上仅 8–15 tok/s，本地跑既慢又挤占内存，得不偿失。Guard 优先用 OmniRoute 内置 `/v1/moderations`，若需独立模型选 86M 级的 PromptGuard-2 或 0.5B 级轻量分类器，共置在 Space 1 即可。
+
+### **休眠与保活的取舍**
+
+免费 Space 48 小时无访问即休眠。Space 2（TEI）若长期不被调用会休眠，导致 OmniRoute 的 embedding/rerank 调用冷启动失败。两种应对：
+
+一是接受冷启动，在 OmniRoute 侧对 TEI 调用设置重试与超时回退；二是用外部定时器（如 GitHub Actions 每日访问一次）保活，但需注意保活行为本身属于 HF 监控信号之一，应低调、低频，且仅对真正需要的 Space 使用。 [Hugging Face GPU Spaces](https://huggingface.co/docs/hub/en/spaces-gpus)
+
+### **何时才考虑第二个账号**
+
+仅当满足以下全部条件时，第二个账号才值得考虑：
+
+- 主账号的 8 单元配额确实不够（例如要跑多组独立实验）；
+- 第二个账号运行**自包含的独立服务**，而非主动代理转发主账号流量；
+- 你能接受两个账号独立休眠、独立冷启动的运维成本。
+
+即便如此，也应避免在两个账号之间建立"主→备→主"的循环代理链路，那正是内容政策所针对的模式。更稳妥的冗余做法是：第二账号作为被动冷备，仅在主账号故障时手动切换，平时不参与流量。
+
+### **结论**
+
+从免费额度看，**单账号 2 个 Space** 是性价比与安全性最平衡的方案：配额占用 2/8、内存余量充足、封号风险低、运维简单。多账号组合部署在额度上看似翻倍，但 OmniRoute 的网关/代理本质与 HF 的滥用监控信号重叠，主动互代理的封号风险远大于额度收益。把 LLM 外包给 NIM、本地只留 embedding/rerank/SearXNG/轻量 Guard，一个账号就足够支撑完整的个人 Agent 搜索与路由体系。
+
+
+
+在 Hugging Face（以下简称 HF）的免费额度体系下，针对你部署 BGE-M3、Reranker、SearXNG 以及路由和 Guard 模型的需求，最恰当的方式是：**使用单个 HF 账号，拆分为 2 到 3 个功能清晰的 Space。**
+
+不建议使用多个账号来“叠额度”，因为这会显著增加运维成本，且容易触碰平台的滥用风控。
+
+### **HF 免费额度的真实约束**
+
+*   **硬件规格：** 每个免费 CPU-basic Space 提供 **2 vCPU、16GB RAM 和 50GB 非持久化磁盘**。
+*   **并发限制：** 官方文档标注免费账号最多可同时运行 **8 个 CPU 单元**。但根据社区实测，平台近期在动态收紧配额，建议将“稳定运行上限”视为 **3 到 4 个**。
+*   **休眠机制：** 48 小时无访问后会自动休眠。模型类 Space 的冷启动（拉取权重、初始化）通常需要 1 到 3 分钟。
+*   **网络限制：** 出站访问通常只放行 80、443 和 8080 端口。
+
+### **组件分配与部署策略**
+
+为了在 16GB 内存限制下获得最佳性能，建议将任务分为“本地运行”和“外部外包”：
+
+#### **1. 推荐的 3-Space 拓扑方案（单账号）**
+
+| Space | 部署内容 | 理由 |
+| :--- | :--- | :--- |
+| **Space A: 推理层** | BGE-M3 + BGE-Reranker-v2-m3 | 使用 TEI（Text Embeddings Inference）统一承载。两者合计占用内存约 5-7GB，在 16GB 环境下非常稳定。 |
+| **Space B: 搜索层** | SearXNG | 独立部署。SearXNG 是网络密集型服务，与推理层隔离可避免相互干扰，也便于单独排查上游引擎限流问题。 |
+| **Space C: 网关层** | OmniRoute + 轻量 Guard | 作为入口网关，处理路由逻辑。轻量级 Guard（如 <1B 的分类模型）可在此运行。 |
+
+#### **2. 必须“外包”的组件**
+*   **7B/14B 路由与记忆压缩模型：** 不要尝试在 2 vCPU 的免费 Space 上运行 Qwen2.5-7B 或 Phi-4。即便量化后能塞进内存，其推理速度也极慢，且极易触发 OOM（内存溢出）。
+*   **解决方案：** 这些重型推理任务应全部转发给 **NVIDIA NIM** 或其他外部免费 API 池，不占用 Space 本地资源。
+
+### **为什么不建议使用多个账号？**
+
+1.  **风控风险：** HF 的服务条款禁止通过注册多个账号来规避免费额度限制。如果多个账号在同一 IP 下频繁进行自动化的 API 转发或保活，极易触发系统判定为“滥用”，导致账号被封禁。
+2.  **运维复杂度：** 多账号意味着多套 Secret 密钥、分散的日志监控以及更复杂的冷启动管理。对于个人项目，单账号的 8 个单元额度已绰绰有余。
+3.  **性能瓶颈：** 真正的性能瓶颈在于单个 Space 的 2 个 CPU 核心，增加账号并不能提升单个任务的响应速度。
+
+### **核心运维要点**
+
+*   **防止休眠：** 免费 Space 无法设置永不休眠。建议使用 GitHub Actions 或 UptimeRobot 定期（如每 24 小时）发送一次低频探活请求。但需注意频率不宜过高，以免被判定为恶意保活。
+*   **数据持久化：** 由于磁盘是非持久的，SearXNG 的配置文件或任何本地缓存应通过环境变量（Secret）注入，或定期快照备份到 HF Dataset 仓库。
+*   **并发控制：** 在 CPU 密集型任务（如 Embedding）中，建议将并发限制设为 1 或 2，防止多个请求竞争 CPU 导致响应耗时呈指数级增长。
+
+### **总结建议**
+
+最稳妥且高效的做法是：**1 个账号 + 2 到 3 个 Space**。将 Embedding 与 Reranker 合并在一个 Space，SearXNG 独立一个 Space，网关独立一个 Space。这种架构既利用了隔离性提高稳定性，又远在配额安全线之内。
+
+
+
+### **核心方案对比分析**
+
+针对在 Hugging Face (HF) 部署多个模型组件（Embedding, Reranker, Router, SearXNG 等）的免费额度利用问题，各回答在账号数量、Space 分配及风险规避上给出了不同见解。
+
+#### **1. 结构化对比**
+
+| 维度 | **GPT-5.6 Sol** | **Claude-Opus-4.8** | **Claude-Sonnet-5** | **Claude-Sonnet-4.6** | **GLM-5.2** |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **推荐账号数** | 1 个 | 1 个 | 1 个（备选 2 个） | **2 个** | 1 个 |
+| **活跃 Space 数** | 3 个 | 2 个 | 2-3 个 | 3 个 | 2 个 |
+| **Space 分配逻辑** | 检索、排序、搜索独立 | 推理层合并、搜索独立 | 推理合并、Guard 独立、搜索独立 | **分布式：** 账号 A 跑网关，账号 B 跑推理 | 路由/搜索合并、推理独立 |
+| **大模型处理** | 全部外包给 NIM | 全部外包给 NIM | 全部外包给 NIM | 全部外包给 NIM | 全部外包给 NIM |
+| **多账号态度** | **反对**：增加成本且无必要 | **反对**：违反 TOS，风险大 | **中立**：技术可行但有条款风险 | **推荐**：隔离故障域与 IP 信誉 | **反对**：易触发滥用监控封号 |
+
+---
+
+#### **2. 关键差异与共识分析**
+
+*   **共识：不要在 CPU Space 跑 7B+ 模型**
+    所有回答均一致认为，免费 CPU Space（2 vCPU / 16GB RAM）无法承载 Qwen2.5-7B 或 Phi-4 等模型。最佳实践是将这些重型任务外包给外部免费 API（如 NIM），本地 Space 仅处理 Embedding、Reranker 和 SearXNG。
+*   **争议点：单账号 vs. 多账号**
+    *   **Claude-Sonnet-4.6** 唯一明确推荐使用 **2 个账号**。理由是规避 HF 对单账号并发 Space 数量的动态收紧（实测上限约 3-5 个），并隔离 SearXNG 的出站 IP，防止因爬虫行为导致整个账号受限。
+    *   **其他所有模型** 均倾向于 **单账号**。理由是 2-3 个 Space 远未达到官方 8 个单元的理论上限，多账号部署（尤其是通过 API 互相调用）极易被 HF 的风控系统判定为“滥用免费资源”或“规避配额”，存在封号风险。
+*   **硬件限制的深度解读**
+    **GPT-5.6 Sol** 和 **Claude-Opus-4.8** 详细讨论了内存与 CPU 竞争问题。单个 Space 运行多个模型时，虽然内存（16GB）够用，但 2 个 vCPU 在高并发下会产生严重的线程竞争，导致延迟突增。
+
+---
+
+#### **3. 准确性评估**
+
+*   **配额信息：** 各回答均准确指出了 CPU Basic Space 的硬件规格（2 vCPU/16GB/50GB）。关于并发上限，**Claude-Sonnet-5** 和 **Claude-Sonnet-4.6** 补充了社区实测中“配额动态收紧”的背景，比单纯引用官方“8 单元”更具参考价值。
+*   **合规性：** **GLM-5.2** 对 HF 内容政策（Content Policy）的解读最深刻，明确指出“代理/路由模式”是风控的重点监控对象，这为用户提供了重要的安全警示。
+
+---
+
+### **总结建议**
+
+#### **推荐方案：单账号 + 2-3 个 Space 组合**
+
+*   **如果你追求稳定性与安全性（推荐）：**
+    使用 **1 个账号**。将组件分为 2 个 Space：
+    1.  **Space A (推理层)：** 部署 TEI 容器，同时加载 `bge-m3` 和 `bge-reranker-v2-m3`。
+    2.  **Space B (逻辑与搜索层)：** 部署 OmniRoute 和 SearXNG。
+    *理由：* 这种拓扑结构在 16GB 内存内非常宽松，且仅占用 2 个并发名额，完全处于 HF 的安全合规范围内。
+
+*   **如果你对并发性能有极高要求：**
+    参考 **Claude-Sonnet-4.6** 的方案，使用 **2 个账号**。账号 A 负责网关与搜索，账号 B 专门提供推理 API。
+    *注意：* 需确保两个账号的注册信息及使用行为看起来像两个独立的开发者，避免在同一脚本下批量自动化创建，以降低风控风险。
+
+**结论：** 绝大多数个人用户**不需要**多个账号。最恰当的方式是**功能解耦**——将计算密集型（推理）与网络密集型（搜索）分开部署在同账号的不同 Space 中。

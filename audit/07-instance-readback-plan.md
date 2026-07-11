@@ -133,8 +133,8 @@
 | R5.K2.2 | /api/resilience | `requestQueue` 子结构含 `fixedWindowMs`/`intervalMs` (限流字段) 或 B3 源码 schema 名 | ___ | ___ | 限流固定值 28/1/2200ms 写处 (OmniRoute 服务端) schema 验 |
 | R5.G1 | /api/providers (Basic 对) | NIM provider `type` 字段值是 `direct-cloud` (G1 实例证) OR `nim` OR 其它 (B3 providerHints.ts:56 default-cloud 兜底 true) | ___ | ___ | 实例 NIM provider type 实际写值未证 → 此 read-back 直接证 |
 | R5.K2.3 | /api/providers | NIM provider 字段结构含 `providerApiKey`/`providerModels` (B3 路径 schema) | ___ | ___ |
-| R5.K2.4 | /api/provider-models (Basic 对) | 顶层含 `max_input_tokens` / `max_output_tokens` 字段 (无 `contextLength`) | ___ | ___ | K5: max_tokens schema 可写字段 |
-| R5.K5 | /api/provider-models | 返有 NIM provider-model 条目 + `id` 字段 (供未来 API PATCH 读回用) | ___ | ___ | K5 启用路径, 仅验字段存在, 不 PATCH |
+| R5.K2.4 | /api/provider-models (Basic 对) | 顶层含 `max_input_tokens` / `max_output_tokens` 字段 (无 `contextLength`) | ___ | ___ | K5 L2 实证: API PATCH 仅 isHidden; POST add 接受 max_tokens. K5 FIX 后候选不依赖此字段写, 但 read-back 仍验字段存在以定 future 启用 |
+| R5.K5 | ~~API PATCH 读回~~ → **K5 FIX 后改 SQLite read-back**: init 直写 `model_context_overrides` 表查 `SELECT provider, model_id, real_context, source, refreshed_at FROM model_context_overrides WHERE source='init'` | 期望: NIM 模型行 source='init' + real_context=32768 全覆盖 | ___ | ___ | K5 FIX: 候选恢复 init per-model 32K override source='init'; 不再验 API PATCH 路径 (3.8.43 不支持). SQLite read-back 验 init override 已正确落表 |
 | R5.K2.5 | /api/monitoring/health (免 Basic? 或 Basic 对) | 顶层含 `status`/`ok` 字段 (gate /healthz fetch 上游此路径) | ___ | ___ | 验 gate /healthz 上游 path 真存在 |
 | R5.K3 | (后台白名单路径已 R3 验) | 整白名单页 (login/dashboard/api-provider 等) 真实可达 | R3 并 行 | ___ | 整合 R3 |
 | R5.K4 | (HF 代理拓扑) | 本轮**不**实例验 (需 HF 平台层级探针, 不属 OmniRoute API read-back); 仅 LOG: `X-Forwarded-For` 实测是否包含可信代理链 (但本轮不读 IP 头作管理员, 候选不实现 IP) | 不实跑 (范围外) | ___ | K4 仍 NEEDS-PLATFORM 或 加 release decision |

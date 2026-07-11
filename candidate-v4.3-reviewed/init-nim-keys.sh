@@ -146,8 +146,11 @@ else
   _POOL_STRATEGY="round-robin"
 fi
 _is_valid_strat "$_POOL_STRATEGY" || { echo "[init] WARN: pool strategy '$_POOL_STRATEGY' 非法，回退 round-robin"; _POOL_STRATEGY="round-robin"; }
-_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-round-robin}"
-_is_valid_strat "$_CODEX_STRATEGY" || { echo "[init] WARN: codex strategy '$_CODEX_STRATEGY' 非法，回退 round-robin"; _CODEX_STRATEGY="round-robin"; }
+# FIX #4: codex strategy=priority for code generation scenarios.
+# round-robin rotates model each turn — unsuitable for coding (上下文连续性丢失).
+# 改默认 :-priority; env NIM_CODEX_STRATEGY 可覆盖 (如需 round-robin 传 NIM_CODEX_STRATEGY=round-robin).
+_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-priority}"
+_is_valid_strat "$_CODEX_STRATEGY" || { echo "[init] WARN: codex strategy '$_CODEX_STRATEGY' 非法，回退 priority"; _CODEX_STRATEGY="priority"; }
 _FALLBACK_STRATEGY="round-robin"
 _STICKY_LIMIT=1
 _COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
@@ -566,16 +569,39 @@ curl -s -o /dev/null -w "[init] CB reset HTTP %{http_code}
 " -b "$COOKIE_FILE" \
   -X POST "$BASE_URL/api/resilience/reset" -H "Content-Type: application/json"
 
-# v4.3: context override 整段移除 (M11/M30 REJECT + CF-4 约束).
-# 原实现 INSERT OR REPLACE 直写 model_context_overrides 内部表绕过 API/校验 → 违红线, 删.
-# 替代: 自动 Context Override 默认关闭 (CF-4); 启用须经 API PATCH max_input_tokens/max_output_tokens
-#   (B3 provider.t mutation schema), 写后读回, 失败保留旧. 实现 + 路由保留 KNOWN-UNVERIFIED (实例未证写后值落).
-# 不再写任何 real_context / contextLength; 不直写 SQLite.
-echo "[init] context override: 默认关闭 (CF-4: 禁直写 SQLite, 须 API PATCH max_input_tokens + 读回; 自动 override 默认关)."
+# K5 FIX (审查裁定推荐选项 c):
+# API PATCH /api/provider-models 在 3.8.43 源码中仅接受 isHidden 字段,
+# 不接受 contextLength / max_input_tokens / max_output_tokens (B1 L2 源码实证:
+# route.ts:309 强制 isHidden boolean; updateCustomModel models.ts:591 不处理
+# max_tokens; 仅 POST add route.ts:109 接受 max_input/output_tokens).
+# 候选此前删除 init 内部 per-model override 逻辑并指向 API PATCH 替代路径 →
+# 该路径在源码层不存在, 候选 context override 会静默失败.
+# 修复: 保留 init 内部的 per-model 32K override (apply_context_override, 42ea8e7
+# 基线原态), 不删; 保留 4632e8c 的"禁用 monitor 自动回写"改动 (L407-409 已删
+# monitor 回写段不动). API PATCH 路径在文档中标注为"3.8.43 不支持, 待源码新增
+# PATCH 字段支持"——不作为候选 context override 配置路径.
+# 自动回写 (confidence-based monitor → model_context_overrides) 仍保持禁用
+# (CF-4): init 仅应用一次性 per-model 32768 override, 不跨周期自动标定.
+
+# per-model 32K override (real_context=$_NIM_REAL_CONTEXT) — 42ea8e7 基线原态恢复.
+echo "[init] per-model 32K override (real_context=$_NIM_REAL_CONTEXT)..."
+OVERRIDE_APPLIED=0; OVERRIDE_SKIPPED=0
+apply_context_override() {
+  if sqlite3 "$_DB_PATH" \
+    "INSERT OR REPLACE INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
+     VALUES ('nvidia', '$(sql_escape "$1")', $2, 'init', datetime('now'));" 2>/dev/null; then
+    OVERRIDE_APPLIED=$((OVERRIDE_APPLIED+1))
+  else OVERRIDE_SKIPPED=$((OVERRIDE_SKIPPED+1)); echo "[init]   override FAILED: $1"; fi
+}
+while IFS= read -r _M; do [ -z "$_M" ] && continue; apply_context_override "$_M" "$_NIM_REAL_CONTEXT"; done < <(build_all_models)
+echo "[init] override: $OVERRIDE_APPLIED applied, $OVERRIDE_SKIPPED failed."
+# K5 行为预期: init 启动时一次性应用 32K override (real_context=32768) 经 SQLite 直写
+# model_context_overrides (source='init'), 不自动回写, 不调 API PATCH. 3.8.43 源码层
+# 该直写路径与运行时 loadCustomModels 一致 (models.ts:591 读路径同表), 唯一可用.
 
 echo "[init] ─────────────────────────────────────────────"
 echo "[init]   PROFILE=$_PROFILE MODE=$NIM_MODE KEYS=$_ALIVE_KEYS RPM=$_RPM BODY=$_REQUEST_BODY_LIMIT_MB MB"
-echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=(默认关, 不直写)"
+echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT (per-model 32K override 应用, monitor 自动回写禁用)"
 echo "[init] ─────────────────────────────────────────────"
 
 hf_snapshot() {

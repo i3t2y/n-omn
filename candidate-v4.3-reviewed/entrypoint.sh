@@ -120,6 +120,29 @@ else
   fi
 fi
 
+# ── FIX #5: pre-purge SQLite 20129 relay 条目 (OmniRoute 启动前, B6 root cause) ──
+# B6 源码实证 (L2): runtime patchedFetch (proxyFetch.ts:637) 用内存 account.proxy
+# (pool load 时一次性从 SQLite proxy_registry 读取, proxies.ts:806), 不查
+# provider_connections.proxy_enabled, 无 reload 钩子. init L747 purge_proxy_db 在
+# OmniRoute 启动后执行 → pool 已加载历史 20129 条目 → purge 改 SQLite 不刷新内存
+# → 27h ProxyFetch ECONNREFUSED 127.0.0.1:20129 持续 (3222.txt L204-4523 + 3231321.txt 跨重启复现).
+# 本段在 OmniRoute 启动 *前* SQL-only 清 20129 条目 + 关 nvidia proxy_enabled →
+# pool load 时 SQLite 已无 20129 → account.proxy 空 → patchedFetch direct 路径.
+# SQL-only: 此时 OmniRoute 未启, 走 API 路径不可能; SQL DELETE 直读 SQLite 文件即可.
+# 默认 20129 与 init L176 一致 (供历史条目 host:port 锚定); 不依赖 init 写 relay (init 无 INSERT).
+[ "$_PURGE_PROXY" != "0" ] && _PURGE_PROXY=1   # 承接 init purge 意图; NIM_PURGE_PROXY=0 可关全段.
+if [ -n "$DB" ] && [ -f "$DB" ] && [ -x "$(command -v sqlite3 2>/dev/null || true)" ] && [ "$_PURGE_PROXY" = "1" ]; then
+  sql_e5(){ printf '%s' "$1" | sed "s/'/''/g"; }
+  _P5=${NIM_PROXY_RELAY_PORT:-20129}; _H5=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
+  sqlite3 "$DB" "DELETE FROM proxy_assignments WHERE proxy_id IN (SELECT id FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5);" 2>/dev/null || true
+  sqlite3 "$DB" "UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';" 2>/dev/null || true
+  sqlite3 "$DB" "DELETE FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || true
+  _reg5=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || echo "?")
+  echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} 条目残留=$_reg5 (0=已清; pool load 时 SQLite 已无幽灵 20129)."
+else
+  echo "[entrypoint] FIX #5 pre-purge: skip (DB 未就绪/sqlite3 缺/NIM_PURGE_PROXY=0)."
+fi
+
 # ── OmniRoute ─────────────────────────────────────────────
 PORT="$OMNIROUTE_PORT" \
 DATA_DIR="$DATA_DIR" \

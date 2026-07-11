@@ -349,7 +349,16 @@ async function testIdempotent() {
     assert.ok(/ON CONFLICT|INSERT OR REPLACE|upsert_combo/i.test(init), 'init has upsert idempotent'); ok('init 含 upsert (ON CONFLICT/INSERT OR REPLACE) 幂等保障');
     assert.ok(/^[^#]*nim_health_pick\(\)/m.test(init) === false, 'nim_health_pick 函数定义已删'); ok('nim_health_pick 函数已删 (注释引用可留)');
     ok('nim_health_pick: 仅注释提及 (L413 状态说明), 无函数定义');
-    assert.ok(/INSERT INTO model_context_overrides|INSERT OR REPLACE INTO model_context_overrides/.test(init) === false, '无直写 override'); ok('无 SQLite 直写 override (无副作用)');
+    assert.ok(/INSERT OR REPLACE INTO model_context_overrides/.test(init) === true, 'K5 修复后保留 init 直写 override');
+    // K5 FIX: API PATCH /api/provider-models 在 3.8.43 不接受 max_tokens/contextLength (B1 L2 实证).
+    // 修复方案 c: 保留 init 内部 per-model 32K override (INSERT OR REPLACE VALUES ... 'init' datetime now).
+    // 候选此前删该段并指向不存在的 API PATCH 路径会静默失败. 现恢复 init 直写 override.
+    assert.ok(/INSERT OR REPLACE INTO model_context_overrides[^;]*'init'[^;]*datetime\('now'\)/s.test(init), 'K5 恢复 per-model 32K override (source=init, refreshed_at=now)');
+    // 仍禁 monitor 自动回写 (source='monitor' / 'monitor+manual' confidence-based) — 4632e8c 改动保留.
+    // 断言精确: 功能行 (非注释 INSERT/UPDATE 内容写 monitor+manual) 不存在; 注释引用不算残留.
+    const monitorFuncLines = init.split('\n').filter(l => /^\s*[^#].*\b(INSERT|UPDATE)\b/.test(l) && /monitor\+manual/.test(l));
+    assert.ok(monitorFuncLines.length === 0, 'monitor 自动回写仍禁 (4632e8c: 无非注释 INSERT/UPDATE 写 monitor+manual source)');
+    ok('K5 修复: 保留 init per-model override (source=init); 仍禁 monitor 自动回写');
     sk('连续两次真实运行 init 验幂等', '需 OmniRoute 实例 + 持久 DB; 属 NEEDS-INSTANCE, 候选不真跑');
   } catch (e) { ko('TEST 9', e); }
 }
@@ -382,7 +391,7 @@ function testResidual() {
           const isComment = /^\s*(#|\/\/)/.test(l);
           if (!isComment) return true;
           // 注释行: 含否定语境 (说明删/无/禁止) 则不算残留
-          const neg = /无|删|废弃|禁止|CF-1|CF-2|已删|不用|移除|不再|nor\s|negative/i.test(l);
+          const neg = /无|删|废弃|禁止|CF-1|CF-2|已删|不用|移除|不再|不接受|nor\s|negative/i.test(l);
           return !neg;
         });
         if (residualHits.length === 0) continue;

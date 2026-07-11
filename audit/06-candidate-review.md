@@ -98,7 +98,8 @@ PASS=65 FAIL=0 SKIP=2  (全 PASS)
 - 限流固定值 28 RPM/1 并发/2200ms (G3 决议: 配置在 OmniRoute `requestQueue` 服务端; 无线性扩算式).
 - `_VALID_STRATS`: fusion 保留, **context-relay 删** (CF-1: NIM 永不用 context-relay).
 - Resilience PATCH: `useUpstream429BreakerHints=false` (G1 保守默认, 实例未证) + **read-back** (CF-4: 写后读回, 验不达保留旧).
-- Context Override: **删直写 SQLite** `model_context_overrides` (CF-4 + 红线); 自动 Context Override 默认关; 启用 API PATCH `max_input_tokens`/`max_output_tokens` + 读回 (KNOWN-UNVERIFIED).
+- Context Override: **K5 FIX 后** — 保留 init 内部 per-model 32K override (`INSERT OR REPLACE INTO model_context_overrides ... source='init'`, 42ea8e7 基线原态恢复); 仍禁 monitor 自动回写 (4632e8c 改动保留); 自动 Context Override (confidence-based monitor 标定) 保持关. 原"删直写 + 指向 API PATCH 替代"已修正——B1 L2 源码实证 3.8.43 PATCH `/api/provider-models` 不接受 `max_input_tokens`/`max_output_tokens`/`contextLength`, 原 API PATCH 路径会静默失败.
+- codex strategy: **#4 FIX 后** — 默认 `:-priority` (原 `:-round-robin`); code-gen 场景不宜每轮换模型; env `NIM_CODEX_STRATEGY` 可覆盖.
 - DEBUG Dataset 上传: 默认关 (`NIM_DEBUG_LOG_TO_DATASET=1` 开), 启用上传前字段级脱敏 (Authorization/NIM_KEY/Cookie/Set-Cookie/Bearer → `<REDACTED>`).
 
 ### 6.4 Dockerfile
@@ -119,7 +120,7 @@ PASS=65 FAIL=0 SKIP=2  (全 PASS)
 | K2 | `/api/resilience`, `/api/providers`, `/api/provider-models`, `/api/monitoring/health` 真响应结构 (未 instance read-back) | B3 源码 schema 推断; Resilience 写后 read-back mock 验, 未真实例验 | 部署后只读 GET 立即验; 不符告警不强写 |
 | K3 | 后台完整白名单 (页面 + `/_next/*` + 登录回调 + 写 API) 未实例验 (实际构建产物路径) | 默认关 (全 404); 高风险写默认不开放, 逐条加白前实例证 | 实例登录会话验证后逐条加 |
 | K4 | HF 代理拓扑真实客户端 IP 未验 | 不实现 IP/CIDR (不靠伪造 IP) | HF 文档/实测代理 CIDR 后可加; 优先不加 |
-| K5 | 自动 Context Override API PATCH 路径 (写后值落定) | 默认关 | API PATCH `max_input_tokens`/`max_output_tokens` + 读回 round-trip 实例验后启 |
+| K5 | ~~自动 Context Override API PATCH 路径~~ **已修复 (选项 c)** — B1 L2 实证 3.8.43 PATCH 不接受 max_tokens/contextLength; 候选改保留 init 内部 per-model 32K override (source='init'); API PATCH 路径弃用不指向 | K5 修复后行为: init 启动时一次性应用 32K override 经 SQLite 直写 `model_context_overrides`, 不自动回写, 不调 API PATCH |
 | K6 | `proxy_enabled` 直写 provider_connections (历史遗留非本次热点) | 保留 B1 行为 (未列本次重构) | 后续 API 化待办 |
 
 ## 8. 候选状态评估 — 入下一阶段决策点
@@ -148,3 +149,32 @@ PASS=65 FAIL=0 SKIP=2  (全 PASS)
 - 敏感不硬编: R2 / NIM / OMNIROUTE_API_KEY / GATE_ADMIN_TOKEN / INTERNAL_PSK 全 env 或 HF Secret, 不落明文.
 - 不改主仓源码 (B1 `42ea8e7` 不动): 候选在 `candidate-v4.3-reviewed/` 独立目录, 主仓 root 未改.
 - 依赖处理诚实: candidate/tests/ + candidate/ 装 express (源 npm registry, `npm install express --prefix . --no-save --omit=dev`), 不全局, 不改根 lockfile (根无 lockfile). 记录命令与来源 (TESTING.md §依赖处理).
+
+## 10. K5 FIX + #4 FIX (审查裁定选项 c, 部署前必修项落地)
+
+### 10.1 K5 FIX — 候选 context override 路径静默失败修正
+
+**背景** (B1 L2 源码实证): PATCH `/api/provider-models` 在 3.8.43 源码 (route.ts:309 强制 isHidden boolean; `updateCustomModel` models.ts:591 不处理 max_tokens) 仅接受 `isHidden`; 仅 POST add (route.ts:109) 接受 `max_input_tokens`/`max_output_tokens`. 候选此前**删除 init 内部 `apply_context_override` (per-model 32K override) 并指向不存在的 API PATCH 路径** → 候选 context override 会静默失败 (无反馈).
+
+**审查裁定** (推荐选项 c):
+- 保留 init 内部 per-model 32K override (`apply_context_override`, 42ea8e7 基线原态, `INSERT OR REPLACE INTO model_context_overrides ... source='init', refreshed_at=datetime('now')`)
+- 不删该段; 不指向 API PATCH 替代路径
+- 保留 4632e8c "禁用 monitor 自动回写"改动 (source='monitor'/'monitor+manual' confidence-based 自动标定仍禁)
+- API PATCH 路径标注为"3.8.43 不支持, 待源码新增 PATCH 字段支持"
+- 行为预期: init 启动时一次性应用 32768 (32K) override 经 SQLite 直写 `model_context_overrides` (source='init'), 不跨周期自动标定, 不调 API PATCH.
+
+**修复落点** (candidate-v4.3-reviewed/init-nim-keys.sh): L569-599 (K5 FIX 注释 + apply_context_override 函数恢复 + override: X applied Y failed 循环 + 行为预期注释), L583 (summary 行 REAL_CONTEXT 表述由"默认关不直写"改"$\_NIM_REAL_CONTEXT (per-model 32K override 应用, monitor 自动回写禁用)").
+
+**L3 交叉验证** (New 3222.txt line 129): override: 9 applied, 0 failed — 确认 42ea8e7 基线 init 内部 override 路径在 v4.2.3 生产正常工作, 候选恢复后行为一致.
+
+### 10.2 #4 FIX — codex strategy round-robin → priority
+
+**背景** (L3 New 3222.txt line 64 + New 3231321.txt line 59): codex `strategy=round-robin` 跨重启复现. 代码生成场景每轮换模型致上下文连续性丢失, 不宜在 code-gen 池用 round-robin.
+
+**修复** (candidate-v4.3-reviewed/init-nim-keys.sh): L149-153 `_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-priority}"` (原 `:-round-robin`) + 校验失败回退 priority (原 round-robin) + `# FIX #4` 注释; env `NIM_CODEX_STRATEGY` 可覆盖 (如需 round-robin 传 env).
+
+**行为预期**: init 默认 codex strategy=priority; 不改 `_POOL_STRATEGY` (仍 round-robin, 非场景敏感) 与 `_FALLBACK_STRATEGY` (仍 round-robin). 隔离实例需验 priority 策略在 NIM codex 池实际生效 (P2 SEE §11 KNOWN-UNVERIFIED-K5-FIX 维持 NEEDS-INSTANCE).
+
+### 10.3 mock 测试断言同步更新
+
+test-runner.js TEST 9 (L352-357) 断言由 "无直写 override" 改为 "K5 修复后保留 init 直写 override (source=init)" + "monitor 自动回写仍禁 (功能行 INSERT/UPDATE 不含 monitor+manual)"; TEST 10 (L370) neg regex 加 `不接受` (K5 注释含"不接受 contextLength" 语境). mock 测试 65 PASS / 0 FAIL / 2 SKIP 维持.

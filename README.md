@@ -1,3 +1,14 @@
+---
+title: OmniRoute Candidate v4.3
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+license: mit
+app_port: 7860
+---
+
 # omniroute 太空舱 · v4.3 candidate (Stage D)
 
 > 候选版仅评审. 来自 `candidate-v4.3-reviewed/`, 不在生产实例部署. 已通过 candidate 内 tests/.

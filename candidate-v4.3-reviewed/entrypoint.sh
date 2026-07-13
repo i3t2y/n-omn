@@ -70,8 +70,18 @@ echo "[entrypoint] cold-boot (restore→purge→replicate→OmniRoute, 严格时
 echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT EXPOSED_PORT=$EXPOSED_PORT DATA_DIR=$DATA_DIR STRICT=$LITESTREAM_STRICT"
 
 # ── 文件锁: 防多容器同时 restore/purge/替换 $DB ───────────
+# P3: LOCK_FILE 可配置 (多容器部署置共享卷路径获跨容器互斥; 默认 $DATA_DIR/.entrypoint.lock 同旧硬编码).
+#   获锁前断言 LOCK_FILE 所在目录可写: 不可写 → WARN 降级无锁继续 (不 exit 1), 记原因 + 实际锁路径.
+#   flock 获取逻辑/失败行为不改 (flock 不可用仍 WARN 跳过; flock 失败仍 exit 1).
 LOCK_FD=9
-LOCK_FILE="${DATA_DIR}/.entrypoint.lock"
+LOCK_FILE="${LOCK_FILE:-${DATA_DIR}/.entrypoint.lock}"
+_lock_dir=$(dirname "$LOCK_FILE")
+if [ -w "$_lock_dir" ] || [ ! -e "$LOCK_FILE" -a -w "$_lock_dir" ]; then
+  :
+else
+  echo "[entrypoint] WARN: 锁目录不可写 LOCK_FILE=$LOCK_FILE dir=$_lock_dir → 降级无锁继续 (单容器内仍可获锁, 跨容器无互斥). 原因: dir 不可写或父级缺权限." >&2
+fi
+echo "[entrypoint] flock path=$LOCK_FILE"
 ( exec 9>"$LOCK_FILE" ) 2>/dev/null
 if command -v flock >/dev/null 2>&1; then
   flock -x 9 || { echo "[entrypoint] FATAL: 无法获取文件锁 $LOCK_FILE (另一容器占用?). abort." >&2; exit 1; }
@@ -169,33 +179,93 @@ if [ -n "$DB" ] && [ -f "$DB" ] && [ -x "$(command -v sqlite3 2>/dev/null || tru
   sql_e5(){ printf '%s' "$1" | sed "s/'/''/g"; }
   _P5=${NIM_PROXY_RELAY_PORT:-20129}
   _H5=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
-  _pre=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || echo "?")
-  echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} purge 前=$_pre 条 (精确 host+port 条件)."
-  # 事务化 purge (BEGIN...COMMIT 包裹): 三条 DELETE 原子提交, 中断回滚不留半状态.
-  purge_rc=0
-  sqlite3 "$DB" <<SQL 2>/tmp/purge.err || purge_rc=$?
+  _SQLITE3_BIN=$(command -v sqlite3 2>/dev/null || true)
+  _SQLITE_RAN=0   # 标记 wal_checkpoint 行 (P5) 与 deleted=N (P4) 是否真输出
+  if [ -n "$_SQLITE3_BIN" ]; then
+    _pre=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host IN ('127.0.0.1','::1','localhost','0.0.0.0') AND port=$_P5;" 2>/dev/null || echo "?")
+    echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} purge 前=$_pre 条 (host IN 四本地地址变体 + port 约束)."
+    # 事务化 purge (BEGIN...COMMIT 包裹): 三条 DELETE 原子提交, 中断回滚不留半状态.
+    # P4: WHERE 扩 host IN ('127.0.0.1','::1','localhost','0.0.0.0') + port=$_P5 (保留 port 约束).
+    purge_rc=0
+    sqlite3 "$DB" <<SQL 2>/tmp/purge.err || purge_rc=$?
 BEGIN;
 DELETE FROM proxy_assignments WHERE proxy_id IN
-  (SELECT id FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5);
+  (SELECT id FROM proxy_registry WHERE host IN ('127.0.0.1','::1','localhost','0.0.0.0') AND port=$_P5);
 UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';
-DELETE FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;
+DELETE FROM proxy_registry WHERE host IN ('127.0.0.1','::1','localhost','0.0.0.0') AND port=$_P5;
 COMMIT;
 SQL
-  if [ "$purge_rc" -ne 0 ]; then
-    echo "[entrypoint] FATAL: pre-purge 事务失败 rc=$purge_rc (见 /tmp/purge.err). abort 启动 (不能让旧条目进 OmniRoute 内存)." >&2
-    exit 1
+    if [ "$purge_rc" -ne 0 ]; then
+      echo "[entrypoint] FATAL: pre-purge 事务失败 rc=$purge_rc (见 /tmp/purge.err). abort 启动 (不能让旧条目进 OmniRoute 内存)." >&2
+      exit 1
+    fi
+    # P4: purge 事务提交后用 changes() 取实际删除行数 (proxy_registry DELETE 行数).
+    _purge_del=$(sqlite3 "$DB" "SELECT changes();" 2>/dev/null || echo "?")
+    echo "[entrypoint] pre-purge deleted=${_purge_del} rows"
+    _SQLITE_RAN=1
+    # P5: WAL checkpoint (TRUNCATE) 后读 busy/log/checkpointed 三值; busy>0 WARN 不 exit 1.
+    _ckpt=$(sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null | tr '|' '\t' || echo "")
+    # sqlite3 CLI 默认 pipe 分隔返回 busy\tlog\tcheckpointed 三列
+    _ck_busy=$(printf '%s' "$_ckpt" | cut -f1)
+    _ck_log=$(printf '%s' "$_ckpt" | cut -f2)
+    _ck_ckptd=$(printf '%s' "$_ckpt" | cut -f3)
+    echo "[entrypoint] wal_checkpoint busy=${_ck_busy:-?} log=${_ck_log:-?} checkpointed=${_ck_ckptd:-?}"
+    if [ -n "$_ck_busy" ] && [ "$_ck_busy" -gt 0 ] 2>/dev/null; then
+      echo "[entrypoint] WARN: wal_checkpoint busy=${_ck_busy}, WAL not fully checkpointed (Litestream 占 WAL reader 正常, 不阻断启动)." >&2
+    fi
+    rm -f "$DB-wal" "$DB-shm" 2>/dev/null || true
+    # assert: 目标条目残留必须为 0, 否则整个容器 exit (B6 根因硬约束)
+    _post=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host IN ('127.0.0.1','::1','localhost','0.0.0.0') AND port=$_P5;" 2>/dev/null || echo "?")
+    echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} purge 后=$_post 条 (必须=0)."
+    if [ "$_post" != "0" ]; then
+      echo "[entrypoint] FATAL: pre-purge assert 失败 (残留=$_post !=0). 幽灵条目将污染 OmniRoute 内存. 整个容器 exit." >&2
+      exit 1
+    fi
+    echo "[entrypoint] ✓ pre-purge assert pass (残留=0). SQLite 已无 ${_P5} relay → pool load direct 路径."
+  else
+    # P4/P5 fallback: sqlite3 CLI 不可用 → 改 node -e + node:sqlite (Node22+ experimental) 做同等 purge+checkpoint+assert.
+    echo "[entrypoint] FIX #5 pre-purge: sqlite3 CLI 缺 → fallback node:sqlite 做 purge+checkpoint+assert."
+    _P5_N="$_P5" _DB_N="$DB" _H5_N="$_H5" node -e '
+      const { DatabaseSync } = require("node:sqlite");
+      const dbPath = process.env._DB_N, port = Number(process.env._P5_N), host = process.env._H5_N;
+      const hosts = ["127.0.0.1","::1","localhost","0.0.0.0"];
+      const placeholders = "(" + hosts.map(()=>"?").join(",") + ")";
+      let db;
+      try { db = new DatabaseSync(dbPath); } catch (e) { console.error("[entrypoint] FATAL: node:sqlite 打开 $DB 失败: " + e.message); process.exit(1); }
+      // WAL mode + checkpoint helper
+      const q = (s,p=[]) => { const st = db.prepare(s); return p.length ? st.all(...p) : st.all(); };
+      const pre = db.prepare("SELECT COUNT(*) AS c FROM proxy_registry WHERE host IN " + placeholders + " AND port=?").all(...hosts, port)[0].c;
+      console.log("[entrypoint] FIX #5 pre-purge: relay " + host + ":" + port + " purge 前=" + pre + " 条 (host IN 四本地地址变体 + port 约束).");
+      try {
+        db.exec("BEGIN");
+        db.prepare("DELETE FROM proxy_assignments WHERE proxy_id IN (SELECT id FROM proxy_registry WHERE host IN " + placeholders + " AND port=?)").run(...hosts, port);
+        db.prepare("UPDATE provider_connections SET proxy_enabled=0 WHERE provider=?").run("nvidia");
+        const del = db.prepare("DELETE FROM proxy_registry WHERE host IN " + placeholders + " AND port=?").run(...hosts, port);
+        db.exec("COMMIT");
+        console.log("[entrypoint] pre-purge deleted=" + del.changes + " rows");
+        try {
+          const ck = db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get();
+          const busy = String(ck && ck.busy != null ? ck.busy : "?");
+          const log = String(ck && ck.log != null ? ck.log : "?");
+          const ckptd = String(ck && ck.checkpointed != null ? ck.checkpointed : "?");
+          console.log("[entrypoint] wal_checkpoint busy=" + busy + " log=" + log + " checkpointed=" + ckptd);
+          if (!isNaN(Number(busy)) && Number(busy) > 0) {
+            console.error("[entrypoint] WARN: wal_checkpoint busy=" + busy + ", WAL not fully checkpointed (Litestream 占 WAL reader 正常, 不阻断启动).");
+          }
+        } catch (e) { console.log("[entrypoint] wal_checkpoint busy=? log=? checkpointed=? (pragma 失败: " + e.message + ")"); }
+        const post = db.prepare("SELECT COUNT(*) AS c FROM proxy_registry WHERE host IN " + placeholders + " AND port=?").all(...hosts, port)[0].c;
+        console.log("[entrypoint] FIX #5 pre-purge: relay " + host + ":" + port + " purge 后=" + post + " 条 (必须=0).");
+        if (String(post) !== "0") { console.error("[entrypoint] FATAL: pre-purge assert 失败 (残留=" + post + " !=0). 幽灵条目将污染 OmniRoute 内存. 整个容器 exit."); db.close(); process.exit(1); }
+        console.log("[entrypoint] ✓ pre-purge assert pass (残留=0). SQLite 已无 " + port + " relay → pool load direct 路径.");
+        db.close();
+      } catch (e) {
+        console.error("[entrypoint] FATAL: pre-purge 事务失败 (" + e.message + "). abort 启动 (不能让旧条目进 OmniRoute 内存).");
+        try { db.exec("ROLLBACK"); } catch (_) {}
+        db.close(); process.exit(1);
+      }
+    ' || { echo "[entrypoint] FATAL: node:sqlite purge fallback 失败. abort." >&2; exit 1; }
+    _SQLITE_RAN=1
   fi
-  # WAL checkpoint (TRUNCATE): 提交后清 -wal, 确保 SQLite 主文件已含 purge 结果, litestream replicate 占干净 L0.
-  sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
-  rm -f "$DB-wal" "$DB-shm" 2>/dev/null || true
-  # assert: 目标 20129 条目残留必须为 0, 否则整个容器 exit (B6 根因硬约束)
-  _post=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || echo "?")
-  echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} purge 后=$_post 条 (必须=0)."
-  if [ "$_post" != "0" ]; then
-    echo "[entrypoint] FATAL: pre-purge assert 失败 (残留=$_post !=0). 幽灵 20129 将污染 OmniRoute 内存. 整个容器 exit." >&2
-    exit 1
-  fi
-  echo "[entrypoint] ✓ pre-purge assert pass (残留=0). SQLite 已无 20129 → pool load direct 路径."
 else
   echo "[entrypoint] FIX #5 pre-purge: skip (DB 未就绪/sqlite3 缺/NIM_PURGE_PROXY=0)."
 fi

@@ -536,23 +536,28 @@ function testEntrypointSequence() {
     ok('T12-02 restore 降级: 失败 WARN + STRICT 仅日志, 永不 exit 1');
   } catch (e) { localFail('T12-02 restore 降级: ' + (e && e.message)); }
 
-  // T12-03: purge assert 失败 — 残留 !=0 FATAL exit 1
+  // T12-03: purge assert 失败 — 残留 !=0 FATAL exit 1 (P4 后 WHERE 改 host IN 四变体, assert 仍 _post!=0 → exit 1)
   try {
-    const m = ep.match(/_post=\$\(sqlite3 "\$DB" "SELECT COUNT\(\*\) FROM proxy_registry WHERE host=[^)]*\)[\s\S]*?\[ "\$_post" != "0" \][\s\S]*?exit 1/s);
-    assert.ok(m, 'pre-purge assert 残留!=0 → exit 1 段完整 (L192-197)');
+    const m = ep.match(/_post=\$\(sqlite3 "\$DB" "SELECT COUNT\(\*\) FROM proxy_registry WHERE host[^)]*\)[\s\S]*?\[ "\$_post" != "0" \][\s\S]*?exit 1/s);
+    assert.ok(m, 'pre-purge assert 残留!=0 → exit 1 段完整 (sqlite3 CLI 路径)');
     const exit1 = ep.match(/FATAL: pre-purge assert 失败[\s\S]*?exit 1/s);
     assert.ok(exit1, 'assert 失败多行: FATAL + exit 1');
-    ok('T12-03 purge assert 失败: 残留!=0 → FATAL + exit 1 (L195-197)');
+    // P4 fallback node:sqlite 路径亦含 process.exit(1) on post!=0
+    const nodeExit1 = /post[\s\S]*?if \(String\(post\) !== "0"\)[\s\S]*?process\.exit\(1\)/.test(ep);
+    assert.ok(nodeExit1, 'node fallback: post!=0 → process.exit(1)');
+    ok('T12-03 purge assert: 残留!=0 → FATAL + exit 1 (sqlite3 CLI + node fallback 双路)');
   } catch (e) { localFail('T12-03 purge assert: ' + (e && e.message)); }
 
-  // T12-04: flock 互斥 — fd 9 排他锁 + 失败 exit 1 + 不可用降级 WARN
+  // T12-04: flock 互斥 — fd 9 排他锁 + 失败 exit 1 + 不可用降级 WARN (P3: LOCK_FILE 可配置 + 目录可写断言)
   try {
     assert.ok(/LOCK_FD=9/.test(ep), 'LOCK_FD=9');
-    assert.ok(/LOCK_FILE="\$\{DATA_DIR\}\/\.entrypoint\.lock"/.test(ep), 'LOCK_FILE=${DATA_DIR}/.entrypoint.lock');
+    assert.ok(/LOCK_FILE="\$\{LOCK_FILE:-\$\{DATA_DIR\}\/\.entrypoint\.lock\}"/.test(ep), 'LOCK_FILE=${LOCK_FILE:-${DATA_DIR}/.entrypoint.lock} (P3 可配置默认同旧硬编码)');
     assert.ok(/\( exec 9>"\$LOCK_FILE" \)/.test(ep), 'fd 9 open LOCK_FILE');
     assert.ok(/flock -x 9 \|\| \{[^}]*exit 1/.test(ep), 'flock -x 9 失败 exit 1');
     assert.ok(/flock 不可用.*跳过跨容器互斥/.test(ep), 'flock 不可用降级 WARN');
-    ok('T12-04 flock 互斥: fd 9 排他锁 + 失败 exit 1 + 不可用 WARN 降级 (L73-80)');
+    assert.ok(/flock path=\$LOCK_FILE/.test(ep), 'P3: 启动日志输出 flock path=$LOCK_FILE');
+    assert.ok(/WARN: 锁目录不可写/.test(ep), 'P3: 目录不可写 WARN 降级 (无锁继续)');
+    ok('T12-04 flock 互斥: fd 9 排他锁 + 失败 exit 1 + 不可用 WARN 降级 + P3 LOCK_FILE 可配置 + 目录可写断言');
   } catch (e) { localFail('T12-04 flock: ' + (e && e.message)); }
 
   // T12-05: $DB_TMP 不泄漏 — restore 全失败/成功/重置路径均 rm -f $DB_TMP{,-wal,-shm}
@@ -641,6 +646,183 @@ COMMIT;`;
   } catch (e) { localFail('T12-07 path 一致性: ' + (e && e.message)); }
 
   if (issues === 0) ok('TEST 12 entrypoint 时序 全 PASS (7/7)');
+  fail += issues;
+}
+
+// ── TEST 14: P3/P4/P5 entrypoint 加固 (LOCK_FILE 可配置 + purge 四变体 + wal_checkpoint busy) ──
+// 7 用例 T14-01~T14-07. 静态源码 + node:sqlite fixture (复刻 entrypoint node fallback purge+checkpoint 路径).
+// P3: LOCK_FILE 可配置 + 目录可写 WARN 降级. P4: WHERE 四本地地址变体 + changes() deleted=N. P5: wal_checkpoint busy/log/checkpointed + busy>0 WARN.
+function testEntrypointHardening() {
+  console.log('TEST 14: P3/P4/P5 entrypoint 加固 (LOCK_FILE/purge 四变体/wal_checkpoint busy)');
+  const ep = fs.readFileSync(path.join(CAND, 'entrypoint.sh'), 'utf8');
+  let issues = 0;
+  const localFail = (msg) => { console.error(`  ✗ ${msg}`); issues++; };
+
+  // T14-01: P3 静态 — LOCK_FILE 可配置默认 + 启动日志 + 目录可写断言 + flock 失败仍 exit 1
+  try {
+    assert.ok(/LOCK_FILE="\$\{LOCK_FILE:-\$\{DATA_DIR\}\/\.entrypoint\.lock\}"/.test(ep), 'P3 LOCK_FILE=${LOCK_FILE:-默认} (空时默认同旧硬编码)');
+    assert.ok(/_lock_dir=\$\(dirname "\$LOCK_FILE"\)/.test(ep), 'P3 取 LOCK_FILE 所在目录');
+    assert.ok(/WARN: 锁目录不可写/.test(ep), 'P3 目录不可写 WARN');
+    assert.ok(/降级无锁继续/.test(ep), 'P3 降级无锁继续 (不 exit 1)');
+    assert.ok(/flock path=\$LOCK_FILE/.test(ep), 'P3 启动日志输出 flock path');
+    assert.ok(/flock -x 9 \|\| \{[^}]*exit 1/.test(ep), 'P3 flock 失败仍 exit 1 (不改)');
+    ok('T14-01 P3 静态: LOCK_FILE 可配置 + 目录可写 WARN 降级 + flock path 日志 + 失败 exit 1 不改');
+  } catch (e) { localFail('T14-01 P3 静态: ' + (e && e.message)); }
+
+  // T14-02: P4 静态 — purge WHERE 含四本地地址变体 + changes() deleted=N (sqlite3 CLI 路径 + node fallback 路径)
+  try {
+    const purgeBlockRe = /DELETE FROM proxy_registry WHERE host IN \('127\.0\.0\.1','::1','localhost','0\.0\.0\.0'\) AND port=\$_P5/s;
+    assert.ok(purgeBlockRe.test(ep), 'P4 sqlite3 CLI 路径: DELETE WHERE host IN (四变体) AND port=$_P5');
+    const paBlockRe = /DELETE FROM proxy_assignments WHERE proxy_id IN[\s\S]*?host IN \('127\.0\.0\.1','::1','localhost','0\.0\.0\.0'\) AND port=\$_P5/s;
+    assert.ok(paBlockRe.test(ep), 'P4 proxy_assignments DELETE 同样含 host IN 四变体');
+    assert.ok(/pre-purge deleted=\$\{_purge_del\} rows/.test(ep), 'P4 sqlite3 CLI: pre-purge deleted=${_purge_del} rows (changes())');
+    // node fallback: hosts 四元素 + deleted=N + port 约束
+    assert.ok(/const hosts = \["127\.0\.0\.1","::1","localhost","0\.0\.0\.0"\]/.test(ep), 'P4 node fallback: hosts 四本地地址变体');
+    assert.ok(/WHERE host IN " \+ placeholders \+ " AND port=\?/.test(ep), 'P4 node fallback: WHERE host IN " + placeholders + " AND port=?');
+    assert.ok(/pre-purge deleted=" \+ del\.changes \+ " rows/.test(ep), 'P4 node fallback: deleted=N (del.changes)');
+    ok('T14-02 P4 静态: WHERE host IN (四变体) + port 约束 + changes() deleted=N (CLI + node fallback)');
+  } catch (e) { localFail('T14-02 P4 静态: ' + (e && e.message)); }
+
+  // T14-03: P5 静态 — wal_checkpoint busy/log/checkpointed 三值 + busy>0 WARN 不 exit 1
+  try {
+    // sqlite3 CLI 路径
+    assert.ok(/_ck_busy=.*cut -f1/.test(ep), 'P5 CLI: _ck_busy (busy 列)');
+    assert.ok(/_ck_log=.*cut -f2/.test(ep), 'P5 CLI: _ck_log (log 列)');
+    assert.ok(/_ck_ckptd=.*cut -f3/.test(ep), 'P5 CLI: _ck_ckptd (checkpointed 列)');
+    assert.ok(/wal_checkpoint busy=\$?.*_ck_busy.*log=\$?.*_ck_log.*checkpointed=\$?.*_ck_ckptd/.test(ep), 'P5 CLI: wal_checkpoint busy/log/checkpointed 三值输出');
+    assert.ok(/\[ "\$_ck_busy" -gt 0 \][\s\S]*?WARN: wal_checkpoint busy=[\s\S]*?WAL not fully checkpointed/.test(ep), 'P5 CLI busy>0 → WARN not fully checkpointed');
+    assert.ok(!/_SQLITE_RAN|wal_checkpoint busy[\s\S]*?exit 1/.test(ep.match(/wal_checkpoint busy=\$\{_ck_busy[\s\S]*?(fi|done)/s) ? ep.match(/wal_checkpoint busy=\$\{_ck_busy[\s\S]*?(fi|done)/s)[0] : ''), 'P5 CLI busy>0 不 exit 1 (仅 WARN)');
+    // node fallback
+    assert.ok(/PRAGMA wal_checkpoint\(TRUNCATE\)"\)\.get\(\)/.test(ep), 'P5 node fallback: db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get()');
+    assert.ok(/wal_checkpoint busy=" \+ busy \+ " log=" \+ log \+ " checkpointed=" \+ ckptd/.test(ep), 'P5 node fallback: 输出 busy/log/checkpointed 三值');
+    assert.ok(/WARN: wal_checkpoint busy=[\s\S]*?WAL not fully checkpointed/.test(ep), 'P5 node fallback: busy>0 WARN 不阻断');
+    ok('T14-03 P5 静态: wal_checkpoint busy/log/checkpointed 三值 + busy>0 WARN 不 exit 1 (CLI + node fallback)');
+  } catch (e) { localFail('T14-03 P5 静态: ' + (e && e.message)); }
+
+  // T14-04: P3 动态 — LOCK_FILE env 覆盖默认 + 目录不可写 WARN 降级 (bash fixture)
+  try {
+    const tmp = require('os').tmpdir() + '/t14-lock-' + Date.now();
+    fs.mkdirSync(tmp, { recursive: true });
+    // 可写目录: LOCK_FILE env 指自定义路径 → 日志 flock path=$LOCK_FILE
+    const roScript = `
+set +e
+DATA_DIR="$1"
+LOCK_FILE="$1/custom/sub/lock"
+dir=$(dirname "$LOCK_FILE")
+mkdir -p "$dir" 2>/dev/null || true
+if [ -w "$dir" ] || { [ ! -e "$LOCK_FILE" ] && [ -w "$dir" ]; }; then
+  echo "WRITABLE"
+else
+  echo "[entrypoint] WARN: 锁目录不可写 LOCK_FILE=$LOCK_FILE dir=$dir → 降级无锁继续" >&2
+fi
+`;
+    const r1 = spawnSync('bash', ['-c', roScript, 'bash', tmp], { encoding: 'utf8', timeout: 5000 });
+    fs.rmSync(tmp, { recursive: true, force: true });
+    assert.ok(/WRITABLE/.test(r1.stdout), 'P3 dynamo: 存在可写目录判定 WRITABLE');
+    // 不可写: 用 /proc/sys (root 拥有, 非 root 不可写) 作 dir
+    const ro2 = `
+set +e
+LOCK_FILE="/proc/sys/kernel/nonexist-lock-$$"
+dir=$(dirname "$LOCK_FILE")
+if [ -w "$dir" ] || { [ ! -e "$LOCK_FILE" ] && [ -w "$dir" ]; }; then
+  echo "WRITABLE"
+else
+  echo "[entrypoint] WARN: 锁目录不可写 LOCK_FILE=$LOCK_FILE dir=$dir → 降级无锁继续" >&2
+  echo "DEGRADED"
+fi
+`;
+    const r2 = spawnSync('bash', ['-c', ro2], { encoding: 'utf8', timeout: 5000 });
+    assert.ok(/DEGRADED/.test(r2.stdout), 'P3 dynamo: 不可写目录判定 DEGRADED (降级不 exit)');
+    const gotWarn = /WARN: 锁目录不可写/.test(r2.stderr);
+    if (gotWarn) {
+      ok('T14-04 P3 动态: LOCK_FILE env 可被读 + 不可写目录 WARN 降级 (DEGRADED 不 exit)');
+    } else {
+      // 若以 root 跑则 /proc/sys 写得了 → 仍验可分支 (WRITABLE 也算 deal, 但需标)
+      ok('T14-04 P3 动态: LOCK_FILE env 可被读 (root 环境 /proc/sys 仍可写, 分支走 WRITABLE)');
+    }
+  } catch (e) { localFail('T14-04 P3 动态: ' + (e && e.message)); }
+
+  // T14-05~T14-07: P4/P5 动态 — node fallback purge+checkpoint fixture (复刻 entrypoint node 段 4 本地变体)
+  let DatabaseSync;
+  try { ({ DatabaseSync } = require('node:sqlite')); }
+  catch (e) { sk('T14-05/06/07 P4/P5 动态', 'node:sqlite 不可用 (Node<22)'); if (issues === 0 && true) {} return; }
+
+  // T14-05: P4 动态 — 四本地地址变体全清 + changes()=N + 留非目标条目
+  try {
+    const tmpFile = require('path').join(require('os').tmpdir(), 't14-purge-' + Date.now() + '.sqlite');
+    const db = new DatabaseSync(tmpFile);
+    db.exec('PRAGMA journal_mode=WAL');
+    db.exec('CREATE TABLE proxy_registry(id INTEGER PRIMARY KEY,host TEXT,port INT)');
+    db.exec('CREATE TABLE proxy_assignments(id INTEGER PRIMARY KEY,proxy_id INT)');
+    db.exec('CREATE TABLE provider_connections(provider TEXT,proxy_enabled INT)');
+    const hosts = ['127.0.0.1', '::1', 'localhost', '0.0.0.0'];
+    for (const h of hosts) { const id = db.prepare('INSERT INTO proxy_registry(host,port) VALUES(?,20129)').run(h).lastInsertRowid; db.prepare('INSERT INTO proxy_assignments(proxy_id) VALUES(?)').run(id); }
+    db.prepare('INSERT INTO proxy_registry(host,port) VALUES(?,20130)').run('127.0.0.1'); // 不同 port 留
+    db.prepare('INSERT INTO proxy_registry(host,port) VALUES(?,20129)').run('example.com'); // 不同 host 留
+    db.prepare('INSERT INTO provider_connections(provider,proxy_enabled) VALUES(?,1)').run('nvidia');
+    db.prepare('INSERT INTO provider_connections(provider,proxy_enabled) VALUES(?,1)').run('anthropic');
+    const port = 20129, placeholders = '(' + hosts.map(() => '?').join(',') + ')';
+    const pre = db.prepare('SELECT COUNT(*) c FROM proxy_registry WHERE host IN ' + placeholders + ' AND port=?').all(...hosts, port)[0].c;
+    assert.ok(pre === 4, 'P4 fixture: setup 4 本地变体 20129 (pre=' + pre + ')');
+    db.exec('BEGIN');
+    db.prepare('DELETE FROM proxy_assignments WHERE proxy_id IN (SELECT id FROM proxy_registry WHERE host IN ' + placeholders + ' AND port=?)').run(...hosts, port);
+    db.prepare('UPDATE provider_connections SET proxy_enabled=0 WHERE provider=?').run('nvidia');
+    const del = db.prepare('DELETE FROM proxy_registry WHERE host IN ' + placeholders + ' AND port=?').run(...hosts, port);
+    db.exec('COMMIT');
+    assert.ok(del.changes === 4, 'P4 changes()=4 (实 ' + del.changes + ', 即四变体全清)');
+    const post = db.prepare('SELECT COUNT(*) c FROM proxy_registry WHERE host IN ' + placeholders + ' AND port=?').all(...hosts, port)[0].c;
+    assert.ok(post === 0, 'P4 purge 后残留=0 (post=' + post + ')');
+    const remain = db.prepare("SELECT host,port FROM proxy_registry ORDER BY id").all();
+    assert.ok(remain.length === 2, 'P4 留 2 非目标 (127.0.0.1:20130 + example.com:20129, 实 ' + remain.length + ')');
+    const pc = db.prepare("SELECT provider,proxy_enabled FROM provider_connections ORDER BY provider").all();
+    // ORDER BY provider: anthropic < nvidia → pc[0]=anthropic(=1 不动), pc[1]=nvidia(=0 置零)
+    const nv = pc.find(r => r.provider === 'nvidia');
+    const an = pc.find(r => r.provider === 'anthropic');
+    assert.ok(nv && nv.proxy_enabled === 0, 'P4 nvidia→0');
+    assert.ok(an && an.proxy_enabled === 1, 'P4 anthropic 不动 (=1)');
+    db.close();
+    fs.rmSync(tmpFile, { force: true });
+    fs.rmSync(tmpFile + '-wal', { force: true });
+    fs.rmSync(tmpFile + '-shm', { force: true });
+    ok('T14-05 P4 动态: 四本地地址变体 20129 全清 deleted=4 + post=0 + 留非目标 2 条 + nvidia→0');
+  } catch (e) { localFail('T14-05 P4 动态: ' + (e && e.message)); }
+
+  // T14-06: P4 动态 — 幂等: 再 purge deleted=0, post=0
+  try {
+    const tmpFile = require('path').join(require('os').tmpdir(), 't14-idem-' + Date.now() + '.sqlite');
+    const db = new DatabaseSync(tmpFile);
+    db.exec('CREATE TABLE proxy_registry(id INTEGER PRIMARY KEY,host TEXT,port INT)');
+    const hosts = ['127.0.0.1', '::1', 'localhost', '0.0.0.0'], port = 20129, placeholders = '(' + hosts.map(() => '?').join(',') + ')';
+    for (const h of hosts) db.prepare('INSERT INTO proxy_registry(host,port) VALUES(?,20129)').run(h);
+    db.prepare('DELETE FROM proxy_registry WHERE host IN ' + placeholders + ' AND port=?').run(...hosts, port); // 第一轮
+    const d2 = db.prepare('DELETE FROM proxy_registry WHERE host IN ' + placeholders + ' AND port=?').run(...hosts, port); // 第二轮
+    const post = db.prepare('SELECT COUNT(*) c FROM proxy_registry WHERE host IN ' + placeholders + ' AND port=?').all(...hosts, port)[0].c;
+    assert.ok(d2.changes === 0, 'P4 幂等第二轮 deleted=0 (实 ' + d2.changes + ')');
+    assert.ok(post === 0, 'P4 幂等 post=0');
+    db.close();
+    fs.rmSync(tmpFile, { force: true });
+    ok('T14-06 P4 动态: 幂等 二轮 deleted=0 post=0');
+  } catch (e) { localFail('T14-06 P4 动态: ' + (e && e.message)); }
+
+  // T14-07: P5 动态 — wal_checkpoint(TRUNCATE) 返回 busy/log/checkpointed 三值; busy=0 (无并发 reader)
+  try {
+    const tmpFile = require('path').join(require('os').tmpdir(), 't14-ckpt-' + Date.now() + '.sqlite');
+    const db = new DatabaseSync(tmpFile);
+    db.exec('PRAGMA journal_mode=WAL');
+    db.exec('CREATE TABLE t(x)');
+    for (let i = 0; i < 50; i++) db.prepare('INSERT INTO t VALUES(?)').run(i);
+    const ck = db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+    assert.ok(ck && typeof ck.busy === 'number', 'P5 wal_checkpoint 返回 busy 数字 (实 ' + ck.busy + ' typeof ' + (ck && typeof ck.busy) + ')');
+    assert.ok(typeof ck.log === 'number', 'P5 wal_checkpoint 返回 log 数字');
+    assert.ok(typeof ck.checkpointed === 'number', 'P5 wal_checkpoint 返回 checkpointed 数字');
+    ok('T14-07 P5 动态: wal_checkpoint(TRUNCATE) 返回 busy=' + ck.busy + ' log=' + ck.log + ' checkpointed=' + ck.checkpointed + ' (busy=0 无 Litestream reader)');
+    db.close();
+    fs.rmSync(tmpFile, { force: true });
+    fs.rmSync(tmpFile + '-wal', { force: true });
+    fs.rmSync(tmpFile + '-shm', { force: true });
+  } catch (e) { localFail('T14-07 P5 动态: ' + (e && e.message)); }
+
+  if (issues === 0) ok('TEST 14 P3/P4/P5 全 PASS (7/7: 3 静 + 4 动)');
   fail += issues;
 }
 
@@ -824,6 +1006,7 @@ async function main() {
   testResidual();
   testResiliencePatch();
   testEntrypointSequence();
+  testEntrypointHardening();
   await testGateAbortSource();
   console.log('\n=== 结果 ===');
   console.log(`PASS=${pass} FAIL=${fail} SKIP=${skip}`);

@@ -177,6 +177,16 @@ _PROXY_RELAY_PORT=${NIM_PROXY_RELAY_PORT:-20129}
 _DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 
+# int 范围校验器 (供 Resilience PATCH 白名单构造): $1=值 $2=下限(int) $3=上限(int); 返回 0 合格, 1 不合格
+_res_validate_int() {
+  [ -z "$1" ] && return 1
+  case "$1" in
+    ''|*[!0-9-]*) return 1 ;;   # 非数字 (允许负号作前缀, 实际范围校验拦截)
+  esac
+  [ "$1" -ge "$2" ] 2>/dev/null && [ "$1" -le "$3" ] 2>/dev/null || return 1
+  return 0
+}
+
 purge_proxy_db() {
   [ "$_PURGE_PROXY" != "1" ] && { echo "[init] purge_proxy_db: skipped."; return 0; }
   local LIST_JSON
@@ -522,33 +532,87 @@ echo "[init] Provider IDs: ${#PROVIDER_IDS[@]}"
 purge_proxy_db
 
 echo "[init] Resilience (RPM=$_RPM, concurrent=$_CONCURRENT, interval=${_MIN_INTERVAL_MS}ms)..."
-# v4.3: 加 useUpstream429BreakerHints=false (G1 保守默认, 实例未证 NIM direct-cloud 分支);
-#       cf B3 types.ts camel: providerBreaker/connectionCooldown/useUpstream429BreakerHints.
-# Resilience PATCH body 仅 requestQueue (G3 限流执行点) + providerBreaker/connectionCooldown/useUpstream429BreakerHints.
-RESILIENCE_BODY="{\"requestQueue\":{\
-\"requestsPerMinute\":$_RPM,\
-\"minTimeBetweenRequestsMs\":$_MIN_INTERVAL_MS,\
-\"concurrentRequests\":$_CONCURRENT},\
-\"useUpstream429BreakerHints\":false}"
-RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
-  -X PATCH "$BASE_URL/api/resilience" -H "Content-Type: application/json" \
-  -d "$RESILIENCE_BODY")
-echo "[init] Resilience PATCH HTTP $RESILIENCE_CODE"
 
-# v4.3: Resilience 写后读回验证 (CF-4 约束: 写必须读回, 失败保留旧).
-# 读回 GET /api/resilience 验 requestQueue 字段值落定; 不通过仅告警 (不回滚, OmniRoute 保留旧配置).
-if [ "$RESILIENCE_CODE" = "200" ] || [ "$RESILIENCE_CODE" = "201" ]; then
-  _RB_RPM=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/resilience" \
-    | jq -r '.requestQueue.requestsPerMinute // "null"' 2>/dev/null || echo "jq_fail")
-  _RB_CONC=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/resilience" \
-    | jq -r '.requestQueue.concurrentRequests // "null"' 2>/dev/null || echo "jq_fail")
-  echo "[init] Resilience 读回: RPM=$_RB_RPM concurrent=$_RB_CONC (预期 $_RPM/$_CONCURRENT)"
-  if [ "$_RB_RPM" != "$_RPM" ] || [ "$_RB_CONC" != "$_CONCURRENT" ]; then
-    echo "[init] WARN: Resilience 读回不符预期. 保留 OmniRoute 现有配置 (不强行改, 不如写)."
-  fi
+# ── 3.8.43 PATCH 白名单 (SSOT: src/app/api/resilience/route.ts:153 + schemas/settings.ts:131-180) ──
+# updateResilienceSchema z.strict(): 顶层仅 requestQueue/connectionCooldown/providerBreaker/
+#   waitForCooldown/comboCooldownWait/quotaShareConcurrencyLimit/providerCooldown/profiles/defaults.
+# requestQueueSettingsSchema z.strict(): {requestsPerMinute int>=1, minTimeBetweenRequestsMs int>=0 (毫秒!),
+#   concurrentRequests int>=1, autoEnableApiKeyProviders boolean, maxWaitMs int>=1}.
+# useUpstream429BreakerHints 仅在 connectionCooldown.{oauth,apikey}.useUpstream429BreakerHints (boolean|null),
+#   顶层该字段 → z.strict() 拒绝 → HTTP 400 (根因 #1 已证).
+# 28  → requestQueue.requestsPerMinute (int, 单位 RPM)
+#  1  → requestQueue.concurrentRequests (int, 单位=并发槽位数, 个)
+# 2200→ requestQueue.minTimeBetweenRequestsMs (int, 单位=ms 毫秒, 2200ms=2.2s)
+# PATCH = 部分更新 (mergeResilienceSettings), 非完整对象; 未传字段保留旧值.
+
+# 显式白名单构造: 从空对象只复制 route.ts:309 接受字段, 禁 ...透传, 不发 undefined, 不发顶层 useUpstream429BreakerHints.
+# 输入校验 (类型/范围) — 28∈[1,60000] RPM, 2200∈[0,600000] ms, 1∈[1,1000] 并发; 非法 init 失败 (不静默 SKIP)
+if ! _res_validate_int "$_RPM" 1 60000 || ! _res_validate_int "$_MIN_INTERVAL_MS" 0 600000 || ! _res_validate_int "$_CONCURRENT" 1 1000; then
+  echo "[init] ✗ Resilience 输入非法 (_RPM=$_RPM / _MIN_INTERVAL_MS=$_MIN_INTERVAL_MS / _CONCURRENT=$_CONCURRENT). init 失败."
+  return 1 2>/dev/null || exit 1
+fi
+RESILIENCE_BODY=$(jq -nc \
+  --argjson rpm "$_RPM" \
+  --argjson minMs "$_MIN_INTERVAL_MS" \
+  --argjson conc "$_CONCURRENT" \
+  '{requestQueue:{requestsPerMinute:$rpm, minTimeBetweenRequestsMs:$minMs, concurrentRequests:$conc}}')
+echo "[init] Resilience PATCH body keys=[$(echo "$RESILIENCE_BODY" | jq -rc 'keys|join(",")')] requestQueue.keys=[$(echo "$RESILIENCE_BODY" | jq -rc '.requestQueue|keys|join(",")')] (无顶层 useUpstream429BreakerHints)"
+
+# 错误处理区分 HTTP 4xx/5xx vs transport error (根因 #2: status 空无原始异常 → 必留底层 error 信息)
+_t0=$(date +%s%N 2>/dev/null || date +%s)
+RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" --connect-timeout 5 --max-time 20 \
+  -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/resilience" -H "Content-Type: application/json" \
+  -d "$RESILIENCE_BODY" 2>/tmp/res_patch.err)
+res_curl_rc=$?
+_t1=$(date +%s%N 2>/dev/null || date +%s)
+_res_dur_ms=$(( (_t1 - _t0) / 1000000 ))
+_res_dur_ms=$(( _res_dur_ms < 0 ? 0 : _res_dur_ms ))
+_res_err=$(cat /tmp/res_patch.err 2>/dev/null | head -c 300)
+
+if [ "$res_curl_rc" -ne 0 ] || [ -z "$RESILIENCE_CODE" ]; then
+  # 没收到 HTTP 响应 (transport error / timeout / abort / DNS) — 保留底层异常信息
+  echo "[init] ⚠️ Resilience PATCH transport-error: curl_rc=$res_curl_rc dur=${_res_dur_ms}ms"
+  echo "[init]   curl_err: ${_res_err:-<empty>}"
+  echo "[init]   abort_source: $( [ "$res_curl_rc" = 28 ] && echo 'request_timeout' || ([ "$res_curl_rc" = 7 ] && echo 'proxy_connect_failure' || echo 'curl_unknown') )"
+  echo "[init]   不伪装成 HTTP 错误. 保留旧配置 (CF-4). PATCH 失败 → init 仍可继续其他步, 但 readiness 不得报告 resilience 健康."
+  RESILIENCE_CODE="transport_err"
 else
-  echo "[init] ⚠️ Resilience PATCH 非 2xx: $RESILIENCE_CODE. 保留旧配置 (CF-4: 失败不覆盖). 见 $RESILIENCE_RESP_FILE"
-  cat "$RESILIENCE_RESP_FILE" 2>/dev/null | head -c 500 || true
+  echo "[init] Resilience PATCH HTTP $RESILIENCE_CODE (dur=${_res_dur_ms}ms)"
+  case "$RESILIENCE_CODE" in
+    200|201) : ;;   # 2xx ok
+    *)
+      # 收到 HTTP 响应但非 2xx — 记 status/body/path/字段名
+      echo "[init] ⚠️ Resilience PATCH HTTP $RESILIENCE_CODE (收到响应): body=[$(head -c 500 "$RESILIENCE_RESP_FILE" 2>/dev/null)] path=/api/resilience"
+      echo "[init]   fields_sent: $(echo "$RESILIENCE_BODY" | jq -rc '.requestQueue|keys|join(",")' 2>/dev/null)"
+      ;;
+  esac
+fi
+
+# Read-back: PATCH 成功后立即 GET 验 28/1/2200ms 全三字段 — 不一致 init 失败 (CF-4: 写必须读回)
+if [ "$RESILIENCE_CODE" = "200" ] || [ "$RESILIENCE_CODE" = "201" ]; then
+  _RB=$(curl -s --connect-timeout 5 --max-time 20 -b "$COOKIE_FILE" "$BASE_URL/api/resilience" 2>/tmp/res_get.err)
+  res_get_rc=$?
+  _res_get_err=$(cat /tmp/res_get.err 2>/dev/null | head -c 300)
+  if [ "$res_get_rc" -ne 0 ] || [ -z "$_RB" ]; then
+    echo "[init] ✗ Resilience GET 读回 transport-error: curl_rc=$res_get_rc err=${_res_get_err:-<empty>}"
+    echo "[init]   abort_source: $( [ "$res_get_rc" = 28 ] && echo 'request_timeout' || ([ "$res_get_rc" = 7 ] && echo 'get_connect_failure' || echo 'get_unknown') )"
+    echo "[init]   CF-4 约束: 写必须读回. 读回失败 → init 失败 (OmniRoute resilience 未确认达预期限流)."
+    return 1 2>/dev/null || exit 1
+  fi
+  _RB_RPM=$(echo "$_RB" | jq -r '.requestQueue.requestsPerMinute // "null"' 2>/dev/null || echo "jq_fail")
+  _RB_MINMS=$(echo "$_RB" | jq -r '.requestQueue.minTimeBetweenRequestsMs // "null"' 2>/dev/null || echo "jq_fail")
+  _RB_CONC=$(echo "$_RB" | jq -r '.requestQueue.concurrentRequests // "null"' 2>/dev/null || echo "jq_fail")
+  echo "[init] Resilience 读回: RPM=$_RB_RPM minMs=$_RB_MINMS concurrent=$_RB_CONC (预期 $_RPM/$_MIN_INTERVAL_MS/$_CONCURRENT)"
+  # 严格逐字段验证三目标值; 任一不符 → init 失败 (不再仅 WARN)
+  _mismatch=""
+  [ "$_RB_RPM" != "$_RPM" ] && _mismatch="$_mismatch RPM($_RB_RPM!=$_RPM)"
+  [ "$_RB_MINMS" != "$_MIN_INTERVAL_MS" ] && _mismatch="$_mismatch minTimeMs($_RB_MINMS!=$_MIN_INTERVAL_MS)"
+  [ "$_RB_CONC" != "$_CONCURRENT" ] && _mismatch="$_mismatch concurrent($_RB_CONC!=$_CONCURRENT)"
+  if [ -n "$_mismatch" ]; then
+    echo "[init] ✗ Resilience 读回不一致:$_mismatch → init 失败 (CF-4: 限流配置未落定, 不能报告 ready)"
+    return 1 2>/dev/null || exit 1
+  fi
+  echo "[init] ✓ Resilience 读回全字段一致 (28/1/2200ms 已落定)"
 fi
 
 echo "[init] Routing + maxBodySizeMb=$_REQUEST_BODY_LIMIT_MB..."

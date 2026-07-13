@@ -128,8 +128,76 @@ function apiRouteMatch(p, method) {
   return false;
 }
 
+// ── 结构化诊断日志 (gate 出口 proxy 错误/abort) ──
+//   一行 JSON stderr (HF Space 抓取): requestId/path/method/upstream/elapsedMs/httpStatus/errorCode/abortSource/destroyInitiator
+//   abortSource 区分: 'upstream_error' (上游真错) / 'client_close' (客户端断开反发) / 'timeout' (gate 30s 超时) / 'shutdown'
+//   destroyInitiator: 'gate_timeout' / 'client' / 'upstream' / 'null' (无主动 destroy)
+//   不打印 headers/PSK/token/body (脱敏). 仅 path+method+errorCode (无敏感).
+function genReqId() {
+  try { return crypto.randomBytes(8).toString('hex'); } catch { return 'rid_unknown'; }
+}
+function logGate(req, fields) {
+  try {
+    const v = (n) => (typeof n === 'number' || typeof n === 'string') ? n : null;
+    const line = JSON.stringify({
+      ts: Date.now(),
+      level: 'error',
+      component: 'gate',
+      stage: 'upstream_proxy',
+      requestId: req?._gateReqId || null,
+      method: req?.method || null,
+      path: req?._normPath || null,
+      upstream_path: req?._upstreamPath || null,
+      upstream_target: `127.0.0.1:${OR_PORT}`,
+      elapsedMs: v(fields.elapsedMs),
+      httpStatus: v(fields.httpStatus),
+      errorCode: fields.errorCode || null,
+      abortSource: fields.abortSource || null,
+      socketPhase: fields.socketPhase || null,
+      destroyInitiator: fields.destroyInitiator || null,
+      msg: fields.msg || null,
+    });
+    process.stderr.write(line + '\n');
+  } catch { /* never throw from logger */ }
+}
+
+// abort source 区分: 从上游 error 事件 + 标记位判断谁发起 destroy
+//   gateTimeout=true → 'timeout'; clientAborted=true → 'client_close'; shuttingDown → 'shutdown';
+//   ECONNRESET + elapsedMs<5000 → 'upstream_reset' (短时窗 socket reset, 候选 stale pooled socket);
+//   else 'upstream_error'.
+//   timeout/client_close/shutdown 三类判断逻辑不变 (task#23 仅增 upstream_reset 兜底前).
+function classifyAbortSource(e, { gateTimeout, clientAborted, elapsedMs } = {}) {
+  if (gateTimeout) return 'timeout';
+  if (clientAborted) return 'client_close';
+  if (shuttingDown) return 'shutdown';
+  if (e?.code === 'ECONNRESET' && typeof elapsedMs === 'number' && elapsedMs < 5000) {
+    return 'upstream_reset';
+  }
+  return 'upstream_error';
+}
+
+// HTTP status 映射: ECONNREFUSED/ECONNRESET=503 (upstream unavailable/rest),
+//   timeout/ETIMEDOUT/ESOCKETTIMEDOUT=504 (gateway_timeout), 其余=502 (bad_gateway)
+function mapUpstreamStatus(e, { gateTimeout } = {}) {
+  if (gateTimeout || e?.code === 'ETIMEDOUT' || e?.code === 'ESOCKETTIMEDOUT') return 504;
+  if (e?.code === 'ECONNREFUSED' || e?.code === 'ECONNRESET') return 503;
+  return 502;
+}
+function statusErrorLabel(code) {
+  return code === 504 ? 'gateway_timeout'
+    : code === 503 ? 'service_unavailable'
+    : 'bad_gateway';
+}
+
 const app = express();
 let shuttingDown = false;
+
+// 注入 requestId + 开始时间 (per-request, 在路径规整化中间件后可用 _normPath)
+app.use((req, res, next) => {
+  req._gateReqId = genReqId();
+  req._gateT0 = Date.now();
+  next();
+});
 
 // ── /healthz: 免认证探活 ─────────────────────────────────
 app.get('/healthz', async (req, res) => {
@@ -228,6 +296,7 @@ function proxyV1(req, res) {
     headers,
     timeout: UPSTREAM_TIMEOUT_MS,
   }, (upstreamRes) => {
+    req._socketPhase = 'streaming';   // 已收 response head → 进入流相 (含 SSE 逐块)
     res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
     upstreamRes.on('data', (chunk) => {
       if (!res.write(chunk)) {
@@ -236,32 +305,85 @@ function proxyV1(req, res) {
       }
     });
     upstreamRes.on('end', () => { if (!res.writableEnded) res.end(); });
-    upstreamRes.on('error', () => {
-      if (!res.headersSent) res.status(502).json({ error: 'bad_gateway' });
+    upstreamRes.on('error', (e) => {
+      // 上游响应流中途错 (已 head, 非 connect 错): fallback 502 + 结构化日志
+      // task#23: 复用 classifyAbortSource (非硬码 'upstream_error'); 流相 elapsedMs 多 >5000 → 落 upstream_error
+      const elapsedMs = Date.now() - (req._gateT0 || 0);
+      const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted, elapsedMs });
+      logGate(req, { elapsedMs, httpStatus: 502,
+        errorCode: e?.code || e?.message || 'upstream_response_stream_error',
+        abortSource, socketPhase: req._socketPhase || 'streaming',
+        destroyInitiator: 'upstream', msg: 'upstream_response_stream_error' });
+      if (!res.headersSent) res.status(502).json({ error: 'bad_gateway', abort_source: abortSource });
       else if (!res.writableEnded) res.end();
     });
   });
 
+  // socketPhase 跟踪: connecting → headers → streaming (供 upstream_reset/upstream_error 日志区分断在哪相)
+  req._socketPhase = 'connecting';
+  upstreamReq.on('socket', (socket) => {
+    socket.on('connect', () => { if (req._socketPhase === 'connecting') req._socketPhase = 'headers'; });
+  });
+
+  // abort source tracking: 区分 client 断开 vs gate 超时 vs upstream 真错
   let aborted = false;
+  let gateTimeout = false;   // gate 主动超时 destroy
+  let clientAborted = false; // 客户端断开触发 cleanup
+  let firstError = null;      // 首个上游 error (后续 destroy 反发不覆盖)
   function cleanup() {
     if (aborted) return;
     aborted = true;
-    if (upstreamReq) upstreamReq.destroy();
+    if (upstreamReq) {
+      // 仅在 client 断开机上标记 (timeout handler 自己标记, 避免误判)
+      if (!gateTimeout) { clientAborted = true; upstreamReq.destroy(); }
+    }
     res.removeAllListeners('drain');
   }
-  req.on('error', cleanup);
-  req.on('aborted', cleanup);
-  req.on('close', cleanup);
+  req.on('error', () => { clientAborted = true; cleanup(); });
+  req.on('aborted', () => { clientAborted = true; cleanup(); });
+  req.on('close', () => { clientAborted = true; cleanup(); });
 
   upstreamReq.on('timeout', () => {
+    gateTimeout = true;
     upstreamReq.destroy(new Error('upstream_timeout'));
-    if (!res.headersSent) res.status(504).json({ error: 'gateway_timeout' });
+    const code = 504;
+    logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: code, errorCode: 'ETIMEDOUT',
+      abortSource: 'timeout', destroyInitiator: 'gate_timeout', msg: 'upstream_request_timeout' });
+    if (!res.headersSent) res.status(code).json({ error: statusErrorLabel(code), abort_source: 'timeout' });
     else if (!res.writableEnded) res.end();
   });
   upstreamReq.on('error', (e) => {
-    if (!res.headersSent) {
-      const code = (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') ? 503 : 502;
-      res.status(code).json({ error: code === 503 ? 'service_unavailable' : 'bad_gateway' });
+    // 首个 error 仅记一次 (后续 destroy 同事件反发不覆盖诊断)
+    if (!firstError) firstError = e;
+    // abort source 区分: client 已断开 + 这是 cleanup 反发的 destroy → client_close (不响应, client 已走)
+    const elapsedMs = Date.now() - (req._gateT0 || 0);
+    const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted, elapsedMs });
+    const code = clientAborted ? null : mapUpstreamStatus(e, { gateTimeout });
+    // 不打 504 重复日志 (timeout handler 已打)
+    if (!gateTimeout) {
+      // socketPhase 仅附加于 upstream_reset/upstream_error (timeout/client_close/shutdown 不附, 非其语义)
+      const phase = (abortSource === 'upstream_reset' || abortSource === 'upstream_error')
+        ? (req._socketPhase || null) : null;
+      logGate(req, {
+        elapsedMs,
+        httpStatus: code,
+        errorCode: e?.code || e?.message || 'unknown_error',
+        abortSource,
+        socketPhase: phase,
+        destroyInitiator: clientAborted ? 'client' : (gateTimeout ? 'gate_timeout' : 'upstream'),
+        msg: abortSource === 'client_close' ? 'client_disconnected_proxy_aborted'
+          : abortSource === 'shutdown' ? 'gate_shutting_down'
+          : abortSource === 'upstream_reset' ? 'upstream_socket_reset_short_lived'
+          : 'upstream_error',
+      });
+    }
+    // client 断开: client 已不可达, 不再写 res (headersSent与否都直接 end)
+    if (clientAborted) {
+      if (!res.writableEnded) { try { res.end(); } catch {} }
+      return;
+    }
+    if (!res.headersSent && code) {
+      res.status(code).json({ error: statusErrorLabel(code), abort_source: abortSource });
     } else if (!res.writableEnded) {
       res.end();
     }
@@ -304,30 +426,61 @@ function proxyAdmin(req, res) {
       }
     });
     upstreamRes.on('end', () => { if (!res.writableEnded) res.end(); });
-    upstreamRes.on('error', () => {
-      if (!res.headersSent) res.status(502).json({ error: 'bad_gateway' });
+    upstreamRes.on('error', (e) => {
+      // 上游响应流中途错 (非 connect 错): 已 head, fallback 502 + 结构化日志
+      logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 502,
+        errorCode: e?.code || e?.message || 'upstream_response_stream_error',
+        abortSource: 'upstream_error', destroyInitiator: 'upstream', msg: 'upstream_response_stream_error' });
+      if (!res.headersSent) res.status(502).json({ error: 'bad_gateway', abort_source: 'upstream_error' });
       else if (!res.writableEnded) res.end();
     });
   });
+  // abort source tracking (同 proxyV1): 区分 client 断开 vs gate 超时 vs upstream 真错
   let aborted = false;
+  let gateTimeout = false;
+  let clientAborted = false;
+  let firstError = null;
   function cleanup() {
     if (aborted) return;
     aborted = true;
-    if (upstreamReq) upstreamReq.destroy();
+    if (upstreamReq) {
+      if (!gateTimeout) { clientAborted = true; upstreamReq.destroy(); }
+    }
     res.removeAllListeners('drain');
   }
-  req.on('error', cleanup);
-  req.on('aborted', cleanup);
-  req.on('close', cleanup);
+  req.on('error', () => { clientAborted = true; cleanup(); });
+  req.on('aborted', () => { clientAborted = true; cleanup(); });
+  req.on('close', () => { clientAborted = true; cleanup(); });
   upstreamReq.on('timeout', () => {
+    gateTimeout = true;
     upstreamReq.destroy(new Error('upstream_timeout'));
-    if (!res.headersSent) res.status(504).json({ error: 'gateway_timeout' });
+    const code = 504;
+    logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: code, errorCode: 'ETIMEDOUT',
+      abortSource: 'timeout', destroyInitiator: 'gate_timeout', msg: 'admin_upstream_request_timeout' });
+    if (!res.headersSent) res.status(code).json({ error: statusErrorLabel(code), abort_source: 'timeout' });
     else if (!res.writableEnded) res.end();
   });
   upstreamReq.on('error', (e) => {
-    if (!res.headersSent) {
-      const code = (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') ? 503 : 502;
-      res.status(code).json({ error: code === 503 ? 'service_unavailable' : 'bad_gateway' });
+    if (!firstError) firstError = e;
+    const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted });
+    const code = clientAborted ? null : mapUpstreamStatus(e, { gateTimeout });
+    if (!gateTimeout) {
+      logGate(req, {
+        elapsedMs: Date.now() - (req._gateT0 || 0),
+        httpStatus: code,
+        errorCode: e?.code || e?.message || 'unknown_error',
+        abortSource,
+        destroyInitiator: clientAborted ? 'client' : (gateTimeout ? 'gate_timeout' : 'upstream'),
+        msg: abortSource === 'client_close' ? 'admin_client_disconnected_proxy_aborted'
+          : abortSource === 'shutdown' ? 'gate_shutting_down' : 'admin_upstream_error',
+      });
+    }
+    if (clientAborted) {
+      if (!res.writableEnded) { try { res.end(); } catch {} }
+      return;
+    }
+    if (!res.headersSent && code) {
+      res.status(code).json({ error: statusErrorLabel(code), abort_source: abortSource });
     } else if (!res.writableEnded) {
       res.end();
     }

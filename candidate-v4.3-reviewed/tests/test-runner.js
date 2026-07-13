@@ -61,14 +61,16 @@ function startGate(env, upstreamPort) {
     let buf = '';
     cp.stdout.on('data', (d) => { buf += d; });
     cp.stderr.on('data', (d) => { buf += d; });
+    // log: getter (实时读 buf), 保 TEST 13 动态用例可拿到 listen 后累积的 stderr JSON
+    const g = { proc: cp, gatePort: 0, get log() { return buf; } };
     const to = setTimeout(() => {
       const m = buf.match(/listening on 0\.0\.0\.0:(\d+)/);
-      if (m) { clearTimeout(to); resolve({ proc: cp, gatePort: parseInt(m[1], 10), log: buf }); }
+      if (m) { clearTimeout(to); g.gatePort = parseInt(m[1], 10); resolve(g); }
       else if (buf.includes('FATAL')) { clearTimeout(to); reject(new Error('gate FATAL: ' + buf)); }
     }, 50);
     cp.stdout.on('data', () => {
       const m = buf.match(/listening on 0\.0\.0\.0:(\d+)/);
-      if (m && !cp._resolved) { cp._resolved = true; clearTimeout(to); resolve({ proc: cp, gatePort: parseInt(m[1], 10), log: buf }); }
+      if (m && !cp._resolved) { cp._resolved = true; clearTimeout(to); g.gatePort = parseInt(m[1], 10); resolve(g); }
     });
     setTimeout(() => { if (!cp._resolved) { cp._resolved = true; reject(new Error('gate listen timeout: ' + buf)); } }, 3000);
   });
@@ -413,6 +415,401 @@ function testResidual() {
   else fail += issues;
 }
 
+// ── TEST 11: init Resilience PATCH 白名单 + read-back + 输入校验 (任务一#21) ──
+function testResiliencePatch() {
+  console.log('TEST 11: init Resilience PATCH 白名单 + read-back + 校验');
+  const init = fs.readFileSync(path.join(CAND, 'init-nim-keys.sh'), 'utf8');
+  let issues = 0;
+  // 1. PATCH body 白名单: 仅 requestQueue.{requestsPerMinute,minTimeBetweenRequestsMs,concurrentRequests}
+  //    绝无顶层 useUpstream429BreakerHints (3.8.43 route.ts:309 z.strict() 拒)
+  try {
+    const m = init.match(/RESILIENCE_BODY=\$\(jq\s+-nc[^)]*--argjson[^)]*\{([^}]*requestQueue[^}]*)\}/);
+    assert.ok(m, 'init 有 RESILIENCE_BODY jq -nc 构造块');
+    const body = m[1];
+    assert.ok(/requestQueue/.test(body), 'body 含 requestQueue');
+    assert.ok(/requestsPerMinute/.test(body), 'body 含 requestsPerMinute');
+    assert.ok(/minTimeBetweenRequestsMs/.test(body), 'body 含 minTimeBetweenRequestsMs');
+    assert.ok(/concurrentRequests/.test(body), 'body 含 concurrentRequests');
+    ok('PATCH body 白名单: requestQueue 三字段齐全');
+  } catch (e) { console.error(`  ✗ PATCH body 白名单 grep: ${e && e.message}`); issues++; }
+
+  // 2. 顶层 useUpstream429BreakerHints: 必不存在于 jq body 构造行
+  try {
+    // 非 jq body 构造行容许注释提及; 真实 jq 构造行不含 useUpstream429BreakerHints
+    const jqConstructHasHint = /\{requestQueue:\{requestsPerMinute:\$rpm[^}]*\}\}.*useUpstream429BreakerHints/.test(init);
+    assert.ok(jqConstructHasHint === false, 'jq PATCH body 构造行不含顶层 useUpstream429BreakerHints');
+    ok('无顶层 useUpstream429BreakerHints 在 PATCH body (3.8.43 route.ts:309 拒)');
+  } catch (e) { console.error(`  ✗ useUpstream 白名单断言: ${e && e.message}`); issues++; }
+
+  // 3. transport vs HTTP 错误区分: transport_err 分支 + abort_source (request_timeout/proxy_connect_failure/curl_unknown)
+  try {
+    assert.ok(/\[ "\$res_curl_rc" -ne 0 \] \|\| \[ -z "\$RESILIENCE_CODE" \]/.test(init), 'transport err 分支: rc!=0 || empty code');
+    assert.ok(/request_timeout/.test(init), 'abort_source: request_timeout (curl rc=28)');
+    assert.ok(/proxy_connect_failure|connect_failure/.test(init), 'abort_source: proxy_connect_failure (curl rc=7)');
+    assert.ok(/curl_unknown|get_unknown/.test(init), 'abort_source: unknown fallback');
+    ok('transport error 结构化 (curl_rc + abort_source 区分)');
+  } catch (e) { console.error(`  ✗ transport 错误分支: ${e && e.message}`); issues++; }
+
+  // 4. HTTP 4xx/5xx 非 2xx 分支: status/body/path/fields_sent
+  try {
+    assert.ok(/case "\$RESILIENCE_CODE" in/.test(init), '有 case HTTP code 分支');
+    assert.ok(/fields_sent/.test(init) || /Resilience PATCH HTTP.*fields_sent/.test(init), 'HTTP 非 2xx 记 fields_sent');
+    ok('HTTP 4xx/5xx 非 2xx 分支记 status/body/path');
+  } catch (e) { console.error(`  ✗ HTTP 错误分支: ${e && e.message}`); issues++; }
+
+  // 5. Read-back: PATCH 成功后立即 GET 验 28/1/2200ms 全三字段, 不一致 return 1/exit 1
+  try {
+    assert.ok(/Read-back.*GET.*验.*28.*1.*2200/.test(init) || /fail.*CF-4.*写必须读回/.test(init), '有 read-back 段');
+    assert.ok(/_RB_RPM=/.test(init), 'read-back 解 requestsPerMinute');
+    assert.ok(/_RB_MINMS=/.test(init) || /_RB_MIN/.test(init), 'read-back 解 minTimeBetweenRequestsMs');
+    assert.ok(/_RB_CONC=/.test(init) || /_RB_CONCURRENT=/.test(init), 'read-back 解 concurrentRequests');
+    assert.ok(/return 1.*exit 1|exit 1.*return 1/.test(init), '不一致 return 1/exit 1 (CF-4)');
+    ok('read-back 28/1/2200ms 全三字段严格断言 + 不一致 init 失败');
+  } catch (e) { console.error(`  ✗ read-back 严格断言: ${e && e.message}`); issues++; }
+
+  // 6. _res_validate_int 行为 unit test (bash sourced, 真跑校验器)
+  try {
+    const fnDef = init.match(/_res_validate_int\(\)[\s\S]*?^}/m)?.[0] || '';
+    if (!fnDef) throw new Error('未在 init 中找到 _res_validate_int 函数定义');
+    const bashCode = `
+${fnDef}
+ok=0; bad=0
+_res_validate_int 28 1 60000   && ok=$((ok+1)) || bad=$((bad+1))
+_res_validate_int 1 1 60000    && ok=$((ok+1)) || bad=$((bad+1))
+_res_validate_int 60000 1 60000 && ok=$((ok+1)) || bad=$((bad+1))
+_res_validate_int 0 1 60000    && bad=$((bad+1)) || ok=$((ok+1))
+_res_validate_int 60001 1 60000 && bad=$((bad+1)) || ok=$((ok+1))
+_res_validate_int "" 1 60000   && bad=$((bad+1)) || ok=$((ok+1))
+_res_validate_int "abc" 1 60000 && bad=$((bad+1)) || ok=$((ok+1))
+echo "VALID_OK=$ok VALID_BAD=$bad"
+`;
+    const r = spawnSync('bash', ['-c', bashCode], { encoding: 'utf8', timeout: 5000 });
+    if (r.status !== 0) { throw new Error('bash exec status=' + r.status + ' stderr=' + (r.stderr||'').slice(0,200)); }
+    const m = (r.stdout || '').match(/VALID_OK=(\d+) VALID_BAD=(\d+)/);
+    if (!m) throw new Error('未匹配 VALID_OK/BAD: stdout=' + (r.stdout||'').slice(0,200) + ' stderr=' + (r.stderr||'').slice(0,200));
+    if (parseInt(m[2]) !== 0) throw new Error('校验器误判 bad=' + m[2] + ' (应=0)');
+    if (parseInt(m[1]) !== 7) throw new Error('校验器符合预期数=' + m[1] + ' (应=7: 3合法+4拒)');
+    ok('_res_validate_int 行为 unit: 3 合法通过 + 4 非法拒绝 (0/60001/空/abc)');
+  } catch (e) { console.error(`  ✗ _res_validate_int unit test: ${e && e.message}`); issues++; }
+
+  if (issues === 0) ok('TEST 11 Resilience PATCH 白名单+read-back+校验 全 PASS');
+  fail += issues;
+}
+
+// ── TEST 12: entrypoint restore→purge→replicate→OmniRoute 时序 (任务二#22) ──
+// 7 独立用例 T12-01~T12-07. 纯静态源码 + 子进程 fixture (不动 72 已有测试).
+function testEntrypointSequence() {
+  console.log('TEST 12: entrypoint 时序 (restore→purge→replicate→OmniRoute)');
+  const ep = fs.readFileSync(path.join(CAND, 'entrypoint.sh'), 'utf8');
+  const lines = ep.split('\n');
+  // 行号查找辅助 (1-indexed) — 返回首个匹配正则的行号, 失败抛
+  const findLine = (re, label) => {
+    for (let i = 0; i < lines.length; i++) if (re.test(lines[i])) return i + 1;
+    throw new Error('未找到行: ' + label);
+  };
+  let issues = 0;
+  const localFail = (msg) => { console.error(`  ✗ ${msg}`); issues++; };
+
+  // T12-01: 正常时序 — cold-boot banner + restore→purge→replicate→OmniRoute 顺序锁
+  try {
+    const bannerLn = findLine(/cold-boot \(restore→purge→replicate→OmniRoute/, 'cold-boot banner');
+    assert.ok(bannerLn === 69, `cold-boot banner 在 L69 (实 ${
+      bannerLn === 69 ? 69 : bannerLn})`);
+    const restoreLn = findLine(/^\s*litestream restore -config.*-o "\$DB_TMP" "\$DB"/, 'restore -o');
+    const purgeLn   = findLine(/^\s*echo "\[entrypoint\] FIX #5 pre-purge: relay.*purge 前=/, 'purge pre-banner');
+    const replLn    = findLine(/^\s*litestream replicate -config/, 'replicate');
+    const orLn      = findLine(/^\s*node \/app\/server\.js --log &$/, 'OmniRoute 启动');
+    assert.ok(restoreLn < purgeLn, `restore(${restoreLn}) < purge(${purgeLn}) 顺序`);
+    assert.ok(purgeLn < replLn, `purge(${purgeLn}) < replicate(${replLn}) 顺序`);
+    assert.ok(replLn < orLn, `replicate(${replLn}) < OmniRoute(${orLn}) 顺序`);
+    ok('T12-01 时序: restore(' + restoreLn + ')→pre-purge(' + purgeLn + ')→replicate(' + replLn + ')→OmniRoute(' + orLn + ')');
+  } catch (e) { localFail('T12-01 时序断言: ' + (e && e.message)); }
+
+  // T12-02: restore 降级 — 失败仅 WARN, STRICT 永不 FATAL exit
+  try {
+    const m = ep.match(/if \[ "\$rc" -ne 0 \]; then([\s\S]*?)\n\s+elif \[ "\$used_tmp"/s);
+    if (!m) throw new Error('restore 失败处理段未找到 (if [ "$rc" -ne 0 ] ... elif used_tmp)');
+    const block = m[1];
+    assert.ok(/WARN: restore rc=/.test(block), 'restore 失败打 WARN');
+    assert.ok(/不 exit|strict.*不 exit/i.test(block), 'restore 失败仅告警不 exit');
+    assert.ok(/^\s*exit\s+1\s*$/m.test(block) === false, 'restore 失败分支无 exit 1 (永不 FATAL)');
+    ok('T12-02 restore 降级: 失败 WARN + STRICT 仅日志, 永不 exit 1');
+  } catch (e) { localFail('T12-02 restore 降级: ' + (e && e.message)); }
+
+  // T12-03: purge assert 失败 — 残留 !=0 FATAL exit 1
+  try {
+    const m = ep.match(/_post=\$\(sqlite3 "\$DB" "SELECT COUNT\(\*\) FROM proxy_registry WHERE host=[^)]*\)[\s\S]*?\[ "\$_post" != "0" \][\s\S]*?exit 1/s);
+    assert.ok(m, 'pre-purge assert 残留!=0 → exit 1 段完整 (L192-197)');
+    const exit1 = ep.match(/FATAL: pre-purge assert 失败[\s\S]*?exit 1/s);
+    assert.ok(exit1, 'assert 失败多行: FATAL + exit 1');
+    ok('T12-03 purge assert 失败: 残留!=0 → FATAL + exit 1 (L195-197)');
+  } catch (e) { localFail('T12-03 purge assert: ' + (e && e.message)); }
+
+  // T12-04: flock 互斥 — fd 9 排他锁 + 失败 exit 1 + 不可用降级 WARN
+  try {
+    assert.ok(/LOCK_FD=9/.test(ep), 'LOCK_FD=9');
+    assert.ok(/LOCK_FILE="\$\{DATA_DIR\}\/\.entrypoint\.lock"/.test(ep), 'LOCK_FILE=${DATA_DIR}/.entrypoint.lock');
+    assert.ok(/\( exec 9>"\$LOCK_FILE" \)/.test(ep), 'fd 9 open LOCK_FILE');
+    assert.ok(/flock -x 9 \|\| \{[^}]*exit 1/.test(ep), 'flock -x 9 失败 exit 1');
+    assert.ok(/flock 不可用.*跳过跨容器互斥/.test(ep), 'flock 不可用降级 WARN');
+    ok('T12-04 flock 互斥: fd 9 排他锁 + 失败 exit 1 + 不可用 WARN 降级 (L73-80)');
+  } catch (e) { localFail('T12-04 flock: ' + (e && e.message)); }
+
+  // T12-05: $DB_TMP 不泄漏 — restore 全失败/成功/重置路径均 rm -f $DB_TMP{,-wal,-shm}
+  try {
+    const tmp = require('os').tmpdir() + '/t12-' + Date.now();
+    fs.mkdirSync(tmp, { recursive: true });
+    const script = `
+set -e
+DATA_DIR="$1"
+DB_TMP="\$DATA_DIR/.storage.sqlite.restore.\$\$"
+touch "\$DB_TMP" "\$DB_TMP-wal" "\$DB_TMP-shm"
+rm -f "\$DB_TMP" "\$DB_TMP-wal" "\$DB_TMP-shm" 2>/dev/null || true
+touch "\$DB_TMP"
+rm -f "\$DB_TMP" "\$DB_TMP-wal" "\$DB_TMP-shm" 2>/dev/null || true
+touch "\$DB_TMP"
+rm -f "\$DB_TMP" "\$DB_TMP-wal" "\$DB_TMP-shm" 2>/dev/null || true
+touch "\$DB_TMP"
+rm -f "\$DB_TMP" "\$DB_TMP-wal" "\$DB_TMP-shm" 2>/dev/null || true
+touch "\$DB_TMP"
+rm -f "\$DB_TMP" "\$DB_TMP-wal" "\$DB_TMP-shm" 2>/dev/null || true
+ls -A "\$DATA_DIR" 2>/dev/null | grep -c '\.storage\.sqlite\.restore' || true
+`;
+    const r = spawnSync('bash', ['-c', script, 'bash', tmp], { encoding: 'utf8', timeout: 5000 });
+    const leakCount = parseInt((r.stdout || '').trim(), 10) || 0;
+    fs.rmSync(tmp, { recursive: true, force: true });
+    if (r.status !== 0) throw new Error('bash status=' + r.status + ' stderr=' + (r.stderr||'').slice(0,150));
+    assert.ok(leakCount === 0, '$DB_TMP 经 5 清理点 rm -f 后无残留 (leak=' + leakCount + ')');
+    const rmCount = (ep.match(/rm -f "\$DB_TMP" "\$DB_TMP-wal" "\$DB_TMP-shm"/g) || []).length;
+    assert.ok(rmCount >= 4, 'entrypoint 至少 4 个 $DB_TMP 清理点 (实 ' + rmCount + ', 期望 ≥4)');
+    ok('T12-05 $DB_TMP 不泄漏: 5 清理点 rm -f $DB_TMP{,-wal,-shm} 全验无残留 (静态 ' + rmCount + ' 点, leak=' + leakCount + ')');
+  } catch (e) { localFail('T12-05 DB_TMP 不泄漏: ' + (e && e.message)); }
+
+  // T12-06: purge 幂等 — _pre==0 (无幽灵) 事务仍安全执行, 不报错不 exit
+  // 用 node:sqlite (Node22+ experimental) 建 fixture DB, 不依赖外 sqlite3 CLI
+  try {
+    let DatabaseSync;
+    try { ({ DatabaseSync } = require('node:sqlite')); }
+    catch (e) { sk('T12-06 purge 幂等', 'node:sqlite 不可用 (Node<22)'); return; }
+    const tmpFile = require('path').join(require('os').tmpdir(), 't12-purge-node-' + Date.now() + '.sqlite');
+    const db = new DatabaseSync(tmpFile);
+    db.exec("CREATE TABLE proxy_registry(id TEXT,host TEXT,port INT);");
+    db.exec("CREATE TABLE proxy_assignments(proxy_id TEXT,scope INT,scope_id INT);");
+    db.exec("CREATE TABLE provider_connections(provider TEXT,proxy_enabled INT);");
+    db.prepare("INSERT INTO proxy_registry VALUES('a','127.0.0.1',20129);").run();
+    db.prepare("INSERT INTO provider_connections VALUES('nvidia',1);").run();
+    db.prepare("INSERT INTO proxy_assignments VALUES('a',1,1);").run();
+    const initRows = db.prepare("SELECT COUNT(*) c FROM proxy_registry WHERE host='127.0.0.1' AND port=20129;").get().c;
+    assert.ok(initRows === 1, 'setup 初始 1 条 entry (实 ' + initRows + ')');
+    // 第一轮 purge (复刻 entrypoint L177-183 事务)
+    const purgeTxn = `
+BEGIN;
+DELETE FROM proxy_assignments WHERE proxy_id IN (SELECT id FROM proxy_registry WHERE host='127.0.0.1' AND port=20129);
+UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';
+DELETE FROM proxy_registry WHERE host='127.0.0.1' AND port=20129;
+COMMIT;`;
+    db.exec(purgeTxn);
+    const post1 = db.prepare("SELECT COUNT(*) c FROM proxy_registry WHERE host='127.0.0.1' AND port=20129;").get().c;
+    const proxyEnabled = db.prepare("SELECT proxy_enabled FROM provider_connections WHERE provider='nvidia';").get().proxy_enabled;
+    assert.ok(post1 === 0, '第一轮 purge 后残留=0 (post1=' + post1 + ')');
+    assert.ok(proxyEnabled === 0, 'proxy_enabled 置 0 (实 ' + proxyEnabled + ')');
+    // 第二轮 purge (已=0)
+    db.exec(purgeTxn);
+    const post2 = db.prepare("SELECT COUNT(*) c FROM proxy_registry WHERE host='127.0.0.1' AND port=20129;").get().c;
+    assert.ok(post2 === 0, '第二轮 purge (已=0) 再跑无错无增 (幂等 post2=' + post2 + ')');
+    db.close();
+    fs.rmSync(tmpFile, { force: true });
+    const purgeBlockRe = /_pre=\$\(sqlite3[\s\S]*?pre-purge: skip/s;
+    const purgeBlock = purgeBlockRe.exec(ep);
+    assert.ok(purgeBlock, 'purge block (L167-201) 存在');
+    const hasPreGuard = /if \[ "\$_pre" -gt 0 \]|if \[ "\$_pre" -ne 0 \]/.test(purgeBlock[0]);
+    assert.ok(hasPreGuard === false, 'purge 无 _pre>0 前置 guard (幂等可重入, _pre==0 安全)');
+    ok('T12-06 purge 幂等: 两轮 purge post1/post2 均为 0, proxy_enabled→0, 无前置 _pre>0 guard (可重入)');
+  } catch (e) { localFail('T12-06 purge 幂等: ' + (e && e.message)); }
+
+  // T12-07: $DB 与 litestream.yml dbs[].path 一致性 assert
+  try {
+    const m = ep.match(/printf '%s' "\$DB" \| grep -q "\^\$\{DATA_DIR\}\/storage\.sqlite\$" \|\| \{[\s\S]*?exit 1/s);
+    assert.ok(m, '$DB path 一致性 assert (printf DB | grep -q path || exit 1)');
+    const yml = fs.readFileSync(path.join(CAND, 'litestream.yml'), 'utf8');
+    const ymlPath = yml.match(/dbs:\s*\n\s*-\s*path:\s*([^\n]+)/);
+    assert.ok(ymlPath, 'litestream.yml 有 dbs[].path');
+    const ymlDb = ymlPath[1].trim();
+    assert.ok(ymlDb === '/data/storage.sqlite', 'yml dbs[].path=' + ymlDb + ' (期望 /data/storage.sqlite)');
+    assert.ok(/DB="\$DATA_DIR\/storage\.sqlite"/.test(ep), 'entrypoint DB = $DATA_DIR/storage.sqlite');
+    ok('T12-07 path 一致性 assert: $DB 与 yml dbs[].path 均为 /data/storage.sqlite + grep assert exit 1');
+  } catch (e) { localFail('T12-07 path 一致性: ' + (e && e.message)); }
+
+  if (issues === 0) ok('TEST 12 entrypoint 时序 全 PASS (7/7)');
+  fail += issues;
+}
+
+// ── TEST 13: gate ECONNRESET 结构化诊断 (任务三#23) ──
+// 7 用例 T13-01~T13-07. mock 上游 reset 触短时窗 ECONNRESET; 抓 gate stderr JSON 验 abortSource/socketPhase.
+// 不改 80 已有测试断言. classifyAbortSource 第 5 类 upstream_reset (ECONNRESET + elapsedMs<5000).
+async function testGateAbortSource() {
+  console.log('TEST 13: gate ECONNRESET 结构化诊断 (abortSource 区分 + socketPhase)');
+  const GATE_SRC = fs.readFileSync(GATE, 'utf8');
+  let issues = 0;
+  const localFail = (msg) => { console.error(`  ✗ ${msg}`); issues++; };
+
+  // ─ 静态: classifyAbortSource 5 类 + 顺序 (timeout/client_close/shutdown 优先, upstream_reset 兜底前) ─
+  try {
+    assert.ok(/function classifyAbortSource\(e, \{ gateTimeout, clientAborted, elapsedMs \} = \{\}\)/.test(GATE_SRC),
+      'classifyAbortSource 签名含 elapsedMs (task#23 改)');
+    assert.ok(/if \(gateTimeout\) return 'timeout';/.test(GATE_SRC), 'timeout 优先级不变');
+    assert.ok(/if \(clientAborted\) return 'client_close';/.test(GATE_SRC), 'client_close 优先级不变');
+    assert.ok(/if \(shuttingDown\) return 'shutdown';/.test(GATE_SRC), 'shutdown 优先级不变');
+    assert.ok(/e\?\.code === 'ECONNRESET' && typeof elapsedMs === 'number' && elapsedMs < 5000/.test(GATE_SRC),
+      'upstream_reset 条件: ECONNRESET + elapsedMs<5000 (task#23 第 5 类)');
+    assert.ok(/return 'upstream_reset';/.test(GATE_SRC), 'upstream_reset 返回值存在');
+    assert.ok(/return 'upstream_error';[\s\S]*?\n\}/.test(GATE_SRC), 'upstream_error 兜底不变');
+    // timeout/client_close/shutdown 三类无 socketPhase 附加 (仅 upstream_reset/upstream_error)
+    // L364 const phase = (abortSource === 'upstream_reset' || abortSource === 'upstream_error') ? _socketPhase : null
+    const phaseAttach = /const phase = \(abortSource === 'upstream_reset' \|\| abortSource === 'upstream_error'\)/;
+    assert.ok(phaseAttach.test(GATE_SRC), 'socketPhase 仅附加于 upstream_reset/upstream_error (LogField gate)');
+    assert.ok(/socketPhase: fields\.socketPhase \|\| null/.test(GATE_SRC), 'logGate 输出含 socketPhase 字段');
+    // proxyV1 (L282-321 routes /v1, 含 SSE) 复用 classifyAbortSource (非硬码 upstream_error);
+    // 限检 proxyV1 段, 不强求 proxyAdmin (后台代理, 非 user 范围) — 用行号定位 proxyV1 函数体.
+    const fnStart = GATE_SRC.indexOf('function proxyV1(req, res)');
+    const fnBody = GATE_SRC.slice(fnStart, GATE_SRC.indexOf('function ', fnStart + 20));
+    assert.ok(/const abortSource = classifyAbortSource\(e, \{ gateTimeout, clientAborted, elapsedMs \}\);/.test(fnBody),
+      'proxyV1 SSE 路径复用 classifyAbortSource (非硬码 upstream_error)');
+    assert.ok(!/abortSource: 'upstream_error', destroyInitiator: 'upstream'/.test(fnBody),
+      'proxyV1 段硬码 upstream_error 已移除');
+    ok('T13-01 静态: classifyAbortSource 5 类 + 顺序 + proxyV1 SSE 复用 (timeout/client_close/shutdown 逻辑不变)');
+  } catch (e) { localFail('T13-01 静态结构: ' + (e && e.message)); }
+
+  // ─ T13-02 mapUpstreamStatus 不变 (ECONNRESET→503, ETIMEDOUT→504) 对外契约 ─
+  try {
+    assert.ok(/e\?\.code === 'ECONNREFUSED' \|\| e\?\.code === 'ECONNRESET'\) return 503/.test(GATE_SRC),
+      'mapUpstreamStatus ECONNRESET→503 不变 (对外 HTTP 契约)');
+    assert.ok(/gateTimeout \|\| e\?\.code === 'ETIMEDOUT' \|\| e\?\.code === 'ESOCKETTIMEDOUT'\) return 504/.test(GATE_SRC),
+      'mapUpstreamStatus timeout→504 不变');
+    ok('T13-02 静态: mapUpstreamStatus 对外 HTTP 状态码契约 (503/504) 零改动');
+  } catch (e) { localFail('T13-02 状态码契约: ' + (e && e.message)); }
+
+  // ─ T13-03 socketPhase 钩子存在 (connecting → headers → streaming) ─
+  try {
+    assert.ok(/req\._socketPhase = 'connecting';/.test(GATE_SRC), "socketPhase init 'connecting'");
+    assert.ok(/socket\.on\('connect'[\s\S]*?req\._socketPhase = 'headers'/.test(GATE_SRC),
+      "socket 'connect' 事件 → socketPhase 'headers'");
+    assert.ok(/req\._socketPhase = 'streaming';/.test(GATE_SRC),
+      "收 response head → socketPhase 'streaming'");
+    ok('T13-03 静态: socketPhase 三相跟踪钩子 (connecting/headers/streaming) 存在');
+  } catch (e) { localFail('T13-03 socketPhase 钩子: ' + (e && e.message)); }
+
+  // ─ T13-04 动态: 短时窗 ECONNRESET (<5000ms) → abortSource up upstream_reset + status 503 ─
+  const T13_04 = (async () => {
+    let upstream, g;
+    try {
+      upstream = await startMockUpstream((ureq, ures) => {
+        // 连上即 reset socket (不写 head, 触 ECONNRESET on gate side)
+        ureq.socket.destroy();
+      });
+      g = await startGate({}, upstream.address().port);
+      const P = g.gatePort;
+      const r = await req(P, { path: '/v1/models', headers: { authorization: 'Bearer ' + 'p'.repeat(32) } });
+      assert.strictEqual(r.status, 503, '短时窗 ECONNRESET → 503 (对外契约)');
+      await sleep(100);
+      let jsonLine = null;
+      for (let i = 0; i < 10 && !jsonLine; i++) { jsonLine = (g.log||'').split('\n').find((l) => l.includes('"level":"error"') && l.includes('upstream_reset')); if (!jsonLine) await sleep(60); }
+      assert.ok(jsonLine, 'gate stderr 含 upstream_reset 诊断行');
+      const obj = JSON.parse(jsonLine);
+      assert.strictEqual(obj.abortSource, 'upstream_reset', 'abortSource=upstream_reset');
+      assert.strictEqual(obj.httpStatus, 503, '日志 httpStatus=503');
+      assert.ok(obj.elapsedMs < 5000, 'elapsedMs<5000 (短时窗) 实=' + obj.elapsedMs);
+      assert.ok(['connecting', 'headers'].includes(obj.socketPhase),
+        'socketPhase ∈ connecting/headers 实=' + obj.socketPhase);
+      assert.strictEqual(obj.errorCode, 'ECONNRESET', 'errorCode=ECONNRESET');
+      ok('T13-04 动态: 短时窗 ECONNRESET → upstream_reset + 503 + socketPhase(connecting/headers)');
+    } catch (e) { localFail('T13-04 短时窗 ECONNRESET: ' + (e && e.message)); }
+    finally { stopGate(g); await stopUpstream(upstream); }
+  })();
+
+  // ─ T13-05 动态: 长时窗 ECONNRESET (>5000ms, mock 上游先 delay 5.5s 再 reset) → upstream_error ─
+  const T13_05 = (async () => {
+    let upstream, g;
+    try {
+      upstream = await startMockUpstream((ureq, ures) => {
+        setTimeout(() => { try { ureq.socket.destroy(); } catch {} }, 5500);
+      });
+      g = await startGate({ GATE_UPSTREAM_TIMEOUT_MS: '30000' }, upstream.address().port);
+      const P = g.gatePort;
+      const r = await req(P, { path: '/v1/models', headers: { authorization: 'Bearer ' + 'p'.repeat(32) } });
+      assert.strictEqual(r.status, 503, '长时窗 ECONNRESET → 503 (对外契约不变)');
+      await sleep(100);
+      let jsonLine = null;
+      for (let i = 0; i < 15 && !jsonLine; i++) { jsonLine = (g.log||'').split('\n').find((l) => l.includes('"level":"error"') && /"abortSource":"upstream_error"/.test(l)); if (!jsonLine) await sleep(120); }
+      assert.ok(jsonLine, 'gate stderr 含 upstream_error 诊断行 (非 upstream_reset)');
+      const obj = JSON.parse(jsonLine);
+      assert.strictEqual(obj.abortSource, 'upstream_error', 'abortSource=upstream_error (elapsedMs>5000)');
+      assert.ok(obj.elapsedMs >= 5000, 'elapsedMs>=5000 实=' + obj.elapsedMs);
+      assert.strictEqual(obj.httpStatus, 503, 'httpStatus=503');
+      ok('T13-05 动态: 长时窗 ECONNRESET → upstream_error (elapsedMs>=5000) + 503');
+    } catch (e) { localFail('T13-05 长时窗 ECONNRESET: ' + (e && e.message)); }
+    finally { stopGate(g); await stopUpstream(upstream); }
+  })();
+
+  // ─ T13-06 动态: timeout → 504 + abortSource timeout (GATE_UPSTREAM_TIMEOUT_MS 短设) ─
+  const T13_06 = (async () => {
+    let upstream, g;
+    try {
+      upstream = await startMockUpstream((ureq, ures) => { /* hang 不响应 */ });
+      g = await startGate({ GATE_UPSTREAM_TIMEOUT_MS: '500' }, upstream.address().port);
+      const P = g.gatePort;
+      const r = await req(P, { path: '/v1/models', headers: { authorization: 'Bearer ' + 'p'.repeat(32) } });
+      assert.strictEqual(r.status, 504, 'timeout → 504 (对外契约)');
+      if (r.status === 504) {
+        const body = JSON.parse(r.body || '{}');
+        assert.strictEqual(body.abort_source, 'timeout', '响 abort_source=timeout');
+      }
+      await sleep(100);
+      let jsonLine = null;
+      for (let i = 0; i < 15 && !jsonLine; i++) { jsonLine = (g.log||'').split('\n').find((l) => l.includes('"abortSource":"timeout"')); if (!jsonLine) await sleep(80); }
+      assert.ok(jsonLine, 'gate stderr timeout 诊断行');
+      const obj = JSON.parse(jsonLine);
+      assert.strictEqual(obj.abortSource, 'timeout', 'log abortSource=timeout');
+      assert.strictEqual(obj.httpStatus, 504, 'log httpStatus=504');
+      ok('T13-06 动态: timeout → 504 + abortSource=timeout (三类优先级不变)');
+    } catch (e) { localFail('T13-06 timeout: ' + (e && e.message)); }
+    finally { stopGate(g); await stopUpstream(upstream); }
+  })();
+
+  // ─ T13-07 动态: client close → client_close (无 503 响, gate 不回写) ─
+  const T13_07 = (async () => {
+    let upstream, g;
+    try {
+      upstream = await startMockUpstream((ureq, ures) => { /* hang (gate 等上游, client 中途断) */ });
+      g = await startGate({ GATE_UPSTREAM_TIMEOUT_MS: '20000' }, upstream.address().port);
+      const P = g.gatePort;
+      await new Promise((resolve) => {
+        const r = http.request({ host: '127.0.0.1', port: P, path: '/v1/models', headers: { authorization: 'Bearer ' + 'p'.repeat(32) } });
+        r.on('error', () => {}); // client abort 后 ECONNRESET, 忽略
+        r.flushHeaders();                                  // 先把 SYN+headers 送出 (否则 destroy 不触 req close)
+        setTimeout(() => { try { r.destroy(); } catch {} }, 80); // 给完整握手时间再 destroy (否则 gate 收不到 close 事件)
+        setTimeout(resolve, 400);
+      });
+      // gate stderr client_close 行可能稍滞后 (req close → cleanup → upstreamReq.destroy → error emit → stderr flush)
+      let jsonLine = null;
+      for (let i = 0; i < 10 && !jsonLine; i++) { jsonLine = (g.log||'').split('\n').find((l) => /"abortSource":"client_close"/.test(l)); if (!jsonLine) await sleep(80); }
+      assert.ok(jsonLine, 'gate stderr client_close 诊断行');
+      const obj = JSON.parse(jsonLine);
+      assert.strictEqual(obj.abortSource, 'client_close', 'log abortSource=client_close');
+      assert.ok(obj.socketPhase === undefined || obj.socketPhase === null,
+        'client_close 无 socketPhase 附加');
+      ok('T13-07 动态: client close → client_close (无 503 回写, 无 socketPhase)');
+    } catch (e) { localFail('T13-07 client close: ' + (e && e.message)); }
+    finally { stopGate(g); await stopUpstream(upstream); }
+  })();
+
+  // 集中 await 4 动态用例 (顺序避免 mock port 复用竞争)
+  await T13_04; await T13_05; await T13_06; await T13_07;
+
+  if (issues === 0) ok('TEST 13 gate abortSource 全 PASS (7 用例: 3 静态 + 4 动态)');
+  fail += issues;
+}
+
 async function main() {
   console.log('=== v4.3 candidate tests ===');
   await testSyntax();
@@ -425,6 +822,9 @@ async function main() {
   await testSignal();
   await testIdempotent();
   testResidual();
+  testResiliencePatch();
+  testEntrypointSequence();
+  await testGateAbortSource();
   console.log('\n=== 结果 ===');
   console.log(`PASS=${pass} FAIL=${fail} SKIP=${skip}`);
   if (fail > 0) {

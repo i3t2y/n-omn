@@ -66,90 +66,172 @@ _shutdown() {
 trap '_shutdown' TERM
 trap '_shutdown' INT
 
-echo "[entrypoint] starting OmniRoute via /app/server.js..."
+echo "[entrypoint] cold-boot (restore→purge→replicate→OmniRoute, 严格时序)..."
 echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT EXPOSED_PORT=$EXPOSED_PORT DATA_DIR=$DATA_DIR STRICT=$LITESTREAM_STRICT"
 
-# ── Litestream restore (启动前恢复 DB; 红线3) ──────────────
-# Condition A: R2 凭据缺失 → 明确降级, 不打印凭据, skip restore.
-if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ] || [ -z "$R2_ACCOUNT_ID" ]; then
-  echo "[entrypoint] WARN: R2 creds not set. Skip restore (复制非致命: LITESTREAM_STRICT=$LITESTREAM_STRICT)."
+# ── 文件锁: 防多容器同时 restore/purge/替换 $DB ───────────
+LOCK_FD=9
+LOCK_FILE="${DATA_DIR}/.entrypoint.lock"
+( exec 9>"$LOCK_FILE" ) 2>/dev/null
+if command -v flock >/dev/null 2>&1; then
+  flock -x 9 || { echo "[entrypoint] FATAL: 无法获取文件锁 $LOCK_FILE (另一容器占用?). abort." >&2; exit 1; }
+  echo "[entrypoint] lock acquired (flock $LOCK_FILE, fd 9)."
 else
-  # Condition B: 本地 DB 已存在且非空 → 跳过 restore (绝不覆盖有效 DB)
-  if [ -f "$DB" ] && [ -s "$DB" ]; then
-    echo "[entrypoint] 本地 DB 已存在且非空 ($DB), 跳过 restore (红线3: 不覆盖)."
-  else
-    echo "[entrypoint] R2 creds found + 本地 DB 空或不存在. Litestream restore (临时路径)..."
-    # restore 到临时路径, 不直接覆盖 (原子保护)
-    rm -f "$DB_TMP"
-    if litestream restore -config /litestream.yml -if-replica-exists "$DB_TMP" 2>/tmp/ls_restore.err; then
-      # restore 命令返回 0 ≠ 恢复成功: 验文件存在+非空+quick_check
-      if [ ! -f "$DB_TMP" ] || [ ! -s "$DB_TMP" ]; then
-        echo "[entrypoint] WARN: restore 返回 0 但临时文件无效. 丢弃, 保留原(空)."
-        rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
-        if [ "$LITESTREAM_STRICT" = 1 ]; then
-          echo "[entrypoint] FATAL: restore 无效 (strict). exit." >&2; exit 1
-        fi
+  echo "[entrypoint] WARN: flock 不可用, 跳过跨容器互斥 (HF Space 优先单实例)."
+fi
+
+# ── 1. Litestream restore (启动前; 红线3: 不覆盖有效 DB) ─
+# 设计原则 (优雅降级):
+#   R2 无副本 → -if-replica-exists 返回 0 但不创建文件 → 空库启动 (init 重建), 不 exit
+#   restore 命令失败 (配置/网络/权限错误) → WARN + 空库启动, 不 exit
+#   restore 成功+有文件 → quick_check 通过 → 原子 mv → 正式 $DB
+#   restore 成功+quick_check 失败 → 丢弃临时+空库启动, 不 exit
+# STRICT 仅控制日志级别 (STRICT=1 多打一行 WARN), 不控制 exit. 永远不因 restore 失败而 FATAL exit.
+has_r2=0
+[ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ] && has_r2=1
+
+if [ "$has_r2" = 0 ]; then
+  echo "[entrypoint] R2 creds 缺失 → skip restore. 空库启动 (init 重建)."
+elif [ -f "$DB" ] && [ -s "$DB" ]; then
+  echo "[entrypoint] 本地 DB 非空 ($DB) → skip restore (红线3: 不覆盖有效 DB)."
+else
+  # 本地 DB 空或不存在 → restore.
+  # litestream 0.5.9 restore 参数 = 数据库标识符 (litestream.yml dbs[].path 匹配 = $DB), 不是输出路径.
+  # 优先 -o "$DB_TMP" 输出临时路径 → 原子 mv. 若 -o 不支持 → 回退直接 $DB restore (冷启动 $DB 空, 无有效 DB 被覆盖).
+  rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm"
+  printf '%s' "" > /tmp/ls_restore.err
+  rc=0
+  litestream restore -config /litestream.yml -if-replica-exists -o "$DB_TMP" "$DB" 2>/tmp/ls_restore.err || rc=$?
+  used_tmp=1
+  if echo "$(cat /tmp/ls_restore.err 2>/dev/null)" | grep -qiE 'unknown flag|invalid option|flag provided but not defined.*-o'; then
+    echo "[entrypoint] litestream 0.5.9 不支持 -o → 回退直接 restore $DB (冷启动 $DB 空, 安全)."
+    rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm"
+    printf '%s' "" > /tmp/ls_restore.err
+    rc=0
+    litestream restore -config /litestream.yml -if-replica-exists "$DB" 2>/tmp/ls_restore.err || rc=$?
+    used_tmp=0
+  fi
+
+  if [ "$rc" -ne 0 ]; then
+    # restore 命令失败 (配置/网络/权限) → 空库启动 WARN, 不 exit
+    echo "[entrypoint] WARN: restore rc=$rc (见 /tmp/ls_restore.err; 已脱敏, 不打凭据)."
+    [ "$LITESTREAM_STRICT" = 1 ] && echo "[entrypoint]   STRICT=1: 仅告警, 不 exit (空库启动)."
+    rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
+  elif [ "$used_tmp" = 1 ] && { [ ! -f "$DB_TMP" ] || [ ! -s "$DB_TMP" ]; }; then
+    # rc=0 但临时文件不存在或空 → R2 无副本 → 空库启动 (正常, 不 WARN 不 exit)
+    echo "[entrypoint] restore rc=0 但无文件 (R2 无副本或首次部署). 空库启动, init 重建配置."
+    rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
+  elif [ "$used_tmp" = 1 ]; then
+    # 临时文件有效 → quick_check → 原子 mv
+    qc_ok=0
+    if command -v sqlite3 >/dev/null 2>&1; then
+      if sqlite3 "$DB_TMP" "PRAGMA quick_check;" 2>/dev/null | grep -q "^ok$"; then
+        qc_ok=1
       else
-        # quick_check (工具可用时)
-        qc_ok=0
-        if command -v sqlite3 >/dev/null 2>&1; then
-          if sqlite3 "$DB_TMP" "PRAGMA quick_check;" 2>/dev/null | grep -q "^ok$"; then
-            qc_ok=1
-          else
-            echo "[entrypoint] WARN: PRAGMA quick_check 失败. 丢弃临时, 保留原(空)."
-            rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
-            if [ "$LITESTREAM_STRICT" = 1 ]; then
-              echo "[entrypoint] FATAL: quick_check fail (strict). exit." >&2; exit 1
-            fi
-          fi
-        else
-          echo "[entrypoint] (sqlite3 不可用, 跳过 quick_check; 已验文件非空.)"
-          qc_ok=1
-        fi
-        if [ "$qc_ok" = 1 ]; then
-          mv "$DB_TMP" "$DB" && echo "[entrypoint] restore complete (原子 mv)."
-        fi
+        echo "[entrypoint] WARN: quick_check 失败. 丢弃临时 $DB_TMP, 空库启动."
+        [ "$LITESTREAM_STRICT" = 1 ] && echo "[entrypoint]   STRICT=1: 仅告警, 不 exit."
+        rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
       fi
     else
-      echo "[entrypoint] WARN: restore 命令失败 (见 /tmp/ls_restore.err, 已脱敏: 不打印凭据)."
-      rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
-      if [ "$LITESTREAM_STRICT" = 1 ]; then
-        echo "[entrypoint] FATAL: restore fail (strict). exit." >&2; exit 1
+      echo "[entrypoint] sqlite3 不可用, 跳过 quick_check (验文件非空)."
+      qc_ok=1
+    fi
+    if [ "$qc_ok" = 1 ]; then
+      mv "$DB_TMP" "$DB" && echo "[entrypoint] restore complete (原子 mv $DB_TMP → $DB)."
+    fi
+  else
+    # used_tmp=0 (直接 $DB restore): 验 $DB 非空 (R2 无副本文件) + quick_check
+    if [ ! -f "$DB" ] || [ ! -s "$DB" ]; then
+      echo "[entrypoint] restore rc=0 但 $DB 无文件 (R2 无副本或首次部署). 空库启动, init 重建."
+    elif command -v sqlite3 >/dev/null 2>&1; then
+      if sqlite3 "$DB" "PRAGMA quick_check;" 2>/dev/null | grep -q "^ok$"; then
+        echo "[entrypoint] restore complete (直接 $DB, quick_check ok)."
+      else
+        echo "[entrypoint] WARN: quick_check 失败 on $DB. 空库启入替换."
+        rm -f "$DB" "$DB-wal" "$DB-shm" 2>/dev/null || true
       fi
+    else
+      echo "[entrypoint] restore complete (直接 $DB, 文件非空)."
     fi
   fi
 fi
 
-# ── FIX #5: pre-purge SQLite 20129 relay 条目 (OmniRoute 启动前, B6 root cause) ──
-# B6 源码实证 (L2): runtime patchedFetch (proxyFetch.ts:637) 用内存 account.proxy
-# (pool load 时一次性从 SQLite proxy_registry 读取, proxies.ts:806), 不查
-# provider_connections.proxy_enabled, 无 reload 钩子. init L747 purge_proxy_db 在
-# OmniRoute 启动后执行 → pool 已加载历史 20129 条目 → purge 改 SQLite 不刷新内存
-# → 27h ProxyFetch ECONNREFUSED 127.0.0.1:20129 持续 (3222.txt L204-4523 + 3231321.txt 跨重启复现).
-# 本段在 OmniRoute 启动 *前* SQL-only 清 20129 条目 + 关 nvidia proxy_enabled →
-# pool load 时 SQLite 已无 20129 → account.proxy 空 → patchedFetch direct 路径.
-# SQL-only: 此时 OmniRoute 未启, 走 API 路径不可能; SQL DELETE 直读 SQLite 文件即可.
-# 默认 20129 与 init L176 一致 (供历史条目 host:port 锚定); 不依赖 init 写 relay (init 无 INSERT).
-[ "$_PURGE_PROXY" != "0" ] && _PURGE_PROXY=1   # 承接 init purge 意图; NIM_PURGE_PROXY=0 可关全段.
+# ── 2. FIX #5 pre-purge: OmniRoute 启动 *前*, 事务化, 精确条件, 加 assert ──
+# B6 源码实证 (L2): runtime patchedFetch (proxyFetch.ts:637) 用内存 account.proxy (pool load 时
+# 一次性从 SQLite proxy_registry 读取, proxies.ts:806), 不查 provider_connections.proxy_enabled,
+# 无 reload 钩子 → purge 改 SQLite 但 OmniRoute 进程已加载旧条目 → 旧 20129 幽灵 entry 持续.
+# 本段在 OmniRoute 启动 *前* SQL-only 清 20129 条目 → pool load 时 SQLite 已无幽灵 → direct 路径.
+# purge 时机: 必在 restore 后 (R2 旧库会带回旧条目) → OmniRoute 前. 永不: purge→restore→OmniRoute.
+# 删除依据: 精确 host+port 条件 (非 "总数=20129").
+# assert: purge 后目标条目残留必须为 0, 否则整个容器 exit (绝不让幽灵条目进 OmniRoute).
+[ "$_PURGE_PROXY" != "0" ] && _PURGE_PROXY=1    # NIM_PURGE_PROXY=0 可关全段
 if [ -n "$DB" ] && [ -f "$DB" ] && [ -x "$(command -v sqlite3 2>/dev/null || true)" ] && [ "$_PURGE_PROXY" = "1" ]; then
   sql_e5(){ printf '%s' "$1" | sed "s/'/''/g"; }
-  _P5=${NIM_PROXY_RELAY_PORT:-20129}; _H5=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
-  sqlite3 "$DB" "DELETE FROM proxy_assignments WHERE proxy_id IN (SELECT id FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5);" 2>/dev/null || true
-  sqlite3 "$DB" "UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';" 2>/dev/null || true
-  sqlite3 "$DB" "DELETE FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || true
-  _reg5=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || echo "?")
-  echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} 条目残留=$_reg5 (0=已清; pool load 时 SQLite 已无幽灵 20129)."
+  _P5=${NIM_PROXY_RELAY_PORT:-20129}
+  _H5=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
+  _pre=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || echo "?")
+  echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} purge 前=$_pre 条 (精确 host+port 条件)."
+  # 事务化 purge (BEGIN...COMMIT 包裹): 三条 DELETE 原子提交, 中断回滚不留半状态.
+  purge_rc=0
+  sqlite3 "$DB" <<SQL 2>/tmp/purge.err || purge_rc=$?
+BEGIN;
+DELETE FROM proxy_assignments WHERE proxy_id IN
+  (SELECT id FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5);
+UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';
+DELETE FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;
+COMMIT;
+SQL
+  if [ "$purge_rc" -ne 0 ]; then
+    echo "[entrypoint] FATAL: pre-purge 事务失败 rc=$purge_rc (见 /tmp/purge.err). abort 启动 (不能让旧条目进 OmniRoute 内存)." >&2
+    exit 1
+  fi
+  # WAL checkpoint (TRUNCATE): 提交后清 -wal, 确保 SQLite 主文件已含 purge 结果, litestream replicate 占干净 L0.
+  sqlite3 "$DB" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+  rm -f "$DB-wal" "$DB-shm" 2>/dev/null || true
+  # assert: 目标 20129 条目残留必须为 0, 否则整个容器 exit (B6 根因硬约束)
+  _post=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_registry WHERE host='$(sql_e5 "$_H5")' AND port=$_P5;" 2>/dev/null || echo "?")
+  echo "[entrypoint] FIX #5 pre-purge: relay ${_H5}:${_P5} purge 后=$_post 条 (必须=0)."
+  if [ "$_post" != "0" ]; then
+    echo "[entrypoint] FATAL: pre-purge assert 失败 (残留=$_post !=0). 幽灵 20129 将污染 OmniRoute 内存. 整个容器 exit." >&2
+    exit 1
+  fi
+  echo "[entrypoint] ✓ pre-purge assert pass (残留=0). SQLite 已无 20129 → pool load direct 路径."
 else
   echo "[entrypoint] FIX #5 pre-purge: skip (DB 未就绪/sqlite3 缺/NIM_PURGE_PROXY=0)."
 fi
 
-# ── OmniRoute ─────────────────────────────────────────────
+# ── 3. LiteStream replicate (后台启动, OmniRoute 启动 *前*) ─
+# 顺序: restore→purge→replicate→OmniRoute. litestream 先占 purge 后干净 $DB 作 L0 baseline,
+# OmniRoute 后续写入 WAL → litestream 复制新 generation 不被旧 L0 覆盖.
+# 验: litestream.yml dbs[].path = /data/storage.sqlite = $DB (匹配, 非 $DB_TMP).
+export NODE_OPTIONS="--max-old-space-size=4096"
+if [ "$has_r2" = 1 ]; then
+  mkdir -p "$DATA_DIR" 2>/dev/null || true
+  # 删除可能残留的临时 -wal/-shm (purge 后正式 $DB 可能落 wal; litestream 启前清, replicate 会从 $DB 重建基线)
+  echo "[entrypoint] Starting Litestream replication (OmniRoute 启动前, 占 purge 后干净 baseline)..."
+  # 验 matches litestream.yml dbs[].path
+  printf '%s' "$DB" | grep -q "^${DATA_DIR}/storage.sqlite$" || {
+    echo "[entrypoint] FATAL: \$DB=$DB 与 litestream.yml dbs[].path 不一致 → replicate db-path 不匹配." >&2; exit 1; }
+  litestream replicate -config /litestream.yml &
+  LS_PID=$!
+  sleep 1
+  if ! kill -0 "$LS_PID" 2>/dev/null; then
+    echo "[entrypoint] FATAL: Litestream replicate 退出过早 (config/R2 错误? 见 stderr). abort." >&2
+    [ "$LITESTREAM_STRICT" = 1 ] && exit 1 || { LS_PID=""; echo "[entrypoint] STRICT=0: 降级无 replicate 继续."; }
+  else
+    echo "[entrypoint] Litestream PID=$LS_PID (replicate $DB → R2)."
+  fi
+else
+  echo "[entrypoint] WARN: LiteStream replication disabled (无 R2 creds). STRICT=$LITESTREAM_STRICT."
+fi
+
+# ── 4. OmniRoute (启动在 purge + replicate 之后) ──────────
+echo "[entrypoint] starting OmniRoute via /app/server.js (PIDs OR=$OR_PID background)..."
 PORT="$OMNIROUTE_PORT" \
 DATA_DIR="$DATA_DIR" \
 REQUIRE_API_KEY=true \
 HOSTNAME=127.0.0.1 \
 NIM_MODE="$NIM_MODE" \
-NODE_OPTIONS="--max-old-space-size=4096" \
 DISABLE_SQLITE_AUTO_BACKUP=true \
 PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
 CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
@@ -158,6 +240,7 @@ JWT_SECRET="$JWT_SECRET" \
 API_KEY_SECRET="$API_KEY_SECRET" \
 OMNIROUTE_API_KEY="$OMNIROUTE_API_KEY" \
 INITIAL_PASSWORD="$INITIAL_PASSWORD" \
+NODE_OPTIONS="--max-old-space-size=4096" \
 node /app/server.js --log &
 OR_PID=$!
 echo "[entrypoint] OmniRoute PID=$OR_PID"
@@ -197,17 +280,6 @@ else
     sleep 2; j=$((j + 2))
   done
   [ ! -s "/data/.or-api-key" ] && { echo "[entrypoint] FATAL: OR_API_KEY not created"; _shutdown; exit 1; }
-fi
-
-# ── LiteStream replicate (后台, PID 保存) ─────────────────
-export NODE_OPTIONS="--max-old-space-size=4096"
-if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
-  echo "[entrypoint] Starting Litestream replication..."
-  litestream replicate -config /litestream.yml &
-  LS_PID=$!
-  echo "[entrypoint] Litestream PID=$LS_PID"
-else
-  echo "[entrypoint] WARN: Litestream replication disabled (no R2 creds). LITESTREAM_STRICT=$LITESTREAM_STRICT."
 fi
 
 # ── 启动前: OmniRoute 健康二次确认 ────────────────────────

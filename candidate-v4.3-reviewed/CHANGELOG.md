@@ -39,6 +39,18 @@
 - **零第二套限流** (28/1/2200ms 在 OmniRoute requestQueue).
 - 不 `app.set('trust proxy', true)`, 不读 `X-Forwarded-For` 左侧 (防伪造).
 
+## Stage E 修复 (audit/06 任务一 · audit/09 任务二 · audit/11 任务三)
+
+> 三任务 (CF-4 / New3213 3.txt abort 时间线) 套 priver working tree 修复, mock 65→80→88 PASS.
+
+### 任务三 (audit/11) — gate ECONNRESET 结构化诊断 + abort source 区分 (gate.js)
+- 新增 `classifyAbortSource(e, {gateTimeout, clientAborted, elapsedMs})`: 5 类优先级 timeout > client_close > shutdown > upstream_reset (ECONNRESET + elapsedMs<5000) > upstream_error; 三类前类判断逻辑零改动.
+- `mapUpstreamStatus` 对外 HTTP 状态码契约 (503/504/502) **零改动** (abortSource 仅进结构化日志 + 响应 body `abort_source`, 不改 status).
+- `socketPhase` 三相跟踪 (`connecting`→`headers`→`streaming`), 仅附 upstream_reset/upstream_error 日志 (三类语义外不附).
+- proxyV1 上游 error handler 复用 classifyAbortSource + `firstError` 守门 (首 error 仅记一次, 反发 destroy 不覆盖); clientAborted → 不回写 (client 已走) + destroyInitiator=client; gateTimeout 已由 timeout handler 自己打 504 日志, global handler `if (!gateTimeout)` 跳不打重复.
+- logGate 输出增 `socketPhase`/`destroyInitiator` 字段 (修前 serialize 丢 undefined → proxyV1 传了不输出).
+- TEST 13 (7 项静态/动态) 全 PASS: 短时窗 ECONNRESET→upstream_reset+503, 长时窗 (>5000ms)→upstream_error+503, timeout→504, client close→client_close 无回写.
+
 ### entrypoint.sh
 - LiteStream restore: 本地 DB 非空跳过 -> 临时路径 `$DB_TMP` -> post `quick_check` -> 原子 `mv`; 失败按 `LITESTREAM_STRICT` (默认 1) exit.
 - 复制非致命 vs 严格开关 `LITESTREAM_STRICT` (0=非致命 warn / 1=严格 exit).

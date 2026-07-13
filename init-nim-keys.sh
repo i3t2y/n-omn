@@ -4,9 +4,10 @@ set -eo pipefail
 # ─────────────────────────────────────────────────────────────
 # NIM OmniRoute initializer  v4.2.3（基于 v4.2.2）
 # 相对 v4.2.2 的变更：
-#   【v4.2.3·⑨ 】DEBUG log 上传 Dataset（debug_<时间戳>.log，默认开启，
-#              NIM_DEBUG_LOG_TO_DATASET=0 关闭）；本地仅留最近 NIM_DEBUG_LOG_KEEP(默认5) 个。
-#              取代 v4.2.1 继承的 "DEBUG log 不入 Dataset" 旧策略。
+#   【v4.2.3·⑨ 】DEBUG log 上传 Dataset: 默认**关闭** (NIM_DEBUG_LOG_TO_DATASET=1 开启);
+#              开启时上传前字段级脱敏 Authorization/NIM_KEY/Cookie/Set-Cookie (红线1 动态);
+#              本地仅留最近 NIM_DEBUG_LOG_KEEP(默认5) 个.
+#              v4.3 改: 默认关 (原 v4.2.3 默认开违红线1 动态; B2 9a1a7f0 精简方向降写 Dataset).
 # 继承 v4.2.2：⑦ 幂等 upsert_combo ⑧ 增量门放宽（任一 nim-* combo 或 INIT_MARKER）。
 # 继承 v4.2.1：① 移除 quota-share/主池 p2c+白名单 ② nim-codex 响应体打印
 #              ⑤ 增量只清过期熔断 ⑥ context_recommendations 累积推荐（被动观测）。
@@ -99,7 +100,8 @@ build_all_models() {
 models_to_json() { printf '%s\n' "$@" | sed 's/^/nvidia\//' | jq -R '{model: .}' | jq -s -c .; }
 
 # ══ combo 策略白名单（3.8.43 实测合法枚举，不含 quota-share）═════
-_VALID_STRATS="priority weighted round-robin context-relay fill-first p2c random least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized fusion"
+_VALID_STRATS="priority weighted round-robin fill-first p2c random least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized fusion"
+# v4.3: 删 context-relay (CF-1/红线: NIM 永不用 context-relay; cf-worker 已删, 无外部 Relay 层); 保留 fusion (Codex 池可用).
 _is_valid_strat() { printf '%s' "$_VALID_STRATS" | grep -qw -- "$1"; }
 
 # ══ 【⑦ 】幂等 upsert：存在则 PUT，不存在才 POST ═══════════════
@@ -130,14 +132,13 @@ upsert_combo() {
 _count_alive_keys() { printf '%s
 ' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l; }
 _ALIVE_KEYS=$(_count_alive_keys)
-_PER_KEY_RPM=${NIM_PER_KEY_RPM:-35}
-_RPM=$(( _ALIVE_KEYS * _PER_KEY_RPM ))
-[ "$_RPM" -lt "$_PER_KEY_RPM" ] && _RPM=$_PER_KEY_RPM
-[ "$_RPM" -gt 300 ] && _RPM=300
-_CONCURRENT=$(( _ALIVE_KEYS * ${NIM_PER_KEY_CONCURRENT:-3} ))
-[ "$_CONCURRENT" -lt 3 ] && _CONCURRENT=3
-_MIN_INTERVAL_MS=$(( 60000 / (_RPM > 0 ? _RPM : 1) ))
-echo "[init] alive_keys=$_ALIVE_KEYS -> RPM=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms"
+# v4.3: 限流固定值 (G3 解: 限流仅 OmniRoute requestQueue 执行, 非线性扩; M26 REJECT 按 Key 线性).
+# 候选固定 28 RPM / 1 并发 / 2200ms, 写 requestQueue; Gate 不重复限流 (gate.js 零限流代码).
+_PER_KEY_RPM=${NIM_PER_KEY_RPM:-35}   # 单 Key 上限 (仅诊断用, 不入 requestQueue.RPM 算式)
+_RPM=${NIM_FIXED_RPM:-28}              # 固定 28 RPM (G3)
+_CONCURRENT=${NIM_FIXED_CONCURRENT:-1} # 固定 1 并发 (G3)
+_MIN_INTERVAL_MS=${NIM_FIXED_MIN_INTERVAL_MS:-2200}   # 固定 2200ms (G3)
+echo "[init] 固定限流 RPM=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms (alive_keys=$_ALIVE_KEYS 仅诊断)"
 
 if [ "$_ALIVE_KEYS" -gt 1 ]; then
   _POOL_STRATEGY="${NIM_POOL_STRATEGY:-p2c}"
@@ -145,8 +146,11 @@ else
   _POOL_STRATEGY="round-robin"
 fi
 _is_valid_strat "$_POOL_STRATEGY" || { echo "[init] WARN: pool strategy '$_POOL_STRATEGY' 非法，回退 round-robin"; _POOL_STRATEGY="round-robin"; }
-_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-round-robin}"
-_is_valid_strat "$_CODEX_STRATEGY" || { echo "[init] WARN: codex strategy '$_CODEX_STRATEGY' 非法，回退 round-robin"; _CODEX_STRATEGY="round-robin"; }
+# FIX #4: codex strategy=priority for code generation scenarios.
+# round-robin rotates model each turn — unsuitable for coding (上下文连续性丢失).
+# 改默认 :-priority; env NIM_CODEX_STRATEGY 可覆盖 (如需 round-robin 传 NIM_CODEX_STRATEGY=round-robin).
+_CODEX_STRATEGY="${NIM_CODEX_STRATEGY:-priority}"
+_is_valid_strat "$_CODEX_STRATEGY" || { echo "[init] WARN: codex strategy '$_CODEX_STRATEGY' 非法，回退 priority"; _CODEX_STRATEGY="priority"; }
 _FALLBACK_STRATEGY="round-robin"
 _STICKY_LIMIT=1
 _COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
@@ -172,6 +176,16 @@ _PROXY_RELAY_HOST=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
 _PROXY_RELAY_PORT=${NIM_PROXY_RELAY_PORT:-20129}
 _DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
+
+# int 范围校验器 (供 Resilience PATCH 白名单构造): $1=值 $2=下限(int) $3=上限(int); 返回 0 合格, 1 不合格
+_res_validate_int() {
+  [ -z "$1" ] && return 1
+  case "$1" in
+    ''|*[!0-9-]*) return 1 ;;   # 非数字 (允许负号作前缀, 实际范围校验拦截)
+  esac
+  [ "$1" -ge "$2" ] 2>/dev/null && [ "$1" -le "$3" ] 2>/dev/null || return 1
+  return 0
+}
 
 purge_proxy_db() {
   [ "$_PURGE_PROXY" != "1" ] && { echo "[init] purge_proxy_db: skipped."; return 0; }
@@ -403,35 +417,9 @@ context_accumulator_update() {
     && echo "[init]   checkpoint -> ctx_last_log_ts=$_new_max_ts"
   echo "[init]   累积更新 ${_cnt} 个模型。"
 
-  # 【已禁用】自动回写——手动 case 分支值比 90% 安全裕量更优。
-  # 如需恢复数据驱动 override，取消下方注释即可。
-  # ── 【#2 断链修复】高置信推荐回写 model_context_overrides，自动标定 real_context 落地。
-  # 仅 confidence IN ('medium','high') 且 recommended_real_context 非空才覆盖；
-  # source 标 'monitor+manual'（DB 层直写枚举外值做审计标记；TS 读层会归一为 manual）。
-  # model_id 取裸名（REPLACE 去 'nvidia/' 前缀），与既有 apply_context_override 写入行对齐。
-  # 不改 case 硬编码的 _NIM_REAL_CONTEXT=32768 fallback；此处末尾写入胜出周期内的先写。
-  # local _ov_cnt
-  # _ov_cnt=$(sqlite3 "$_DB_PATH" "
-  #   INSERT INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
-  #   SELECT 'nvidia',
-  #          REPLACE(model_id, 'nvidia/', ''),
-  #          recommended_real_context,
-  #          'monitor+manual',
-  #          datetime('now')
-  #   FROM context_recommendations
-  #   WHERE confidence IN ('medium','high')
-  #     AND recommended_real_context IS NOT NULL
-  #     AND recommended_real_context > 0
-  #   ON CONFLICT(provider, model_id) DO UPDATE SET
-  #     real_context = excluded.real_context,
-  #     source = excluded.source,
-  #     refreshed_at = datetime('now')
-  #   WHERE excluded.source = 'monitor+manual';" 2>/dev/null \
-  #   | wc -l 2>/dev/null || echo 0)
-  # # sqlite3 无 --changes 时回退查写入数（monitor+manual 行数）
-  # local _ov_rows
-  # _ov_rows=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM model_context_overrides WHERE source='monitor+manual';" 2>/dev/null || echo "?")
-  # echo "[init]   monitor 回写 model_context_overrides：当前 monitor+manual 行数=$_ov_rows"
+  # v4.3: 自动回写 context_recommendations → model_context_overrides 整段删除 (CF-2 + M30 REJECT).
+  # 原实现 (B1 enabled, B2 注释禁) 直写 model_context_overrides 绕过 API/校验 → 违红线; 整段删 (非注释保留).
+  # 自动 Context Override 默认关闭 (CF-4); 启用路径见 KNOWN-UNVERIFIED (API PATCH max_input_tokens + 读回).
 
   # 【⑥+ 】累积推荐表输出（跨 call_logs 淘汰周期保留的口径）。
   # 表输出与聚合同函数：context_accumulator_update 每轮增量/first-init 结束即打印当前推荐全表，
@@ -544,10 +532,88 @@ echo "[init] Provider IDs: ${#PROVIDER_IDS[@]}"
 purge_proxy_db
 
 echo "[init] Resilience (RPM=$_RPM, concurrent=$_CONCURRENT, interval=${_MIN_INTERVAL_MS}ms)..."
-RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
-  -X PATCH "$BASE_URL/api/resilience" -H "Content-Type: application/json" \
-  -d "{\"requestQueue\":{\"requestsPerMinute\":$_RPM,\"minTimeBetweenRequestsMs\":$_MIN_INTERVAL_MS,\"concurrentRequests\":$_CONCURRENT}}")
-echo "[init] Resilience HTTP $RESILIENCE_CODE"
+
+# ── 3.8.43 PATCH 白名单 (SSOT: src/app/api/resilience/route.ts:153 + schemas/settings.ts:131-180) ──
+# updateResilienceSchema z.strict(): 顶层仅 requestQueue/connectionCooldown/providerBreaker/
+#   waitForCooldown/comboCooldownWait/quotaShareConcurrencyLimit/providerCooldown/profiles/defaults.
+# requestQueueSettingsSchema z.strict(): {requestsPerMinute int>=1, minTimeBetweenRequestsMs int>=0 (毫秒!),
+#   concurrentRequests int>=1, autoEnableApiKeyProviders boolean, maxWaitMs int>=1}.
+# useUpstream429BreakerHints 仅在 connectionCooldown.{oauth,apikey}.useUpstream429BreakerHints (boolean|null),
+#   顶层该字段 → z.strict() 拒绝 → HTTP 400 (根因 #1 已证).
+# 28  → requestQueue.requestsPerMinute (int, 单位 RPM)
+#  1  → requestQueue.concurrentRequests (int, 单位=并发槽位数, 个)
+# 2200→ requestQueue.minTimeBetweenRequestsMs (int, 单位=ms 毫秒, 2200ms=2.2s)
+# PATCH = 部分更新 (mergeResilienceSettings), 非完整对象; 未传字段保留旧值.
+
+# 显式白名单构造: 从空对象只复制 route.ts:309 接受字段, 禁 ...透传, 不发 undefined, 不发顶层 useUpstream429BreakerHints.
+# 输入校验 (类型/范围) — 28∈[1,60000] RPM, 2200∈[0,600000] ms, 1∈[1,1000] 并发; 非法 init 失败 (不静默 SKIP)
+if ! _res_validate_int "$_RPM" 1 60000 || ! _res_validate_int "$_MIN_INTERVAL_MS" 0 600000 || ! _res_validate_int "$_CONCURRENT" 1 1000; then
+  echo "[init] ✗ Resilience 输入非法 (_RPM=$_RPM / _MIN_INTERVAL_MS=$_MIN_INTERVAL_MS / _CONCURRENT=$_CONCURRENT). init 失败."
+  return 1 2>/dev/null || exit 1
+fi
+RESILIENCE_BODY=$(jq -nc \
+  --argjson rpm "$_RPM" \
+  --argjson minMs "$_MIN_INTERVAL_MS" \
+  --argjson conc "$_CONCURRENT" \
+  '{requestQueue:{requestsPerMinute:$rpm, minTimeBetweenRequestsMs:$minMs, concurrentRequests:$conc}}')
+echo "[init] Resilience PATCH body keys=[$(echo "$RESILIENCE_BODY" | jq -rc 'keys|join(",")')] requestQueue.keys=[$(echo "$RESILIENCE_BODY" | jq -rc '.requestQueue|keys|join(",")')] (无顶层 useUpstream429BreakerHints)"
+
+# 错误处理区分 HTTP 4xx/5xx vs transport error (根因 #2: status 空无原始异常 → 必留底层 error 信息)
+_t0=$(date +%s%N 2>/dev/null || date +%s)
+RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" --connect-timeout 5 --max-time 20 \
+  -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/resilience" -H "Content-Type: application/json" \
+  -d "$RESILIENCE_BODY" 2>/tmp/res_patch.err)
+res_curl_rc=$?
+_t1=$(date +%s%N 2>/dev/null || date +%s)
+_res_dur_ms=$(( (_t1 - _t0) / 1000000 ))
+_res_dur_ms=$(( _res_dur_ms < 0 ? 0 : _res_dur_ms ))
+_res_err=$(cat /tmp/res_patch.err 2>/dev/null | head -c 300)
+
+if [ "$res_curl_rc" -ne 0 ] || [ -z "$RESILIENCE_CODE" ]; then
+  # 没收到 HTTP 响应 (transport error / timeout / abort / DNS) — 保留底层异常信息
+  echo "[init] ⚠️ Resilience PATCH transport-error: curl_rc=$res_curl_rc dur=${_res_dur_ms}ms"
+  echo "[init]   curl_err: ${_res_err:-<empty>}"
+  echo "[init]   abort_source: $( [ "$res_curl_rc" = 28 ] && echo 'request_timeout' || ([ "$res_curl_rc" = 7 ] && echo 'proxy_connect_failure' || echo 'curl_unknown') )"
+  echo "[init]   不伪装成 HTTP 错误. 保留旧配置 (CF-4). PATCH 失败 → init 仍可继续其他步, 但 readiness 不得报告 resilience 健康."
+  RESILIENCE_CODE="transport_err"
+else
+  echo "[init] Resilience PATCH HTTP $RESILIENCE_CODE (dur=${_res_dur_ms}ms)"
+  case "$RESILIENCE_CODE" in
+    200|201) : ;;   # 2xx ok
+    *)
+      # 收到 HTTP 响应但非 2xx — 记 status/body/path/字段名
+      echo "[init] ⚠️ Resilience PATCH HTTP $RESILIENCE_CODE (收到响应): body=[$(head -c 500 "$RESILIENCE_RESP_FILE" 2>/dev/null)] path=/api/resilience"
+      echo "[init]   fields_sent: $(echo "$RESILIENCE_BODY" | jq -rc '.requestQueue|keys|join(",")' 2>/dev/null)"
+      ;;
+  esac
+fi
+
+# Read-back: PATCH 成功后立即 GET 验 28/1/2200ms 全三字段 — 不一致 init 失败 (CF-4: 写必须读回)
+if [ "$RESILIENCE_CODE" = "200" ] || [ "$RESILIENCE_CODE" = "201" ]; then
+  _RB=$(curl -s --connect-timeout 5 --max-time 20 -b "$COOKIE_FILE" "$BASE_URL/api/resilience" 2>/tmp/res_get.err)
+  res_get_rc=$?
+  _res_get_err=$(cat /tmp/res_get.err 2>/dev/null | head -c 300)
+  if [ "$res_get_rc" -ne 0 ] || [ -z "$_RB" ]; then
+    echo "[init] ✗ Resilience GET 读回 transport-error: curl_rc=$res_get_rc err=${_res_get_err:-<empty>}"
+    echo "[init]   abort_source: $( [ "$res_get_rc" = 28 ] && echo 'request_timeout' || ([ "$res_get_rc" = 7 ] && echo 'get_connect_failure' || echo 'get_unknown') )"
+    echo "[init]   CF-4 约束: 写必须读回. 读回失败 → init 失败 (OmniRoute resilience 未确认达预期限流)."
+    return 1 2>/dev/null || exit 1
+  fi
+  _RB_RPM=$(echo "$_RB" | jq -r '.requestQueue.requestsPerMinute // "null"' 2>/dev/null || echo "jq_fail")
+  _RB_MINMS=$(echo "$_RB" | jq -r '.requestQueue.minTimeBetweenRequestsMs // "null"' 2>/dev/null || echo "jq_fail")
+  _RB_CONC=$(echo "$_RB" | jq -r '.requestQueue.concurrentRequests // "null"' 2>/dev/null || echo "jq_fail")
+  echo "[init] Resilience 读回: RPM=$_RB_RPM minMs=$_RB_MINMS concurrent=$_RB_CONC (预期 $_RPM/$_MIN_INTERVAL_MS/$_CONCURRENT)"
+  # 严格逐字段验证三目标值; 任一不符 → init 失败 (不再仅 WARN)
+  _mismatch=""
+  [ "$_RB_RPM" != "$_RPM" ] && _mismatch="$_mismatch RPM($_RB_RPM!=$_RPM)"
+  [ "$_RB_MINMS" != "$_MIN_INTERVAL_MS" ] && _mismatch="$_mismatch minTimeMs($_RB_MINMS!=$_MIN_INTERVAL_MS)"
+  [ "$_RB_CONC" != "$_CONCURRENT" ] && _mismatch="$_mismatch concurrent($_RB_CONC!=$_CONCURRENT)"
+  if [ -n "$_mismatch" ]; then
+    echo "[init] ✗ Resilience 读回不一致:$_mismatch → init 失败 (CF-4: 限流配置未落定, 不能报告 ready)"
+    return 1 2>/dev/null || exit 1
+  fi
+  echo "[init] ✓ Resilience 读回全字段一致 (28/1/2200ms 已落定)"
+fi
 
 echo "[init] Routing + maxBodySizeMb=$_REQUEST_BODY_LIMIT_MB..."
 SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
@@ -567,21 +633,39 @@ curl -s -o /dev/null -w "[init] CB reset HTTP %{http_code}
 " -b "$COOKIE_FILE" \
   -X POST "$BASE_URL/api/resilience/reset" -H "Content-Type: application/json"
 
+# K5 FIX (审查裁定推荐选项 c):
+# API PATCH /api/provider-models 在 3.8.43 源码中仅接受 isHidden 字段,
+# 不接受 contextLength / max_input_tokens / max_output_tokens (B1 L2 源码实证:
+# route.ts:309 强制 isHidden boolean; updateCustomModel models.ts:591 不处理
+# max_tokens; 仅 POST add route.ts:109 接受 max_input/output_tokens).
+# 候选此前删除 init 内部 per-model override 逻辑并指向 API PATCH 替代路径 →
+# 该路径在源码层不存在, 候选 context override 会静默失败.
+# 修复: 保留 init 内部的 per-model 32K override (apply_context_override, 42ea8e7
+# 基线原态), 不删; 保留 4632e8c 的"禁用 monitor 自动回写"改动 (L407-409 已删
+# monitor 回写段不动). API PATCH 路径在文档中标注为"3.8.43 不支持, 待源码新增
+# PATCH 字段支持"——不作为候选 context override 配置路径.
+# 自动回写 (confidence-based monitor → model_context_overrides) 仍保持禁用
+# (CF-4): init 仅应用一次性 per-model 32768 override, 不跨周期自动标定.
+
+# per-model 32K override (real_context=$_NIM_REAL_CONTEXT) — 42ea8e7 基线原态恢复.
 echo "[init] per-model 32K override (real_context=$_NIM_REAL_CONTEXT)..."
 OVERRIDE_APPLIED=0; OVERRIDE_SKIPPED=0
 apply_context_override() {
   if sqlite3 "$_DB_PATH" \
     "INSERT OR REPLACE INTO model_context_overrides (provider, model_id, real_context, source, refreshed_at)
-     VALUES ('nvidia', '$(sql_escape "$1")', $2, 'manual', datetime('now'));" 2>/dev/null; then
+     VALUES ('nvidia', '$(sql_escape "$1")', $2, 'init', datetime('now'));" 2>/dev/null; then
     OVERRIDE_APPLIED=$((OVERRIDE_APPLIED+1))
   else OVERRIDE_SKIPPED=$((OVERRIDE_SKIPPED+1)); echo "[init]   override FAILED: $1"; fi
 }
 while IFS= read -r _M; do [ -z "$_M" ] && continue; apply_context_override "$_M" "$_NIM_REAL_CONTEXT"; done < <(build_all_models)
 echo "[init] override: $OVERRIDE_APPLIED applied, $OVERRIDE_SKIPPED failed."
+# K5 行为预期: init 启动时一次性应用 32K override (real_context=32768) 经 SQLite 直写
+# model_context_overrides (source='init'), 不自动回写, 不调 API PATCH. 3.8.43 源码层
+# 该直写路径与运行时 loadCustomModels 一致 (models.ts:591 读路径同表), 唯一可用.
 
 echo "[init] ─────────────────────────────────────────────"
 echo "[init]   PROFILE=$_PROFILE MODE=$NIM_MODE KEYS=$_ALIVE_KEYS RPM=$_RPM BODY=$_REQUEST_BODY_LIMIT_MB MB"
-echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT"
+echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT (per-model 32K override 应用, monitor 自动回写禁用)"
 echo "[init] ─────────────────────────────────────────────"
 
 hf_snapshot() {
@@ -639,20 +723,31 @@ hf_snapshot() {
     || echo "[init] snapshot: WARN init_vars.json 写入失败"
 
   # ── 【v4.2.3·⑨ 】DEBUG log 上传到 Dataset（debug_<时间戳>.log）──
-  #   仅 DEBUG 模式且 INIT_LOG 存在时；默认开启，可用 NIM_DEBUG_LOG_TO_DATASET=0 关闭。
-  #   同时本地只保留最近 NIM_DEBUG_LOG_KEEP(默认5) 个，避免 /data 与 Dataset 无限堆积。
-  if [ "$NIM_MODE" = "DEBUG" ] && [ "${NIM_DEBUG_LOG_TO_DATASET:-1}" = "1" ] && [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
+  #   仅 DEBUG 模式 + 显式开启 (NIM_DEBUG_LOG_TO_DATASET=1) + INIT_LOG 存在时; **默认关闭** (v4.3 红线1 动态).
+  #   上传前字段级脱敏: Authorization/NIM_KEY/Cookie/Set-Cookie/Bearer 替换为 <REDACTED>.
+  #   同时本地只保留最近 NIM_DEBUG_LOG_KEEP(默认5) 个。
+  if [ "$NIM_MODE" = "DEBUG" ] && [ "${NIM_DEBUG_LOG_TO_DATASET:-0}" = "1" ] && [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
     local _keep=${NIM_DEBUG_LOG_KEEP:-5}
-    # 落盘完成前先刷新一次（tee 是行缓冲，通常已写入；这里确保文件存在且非空）
-    cp -f "$INIT_LOG" "$BACKUP_DIR/debug_$(basename "$INIT_LOG" | sed 's/^init_//')" 2>/dev/null \
+    local _dbg="$BACKUP_DIR/debug_$(basename "$INIT_LOG" | sed 's/^init_//')"
+    cp -f "$INIT_LOG" "$_dbg" 2>/dev/null \
       && echo "[init] snapshot: 附带 DEBUG log -> debug_$(basename "$INIT_LOG" | sed 's/^init_//')" \
       || echo "[init] snapshot: WARN 复制 DEBUG log 失败，跳过。"
+    # 字段级脱敏 (红线1 动态: 不上传凭据明文)
+    if [ -f "$_dbg" ]; then
+      sed -i -E \
+        -e 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._\-]+/\1<REDACTED>/gI' \
+        -e 's/(NIM_KEY=|nvapi-)[A-Za-z0-9._\-]+/\1<REDACTED>/gI' \
+        -e 's/(Cookie:[[:space:]]+)[^[:space:]]+/\1<REDACTED>/gI' \
+        -e 's/(Set-Cookie:[[:space:]]+)[^[:space:]]+/\1<REDACTED>/gI' \
+        -e 's/(Bearer )[A-Za-z0-9._\-]+/\1<REDACTED>/g' \
+        "$_dbg" 2>/dev/null || true
+    fi
     # 本地滚动清理：只保留最近 _keep 个 init_*.log
     if [ -d "$LOG_DIR" ]; then
       ls -1t "$LOG_DIR"/init_*.log 2>/dev/null | tail -n +$(( _keep + 1 )) | xargs -r rm -f 2>/dev/null || true
     fi
   else
-    [ "$NIM_MODE" = "DEBUG" ] && echo "[init] snapshot: DEBUG log 上传已禁用（NIM_DEBUG_LOG_TO_DATASET=0）。"
+    [ "$NIM_MODE" = "DEBUG" ] && echo "[init] snapshot: DEBUG log 上传已禁用（默认关, NIM_DEBUG_LOG_TO_DATASET=1 开启)."
   fi
 
   python3 - <<'PYEOF'

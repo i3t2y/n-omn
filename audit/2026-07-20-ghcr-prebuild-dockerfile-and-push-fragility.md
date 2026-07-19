@@ -10,6 +10,52 @@
 - **GHCR 现 tag 列表**: `["stable", "3.8.48"]` — `:stable` 原, `:3.8.48` 本轮新推。
 - **首次 upgrade 触发须人工**: 升级 = 改 SPACE Variable `BASE_IMAGE` 至 `:3.8.48` + factory_reboot=True (走 task #3 runbook), 非本任务。
 
+## ★ 闸门核查: :stable 未漂移 (2026-07-20 虚惊排除)
+
+**虚惊起点**: push 后 GHCR tags list 显 `["stable","3.8.48"]` 两 tag 名共存 — 疑 :stable 已从 9c9aecf (3.8.43) 漂到 da99fac1 (3.8.48)。若真漂, 任何意外 factory reboot 会静默部署未审 3.8.48, 绕 K3 审/批准命令/EXPECTED_VERSION 同步, 闸门名存实亡。
+
+**实证 (`docker buildx imagetools inspect`, 任意点定真伪)**:
+```
+:stable  Digest: sha256:9c9aecfd9eb529f44ab99cf94970aea896328146c64adc8ba146bfe809231347
+         (mediaType application/vnd.oci.image.manifest.v1+json, 单 arch, = 3.8.43 base, 未漂)
+:3.8.48 Digest: sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f
+         (mediaType application/vnd.oci.image.index.v1+json, multi-arch index)
+```
+两 digest **异** ✓ → :stable 未触。
+
+**为何虚惊**: GHCR `/v2/.../tags/list` 仅列 tag 名 (`["stable","3.8.48"]`), **不**示各 tag 解析的 digest — 双 tag 名共存 registry 是正常 (两独立指针), 非漂移信号。判漂必须查 manifest 的 `Docker-Content-Digest` header (`docker buildx imagetools inspect` 一行 `Digest:` 即此)。教训钉入代码注释 + 此 audit。
+
+**为何未漂 (前置逻辑成立)**: `docker build -t "${GHCR_IMAGE}:${latest}"` 单标 (latest=3.8.48), `docker push "${GHCR_IMAGE}:${latest}"` 单 tag push 命令, 未带 `:stable` — registry 只染 `:3.8.48`, `:stable` 指针本就未触。本次虚惊源于"两 tag 共在 list"误读, 非代码缺陷。
+
+**闸门纪律 (已落 upstream_check.sh, 绝对不可违背)**:
+- 预构建**只推** `:${X.Y.Z}` 具体版本 tag, **永不** `-t :stable`。
+- `:stable` 是"当前生产指针", 由人工 upgrade 获批且验证通过后**记账式移动** (走 `space_ctl.py upgrade` + factory_reboot=True + EXPECTED_VERSION 同步)。
+- 预构建 = 待批候选, 必在批准**前面**跑; 若预构建推 :stable, 意外 factory reboot 会静默部署未审新版。
+- 防漂守门断言 (`case "$push_tag" in stable|latest) intercept`): 若 push_tag 命中 `stable`/`latest` → 中止预构建 + prebuilt 记拦截。防继任者误加 `-t :stable`。
+
+## 镜像层语义升级 (认账)
+
+新 Dockerfile 把镜像层从"纯上游固设"升级成"**上游 + 环境前置层**":
+- 装运行前置依赖 (curl/jq/python3/sqlite3/litestream 二进制 host 预拉 COPY/huggingface_hub)。
+- 跨版防御 env (OMNIROUTE_USE_TURBOPACK=0 / MAX_PENDING_MIGRATIONS=0)。
+- 收益: bootstrap 自愈探测发现工具齐全**直接跳过**, 冷启动省约 60s apt 阶段, 7/16 冻外启动摩擦降。
+- 三陷阱解法 (host 预拉 tar+COPY 绕 buildkit 容器内 curl 死锁 / push 8 retry+manifest 200 尾查) = 正确工程补丁。
+
+**K3 文档须同步**: 三文件设计文档里"镜像层 = 上游 X.Y.Z 固设"表述须改"**上游 + 环境前置层**", 否则 K3 审 bootstrap 自愈必要性时对不上。
+
+**单机单副本风险**: omn-ops 无 git 仓 (纯文件系统持久), `ghcr/Dockerfile` 占单副本 — 机器挂则环境层定义失传。该文件**不含密钥** (仅 ARG 上游 ref + RUN 装依赖), 实验: omn-merge 仓放跟踪副本 (`ghcr-tracked-Dockerfile`), 不进泄漏面讨论。
+
+## 实装产物 (审计前未实现, 审计后实装通)
+
+### 1. 新建 `~/omn-ops/ghcr/Dockerfile` (环境层预构建镜像 — 之前不存在)
+
+`upstream_check.sh` 预构建段原全注释 (`prebuilt="未实现"`); 取消注释直接跑 → build 找 Dockerfile 死 → 必先建。
+
+**职责边界** (三层解耦):
+- 环境层 (本镜像): 仅装 "上游镜像 + 运行前置依赖 + 跨版防御 env + /data 软链 + HEALTHCHECK"。
+- **不 COPY** gate.js / entrypoint.sh / init / litestream.yml / bootstrap.sh (逻辑层, 走 HF repo build 时 COPY)。
+- HF Space repo Dockerfile `FROM ${BASE_IMAGE}` + `COPY bootstrap.sh` — bootstrap 是逻辑层, build 时 COPY, 不进环境层镜像。
+
 ## 实装产物 (审计前未实现, 审计后实装通)
 
 ### 1. 新建 `~/omn-ops/ghcr/Dockerfile` (环境层预构建镜像 — 之前不存在)
@@ -86,6 +132,7 @@ done
 |----|----|
 | GHCR 镜像 | `ghcr.io/i3t2y/omniroute-base:3.8.48` |
 | digest | `sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f` |
+| :stable digest (防漂核) | `sha256:9c9aecfd9eb529f44ab99cf94970aea896328146c64adc8ba146bfe809231347` (3.8.43 base, **未漂**, 虚惊排除) |
 | 镜像 CONTENT | 518MB |
 | 镜像 DISK (解压) | 2.63GB |
 | manifests HTTP | **200** |
@@ -125,9 +172,11 @@ USER node
 
 ## 下一步 (非本任务)
 
-1. **3.8.48/49 合并升级**: GHCR :3.8.48 预构建就绪 → 待 K3 意见回收后人工跑 `space_ctl.py upgrade 3.8.48 ghcr.io/i3t2y/omniroute-base:3.8.48` (factory_reboot=True, 首次 upgrade 实操, 验 task #3 runbook HF_TOKEN Space write scope 真兑现, 替 litestream task #34 偶然跨通的 DATASET_WRITE scope 非固化)。
+1. **3.8.48/49 合并升级**: GHCR :3.8.48 预构建就绪 (前置 deploy 镜像已 OK) → 待 K3 意见回收后人工跑 `space_ctl.py upgrade 3.8.48 ghcr.io/i3t2y/omniroute-base:3.8.48` (factory_reboot=True, 首次 upgrade 实操, 验 task #3 runbook HF_TOKEN Space write scope 真兑现, 替 litestream task #34 偶然跨通的 DATASET_WRITE scope 非固化)。
 2. **Class A 24h 回测**: litestream l0-retention 5m 推后跑 24h R2 Class A 计量二次校准 (task #34 待回测)。
+3. **K3 表述同步**: 三文件设计文档"镜像层 = 上游 X.Y.Z 固设"改"上游 + 环境前置层" (本审计"镜像层语义升级"段已认账, K3 文档本体须改)。
+4. **ghcr/Dockerfile 跟踪副本进仓**: `(omn-merge repo) ghcr-tracked-Dockerfile` 同步 (机器挂则单机 single-copy 重建环境层定义; 文件不含密钥, 不进泄漏面讨论)。
 
 ---
 
-*2026-07-20 · task #36 GHCR 预构建实装 · source: ~/omn-ops/ghcr/Dockerfile (新) + upstream_check.sh push retry 段改写 · push 4 attempt 实测续传成 · 生产无变化零触 HF 队列*
+*2026-07-20 · task #36 GHCR 预构建实装 · source: ~/omn-ops/ghcr/Dockerfile (新) + upstream_check.sh push retry 段改写 + 防漂守门断言 · :stable 虚惊排除 (docker buildx imagetools inspect 直证未漂) · push 4 attempt 实测续传成 · 生产无变化零触 HF 队列*

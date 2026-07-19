@@ -507,12 +507,30 @@ curl https://<space-url>/v1/chat/completions \
 - **详核**: 见 `audit/2026-07-19-litestream-monitor-intervals.md` 续附段 (源码: compaction_level.go + store.go + cmd/litestream/{main,replicate}.go v0.5.9)
 - **K3 审阅信号**: 本推带源码级核证 (`DefaultCompactionLevels` 预置三级 + yaml 完全覆写语义 + L9 是 snapshot pseudo + replicate.go 顶层消费链), 即使一个监控间隔调整都带覆写陷阱分析, 是变更纪律证据。
 
-### 执行顺序钉死 (收口后轮 2026-07-19)
+### ⑤ 镜像层语义升级认账 + :stable 防漂闸门 (2026-07-20 K3 发送前补 task #36 收尾)
+
+- **镜像层语义升级 (K3 表述须同步)**: 三层解耦设计文档原表述"镜像层 = 上游 X.Y.Z 固设"在 task #36 GHCR 预构建实装后**实质升级为"上游 + 环境前置层"**。环境层镜像 (`ghcr.io/i3t2y/omniroute-base:${X.Y.Z}`) 现非裸上游固设, 而是上游镜像 + 运行前置依赖 (curl/jq/python3/sqlite3/**litestream 二进制 host 预拉 COPY**/huggingface_hub) + 跨版防御 env (`OMNIROUTE_USE_TURBOPACK=0`/`MAX_PENDING_MIGRATIONS=0`) + `/data` 软链 + HEALTHCHECK 的组合层。
+- **收益 (实)**: bootstrap 自愈探测发现工具齐全**直接跳过** apt 补齐段, 冷启动省约 60s apt 阶段, 7/16 冻外启动摩擦降。镜像层职责边界仍守 (不 COPY 逻辑层 5 文件 / bootstrap.sh, 这些走 HF repo build 时 COPY)。
+- **三陷阱解法 (工程补丁, 见 `audit/2026-07-20-ghcr-prebuild-dockerfile-and-push-fragility.md` 详)**:
+  1. buildx 双 ARG 透传 FROM 误报 `invalid checksum digest length` → 合一 ARG `UPSTREAM_REF=tag@digest` (同 candidate inline 写法, linter 接受)。
+  2. buildkit 容器内 runtime curl 拉 github release assets 死锁 (CDN DNS 慢 + release SAS token `se=` 短期过期 curl 无超时永久 block) → host 预拉 tar (13MB, 7.3s) + Dockerfile `COPY` 进容器解包。
+  3. push 大 layer (总 CONTENT 518MB) TLS `use of closed network connection` 易断, docker push 无内置 retry → 循环 push 8 次 (registry 续传复用已推 layer) + manifest HTTP 200 尾查双保险判 prebuilt="已就绪"。
+- **★ :stable 防漂闸门 (虚惊排除 + 闸门纪律)**: K3 审阅重点关注。预构建 task #36 推 `ghcr.io/i3t2y/omniroute-base:3.8.48` 后, GHCR tags list 显 `["stable","3.8.48"]` 两 tag 名共存 → **虚惊疑 :stable 已漂 3.8.48**。`docker buildx imagetools inspect` 直证排除:
+  - `:stable` Digest `sha256:9c9aecfd9eb529f44ab99cf94970aea896328146c64adc8ba146bfe809231347` (= 3.8.43 base, 未漂)
+  - `:3.8.48` Digest `sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f`
+  - 两 digest **异** → `:stable` 未触。**虚惊根因**: GHCR `/v2/.../tags/list` 仅列 tag **名字**, 不示各 tag 解析的 digest — 双 tag 名共存 registry 是正常 (两独立指针), 非漂移信号。判漂**必须**查 manifest `Docker-Content-Digest` header。
+- **闸门纪律 (已落 `upstream_check.sh`)**: 预构建**只推** `:${X.Y.Z}` 具体 tag, **永不** `-t :stable`。`:stable` 是"当前生产指针", 由人工 upgrade 获批且验证通过后**记账式移动** (走 `space_ctl.py upgrade` + factory_reboot=True + EXPECTED_VERSION 同步)。预构建 = 待批候选, 必在批准**前面**跑; 若预构建误推 :stable, 任何意外 factory reboot 会静默部署未审新版, 绕 K3 审 / 批准命令 / EXPECTED_VERSION 同步, 闸门名存实亡。
+- **防漂守门断言** (`case "$push_tag" in stable|latest) intercept prebuilt="防漂守门拦截"`): 防继任者误加 `-t :stable`, 守门直接拒绝预构建。
+- **生产零变化再核**: HF Space BASE_IMAGE Variable 仍 `:stable` (resolve 至 3.8.43 base 9c9aecf 未漂), Space runtime 仍 RUNNING+cpu-basic。`:3.8.48` 预构建就绪, 待批准闸门 (人工 `space_ctl.py upgrade 3.8.48 ghcr.io/i3t2y/omniroute-base:3.8.48` + factory_reboot=True, 首次 upgrade 实操 HF_TOKEN Space write scope 真兑现, 401 走 `audit/2026-07-19-first-upgrade-write-permission-runbook.md` runbook)。
+- **单机单副本缓解**: omn-ops 无 git 仓 (纯文件系统持久), `ghcr/Dockerfile` 单副本 — 入 omn-merge 仓跟踪副本 `ghcr-tracked-Dockerfile` (无密钥, 不进泄漏面讨论), 机器挂重建环境层定义不失。commit `e42e0b5`。
+- **K3 表述口径**: 第二/三章"镜像层 = 上游 X.Y.Z 固设"已被本附录 ⑤ 覆盖为"上游 + 环境前置层"。K3 审阅正文镜像层描述时见"固设"字样, 须以本 ⑤ 为准理解 (镜像层含环境前置), 正文不再逐字改 (附录以 ⑤ 形式抬前于所有镜像层引用, 时间戳明确)。
+
+### 执行顺序钉死 (收口后轮 2026-07-19 + 2026-07-20 发送前补)
 
 1. 推 litestream 5m (commit 7a1d0ac8, 已完成) ← 本附录 ④
-2. 补本附录 (本则)
-3. 发 K3 文档 (本附录随正文发, 4 次绕全核实线上态作发后单例)
-4. 后续: K3 等待窗口插 R3 推理双通道实测 / K3 回收意见后 3.8.48+49 合并 upgrade + 首验写权限 / GHCR 预构建实装 (升级批准前置)
+2. 补本附录 (本则, 含 ⑤ 2026-07-20 发送前补)
+3. 发 K3 文档 (本附录随正文发, 5 次绕全核实线上态作发后单例)
+4. 后续: K3 等待窗口插 R3 推理双通道实测 / K3 回收意见后 3.8.48+49 合并 upgrade + 首验写权限 / GHCR 预构建实装 (升级批准前置, task #36 已完, 镜像 :3.8.48 就绪)
 
 ### 附: Space Rest 偶然命中 (非固化 SOP)
 
@@ -523,4 +541,4 @@ curl https://<space-url>/v1/chat/completions \
 
 ---
 
-*nonoke/omn V3.0 三层解耦 R2 落地报告 · 待 K3 审阅 · 2026-07-19 · 附录 A 发送后变更 (4 次绕全核线上态对齐)*
+*nonoke/omn V3.0 三层解耦 R2 落地报告 · 待 K3 审阅 · 2026-07-19 · 附录 A 发送后变更 (5 次绕全核线上态对齐)*

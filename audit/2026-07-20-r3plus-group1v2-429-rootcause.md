@@ -26,6 +26,8 @@
 
 2. **gate `CONCURRENT_LIMIT=1`**: 单发占槽全程, 窗内后发 `tryAcquire` 判拒 `_active>=1` → 429 (设计内背压, 非死锁/非状态锁)。**组1v3 间隔 12s 全 200 证明 1 槽稳态下背压可避**; 组1v2 7s 间隔撞组1v2 时序内的 44.5s tail 占槽窗 → 20/20 全 429。
 
+   **R3+ §四第①步勘注 (双层并发槽 + gate 限流实存)**: 原卡归因 "gate `CONCURRENT_LIMIT=1`" 单独为第一杠杆 **欠定**。只读核 gate.v43-merged.js: `tryAcquire` 确在 /v1 推理路径 L199-201 被调, 判拒自发 429 `Retry-After:3` **无上游头** (`x-omniroute-request-id`/`provider` 缺) — §四第①步 5并诊断实证 #4/#5 = 此形态; 而 #2/#3 早期态 429 **带上游头** = 上游 requestQueue 签发。**双层并发槽同=1 期任一可签 429, 单独归因 gate 欠定**。C=3 实现层位补正: **上游 `requestQueue.concurrentRequests` (init L145 PATCH /api/resilience 落定) 为主, gate L40=3 保留双保险**。init L142 原注释 "gate.js 零限流代码" 不实, 已勘误 (见 init-nim-keys.sh L141-147 注释块)。
+
 3. **`curl --max-time 30` < 44.5s tail**: 序2/组1v2 时序内撞 opencode 44.5s tail 时, 超时空体, 曾误判 "hang", 实为 opencode 上游 transient 慢 (非 thinking 模型常态行为)。组1v3 `--max-time 75` 覆 tail, 5/5 通。
 
 ## 佐证

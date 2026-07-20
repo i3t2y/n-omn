@@ -138,11 +138,15 @@ upsert_combo() {
 _count_alive_keys() { printf '%s
 ' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l; }
 _ALIVE_KEYS=$(_count_alive_keys)
-# v4.3: 限流固定值 (G3 解: 限流仅 OmniRoute requestQueue 执行, 非线性扩; M26 REJECT 按 Key 线性).
-# 候选固定 28 RPM / 1 并发 / 2200ms, 写 requestQueue; Gate 不重复限流 (gate.js 零限流代码).
+# v4.3: 限流固定值. R3+ Restart A 双层并发槽澄清:
+# (A) 上游: OmniRoute requestQueue.concurrentRequests (本 init PATCH /api/resilience 落定) — C=3 主力杠杆.
+# (B) gate 本地: gate.v43-merged.js CONCURRENT_LIMIT (tryAcquire L85 判拒 L199 路径自发 429 retry-after:3,
+#     无上游头 x-omniroute-request-id — §四第①步 5并诊断实证 #4/#5 拒时只带 retry-after:3 坐实). L40=3 双保险.
+# 故"gate.js 零限流"原注释不实, 勘误为: gate 确有限流 (tryAcquire 在 /v1 路径 L199). C=3 端到端 = 上游为主 + gate 兜底.
+# rootcause 卡 L16 勘注: 双层组1v2 期同=1, 任一可签 429, 单独归因 gate 欠定.
 _PER_KEY_RPM=${NIM_PER_KEY_RPM:-35}   # 单 Key 上限 (仅诊断用, 不入 requestQueue.RPM 算式)
 _RPM=${NIM_FIXED_RPM:-28}              # 固定 28 RPM (G3)
-_CONCURRENT=${NIM_FIXED_CONCURRENT:-1} # 固定 1 并发 (G3)
+_CONCURRENT=${NIM_FIXED_CONCURRENT:-3} # R3+ Restart A: 固定 3 并发 (上游 requestQueue 主力; gate L40=3 双保险)
 _MIN_INTERVAL_MS=${NIM_FIXED_MIN_INTERVAL_MS:-2200}   # 固定 2200ms (G3)
 echo "[init] 固定限流 RPM=$_RPM concurrent=$_CONCURRENT interval=${_MIN_INTERVAL_MS}ms (alive_keys=$_ALIVE_KEYS 仅诊断)"
 

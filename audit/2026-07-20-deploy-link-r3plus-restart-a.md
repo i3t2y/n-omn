@@ -117,6 +117,41 @@ Restart 后验收 (init 全绿定义: 四字段读回一致 + restore txid 连�
 
 任一前置不满足 / Restart 后 init 非全绿 → 走前置 2 回滚程序, 不现场抢修。
 
+## 8. R3+ §四 补遗 (双层并发槽澄清 + 时序纪律成文化)
+
+> 裁决 §四第①步 (gate 只读核 + 5并诊断) 落地后追加。说明 C=3 真实实现层位与验收时序铁律。
+
+### 8.1 双层并发槽澄清 (勘误本卡 §1.1/§4 表)
+
+C=3 端到端 = **两道并发槽**, 各自有独立逻辑:
+
+| 层 | 槽 | 落定处 | 拒签 429 证据 (header 形态) |
+|----|----|----|----|
+| **上游 (OmniRoute)** | `requestQueue.concurrentRequests` | init L145 `_CONCURRENT` → PATCH /api/resilience (R3+ 改 `:-1`→`:-3`) | 429 **带** `x-omniroute-request-id`/`x-omniroute-provider`/`cache` (§四第①步早期 #2/#3 形态) |
+| **gate 本地** | `CONCURRENT_LIMIT` | gate.v43-merged.js L40 (R3+ 改 `'1'`→`'3'`, init L142 注释勘误) | 429 **只带** `Retry-After:3` (无上游头; §四第①步 5并诊断 #4/#5 形态坐实) |
+
+**主辅关系**: 上游为主力杠杆 (OmniRoute 真正排队分发), gate 双保险 (gate 进程本地背压, 防单进程过载)。两层各 C=3, 端到端实际通过 3 并发 (上游消化 3 并行, gate 容 3 并发不自发拒)。
+
+**§1.1 env 表勘误**: `NIM_FIXED_CONCURRENT` row 默认值由 `1` → `3`, 用途补 "(上游 requestQueue 主力 C=3)" 与 gate L40 双保险对齐。本卡 §4 验收表 "resilience 四字段读回一致" row concurrent=**3** (非 1)。
+
+**§1.2 写面超集 L534 row**: `concurrent=1` 勘误为 `concurrent=3` (R3+ Restart A 主归因目标)。
+
+**rootcause 卡 L16 勘注**: 指向 L27 段, 已加勘误注 (双层同=1 期任一可签 429, 单独归因 gate 欠定; C=3 补正为上游为主 gate双保险)。
+
+### 8.2 时序纪律成文化 (验收/行为探测前置铁律)
+
+任何验收探测或并发观测的前置 = 三件齐:
+
+1. **阶段 = RUNNING** (Space status 不在 `RUNNING_APP_STARTING`/`BUILDING`/`BUILDING` 等过渡态)
+2. **init 全绿行为代理确认** (四字段读回一致 + restore txid 连续 + 三份只读 GET 落 log + combo 读回一致)
+3. **settle ≥5min** (init 完成 ts → 观测起始 ts, 间隔 ≥300s 落 audit 卡)
+
+前置不齐即停, 不早探。命中异常分支按裁决 §三表升级, Space Secrets 核查向用户请求, 不自行试探 HF 行政区。
+
+### 8.3 放行补遗
+
+§7 放行序列中 init `:-1→:-3` 修正已随第②步落地, commit 同卡 (rootcause L16 勘误 + L142 注释勘误 + 本卡补遗)。推 Dataset 仅 `init-nim-keys.sh` (gate 自首次推送未动 L40)。
+
 ---
 
-*2026-07-20 R3+ Restart A 部署链核准卡 · 首席 1′ 裁决 · 818 行 candidate 唯一 SSOT 废 157 行 R2 · jq 双容修正式追认取代任务包 §4 式 · 三前置 (行为差分/回滚锚定/失败路径) + 两验收修正 (combo 读回/settle≥5min) · commit 50f5e05 确认 · 50f5e05 推 Dataset 前置完成即放行*
+*2026-07-20 R3+ Restart A 部署链核准卡 · 首席 1′ 裁决 · 818 行 candidate 唯一 SSOT 废 157 行 R2 · jq 双容修正式追认取代任务包 §4 式 · 三前置 (行为差分/回滚锚定/失败路径) + 两验收修正 (combo 读回/settle≥5min) · §四补遗 (双层并发槽澄清 + 时序纪律成文化) · commit 50f5e05 + §四第②步同卡 · 推 Dataset + factory reboot + 时序前置验收 + 3并复测 依次放行*

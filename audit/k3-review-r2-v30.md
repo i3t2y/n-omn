@@ -511,6 +511,7 @@ curl https://<space-url>/v1/chat/completions \
 
 - **镜像层语义升级 (K3 表述须同步)**: 三层解耦设计文档原表述"镜像层 = 上游 X.Y.Z 固设"在 task #36 GHCR 预构建实装后**实质升级为"上游 + 环境前置层"**。环境层镜像 (`ghcr.io/i3t2y/omniroute-base:${X.Y.Z}`) 现非裸上游固设, 而是上游镜像 + 运行前置依赖 (curl/jq/python3/sqlite3/**litestream 二进制 host 预拉 COPY**/huggingface_hub) + 跨版防御 env (`OMNIROUTE_USE_TURBOPACK=0`/`MAX_PENDING_MIGRATIONS=0`) + `/data` 软链 + HEALTHCHECK 的组合层。
 - **收益 (实)**: bootstrap 自愈探测发现工具齐全**直接跳过** apt 补齐段, 冷启动省约 60s apt 阶段, 7/16 冻外启动摩擦降。镜像层职责边界仍守 (不 COPY 逻辑层 5 文件 / bootstrap.sh, 这些走 HF repo build 时 COPY)。
+- **运行时依赖显式化 (K3 问1 补)**: litestream 二进制版本钉死 v0.5.9 (GitHub releases 不会被删), 但旧设计 bootstrap 运行时 curl 拉 release = 对 GitHub 可用性的运行时依赖。镜像层升级为"上游+环境前置层"后 litestream 已 COPY 进镜像 (Dockerfile `COPY litestream-0.5.9-linux-x86_64.tar.gz`), 此 GitHub releases 运行时依赖**仅在"新镜像构建前的过渡窗口"存在** (旧镜像 bootstrap 仍 curl 拉; 新镜像 COPY 已嵌入)。过渡窗随 3.8.48 镜像就绪+升级生效即关闭, 风险被附录⑤实质性消解, 非永久运行时依赖。
 - **三陷阱解法 (工程补丁, 见 `audit/2026-07-20-ghcr-prebuild-dockerfile-and-push-fragility.md` 详)**:
   1. buildx 双 ARG 透传 FROM 误报 `invalid checksum digest length` → 合一 ARG `UPSTREAM_REF=tag@digest` (同 candidate inline 写法, linter 接受)。
   2. buildkit 容器内 runtime curl 拉 github release assets 死锁 (CDN DNS 慢 + release SAS token `se=` 短期过期 curl 无超时永久 block) → host 预拉 tar (13MB, 7.3s) + Dockerfile `COPY` 进容器解包。

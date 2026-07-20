@@ -106,3 +106,78 @@ Step5 A 方案无法在不改代码 不开 ADMIN 路径下闭合 (combo 不存�
 ---
 
 *2026-07-20 ~18:05 R3+ Step5 阻卡 · combo 探针全400 "Unable to determine provider for model 'nim-codex/nim-pool'" · provider 已注册激活 (nvidia/* 直发活证) 但 combo 上游路由表无 entry · init upsert 静默失败推断 (L134 不exit) 或 OmniRoute 内存路由表未刷新 · 命中异常分支同首裁纪律停升级 · 待首席协取 HF logs / Secrets 定根因*
+
+## §六① 仓内核 schema+route 真相 (首席裁决2放行序第①步只读核)
+
+上游仓真实路径 `/home/laisi/3.8.43` (非记忆里 `~/omniroute-v3.8.43/@b729a8f`, 该路径本会话已失效). 仓内源码 > 官方文档, 冲突以源码为准.
+
+### 核心文件原文钉死
+
+**`src/shared/validation/schemas/combo.ts` L254-271 `createComboSchema`:**
+```ts
+export const createComboSchema = z.object({
+  name: comboNameSchema,                                    // 必填, regex /^[a-zA-Z0-9_/.\-\[\] ]+$/
+  description: z.string().max(2000).optional(),
+  models: z.array(comboModelEntry).optional().default([]),  // 可选, 默认空数组
+  strategy: comboStrategySchema.optional().default("priority"), // 可选, 默认 priority
+  config: comboRuntimeConfigSchema.optional(),
+  // ... 其余全 optional
+});
+```
+- `comboModelEntry` L42 = `z.union([z.string()trim().min(1).max(300), comboModelStepInputSchema, comboRefStepInputSchema])` — **models 数组元素可以是纯字符串, 或 {model:...} 对象, 或 combo-ref**.
+- `comboModelStepInputSchema` L25: `model` 必填 `min(1).max(300)`, 其余 (`kind/provider/providerId/tags/...`) 全可选. 即 `{model:"nvidia/z-ai/glm-5.2"}` **schema 合规**.
+
+**`src/app/api/combos/route.ts` POST:**
+- 守 `requireManagementAuth(request)` (走 dashboard cookie auth_token, init 已 login 建 session).
+- `validateBody(createComboSchema, body)` zod 验失败返 400 `{error: validation.error}`.
+- `getComboByName(name)` **重名返 400 "Combo name already exists"**.
+- DAG 验证失败返 400.
+- 成返 **201** (`NextResponse.json(combo, { status: 201 })`).
+
+**`src/app/api/combos/[id]/route.ts` 更新动词:**
+- 注册函数 = **`PUT`** (非 PATCH). 无 `PATCH` 注册.
+- 成返 200 (json 无 status 字段 = 默认 200).
+- `QUOTA_MODEL_PREFIX (qtSd/)` 名前缀返 409.
+- `updateComboSchema` L306 + superRefine "No valid fields to update" — `{name, strategy, models}` 全合规.
+
+### F1/F2 裁决推断 证伪
+
+| 裁决2推断 | 仓内核证 | 结论 |
+|----------|---------|------|
+| F1: models 对象数组化 (init 现 `[{model:"nvidia/<path>"}]`) 与 zod 不符被静默吞 | `comboModelStepInputSchema` model 必填其余可选, `{model:...}` **schema 合规**; `normalizeComboStep` L255 `toTrimmedString(value.model)` 取出, `toFullModelString(model含/原样)` 保留 → **不吞** | 🔴 **F1 推断证伪** |
+| F2: 更新动词 PUT→PATCH | `[id]/route.ts` 注册 **PUT**, 无 PATCH; PATCH 会 404 | 🔴 **F2 推断证伪** — init 现 PUT **正确**, 不应改 PATCH |
+
+### init 现 `models_to_json` 实链路核 (合规证)
+
+`models_to_json` L100: `printf '%s\n' "$@" | sed 's/^/nvidia\//' | jq -R '{model: .}' | jq -s -c .`
+- TIER_FAST/STABLE/RESTRICTED model 名已带 provider 前缀 (如 `z-ai/glm-5.2`).
+- `sed 's/^/nvidia\//'` → `nvidia/z-ai/glm-5.2` (三段).
+- 产 `[{model:"nvidia/z-ai/glm-5.2"}]`.
+- POST body = `{name:"nim-codex", strategy:"<STRAT>", models:[{model:"nvidia/z-ai/glm-5.2"}]}`.
+- zod `comboModelEntry` union 第二支 `comboModelStepInputSchema` `model:"nvidia/z-ai/glm-5.2"` 通过 (`min(1).max(300)`).
+- `normalizeComboStep` L255-277: `parseProviderId("nvidia/z-ai/glm-5.2")`=`nvidia`, `shouldTreatAsComboRef` L135 `if(providerId) return false` → 当 model 非 combo-ref. `toFullModelString` 模型含 `/` → 原样. **合规建 combo step**.
+
+### 真根因未定 (仓内核 schema/route 证合规, POST 仍应建)
+
+仓内核证 POST/PUT 路径 schema + 动词 + body 形态全合规, init 现 schema 写法**正确**. 若 init 真发 POST 应返 201 建成. 既探针仍报 combo 路由表无 nim-codex/nim-pool entry, 真根因不为 schema/动词, 推断候选剩:
+- **(b')** init upsert 静默失败 (L134 `[ "$CODE" != "200" ] && [ "$CODE" != "201" ] && cat "$F" || true` fail 不 exit) — 但**仅 POST/PUT 真返非2xx时才静默**, 而 schema 合规应返 201, 触发静默需别的因素 (auth 失败返 401/403? cookie 未带? POST body 实发与 schema 偏移?).
+- **(e) 新增**: POST/PUT 实发请求**未触达上游** (gate 拦 / 内网 $BASE_URL 未起 / cookie 失效). 但 login fail-closed 证 cookie 建过.
+- **(f) 新增**: `requireManagementAuth` 对增量模式 GET 已放行 (cookie 有效), 但 POST 同 cookie 是否放? dashboard session 过期? HF Space 冷启动后 init 跑太早, OmniRoute 服务未起 login 段失败但 fail-closed 应 exit — 不符 "全绿".
+
+### 决策: 冲突即停报首席
+
+裁决2 批 Restart C b+c 合并修复的首席根因推断 (F1 对象数组不符 + F2 改 PATCH) **经仓内核静默证伪**. 按 R3+ 纪律 "与首席推断冲突即停报首席不擅变", 不擅自改 init (init 现 schema 合规, 改了反破).
+
+有效剩余: b 包 ("看得见" — fail-closed L134 删软化 + DB行读回 F4 + 行为终验 F5) 仍为正补强, 但**不为根因**. 使 b 包 ip 须先证真根因 (POST/PUT 真返非2xx?). 无 HF log 通道, 执行侧无法直证 POST 真态.
+
+**报首席决策点**:
+1. Restart C "写对(c)" 包前提 (F1+F2 根因) 证伪, c 包**取消** (init 现 schema/动词合规, 改了反破).
+2. b 包 (fail-closed + F4 + F5) 是否单独推? 但无真根因时 b 包仅补强观测, **不能解决 combo 未建** 问题 (若 POST 真返非2xx, fail-closed init 会 exit 1 → Space 不 RUNNING 反变坏).
+3. **真根因协取仍需 HF instance logs**: 关键查行 `[init] upsert nim-codex: new -> POST HTTP <CODE>` 真态 — 现 audit 卡 §5 已列, 仍待首席协取.
+4. 或后备 (II): 接受 combo 不建态, 主路径 glm-5.2 直发稳足日常用, nim-fast/stable 独立 combo 缓建待 Step6 数据.
+
+**不擅跑 Restart C 改 init.** §六②③停. 待首席.
+
+---
+
+*2026-07-20 ~R3+ §六① 仓内核只读核完 · 上游真路径 /home/laisi/3.8.43 · F1/F2 裁决推断证伪 (comboModelEntry union 纯串/对象皆合规 + 更新动词=PUT 非 PATCH) · init 现 models_to_json schema 合规 · 真根因未定 (POST/PUT 真态需 HF log) · c 包取消 b 包前提动摇 · 冲突即停报首席不擅改*

@@ -112,47 +112,68 @@ R3+ 序3a 探针 (12 nvidia chat 模型 ×2 发 --max-time 30, /v1 直发绕 aut
 
 ## 4. 最佳模型分档分析方案 (提炼+修正+优化)
 
-### 4.1 分档维度 (3 轴, 按可测可改优先)
+> **主轴修正**: omn 分档主轴 = **功能** (代码生成 / 通用 / 长会话稳定 / 快速响应), 不是速度。速度/latency/context 是**该功能档内的排序约束**, 不是分档本身。
+> 对照: candidate 已落 2 功能档 (nim-pool 通用 / nim-codex 代码); 5.0 加 nim-fast (快速响应) / nim-stable (稳定长会话) 是**功能维度扩展**不是速度档; client 侧 `nim-max`/`auto/coding` (readme4.2.3.md) 也是功能 (最大能力 / 自动代码)。
+> 我此前 §4 偏"速度分档"是仅照 3a 探针 latency 数据天然出的轴, 片面 — deepseek-v4-flash 20.7s tail 不是"慢"而是 reasoning 功能 (自思 640 tok), 跟 stable 长会话同向不对 fast; code-gen 要稳 (priority 不换) 非要快。速度跟场景反相关。
 
-| 轴 | 可测来源 | 可改 | 用途 |
-|----|---------|------|------|
-| **活死 (entitlement)** | /v1/chat/completions 探针 HTTP 码 (200/403/400/TOUT) | 改不了 (NIM key 权限面) | 第一道: 死模型不入任何 combo |
-| **latency 总时延** | 探针 `time_total` + gate `x-omniroute-latency-ms` (上游真生成) | 改不了 (上游侧) | 第二道: 按快/中/慢入池档 |
-| **token 长度 (context/input/output)** | catalog `contextLength` (读) / mutation `max_input_tokens` `max_output_tokens` (写) | **可写** | 第三道: 长上下文模型独立 combo |
+### 4.1 分档体系 (功能主轴 + 档内约束)
 
-### 4.2 探针驱动的活模型分档 (取代 5.0 写死 SSOT)
+**功能档 (主轴, 选哪些模型入哪个 combo)**:
 
-**铁律**: 分档数据必须来自 `/v1` 探针真测, 不能凭模型名写死。建议流程:
-1. 周期 / Rebuild 时跑探针 (12+ chat 模型 × N 发 --max-time 60, 记 http/total/lat-ms/finish)
-2. 死 (403/400/TOUT) → 压底 / 标 isHidden (API PATCH 可写 isHidden)
-3. 活 → 按 `time_total` 分档:
-   - **fast**: total < 3s (实测 llama-3.1-8b 2.15s ≈ 89ms lat)
-   - **mid**: 3-7s (glm-5.2 4.84s, minimax-m3 5.85s)
-   - **slow/tail**: > 7s 或 reasoning model (deepseek-v4-flash 20.7s 思 640 tok) → 独立 combo 或 gate 长 timeout 容差
+| 功能 combo | 用途 | 选模型依据 (功能) | strategy |
+|-----------|------|------------------|----------|
+| **nim-codex** | 代码生成 | 能写代码的模型 (deepseek-v4-pro / gpt-oss-120b / glm-5.2 等代码能力) | **priority (FIX#4, 永不换模型保上下文)** |
+| **nim-pool** | 通用主力 | 全活模型 (探针活即入) | p2c (多 key) → round-robin (单 key) |
+| **nim-fast** (可选) | 快速响应 / 轻问 | 档内约束: latency 短 (<3s) 的活模型 | round-robin (快模型轮换) |
+| **nim-stable** (可选) | 长会话稳定 / 深度推理 | 档内约束: 长 context 或 reasoning 模型 (deepseek-v4-flash tail) | priority |
+
+**档内排序约束 (非分档, 功能档内筛模型)**:
+
+| 约束轴 | 可测来源 | 可改 | 作用档内 |
+|--------|---------|------|---------|
+| **活死 (entitlement)** | /v1/chat/completions 探针 HTTP (200/403/400/TOUT) | 改不了 (NIM key 权限面), isHidden 可标 | 全档第一道: 死不入任何 combo |
+| **latency 总时延** | 探针 `time_total` + gate `x-omniroute-latency-ms` | 改不了 (上游侧) | nim-fast 档内筛 total<3s; 慢模型不入 fast |
+| **token 长度** | catalog `contextLength` (读) / mutation `max_input_tokens` `max_output_tokens` (写) | max_*_tokens **可写** | nim-stable 档内定长上下文限; contextLength 不可写仅读 |
+
+### 4.2 探针驱动选模型 (取代 5.0 写死 SSOT)
+
+**铁律**: 分档**功能归属**可预先定 (哪些模型能写代码属自然属性), 但**活死 + latency** 必须来自 `/v1` 探针真测, 不能凭模型名写死。
+
+流程:
+1. 周期 / Rebuild 跑探针 (12+ chat 模型 × N 发 --max-time 60, 记 http/total/lat-ms/finish)
+2. 死 (403/400/TOUT) → 全 combo 排除 + 标 isHidden (API PATCH 可写)
+3. 活 → 按**功能归属**入对应 combo:
+   - 代码能力模型 → nim-codex
+   - 全活 → nim-pool
+   - 活且 total<3s → nim-fast (若有此 combo)
+   - 活且长 context / reasoning tail → nim-stable
+4. latency 不自动归档, 而是档内排序/筛 (fast 档 total<3s 硬阈, stable 档不受 speed 限)
 
 ### 4.3 落地骨架 (candidate 增量, 不复活 5.0 旁支)
 
 ```bash
-# 不写死 TIER 数组。探针结果读 DB / 临时文件。
-# combo 保持 candidate 2-combo + 可选扩展 nim-fast (探针活且 total<3s):
-upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${MID_ALIVE[@]}"   # 通用: mid 档活模型
-upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"  # code-gen, strategy=priority (FIX#4 保留)
-# 可选 (探针显示 fast 档有价值时):
-upsert_combo "nim-fast"  "round-robin"      "${FAST_ALIVE[@]}"  # 仅 total<3s 活模型
+# 不写死 TIER 数组。功能归属 + 探针活死读 DB / 临时文件。
+# combo 保持 candidate 2 功能档 + 可选扩展:
+upsert_combo "nim-pool"   "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"    # 通用: 全活模型
+upsert_combo "nim-codex"  "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"   # 代码: 功能归属代码能力的活模型
+# 可选 (探针显示有收益时加功能档):
+upsert_combo "nim-fast"   "round-robin"      "${FAST_ALIVE[@]}"    # 快速响应档: 活且 total<3s
+upsert_combo "nim-stable" "priority"         "${STABLE_ALIVE[@]}"  # 长会话/深度档: 活且长ctx或reasoning
 ```
 
 **strategy 约束**:
 - codex 永远 `priority` (FIX#4, 5.0/5.1 退化成 round-robin 是 bug)
 - fast 用 round-robin (快模型轮换省风控)
+- stable 用 priority (深度/长会话不换模型保连续性)
 - pool 多 key 用 p2c, 单 key 回退 round-robin
 
-### 4.4 长上下文分档 (probe 驱动 + 可写字段)
+### 4.4 长上下文分档 (probe 驱动 + 可写字段) — 归 nim-stable 功能档
 
-若需按 context 分档:
-- 读 catalog `contextLength` 选候选 (大上下文模型)
+长上下文属"长会话稳定"功能, 不单独立速度档:
+- 读 catalog `contextLength` 选候选 (大上下文模型) → nim-stable 归属
 - 写 `max_input_tokens`/`max_output_tokens` (mutation schema 可写, 持久 inputTokenLimit/outputTokenLimit) 作实际限
 - **不依赖 API 改 `contextLength`** (不可写, 仅读态)
-- 单独 combo 或 gate 按 model 名判 timeout (gate 当前不识 model, 需改 gate 加 model→timeout map — 慎, 增 gate 复杂度)
+- gate 长上下文模型 timeout 容差: 当前 gate 不识 model (UPSTREAM_TIMEOUT_MS=180s 全局容 thinking 长思), 若需按 model 判 timeout 需改 gate 加 model→timeout map — 慎, 增 gate 复杂度, 暂不做
 
 ### 4.5 风控耦合 (跟 [[omniroute-gateway-goal-and-risks]] 三轴)
 
@@ -173,4 +194,4 @@ upsert_combo "nim-fast"  "round-robin"      "${FAST_ALIVE[@]}"  # 仅 total<3s �
 
 ## 6. 一句话结论
 
-生产实跑无分档 (candidate 2-combo 按场景切); 5.0/5.1 旁支的 4-combo 三档是凭模型名写死的瞎分, 跟真活死/latency 全不符且未继承 FIX#4, **不可采用**。最佳方案 = 探针驱动活死过滤 + latency 分 fast/mid/slow, combo 增量加 nim-fast (可选), codex 保 priority, 慢模型独立档避 CONCURRENT_LIMIT 占槽 429。
+分档主轴 = **功能** (代码 codex / 通用 pool / 长会话 stable / 快速 fast), 速度/latency/context 是档内排序约束非分档本身。生产实跑 2 功能档 (candidate nim-pool/nim-codex); 5.0/5.1 4-combo 名义加 fast/stable 功能档但模型写死凭名想当然 + 未继承 FIX#4 (codex 退化 round-robin), 跟探针真活死/latency 全不符, **不可采用**。最佳方案 = 功能档归属保持 + 探针驱动活死过滤 + 档内 latency 约束, codex 保 priority, 快速档 (若有) round-robin 仅筛 total<3s 活模型。

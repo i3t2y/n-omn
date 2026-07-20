@@ -16,6 +16,7 @@
 1. **opencode 上游侧延迟方差极大 (2ms~44.5s), 3s 常态 + 偶发长 tail**
    —— `oc/big-pickle` 走 **opencode/noauth**, **不经 8 NIM key 池** (日志 `Using opencode account: noauth`; NIM 仅服务 `nvidia/*`)。
    ★ 组1v3 反转根因卡①原写: **非"thinking 模型常态 44.5s"** —— 组1v3 `x-omniroute-latency-ms=2~5` (上游真处理 2~5ms), total 3s 几乎全是网络/流式传输, 非模型思考耗时。max_tokens=16 + `finish_reason:"length"` 表思考在 16 token 内已截断 (reasoning_tokens=16)。
+   ★ **header 语义待考备查**: `x-omniroute-latency-ms=2~5` 若真是"上游处理耗时"则与 ttfb 1.3~1.8s 矛盾 (首字节 1.5s 才到, 上游不可能 2ms 处理完) —— 更可能 = 路由/决策耗时, 非上游驻留。**勿拿 2~5ms 反推"opencode 很快、慢全在网络"** —— 结论靠 60s 手动原始观测 (44.5s tail 硬证据), 不靠此 header 撑腰。
    ★ **44.5s = opencode 上游侧 transient 慢/排队 (免费层限流/调度)**, 非模型非 gate 非思考耗时。`max_tokens=16` 同条件下: 组1v3 5 发 2~5ms, 序2 手动 1 发 44.5s —— **方差来自 opencode 平台侧, 与 ping prompt 复杂度无关**。
    ★ 精修 (Satz 校正一): "auto 选 key 路由到 big-pickle" 表述错误。auto combo 经 **LKGP 钉死 opencode**, 与 NIM 池无关。
    ★ 精修 (Satz 校正二): 非"路由策略选错模型" —— 是**池坍缩后 LKGP 只剩唯一活口**: ddgw 全家 418 结构性死亡、nvidia 部分模型 410 EOL, 32 目标里能通的恰好是个 opencode 路径。**修复指向池卫生 (移除死目标、让快模型回池), 非调 auto 路由权重** —— 此区分决定下一步动作性质。
@@ -48,23 +49,44 @@
 
 1. ✓ 测试 `curl --max-time 75` (组1v3 验证, 5/5 通, 覆 3s 常态 + 44.5s tail 兜底)。
 2. ✓ 组1v3 "before" 基线已建 (min2.84/med3.0/max3.69 + ttfb1.5s + 0 个 429), 池卫生 + C=3 动作后做 "after" 对比。
-3. 池卫生: ddgw 移除/压底, nvidia EOL 模型修剪 (410), autoSync 决策, nvidia 定向探针验 8 key 轮转。
-   ⚠ 执行路径受阻 (见下"池卫生执行路径受阻")。
+3. **序3 拆 3a 探针先行** (外部可行, /v1 推理路径, 零重启零风险, ~10min) → 据结果定 b/c 分支 (见下"序3 拆 3a 探针先行"段)。
 4. `CONCURRENT_LIMIT 1→3` (gate 参数注入处改, 零 rebuild) 后补组2 并发观测。
-   ⚠ C=3 后 28rpm 桶成新瓶颈须同步评估 (见数学段)。
+   ⚠ **与 b 重启合并**: 3a 示做 b → b init 扩展 + C=3 同次 Dataset commit + 同次 Restart (重启次数硬约束); 3a 示走 c → C=3 单独 Restart (见下"序4 不阻塞")。
 5. 客户端侧建议 (组1v3 TTFB 钉): SSE 流式消费 + 超时 ≥75s 兜底 opencode tail 偶发。
 
-### 池卫生执行路径受阻 (序3 裁决点)
+### 序3 拆 3a 探针先行 (Satz 裁决, 池卫生第一步非写, 是诊断池里剩甚么活)
 
-- 生产 gate `ADMIN_ENABLED=false` (GATE_ADMIN_TOKEN 未设 → gate.js L155 `/api/*` 后台 404) → gate `/api/*` 读池态堵死。
-- 上游 OmniRoute 自己 `/api/providers` `/api/combos` (含 ddgw/nvidia/LKGP 配置) 需上游 Cookie 登 `/api/auth/login` (INITIAL_PASSWORD), 但**上游在 Space 内 `127.0.0.1:20128`, 从外部不可触**。
-- `/v1/models` 推理路径走 PSK 通但返 400 (非列池 API)。
-- 即: ddgw 移除/nvidia 修剪 (属上游 combo 配置写 API, 非 gate 白名单只读 GET) **外部无路执行**, 须:
-  - (a) 开 `ADMIN_ENABLED` (设 GATE_ADMIN_TOKEN) + gate 白名单扩含 combo GET 读 + 后台经 gate → 但**写仍需直上游**, 只能读不能改;
-  - (b) 改 init-nim-keys.sh 在 Space 启动时经上游 Cookie 改 combo 配置 (ddgw 压底/移除) —— 但 init 脚本当前不碰 ddgw/nvidia combo 路由配置, 仅注册 nvidia key;
-  - (c) ddgw/nvidia combo 配置本就在上游代码/数据, 池坍缩非配置可改而是平台侧 418/410 死, **移除死目标=改 ComboMaster 池定义**, 须上游侧权限。
-- ⚠ 裁决项: 序3 池卫生可能**不可外部执行**, 退化为"确认池坍缩现状 + 记录死目标清单 (需后台 GET 读) + 改 init 脚本下一版注册时主动跳死目标", 或**推迟池卫生到上游前滚版本 (3.8.49+ 若修池卫生)**。
-- 备: 若开 ADMIN_ENABLED 仅为读池态拍照 (不写), 风险可控 (只读 GET 见白名单已限制)。
+★ 此前"受阻"是**假象** —— 它困住的是 3b (死目标移除, 写操作), 但**池卫生第一步非写, 是诊断池里还剩甚么活**, 此步走 `/v1/chat/completions` + PSK **完全外部可行, gate 白名单内**, 之前被漏掉。
+
+**3a 探针 (零重启零风险 ~10min)**:
+
+- **探活**: `POST /v1/chat/completions`, `model:"nvidia/<model>"` 逐模型直发 (**绕开 auto/LKGP**), `max_tokens:16`, 看哪些 200、哪些 410/418。
+- **关键预期**: nvidia 池未必全死 —— 日志里确认 EOL 的只有 `z-ai/glm-5.1` 一个模型, 8 NIM key 下挂的其他模型可能活着; LKGP 钉死 oc 只因**首发恰好先试 glm-5.1 失败后落到 oc**。
+- **key 轮转旁证**: 同一活模型连发 8+ 发, account 轮转在 Space 日志侧看 (`Using nvidia account: XXXX...` 轮换), 外部只看活/死。
+- **模型清单来源**: 先跑 `/v1/models` 拿 nvidia 段作探针目标清单。
+
+**3a 分支逻辑 (现定死, 免临场犹豫)**:
+
+| 3a 结果 | 含义 | 动作 |
+|---------|------|------|
+| nvidia ≥1 活模型且响应快 (秒级) | 池卫生有真实收益: 剪掉死目标后 auto 可分散到 nvidia 快模型, p95 脱离 opencode 单方差支配 | **走 b**: init 脚本扩展 combo/provider 管理 (启动时 Cookie 直连上游, 禁 ddgw、剪 EOL 模型); **与序4 C=3 合并一次 Dataset 提交 + 一次 Restart** |
+| nvidia 全死或同样高方差 | 池里实际只有 oc/big-pickle 一个活口, 池卫生只剩去噪价值 (首发 fallback 链 2.4s) | **走 c**: 死目标清单记 audit 备查, b 不做, 序4 单独推进 |
+
+**a 方向 (开 ADMIN_ENABLED 拍照) 排除**: 白名单只读 GET 改不了池, 诊断信息又已从 SSE 日志里拿全 (Trying 序列 + 418/410 逐目标错误即现成池态快照), 为它付一次生产重启 + 后台暴露面收益为零。
+
+**b 若做, 纪律照旧**: `/api/combos` schema 未文档化, 先在 init 里 GET 读回结构、log 出来, 下一跳再写 —— fail-closed 分两跳走, 不盲写 (init 脚本当初立下的规矩, 池卫生不值得破坏)。
+
+### 序4 不阻塞 + 重启合并硬约束
+
+- 序4 (C=1→3) 与池卫生无依赖, 本并行推进; 真正要管的是**生产重启次数**: 无论 b 还是 C=3, 都是改 Dataset 逻辑层 + Space Restart, 每次 Restart = 一次 restore 实战 (已验安全但没必要多做)。
+- **3a 示做 b → b 的 init 扩展 + C=3 的 gate 参数改动同一次 Dataset commit、同一次 Restart, 一次烘焙两变更**。
+- **3a 示走 c → C=3 单独一次 Restart**。
+
+### C=3 落地后组2 设计微调
+
+- 3 并发同发, 预期从 "3×44.5s 串行 + 2 发 429" 变 "3 发并行各自约 3s (常态)"。
+- 同盯 opencode 的 per-IP 限流是否被 3 并发触发 (noauth 匿名通道对并发敏感, 若触发则说明 C=3 的上限被平台侧锁死, C=5 不必试)。
+- 28rpm 桶在实测流量 (~1rpm) 下不触达, 数学段 "C=3 后桶成新约束" 保留为理论注记, 实操不阻塞。
 
 ## 接入建议决策点 (组1v3 TTFB 钉死)
 
@@ -96,12 +118,13 @@
 |----|------|-----------|------|
 | 1 | audit 根因卡落档 | 10min | 根因防漂 |
 | 2 | 组1v3: 5 发串行修正版 | ~6min | "before" 延迟基线 |
-| 3 | 池卫生: ddgw 移除、nvidia 修剪、autoSync、nvidia 探针验 8 key 轮转 | runtime API/Dataset 零 rebuild | 池深 1→N, 分散性回归 |
-| 4 | `CONCURRENT_LIMIT 1→3` | gate 参数注入处改 零 rebuild | R5 第一杠杆落地 |
+| 3a | 池卫生探针: /v1 逐 nvidia 模型直发 (绕 auto/LKGP) 探活 | /v1 推理路径 零重启 | 活/死清单 + 时延, b/c 分支依据 |
+| 3b/c | 据 3a: b (init 扩展剪死目标) 或 c (死目标记 audit 备查不写) | Dataset + Restart | b 与序4 合并同次 重启 |
+| 4 | `CONCURRENT_LIMIT 1→3` | gate 参数注入处改 零 rebuild | R5 第一杠杆落地 (与 b 合并重启) |
 | 5 | 组2: 3 并发 | ~2min | 放行面: 3 并行完成 vs 串行 3×44.5s; 盯 opencode per-IP 限流 |
 | 6 | 组3 长上下文 + 组4 错误注入 | ~10min | 180s 窗口余量 + 终态错误格式 |
 | 7 | 冻结 gate 全变更, 烘焙后 upgrade 3.8.48 | 六条验收照旧 | 升级归因干净 |
 
 ---
 
-*2026-07-20 R3+ 组1v2 429 根因卡 · K3 审认可 + Satz 三处精修 (big-pickle 走 opencode 非 NIM 池 / 池坍缩 LKGP 非路由误选 / 占槽相接遗留算术经组1v3 钉死) · 序2 组1v3 反转根因卡①(44.5s 是 opencode 上游 tail 非 thinking 常态, 上游 latency 2~5ms/3s 常态) · TTFB 钉 SSE 流式消费 + 75s 兜底 · 升级前置 · 序3 池卫生执行路径受阻待裁决*
+*2026-07-20 R3+ 组1v2 429 根因卡 · K3 审认可 + Satz 三处精修 (big-pickle 走 opencode 非 NIM 池 / 池坍缩 LKGP 非路由误选 / 占槽相接遗留算术经组1v3 钉死) · 序2 组1v3 反转根因卡①(44.5s 是 opencode 上游 tail 非 thinking 常态, 3s 常态) · header 语义待考备查 (latency-ms=2~5 疑路由耗时非上游驻留, 勿反推 opencode 快) · TTFB 钉 SSE 流式消费 + 75s 兜底 · 升级前置 · 序3 拆 3a 探针先行 (/v1 推理路径外部可行零重启, 之前被漏; 据 nvidia 活死清单定 b/c, b 与序4 C=3 合并同次 Dataset+Restart) · 数学: C=3 后 28rpm 桶成新瓶颈理论注记实操不阻塞*

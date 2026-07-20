@@ -296,3 +296,72 @@ T2 命中 "POST 真败" 分支. 真根因未定 (POST 真败但 schema/动词已
 按首席 §4: T3 = 唯一批准的代码改动, **纯加法观测面** (fail-visible 落地形态). 前置先核 init 既有 snapshot 上传段通道复用.
 
 ---
+
+## §六③ T3 前置只读核 — entrypoint/init drift 核 (新真相)
+
+### entrypoint.sh 双版本 drift 定性
+
+**本地仓 `candidate-v4.3-reviewed/`:**
+- `entrypoint.sh` (50994B, 旧 Stage D) L337 `bash /entrypoint-init-nim.sh &` ← **错路径, Dataset 上无此文件**
+- `entrypoint-merged.sh` (250行 合并版) L198 `if [ -f /logic/init-nim-keys.sh ] && [ -n "${NIM_KEYS:-}" ]; then bash /logic/init-nim-keys.sh & INIT_PID=$!` ← **正确路径 + NIM_KEYS 守卫**
+
+**Dataset `nonoke/omni-logic` 真 entrypoint.sh:**
+- sha256 `bd13343f3c35` == 本地 `entrypoint-merged.sh` (diff exit=0, 250行共)
+- **生产跑的是合并版 entrypoint.sh, 不是本地 Stage D `entrypoint.sh`**
+
+**结论**: 修正记忆 "生产实跑=candidate-v4.3-reviewed(818行)" — 准确应说: 生产 entrypoint == 本地 `candidate-v4.3-reviewed/entrypoint-merged.sh`; 本地 `candidate-v4.3-reviewed/entrypoint.sh` 是**未推上 Dataset 的旧 Stage D 残根** (危险: 若误推会把 `/logic/init-nim-keys.sh` 正确路径替换成 `/entrypoint-init-nim.sh` 错路径致 init 整段找不文件跳过 — 反把 combo POST 问题升级成 init 整跳).
+
+### init-nim-keys.sh drift 核
+
+- 本地 `candidate-v4.3-reviewed/init-nim-keys.sh` vs Dataset `init-nim-keys.sh`: **sha256 `242d2c9d9e47` 完全一致** (diff exit=0, 850 行共)
+- **init 代码无 drift**, POST 真败非本地不一致导致, 须 T3 自持响应体证
+- upsert_combo L127 `-X PUT` + L131 `-X POST` 已证随 Dataset 同步在跑 (PUT 正确, §六①证)
+
+### F6 钉死 — fail-closed 语义落空证 (首席 §2 假设坐实)
+
+entrypoint-merged.sh L195-212 (Dataset 同源):
+```bash
+# ── 4. NIM 初始化 (后台) ──
+if [ -f /logic/init-nim-keys.sh ] && [ -n "${NIM_KEYS:-}" ]; then
+  bash /logic/init-nim-keys.sh & INIT_PID=$!          # ← 后台, 无 wait
+  echo "[entrypoint] Init PID=$INIT_PID"
+fi
+# ── 5. Litestream 复制 (后台) ──
+if [ "$has_r2" = 1 ] && [ -f /logic/litestream.yml ]; then
+  litestream replicate -config /logic/litestream.yml & LS_PID=$!
+fi
+echo "[entrypoint] 全部就绪：OR=$OR_PID Init=${INIT_PID:-无} LS=${LS_PID:-无} Gate→:$EXPOSED_PORT"
+...
+node /logic/gate.js &                                # ← 不等 init, 起 gate
+```
+
+**证**:
+1. init **后台** (`&`) 拉起, entrypoint **不 wait**
+2. init exit 0 或 exit 1 任态, entrypoint 继续起 gate → Space 转 RUNNING
+3. L212 "全部就绪" 接 `Init=${INIT_PID:-无}` = init PID 变量记但**未判生死**
+4. 故 fail-closed 设计 (init 非 2xx exit 1) **完全落空** — init exit 1 不阻 RUNNING, 反把故障藏更深 (Space 仍 RUNNING 提示OK)
+
+**首席 §2 推断正确**: F6 未证 + 比例原则 = fail-closed 双重否决, b 包重构为 fail-visible (T3) 成立.
+
+### init 真跑了证链 (证 NIM_KEYS 非空 → init 跑 → POST 触 → POST 真败)
+
+1. L198 `[ -n "${NIM_KEYS:-}" ]` 守
+2. glm-5.2 直发 200 + x-omniroute-provider=nvidia → provider 注册步 init L820 `register_model` 成跑
+3. 即 NIM_KEYS 非空, init 跑过 (至少达 L820)
+4. T2 证: 重启后 nim-codex 探针仍 400, 即 POST 在每个 boot 真败
+5. 后续须 T3 自持 POST 响应体原文证真败原因 (auth/CSRF/Origin/header/CID查询判空走POST重名/...)
+
+### T3 推链精准化
+
+须改文件: **本地 `candidate-v4.3-reviewed/init-nim-keys.sh`** (与 Dataset 同源, 推 Dataset 只推 init).
+**严禁推**: 本地 `candidate-v4.3-reviewed/entrypoint.sh` (旧 Stage D, 反会破合并版正确路径) — 一推即把 `/logic/init-nim-keys.sh` 换错路径致 init 整跳, 把 combo POST 问题升级为 init 整段消失的更严重故障.
+
+T3 推链: 改本地 `init-nim-keys.sh` 加纯加法状态段 + `entrypoint-merged.sh`/`gate.js`/`litestream.yml`/`package.json` 全不动 → 推 Dataset 仅 init → pull-back hash MATCH → reboot → settle → 读 boot-status.
+
+### 复用通道核 (hf_snapshot)
+
+init L707 `hf_snapshot()`: L708 `[ -z "$HF_TOKEN" ] || [ -z "$HF_DATASET_REPO" ] && return 0` — 若 Space Secrets 任一空即**静默 return 0 不上传**, 无 echo 退溯, 故 omni-logic Dataset 树根无 omni_data/ (核过 404). 即 hf_snapshot 通道**可能从未真触发** (HF_TOKEN/HF_DATASET_REPO Space Secrets 真值执行侧不知, 须首席协取或 T3 自验): 若 Space Secrets 内 HF_TOKEN/HF_DATASET_REPO 双非空则 hf_snapshot 已每 boot 跑上传 — 但 Dataset 树根无 omni_data 反证**至少一为空** 或上传目标非 omn-logic, **hf_snapshot 通道可达性未知**.
+
+T3 backup: 状态文件可走**自有写通道** (R1 验过 git push 至 omn-logic 真 Dataset), 不依赖 hf_snapshot. 即 T3 状态段直接 python huggingface_hub.upload_file (类 hf_snapshot L793 段) 推 `audit/boot-status-<ts>.json` 至 omn-logic (本仓 HF_TOKEN_DATASET_WRITE fineGrained nonoke/omn-omni-logic). 不复用 hf_snapshot 通道 (其依赖未证 Space Secrets env 存).
+
+---

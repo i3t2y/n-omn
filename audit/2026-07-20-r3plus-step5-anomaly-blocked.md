@@ -181,3 +181,73 @@ export const createComboSchema = z.object({
 ---
 
 *2026-07-20 ~R3+ §六① 仓内核只读核完 · 上游真路径 /home/laisi/3.8.43 · F1/F2 裁决推断证伪 (comboModelEntry union 纯串/对象皆合规 + 更新动词=PUT 非 PATCH) · init 现 models_to_json schema 合规 · 真根因未定 (POST/PUT 真态需 HF log) · c 包取消 b 包前提动摇 · 冲突即停报首席不擅改*
+
+## §六②-1 T0 外部 GET /api/combos 决定性探 (首席裁决3 §3 T0)
+
+T0 = 30s 外部经 gate+PSK GET /api/combos 一发, 命中即按表跳级.
+
+### 执行
+
+- 时 19:21:06 GET `https://nonoke-omn.hf.space/api/combos` X-Internal-PSK + Accept:json --max-time 30
+- 结果 **http=404**, body 空 0B
+- resp headers: `x-proxied-host: http://10.112.81.68` + `x-proxied-replica: y52yiled-j9xkp` + `x-proxied-path: /api/combos` 齐备 -> 请求经 gate 转发触达上游 OmniRoute 实例 ✓
+
+### 判别归因 (404 非 200 非 401)
+
+**404 非 requireManagementAuth 拒**: 3.8.43 源 `requireManagementAuth.ts` L138 无任一 auth 路径即返 **401 "Authentication required"**, 非 404. 外部非 dashboard session/非 loopback/非 CLI token/非 access token/非 manage-scope API key 应返 401.
+**404 非 gate 429 背压**: gate tryAcquire 拒走 429 + retry-after:3 (记忆组2实证), T0 404 无 retry-after.
+**404 来源候选**:
+- (i) gate ADMIN_API_ROUTES 白名单 `/api/combos` 虽列 GET 但 method 匹配逻辑对 GET 不放, gate 静拒 404 (与记忆 § 行"只列 GET apiRouteMatch 对 POST 退 false 404"同构, 但方法=GET 应放 — 实 404 则 GET 亦被拒, 与记忆不符)
+- (ii) 生产 OmniRoute 实际部署的 combos route 与 3.8.43 源码漂移 (镜像 :stable 内部可能 version≠3.8.43 / combos route 路径变)
+- (iii) gate 路径改写, `/api/combos` 映到别处返 404
+- x-proxied 齐备 -> 请求**真触上游**, 404 由上游或 gate 终点签 (非直读 combos 表)
+
+### T0 结论 → 进 T1
+
+T0 **无法直接读 combos 表真态** (外部 GET /api/combos 被拒 404, X-Internal-PSK 不够 — 外部非 dashboard session 非 loopback 非 manage-scope key). combos 表真相需 **T1 litestream 副本 DB 直读** 或 **HF UI 日志协取** (降级并行可选项).
+
+外部 PSK 通道对 /api/combos 管理 route 不通 — 这亦证 init 写 /api/combos 必走内网 dashboard cookie (init login fail-closed L478-484 证 cookie 已建), 外部探测无权触 combos 真态.
+
+### 下一步: T1 判可达性 + 拉 litestream 副本
+
+先读 Dataset 里 litestream.yml 判副本落点. 若 file:// (容器本地路径) 副本不可达 -> 跳过进 T2. 若副本 R2/S3 远端 -> 拉副本 sqlite3 SELECT.
+
+---
+
+## §六②-2 T1 litestream 副本可达性判
+
+### 副本落点 (本地 candidate-v4.3-reviewed/litestream.yml)
+
+```yaml
+dbs:
+  - path: /app/data/storage.sqlite
+    replica:
+      type: s3
+      bucket: omn-data
+      path: db/storage.sqlite
+      endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      access-key-id: ${R2_ACCESS_KEY_ID}    # <- R2 凭证
+      secret-access-key: ${R2_SECRET_ACCESS_KEY}
+      sync-interval: 10s
+      auto-recover: false
+```
+
+**判: 副本 = R2 Cloudflare S3 远端 (非容器本地 file://)**. 按首席 §3 表 "T1 可达 → 拉副本 sqlite3 读 combos 表".
+
+### 执行侧可达性核
+
+T1 拉副本需 R2 凭证 (`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`). 核 `~/.omn-secrets` 键名清单:
+```
+API_KEY_SECRET GHCR_IMAGE GHCR_PAT GHCR_PAT_CLASSIC GHCR_USER
+HF_TOKEN HF_TOKEN_DATASET_WRITE HF_USER INTERNAL_PSK
+LOGIC_BUCKET_REPO OMNIROUTE_API_KEY
+```
+**无任一 R2_* 键**. R2 凭证**只存 HF Space Secrets**, 执行侧本地无通道直拉 S3 副本.
+
+### T1 结论 → 跳过进 T2
+
+T1 **不可达** (副本在 R2, 凭证不在执行侧 ~/.omn-secrets). 按首席 §3 "副本不可达 → 跳过进 T2, 不耗时强取".
+
+T1 不强取 R2 (R2 凭证协取属 Space Secrets 核查类, 按纪律须首席代取或转用户, 不自行试探). 进 T2 决定性零改动 reboot.
+
+---

@@ -101,12 +101,27 @@ R3+ 序3a 探针 (12 nvidia chat 模型 ×2 发 --max-time 30, /v1 直发绕 aut
 | mistral-7b/gemma-3-4b/gemma-3-12b/qwen3-next-80b/gpt-oss-20b/step-3.7-flash | — | **全 403 (NIM key entitlement 缺)** | 死 |
 | moonshotai/kimi-k2.6 | TIER_RESTRICTED | 死 (400 + 403) | 死, 当 restricted 也活不了 |
 
+### 3.1 3a-2 补探 (6 nvidia 新候选 ×2 发 --max-time 60, /v1 直发, 同模式)
+
+R3+ Step1 3a-2 补探 (2026-07-20 15:08, /tmp/r3plus-3a2-probe.log), 测 3a 候选外 6 个 5.0 SSOT stable 档候选 + codex 候补:
+
+| 模型 | #1 http/total | #2 http/total | 终判 | §4 归属修正 |
+|------|--------------|--------------|------|------------|
+| deepseek-ai/deepseek-v4-pro | TOUT 60s | TOUT 60s | **死 (实效死/上游挂起)** | §4.1 codex 候补剪掉 — 裁决基线 §3 "C 场景" 候补作废 |
+| nvidia/nemotron-3-super-120b-a12b | 200 2.1s | 200 2.0s | **活 2/2 稳快** | pool 或 fast (total<3s) |
+| openai/gpt-oss-120b | 400 1.6s | 200 9.7s | **活 1/2 (key 罚态轮转)** | codex 候补成立 — §3 L106 "120b 待测" 勾销 |
+| qwen/qwen3.5-397b-a17b | 400 1.7s | 200 12.1s 14tok stop | **活 1/2 (罚态 + tailing)** | pool (reasoning tail 12s 非 fast) |
+| mistralai/mistral-small-4-119b-2603 | 400 1.6s | 200 2.0s | **活 1/2 (罚态轮转)** | fast (total<3s) |
+| google/gemma-4-31b-it | 400 1.4s | TOUT 60s | **死 (实效死)** | §4.1 stable 剪掉 — §3 L106 "gemma-4 同族高危" 证实 |
+
+**3a-2 罚态轮转模式 (400 首发→200)'**: 6 模型中 3 个 (gpt-oss-120b / qwen3.5 / mistral-small-4) 命中裁决基线"400 空体首发后 200 = key 罚态轮转", 跟 3a "4 活 8 死" 模式同构 — breaker reset-after-1s 解释首发被罚, 第二发 key 轮转后通。lat-ms 全 NA = /v1 直发绕 auto 不注入 `x-omniroute-latency-ms` (nvidia 直发无路由层), 与裁决基线 "nvidia=真生成" 一致。
+
 **5.0 SSOT 错处一览**:
 - fast 档 4 个: 1 死 (llama-3.3-70b), 1 最慢 (deepseek-v4-flash 20.7s tail), 1 中档 (glm-5.2 4.84s) — 真正 fast (llama-3.1-8b 2.15s) 反而没列
-- stable 档: gemma-4-31b (gemma-3 系列已全 403 死, gemma-4 待测但同类高危); gpt-oss-120b (gpt-oss-20b 已 403 死, 120b 待测)
+- stable 档: gemma-4-31b (**3a-2 证实死 TOUT**, gemma-3 系列已全 403 死 — 全族死); gpt-oss-120b (**3a-2 证实活但 9.7s tail 非 stable**, 是 codex 候补)
 - restricted 档: 全是限流高危或已死
 
-**结论**: 5.0 TIER 三档依据模型参数名 (70b/120b/397b) 想当然排, 完全没考虑 NIM key entitlement (8/12 探针模型 403 缺权限) 和 reasoning tail (deepseek-v4-flash 20.7s 思考)。**旁支分档不可用**。
+**结论**: 5.0 TIER 三档依据模型参数名 (70b/120b/397b) 想当然排, 完全没考虑 NIM key entitlement (8/12 探针模型 403 缺权限) 和 reasoning tail (deepseek-v4-flash 20.7s 思考)。3a + 3a-2 共 18 模型真测, 5.0 SSOT stable 档候选 gemma-4-31b/gpt-oss-120b 实测 1 死 1 非 stable, **旁支分档不可用**。
 
 ---
 
@@ -122,10 +137,10 @@ R3+ 序3a 探针 (12 nvidia chat 模型 ×2 发 --max-time 30, /v1 直发绕 aut
 
 | 功能 combo | 用途 | 选模型依据 (功能) | strategy |
 |-----------|------|------------------|----------|
-| **nim-codex** | 代码生成 | 能写代码的模型 (deepseek-v4-pro / gpt-oss-120b / glm-5.2 等代码能力) | **priority (FIX#4, 永不换模型保上下文)** |
-| **nim-pool** | 通用主力 | 全活模型 (探针活即入) | p2c (多 key) → round-robin (单 key) |
-| **nim-fast** (可选) | 快速响应 / 轻问 | 档内约束: latency 短 (<3s) 的活模型 | round-robin (快模型轮换) |
-| **nim-stable** (可选) | 长会话稳定 / 深度推理 | 档内约束: 长 context 或 reasoning 模型 (deepseek-v4-flash tail) | priority |
+| **nim-codex** | 代码生成 | 能写代码的模型 (活: **gpt-oss-120b** 3a-2 1/2 + glm-5.2; 死: ~~deepseek-v4-pro~~ 3a-2 TOUT 排除) | **priority (FIX#4, 永不换模型保上下文)** |
+| **nim-pool** | 通用主力 | 全活模型 (探针活即入: llama-3.1-8b / glm-5.2 / deepseek-v4-flash / minimax-m3 / **nemotron-3-super-120b** 3a-2 全活 / qwen3.5 3a-2 1/2) | p2c (多 key) → round-robin (单 key) |
+| **nim-fast** (可选) | 快速响应 / 轻问 | 档内约束: latency 短 (<3s) 的活模型 (llama-3.1-8b 2.15s / **mistral-small-4** 3a-2 2.0s / **nemotron-3-super** 3a-2 2.0s) | round-robin (快模型轮换) |
+| **nim-stable** (可选) | 长会话稳定 / 深度推理 | 档内约束: 长 context 或 reasoning 模型 (deepseek-v4-flash tail 20.7s; ~~gemma-4-31b~~ 3a-2 死) | priority |
 
 **档内排序约束 (非分档, 功能档内筛模型)**:
 
@@ -185,8 +200,8 @@ upsert_combo "nim-stable" "priority"         "${STABLE_ALIVE[@]}"  # 长会话/�
 
 ## 5. 待验证项 (P2 NEEDS-INSTANCE)
 
-- [ ] deepseek-v4-pro / nemotron-3-super-120b / gpt-oss-120b / qwen3.5-397b / gemma-4-31b / mistral-small-4 3a 未测, 需扩探针清单
-- [ ] 5.0 SSOT TIER 各模型 entitlement 真测 (大概率 gemma-4 / gpt-oss-120b 同族 403)
+- [x] deepseek-v4-pro / nemotron-3-super-120b / gpt-oss-120b / qwen3.5-397b / gemma-4-31b / mistral-small-4 3a-2 已测 (见 §3.1): 4 活 2 死, deepseek-v4-pro + gemma-4-31b 死 (TOUT 实效死)
+- [x] 5.0 SSOT TIER 各模型 entitlement 真测: gemma-4-31b **死 (TOUT 同族证实)**, gpt-oss-120b **活但 9.7s tail 非 stable**
 - [ ] 长上下文 token 限写 `max_input_tokens` 在 3.8.43 实例真生效 read-back (K5 FIX 后候选不依赖此写, 但 future 启用需验)
 - [ ] 探针周期化 (Rebuild 跑 / 定时跑) 落地 init-nim-keys.sh 增量
 
@@ -194,4 +209,4 @@ upsert_combo "nim-stable" "priority"         "${STABLE_ALIVE[@]}"  # 长会话/�
 
 ## 6. 一句话结论
 
-分档主轴 = **功能** (代码 codex / 通用 pool / 长会话 stable / 快速 fast), 速度/latency/context 是档内排序约束非分档本身。生产实跑 2 功能档 (candidate nim-pool/nim-codex); 5.0/5.1 4-combo 名义加 fast/stable 功能档但模型写死凭名想当然 + 未继承 FIX#4 (codex 退化 round-robin), 跟探针真活死/latency 全不符, **不可采用**。最佳方案 = 功能档归属保持 + 探针驱动活死过滤 + 档内 latency 约束, codex 保 priority, 快速档 (若有) round-robin 仅筛 total<3s 活模型。
+分档主轴 = **功能** (代码 codex / 通用 pool / 长会话 stable / 快速 fast), 速度/latency/context 是档内排序约束非分档本身。生产实跑 2 功能档 (candidate nim-pool/nim-codex); 5.0/5.1 4-combo 名义加 fast/stable 功能档但模型写死凭名想当然 + 未继承 FIX#4 (codex 退化 round-robin), 跟探针真活死/latency 全不符, **不可采用**。最佳方案 = 功能档归属保持 + 探针驱动活死过滤 + 档内 latency 约束, codex 保 priority, 快速档 (若有) round-robin 仅筛 total<3s 活模型。3a + 3a-2 共 18 模型真测 (4+4 活, 8+2 死) 证 5.0 SSOT stable 档候选 gemma-4-31b 死 / gpt-oss-120b 非 stable, 旁支分档实证作废。

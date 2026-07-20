@@ -170,4 +170,30 @@
 
 ---
 
+## 组1v5: glm-5.2 主路径 before 基线 (R3+ Step2, Restart A 前)
+
+序2/组1v3 走的是 auto 路径 (LKGP 钉 opencode/big-pickle)。R3+ 任务包首裁主路径 = **nvidia/z-ai/glm-5.2 单钉直发** (保 Claude Code 上下文一致), 组1v5 为 Restart A 前主路径 before 基线。
+
+- 脚本 `/tmp/r3plus_v5_glm52_baseline.sh`, 5 发串行 `--max-time 75` 间隔 2s, `/v1/chat/completions` PSK 直发, log `/tmp/r3plus-v5-glm52-baseline.log` (2026-07-20 15:25)
+
+| # | http | ttfb | total | lat-ms | tokens | 判 |
+|---|------|------|-------|--------|--------|----|
+| 1 | 200 | 2.21s | 6.18s | NA | NA | 活 |
+| 2 | 400 | 1.44s | 1.70s | NA | NA | 罚态 |
+| 3 | 200 | 1.27s | 3.39s | NA | 6 stop | 活 |
+| 4 | 400 | 1.27s | 1.53s | NA | NA | 罚态 |
+| 5 | 200 | 1.33s | 2.40s | NA | NA | 活 |
+
+**汇总**: 活 **3/5**, 400 罚态 2/5。**200/400 严格交替** = breaker reset-after-1s 罚态轮转 (首发被罚 → 下一发轮到活 key), 与 3a/3a-2 罚态模式同构。
+
+**主路径基线观察**:
+- ttfb 1.27~2.21s 窄带, total 1.53~6.18s — **无 44.5s tail** (组1v3 备查: opencode 路径 tail 是上游 transient, 非 glm-5.2 模型行为)。glm-5.2 非 reasoning 模型, 主路径不 tail。
+- lat-ms 全 NA — /v1 直发绕 auto 不注入 `x-omniroute-latency-ms` (nvidia 直发无路由层, 跟 3a/3a-2 同), 符 header 语义备查 "nvidia 路径=真生成" 注: nvidia 直发无 gate 头注入, 仅 auto/LKGP 路径带。
+- tokens 仅 #3 捕 6 — 非流式单发 unfinished 多, finish 捕不全; 活 3 发中仅 #3 finish_reason:"stop"。
+- **before 基线健康**: 串行 glm-5.2 主路径无 tail 异常, 罚态轮转存在但不阻塞 (3/5 通), 可作 Restart A 后对照 (改 CONCURRENT_LIMIT=1→3 + maxWaitMs 后并发观测是否缓解罚态排队)。
+
+**裁决纪律校验**: 200=活/400=罚态轮转(非持续403)/无TOUT — 4 灯中 2 灯亮 (活 + 罚态), 无死灯。glm-5.2 主路径活, 可作 codex priority 主力 (裁决 §1 主路径)。
+
+---
+
 *2026-07-20 R3+ 组1v2 429 根因卡 · K3 审认可 + Satz 三处精修 · 序2 组1v3 反转根因卡①(44.5s 是 opencode 上游 tail 非 thinking 常态, 3s 常态) · header 语义备查 (latency-ms 随路径变, nvidia 路径=真生成 89~14949ms, opencode/big-pickle 路径 2~5ms 疑边缘缓存/路由, 勿反推平台快慢) · TTFB 钉 SSE 流式消费 + 75s 兜底 · 升级前置 · 序3 拆 3a 探针先行 (/v1 推理路径外部可行零重启, 之前被漏) · **序3a 结果: 4 活 8 死 走 b** (403≠EOL 实是 key entitlement+breaker reset-after-1s 效效死, 剪除对该生产收益明确) · b 与序4 C=3 合并同次 Dataset+Restart · tail 非 opencode 独占 (deepseek-v4-flash nvidia 路径 14.9s = reasoning model 自思长) · 数学: C=3 后 28rpm 桶成新瓶颈理论注记实操不阻塞*

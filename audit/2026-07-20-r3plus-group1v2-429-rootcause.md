@@ -16,7 +16,10 @@
 1. **opencode 上游侧延迟方差极大 (2ms~44.5s), 3s 常态 + 偶发长 tail**
    —— `oc/big-pickle` 走 **opencode/noauth**, **不经 8 NIM key 池** (日志 `Using opencode account: noauth`; NIM 仅服务 `nvidia/*`)。
    ★ 组1v3 反转根因卡①原写: **非"thinking 模型常态 44.5s"** —— 组1v3 `x-omniroute-latency-ms=2~5` (上游真处理 2~5ms), total 3s 几乎全是网络/流式传输, 非模型思考耗时。max_tokens=16 + `finish_reason:"length"` 表思考在 16 token 内已截断 (reasoning_tokens=16)。
-   ★ **header 语义待考备查**: `x-omniroute-latency-ms=2~5` 若真是"上游处理耗时"则与 ttfb 1.3~1.8s 矛盾 (首字节 1.5s 才到, 上游不可能 2ms 处理完) —— 更可能 = 路由/决策耗时, 非上游驻留。**勿拿 2~5ms 反推"opencode 很快、慢全在网络"** —— 结论靠 60s 手动原始观测 (44.5s tail 硬证据), 不靠此 header 撑腰。
+   ★ **header 语义备查 (序3a 3 项 latency-ms 对照修)** — 原写"语义存疑"需细化: `x-omniroute-latency-ms` **语义随路径而变**:
+     · nvidia 路径: 此 header = **真上游生成耗时** (3a 实证: llama-3.1-8b `latency-ms=89~111` + versions/tokens-out=16; glm-5.2 `900ms`; minimax-m3 `128ms`; deepseek-v4-flash 偶 `14949ms` tail — 数量级随模型/调用变, 非路由决策值)。
+     · opencode/big-pickle 路径: `2~5ms` (组1v3) —— 此值与 nvidia 真生成同 header 但量级异常小, 大概率 = opencode 边缘缓存命中路 / 决策耗时, **非模型生成驻留**。
+     · **故勿拿 opencode 路径下的 2~5ms 反推"opencode 全快、慢全在网络"** —— nvidia 路径下此 header 才显真生成耗时。结论 (44.5s tail 硬证据靠 era2 60s 手动观测) 不靠此 header 撑腰。
    ★ **44.5s = opencode 上游侧 transient 慢/排队 (免费层限流/调度)**, 非模型非 gate 非思考耗时。`max_tokens=16` 同条件下: 组1v3 5 发 2~5ms, 序2 手动 1 发 44.5s —— **方差来自 opencode 平台侧, 与 ping prompt 复杂度无关**。
    ★ 精修 (Satz 校正一): "auto 选 key 路由到 big-pickle" 表述错误。auto combo 经 **LKGP 钉死 opencode**, 与 NIM 池无关。
    ★ 精修 (Satz 校正二): 非"路由策略选错模型" —— 是**池坍缩后 LKGP 只剩唯一活口**: ddgw 全家 418 结构性死亡、nvidia 部分模型 410 EOL, 32 目标里能通的恰好是个 opencode 路径。**修复指向池卫生 (移除死目标、让快模型回池), 非调 auto 路由权重** —— 此区分决定下一步动作性质。
@@ -110,7 +113,47 @@
 
 ---
 
-## 修订后总序列 (Satz 出, gate 侧全调优在 3.8.43 烘焙稳后再升版)
+## 序3a 探针结果 (2026-07-20 12:47 CST, b/c 分支定 b)
+
+`/v1/models` GET 200 拿 52KB 全清单: **nvidia 124** / combo 29 / opencode 8 / theoldllm 8 / veoaifree 6 / duckduckgo 6 / mimocode 1 / chipotle 1。nvidia 124 含大量非 chat (embed/rerank/ASR/translate/vision-detector/reward), 探针圈 12 chat 候选 × 2 发 = 24 发, `--max-time 30`, 间隔 4s。
+
+| 模型 | 判 | #1 | #2 | 死因 |
+|------|----|----|----|------|
+| **meta/llama-3.1-8b-instruct** | **活 2/2** | 200/2.36s | 200/2.16s | latency-ms=89/111, tokens-out=16, finish=length |
+| **z-ai/glm-5.2** | **活 1/2** | 403/9.07s | 200/4.84s | latency-ms=900, tokens=14, finish=stop |
+| **deepseek-ai/deepseek-v4-flash** | **活 1/2** | 400/1.54s(空体) | 200/20.74s | latency-ms=14949 (tail), tokens=640 reasoning |
+| **minimaxai/minimax-m3** | **活 1/2** | 400/1.46s(空体) | 200/5.85s | latency-ms=128, tokens=7, finish=stop |
+| meta/llama-3.3-70b-instruct | 死 0/2 | 400/2.64s(空体) | TOUT/30s | 70b 超时 |
+| mistralai/mistral-7b-v0.3 | 死 0/2 | 403/26.1s | 403/7.64s | `[403]: Authorization failed (reset after 1s)` |
+| google/gemma-3-4b-it | 死 0/2 | 403 | 403 | 同上 403 |
+| google/gemma-3-12b-it | 死 0/2 | 403 | 403 | 同上 403 |
+| qwen/qwen3-next-80b-a3b-instruct | 死 0/2 | 403 | 403 | 同上 403 |
+| moonshotai/kimi-k2.6 | 死 0/2 | 400(空体) | 403 | 400+403 |
+| openai/gpt-oss-20b | 死 0/2 | 403 | 403 | 同上 403 |
+| stepfun-ai/step-3.7-flash | 死 0/2 | 403 | 403 | 同上 403 |
+
+**4 活 / 8 死 → 走 b** (nvidia ≥1 活, 池卫生有收益, init 扩展剪死目标 + 序4 C=3 合并 Restart)。
+
+### 3a 修正此前判读 (必报)
+
+★ **403 ≠ 418/410 EOL** (此前根因卡②引说"nvidia 部分模型 410 EOL"需改): 403 body 实为 `[nvidia/<m>] [403]: {"status":403,"title":"Forbidden","detail":"Authorization failed"} (reset after 1s)` —— **nvidia 侧该 NIM key 无此模型 entitlement (Authorization failed) + opencode breaker 罚该 key 1s 后 reset**。即 403 = **key entitlement 缺/被 breaker 暂罚**, 非模型 permanent EOL。判死依据: 死 8 中持续 403 = 该模型在该部署的 8 NIM key 集合内 entitlement 池小或被持续罚 → **对该部署实效"活不下来"**, 等效死 (剪除对该生产部署收益明确)。
+★ **400 空体首发** (deepseek-v4-flash #1, minimax-m3 #1, llama-3.3-70b #1, kimi-k2.6 #1): body **0 字节空体** = 上游 400 无 SSE chunks。**机制待考**, 但第二发 200 (reset 后命活 key) 与 403 reset-after-1s 同机制 —— 大概率 key 罚态/无 entitlement 命中后空拒, 1s reset 后第二发命中活 key 通。
+★ **latency-ms 在 nvidia 路径下证为真上游生成**:   - llama-3.1-8b `89/111ms` tokens=16 finish=length (max_tokens=16 截满 = 模型真生成 16 token);
+   - glm-5.2 `900ms` tokens=14 finish=stop (自然停, reasoning 走完);
+   - deepseek-v4-flash 偶 `14949ms` tokens=640 (**reasoning model 自思 640 token 后 stop**, max_tokens=16 是输出 token 上限非 reasoning 上限)。
+   ★ 此修正组1v3 原读"big-pickle 16 token 全 reasoning 是 length 截断" —— glm-5.2/deepseek 中 max_tokens=16 是**输出 token 上限**, reasoning_content 不计入, 故 deepseek 自思 640 然后输出 stop, glm 走 reasoning 后 14 输出 stop, big-pickle 走 16 输出 length 截。**big-pickle latency-ms=2~5 与本组 nvidia 真生成数 89~14949ms 对比反差大** → 重证 opencode/big-pickle 路径下 latency-ms 异常小 (见上 header 语义备查 opencode 段)。
+★ **deepseek-v4-flash tail 14.9s = nvidia 路径也有 tail** (非 opencode 模型独占) —— 修正根因卡① tail 仅归 opencode 平台。**tail 是 reasoning model 自思长时不计 max_tokens 上限** 的产物, 非平台独占维度。
+
+### b 分支落定 + 并入序4 C=3 合并重启
+
+- **进 b**: init 脚本扩展 combo/provider 管理 (启动时 Cookie 直连上游 OmniRoute):
+  1. 先 GET `/api/combos` `/api/providers` 读结构 + log (fail-closed 第一跳, 不盲写);
+  2. 下一跳据结构写: 8 死模型 (403/400 持续实效活不下来) 做"压底/禁用", 4 活模型保活 + 优先 nvidia 快模型 (llama-3.1-8b 89ms) 走池;
+  3. nvidia 定向探针续校 8 key 轮转 (活模型连 8+ 发 Space 日志侧看 `Using nvidia account: XXXX` 轮换)。
+- **与序4 C=3 合并同次 Dataset commit + 同次 Space Restart** (重启次数硬约束)。
+- **c 退路**: 若 b 写 GET 读回显死模型本就不可该部署写改 (如 combos 表无 priority 字段 init 不可控), 则回 c 把死模型清单记 audit 备查 + 序4 C=3 单独 Restart。
+
+
 
 排序原则: 一次只动一层, 3.8.48 验收时若有差异归因无歧义。组2 放第 5 序而非现在 —— 1 槽下只复现 429 风暴, 提并发后才有"放行面"可测。
 
@@ -127,4 +170,4 @@
 
 ---
 
-*2026-07-20 R3+ 组1v2 429 根因卡 · K3 审认可 + Satz 三处精修 (big-pickle 走 opencode 非 NIM 池 / 池坍缩 LKGP 非路由误选 / 占槽相接遗留算术经组1v3 钉死) · 序2 组1v3 反转根因卡①(44.5s 是 opencode 上游 tail 非 thinking 常态, 3s 常态) · header 语义待考备查 (latency-ms=2~5 疑路由耗时非上游驻留, 勿反推 opencode 快) · TTFB 钉 SSE 流式消费 + 75s 兜底 · 升级前置 · 序3 拆 3a 探针先行 (/v1 推理路径外部可行零重启, 之前被漏; 据 nvidia 活死清单定 b/c, b 与序4 C=3 合并同次 Dataset+Restart) · 数学: C=3 后 28rpm 桶成新瓶颈理论注记实操不阻塞*
+*2026-07-20 R3+ 组1v2 429 根因卡 · K3 审认可 + Satz 三处精修 · 序2 组1v3 反转根因卡①(44.5s 是 opencode 上游 tail 非 thinking 常态, 3s 常态) · header 语义备查 (latency-ms 随路径变, nvidia 路径=真生成 89~14949ms, opencode/big-pickle 路径 2~5ms 疑边缘缓存/路由, 勿反推平台快慢) · TTFB 钉 SSE 流式消费 + 75s 兜底 · 升级前置 · 序3 拆 3a 探针先行 (/v1 推理路径外部可行零重启, 之前被漏) · **序3a 结果: 4 活 8 死 走 b** (403≠EOL 实是 key entitlement+breaker reset-after-1s 效效死, 剪除对该生产收益明确) · b 与序4 C=3 合并同次 Dataset+Restart · tail 非 opencode 独占 (deepseek-v4-flash nvidia 路径 14.9s = reasoning model 自思长) · 数学: C=3 后 28rpm 桶成新瓶颈理论注记实操不阻塞*

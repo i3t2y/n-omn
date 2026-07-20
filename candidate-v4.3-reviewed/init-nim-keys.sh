@@ -113,8 +113,14 @@ upsert_combo() {
   BODY=$(jq -n --arg name "$NAME" --arg strat "$STRAT" \
                --argjson models "$(models_to_json "${MODELS[@]}")" \
                '{name:$name, strategy:$strat, models:$models}')
+  # R3+ Restart A (i′ 方案): jq 修正式 (裁决 §4 根因 bug).
+  # 旧式 `.combos[]? // .[]? | select(.name==$n)` 因 `//` 优先级低于 `|` 失控:
+  # GET /api/combos 返 {combos:[...]}; `.combos[]?` 对对象遍历失败返空, `// .[]?` 对对象取值失败返空,
+  # 结果 CID 永远空 → 永远 POST → 重名 400 死循环 (幂等 upsert 失效).
+  # 修正式 (数组/对象双容): `if type=="array" then . else (.combos // []) end []? | select(...)`
+  # — 根为数组直接遍历, 根为对象取 combos 字段, 兼两种响应结构.
   CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
-        | jq -r --arg n "$NAME" '.combos[]? // .[]? | select(.name==$n) | .id' | head -n1)
+        | jq -r --arg n "$NAME" '(if type=="array" then . else (.combos // []) end)[]? | select(.name==$n) | .id' | head -n1)
   F="$(_resp omniroute-combo-$NAME.json)"
   if [ -n "$CID" ]; then
     CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
@@ -546,16 +552,21 @@ echo "[init] Resilience (RPM=$_RPM, concurrent=$_CONCURRENT, interval=${_MIN_INT
 # PATCH = 部分更新 (mergeResilienceSettings), 非完整对象; 未传字段保留旧值.
 
 # 显式白名单构造: 从空对象只复制 route.ts:309 接受字段, 禁 ...透传, 不发 undefined, 不发顶层 useUpstream429BreakerHints.
-# 输入校验 (类型/范围) — 28∈[1,60000] RPM, 2200∈[0,600000] ms, 1∈[1,1000] 并发; 非法 init 失败 (不静默 SKIP)
-if ! _res_validate_int "$_RPM" 1 60000 || ! _res_validate_int "$_MIN_INTERVAL_MS" 0 600000 || ! _res_validate_int "$_CONCURRENT" 1 1000; then
-  echo "[init] ✗ Resilience 输入非法 (_RPM=$_RPM / _MIN_INTERVAL_MS=$_MIN_INTERVAL_MS / _CONCURRENT=$_CONCURRENT). init 失败."
+# 输入校验 (类型/范围) — 28∈[1,60000] RPM, 2200∈[0,600000] ms, 1∈[1,1000] 并发, maxWaitMs∈[1,600000] ms;
+#   非法 init 失败 (不静默 SKIP)
+# R3+ Restart A (i′ 方案): maxWaitMs=300000ms (5min 容 thinking 模型长思; 现默认 0/未设→队列满即 429).
+#   requestQueueSettingsSchema z.strict(): maxWaitMs int>=1 可写 (schemas/settings.ts:131-180 L540 注).
+_MAX_WAIT_MS=${NIM_MAX_WAIT_MS:-300000}
+if ! _res_validate_int "$_RPM" 1 60000 || ! _res_validate_int "$_MIN_INTERVAL_MS" 0 600000 || ! _res_validate_int "$_CONCURRENT" 1 1000 || ! _res_validate_int "$_MAX_WAIT_MS" 1 600000; then
+  echo "[init] ✗ Resilience 输入非法 (_RPM=$_RPM / _MIN_INTERVAL_MS=$_MIN_INTERVAL_MS / _CONCURRENT=$_CONCURRENT / _MAX_WAIT_MS=$_MAX_WAIT_MS). init 失败."
   return 1 2>/dev/null || exit 1
 fi
 RESILIENCE_BODY=$(jq -nc \
   --argjson rpm "$_RPM" \
   --argjson minMs "$_MIN_INTERVAL_MS" \
   --argjson conc "$_CONCURRENT" \
-  '{requestQueue:{requestsPerMinute:$rpm, minTimeBetweenRequestsMs:$minMs, concurrentRequests:$conc}}')
+  --argjson maxWait "$_MAX_WAIT_MS" \
+  '{requestQueue:{requestsPerMinute:$rpm, minTimeBetweenRequestsMs:$minMs, concurrentRequests:$conc, maxWaitMs:$maxWait}}')
 echo "[init] Resilience PATCH body keys=[$(echo "$RESILIENCE_BODY" | jq -rc 'keys|join(",")')] requestQueue.keys=[$(echo "$RESILIENCE_BODY" | jq -rc '.requestQueue|keys|join(",")')] (无顶层 useUpstream429BreakerHints)"
 
 # 错误处理区分 HTTP 4xx/5xx vs transport error (根因 #2: status 空无原始异常 → 必留底层 error 信息)
@@ -602,17 +613,19 @@ if [ "$RESILIENCE_CODE" = "200" ] || [ "$RESILIENCE_CODE" = "201" ]; then
   _RB_RPM=$(echo "$_RB" | jq -r '.requestQueue.requestsPerMinute // "null"' 2>/dev/null || echo "jq_fail")
   _RB_MINMS=$(echo "$_RB" | jq -r '.requestQueue.minTimeBetweenRequestsMs // "null"' 2>/dev/null || echo "jq_fail")
   _RB_CONC=$(echo "$_RB" | jq -r '.requestQueue.concurrentRequests // "null"' 2>/dev/null || echo "jq_fail")
-  echo "[init] Resilience 读回: RPM=$_RB_RPM minMs=$_RB_MINMS concurrent=$_RB_CONC (预期 $_RPM/$_MIN_INTERVAL_MS/$_CONCURRENT)"
-  # 严格逐字段验证三目标值; 任一不符 → init 失败 (不再仅 WARN)
+  _RB_MAXWAIT=$(echo "$_RB" | jq -r '.requestQueue.maxWaitMs // "null"' 2>/dev/null || echo "jq_fail")
+  echo "[init] Resilience 读回: RPM=$_RB_RPM minMs=$_RB_MINMS concurrent=$_RB_CONC maxWaitMs=$_RB_MAXWAIT (预期 $_RPM/$_MIN_INTERVAL_MS/$_CONCURRENT/$_MAX_WAIT_MS)"
+  # 严格逐字段验证四目标值; 任一不符 → init 失败 (不再仅 WARN)
   _mismatch=""
   [ "$_RB_RPM" != "$_RPM" ] && _mismatch="$_mismatch RPM($_RB_RPM!=$_RPM)"
   [ "$_RB_MINMS" != "$_MIN_INTERVAL_MS" ] && _mismatch="$_mismatch minTimeMs($_RB_MINMS!=$_MIN_INTERVAL_MS)"
   [ "$_RB_CONC" != "$_CONCURRENT" ] && _mismatch="$_mismatch concurrent($_RB_CONC!=$_CONCURRENT)"
+  [ "$_RB_MAXWAIT" != "$_MAX_WAIT_MS" ] && _mismatch="$_mismatch maxWaitMs($_RB_MAXWAIT!=$_MAX_WAIT_MS)"
   if [ -n "$_mismatch" ]; then
     echo "[init] ✗ Resilience 读回不一致:$_mismatch → init 失败 (CF-4: 限流配置未落定, 不能报告 ready)"
     return 1 2>/dev/null || exit 1
   fi
-  echo "[init] ✓ Resilience 读回全字段一致 (28/1/2200ms 已落定)"
+  echo "[init] ✓ Resilience 读回全字段一致 ($_RPM/$_CONCURRENT/$_MIN_INTERVAL_MS/$_MAX_WAIT_MS 已落定)"
 fi
 
 echo "[init] Routing + maxBodySizeMb=$_REQUEST_BODY_LIMIT_MB..."
@@ -621,6 +634,25 @@ SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" -b "$COOKIE_F
   -d "{\"fallbackStrategy\":\"$_FALLBACK_STRATEGY\",\"stickyRoundRobinLimit\":$_STICKY_LIMIT,\"requestRetry\":2,\"maxRetryIntervalSec\":5,\"maxBodySizeMb\":$_REQUEST_BODY_LIMIT_MB}")
 echo "[init] Settings HTTP $SETTINGS_CODE"
 [ "$SETTINGS_CODE" != "200" ] && [ "$SETTINGS_CODE" != "201" ] && { echo "[init] ⚠️ Settings 非 2xx："; cat "$SETTINGS_RESP_FILE" || true; }
+
+# ── R3+ Restart A (i′ 方案 A): 只读跳 fail-closed 三份 GET (不写, 诊断铺 Restart B 写跳) ──
+#   GET /api/combos /api/combos/auto /api/providers — 记 http + id 列表 (jq 修正式裁决 §4).
+#   fail-closed: 三份 GET 任一 2xx 通即继续 (不阻塞 init); 全 5xx/transport-err 记 audit 不盲写.
+#   此段不改任何状态 — Restart B (写跳分档) 据此三份结构 POST/PUT/PATCH.
+{
+  _RO_COMBO_CODE=$(curl -s --connect-timeout 5 --max-time 20 -o /tmp/omn_ro_combos.json -w "%{http_code}" -b "$COOKIE_FILE" "$BASE_URL/api/combos" 2>/tmp/omn_ro_combos.err)
+  _RO_COMBO_IDS=$(jq -r '(if type=="array" then . else (.combos // []) end)[]? | [.id, .name, .strategy] | @tsv' /tmp/omn_ro_combos.json 2>/dev/null | tr '\n' ';')
+  echo "[init] [readonly] GET /api/combos HTTP $_RO_COMBO_CODE :: combos=[${_RO_COMBO_IDS}]"
+
+  _RO_AUTO_CODE=$(curl -s --connect-timeout 5 --max-time 20 -o /tmp/omn_ro_auto.json -w "%{http_code}" -b "$COOKIE_FILE" "$BASE_URL/api/combos/auto" 2>/tmp/omn_ro_auto.err)
+  _RO_AUTO_SUMMARY=$(jq -r '{id, name, strategy, models: (.models // [] | length)} | @tsv' /tmp/omn_ro_auto.json 2>/dev/null)
+  echo "[init] [readonly] GET /api/combos/auto HTTP $_RO_AUTO_CODE :: auto=[${_RO_AUTO_SUMMARY}]"
+
+  _RO_PROV_CODE=$(curl -s --connect-timeout 5 --max-time 20 -o /tmp/omn_ro_providers.json -w "%{http_code}" -b "$COOKIE_FILE" "$BASE_URL/api/providers" 2>/tmp/omn_ro_providers.err)
+  _RO_PROV_IDS=$(jq -r '[.. | objects | select((.provider? // "")!="") | select(.enabled? // true) | [.id, .provider] | @tsv] | unique | .[]' /tmp/omn_ro_providers.json 2>/dev/null | tr '\n' ';')
+  echo "[init] [readonly] GET /api/providers HTTP $_RO_PROV_CODE :: providers=${_RO_PROV_IDS}"
+  echo "[init] [readonly] 三份 GET 完 — Restart B 写跳据此结构 (POST/PUT/PATCH), Restart A 仅读不写."
+}
 
 echo "[init] Compression (threshold=$_COMPRESS_THRESHOLD)..."
 curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}

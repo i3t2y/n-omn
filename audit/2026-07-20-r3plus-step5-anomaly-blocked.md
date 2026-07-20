@@ -251,3 +251,48 @@ T1 **不可达** (副本在 R2, 凭证不在执行侧 ~/.omn-secrets). 按首席
 T1 不强取 R2 (R2 凭证协取属 Space Secrets 核查类, 按纪律须首席代取或转用户, 不自行试探). 进 T2 决定性零改动 reboot.
 
 ---
+
+## §六②-3 T2 决定性零改动 reboot + settle + nim-codex×3 复探
+
+### 执行
+
+- 19:23:58 触 factory reboot (HF Space restart API POST `nonoke/omn`, http=200, stage=RUNNING_BUILDING)
+- 19:24:44 stage 抵 **RUNNING** (RUNNING_BUILDING → RUNNING_APP_STARTING → RUNNING, ~46s)
+- settle 等 ≥5min (实际至 19:31:20 探针, 距 RUNNING 满 6min36s)
+- **零推送零改码** (init/Dataset/entrypoint 全未动, 纯 factory restart)
+
+### settle 满后探针 (19:31:20)
+
+- healthz OK (active=0 tokens=28 — 非罚态 settle 满)
+- 主路径 glm-5.2 **200** t=5.50s + `x-omniroute-model: z-ai/glm-5.2` + provider=nvidia (init 全绿行为代理证 OmniRoute ready, provider 注册步成跑)
+
+### T2 决定: nim-codex ×3 复探 (model=nim-codex 直路由)
+
+| # | http | t | upstream-id | x-omniroute-model | body |
+|---|------|---|-------------|-------------------|------|
+| 1 | 400 | 1.51s | none | none | unable to determine provider for 'nim-codex' |
+| 2 | 400 | 1.52s | none | none | (同) |
+| 3 | 400 | 1.72s | none | none | (同) |
+
+400 body 原文: `{"error":{"message":"Unable to determine provider for model 'nim-codex'. Use a provider/model prefix (e.g. openai/nim-codex) or ensure the model is added as a combo entry.","type":"invalid_request_error","code":"bad_request"}}`
+
+与重启前 T0 期探针 (Step5 阻塞卡 §2.1) **完全一致**.
+
+### T2 判别表结论 (首席 §3)
+
+首席 §3 判别逻辑: "若 OmniRoute combo 查询按请求读 SQLite (better-sqlite3 同步直读, dashboard 列表始终新鲜, 大概率如此), boot N 的 POST 若真成功, boot N+1 重启后无论 init 再做什么, 探针都该看到 combo; 反之重启后仍 400, 即证明 POST 在每个 boot 都在失败."
+
+**重启后仍 400 = boot N+1 仍无 nim-codex entry = POST 在每个 boot 都在失败** ✓
+
+| 派 | 判别证据 | 结论 |
+|----|---------|------|
+| H3 (热加载/时序 d 派) | POST 曾成功但内存路由表未刷; 重启后旧进程清 + DB 持久 (litestream R2 sync 10s + 本地 sqlite3) + init 重跑 POST 若成探针应见 | 🔴 **否决** — 仍 400 即 POST 从未成功 (DB 无 entry, 非内存未刷) |
+| H1/H2 (POST 未达/被非schema拒) | reboot 后 init 重跑路径同, POST 仍败 | ✓ **POST 在每个 boot 真败** |
+
+### T2 结论 → 进 T3
+
+T2 命中 "POST 真败" 分支. 真根因未定 (POST 真败但 schema/动词已证合规, 必为非 schema 原因 — auth 细粒度/CSRF/Origin/header 缺失/CID 查询非JSON判空走POST重名/...需 init 自持响应体原文证).
+
+按首席 §4: T3 = 唯一批准的代码改动, **纯加法观测面** (fail-visible 落地形态). 前置先核 init 既有 snapshot 上传段通道复用.
+
+---

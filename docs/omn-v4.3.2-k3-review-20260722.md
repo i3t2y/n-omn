@@ -13,6 +13,7 @@
 1. 本稿 7 件来自 `candidate-v4.3.2-staging/`（基于 commit `a4e68a0` 的现役副本 + v4.3.2 改造 M1-M5/M7）。
 2. `candidate-v4.3-reviewed/` 现役谱系在冻结窗内（至 2026-07-23 03:16Z）**未被触碰** — 开工前后双 `find -newer 冻结令起点` 皆空，7 件 mtime 与开工前逐字一致（铁证见附录 C）。
 3. K3 通过后，staging 件与 candidate 的收敛（merge/replace）动作属冻结令管辖，须待窗满或 Supreme 显式解禁后另行下令执行。staging 是一次性审阅载体，K3 verdict 回填后，或解冻并入 candidate，或废弃，不长期维护双份。
+4. **路径口径注记(0 号重排批后, 2026-07-23)**: 上文清单表/各 fenced 段后路径栏凡标 `candidate-v4.3.2-staging/` 者为**重排前 staging 口径**(历史真源标注); staging 已退役, **现役圣源 = `omn-logic/`(≡ HF nonoke/omn-logic 数据集根镜像), 三 P0 件现役圣源 = `patches/p0/`**。sha 链不受路径口径影响(init `4cbcc50120ec` / entrypoint `06178176` 终态 sha 与 fenced 内容逐字一致, 终审三件套 diff 空)。新旧路径映射见 `docs/README.md` 0 号重排批段。
 
 ## 基座声明
 
@@ -50,7 +51,7 @@ M6 原计划项本轮跳过（Supreme 授权可选跳）。
 
 ## [1/7] init-nim-keys.sh
 
-**路径**: `candidate-v4.3.2-staging/init-nim-keys.sh`  **行数**: 995L  **sha256**: `56aac52ab95c0da59bdf0e2d9145d81c0fa4a3a64dab487a793d23dfef920cfc`
+**路径**: `omn-logic/init-nim-keys.sh`  **行数**: 995L  **sha256**: `4cbcc50120ec4bb2ebd2d8a0b00dbfc75dbf9c08992361a9149dd0e8924efcd4`
 
 **变更点**: M1 行148-171 动态限流三式(逐字 baseline-4.2.3) / M2 行739-765 maxWait 四字段读回断言 / M3 行536-642 真探活 POST /v1/chat/completions+auth_dead 跳注册+行610-650 probe后alive重算(硬伤3)+策略对齐(发现C) / M4 行799-806 压缩 enabled:false / M5 行5-8 顶注+行870 jq version v4.3.2+三echo全修(硬伤1). 注释改A(M3已定案)/B1(现役gate零限流) r2落.
 
@@ -1053,7 +1054,7 @@ echo "[init] Done (first-init). v4.3.2"
 ```
 ## [2/7] entrypoint-merged.sh
 
-**路径**: `candidate-v4.3.2-staging/entrypoint-merged.sh`  **行数**: 266L  **sha256**: `e0ca1ece99e0631593f312ce1635f5165d92e2af78ef5c540096e3ddbb2ec6c2`
+**路径**: `omn-logic/entrypoint.sh`  **行数**: 263L  **sha256**: `061781764b45196a30201b6aa91b35fe3d0b0e01be1a7501863285473f69ab8d`
 
 **变更点**: M7 行24-35 超时 env 外科单注 (r3 查证定版: 删 DEFAULT_REQUEST_TIMEOUT_MS 官方变量表缺席作废, 改单注 STREAM_READINESS_TIMEOUT_MS=180000, 不注 REQUEST_TIMEOUT_MS 避双面刃降额; gate 代码零 diff)
 
@@ -1325,7 +1326,7 @@ done
 
 ## [3/7] gate.js
 
-**路径**: `candidate-v4.3.2-staging/gate.js`  **行数**: 520L  **sha256**: `616047c65b6120efd3faec31120528a3f20f3eb19c4f7f9bdd5582d7d6ef01d6`
+**路径**: `omn-logic/gate.js`  **行数**: 520L  **sha256**: `616047c65b6120efd3faec31120528a3f20f3eb19c4f7f9bdd5582d7d6ef01d6`
 
 **变更点**: 零改(现役). K3 审: GATE_UPSTREAM_TIMEOUT_MS 行30 默30000(30s) 语义+生效值(详见 K3 题5). **⚠ KNOWN(发现B2): gate.js 头注"28 RPM/1 并发/2200ms"为 v4.3.1 固定档残留描述, 与 v4.3.2 动态档(alive×35/alive×3, 9key→300/27/200)矛盾; 另头注称"无第二套限流"为真(现役 gate.js 正文 520 行零 tryAcquire/CONCURRENT_LIMIT, 限流唯一杠杆=上游 requestQueue, init 行156-159 注释 r2 已订正对齐). 头注修正属 gate 改动, 本稿保 gate 零 diff, 排期解冻后修.**
 
@@ -1854,7 +1855,7 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 ## [4/7] litestream.yml
 
-**路径**: `candidate-v4.3.2-staging/litestream.yml`  **行数**: 29L  **sha256**: `1563c08de199933a598d57f6db076995ef1911da761f9df6f9e3f7171107b07e`
+**路径**: `omn-logic/litestream.yml`  **行数**: 29L  **sha256**: `1563c08de199933a598d57f6db076995ef1911da761f9df6f9e3f7171107b07e`
 
 **变更点**: 零改(现役). bucket omn-data, sync-interval 10s, auto-recover false, l0-retention 5m.
 
@@ -1892,7 +1893,7 @@ l0-retention-check-interval: 5m
 
 ## [5/7] parseRetryAfter.ts
 
-**路径**: `candidate-v4.3.2-staging/parseRetryAfter.ts`  **行数**: 78L  **sha256**: `2957bc04d109d555acef4b283f33f6070e6d639a3d6687648c6dbf4a50cdaaa3`
+**路径**: `patches/p0/retry-after/parseRetryAfter.ts`  **行数**: 78L  **sha256**: `2957bc04d109d555acef4b283f33f6070e6d639a3d6687648c6dbf4a50cdaaa3`
 
 **变更点**: 零改(P0弹药). Retry-After 两格式解析(秒数 + HTTP-date), NaN→null, 已过→0. mock 10/10.
 
@@ -1979,7 +1980,7 @@ export function parseRetryAfter(
 
 ## [6/7] backoffAndDedup.ts
 
-**路径**: `candidate-v4.3.2-staging/backoffAndDedup.ts`  **行数**: 76L  **sha256**: `7c80486b741288993de64c77f98c784eac1858628d336d1cb401307f25a9a6f8`
+**路径**: `patches/p0/retry-after/backoffAndDedup.ts`  **行数**: 76L  **sha256**: `7c80486b741288993de64c77f98c784eac1858628d336d1cb401307f25a9a6f8`
 
 **变更点**: 零改(P0弹药). 指数退避+确定性伪抖动+DedupStore 去重接口. mock 10/10.
 
@@ -2064,7 +2065,7 @@ export type FingerprintFn = (method: string, path: string, bodyHash: string) => 
 
 ## [7/7] events_schema.sql
 
-**路径**: `candidate-v4.3.2-staging/events_schema.sql`  **行数**: 43L  **sha256**: `dfe9a912206271906f340dd84c06ee80dc0c1c5e9a826ea696a80962781dde71`
+**路径**: `patches/p0/events-table/events_schema.sql`  **行数**: 43L  **sha256**: `dfe9a912206271906f340dd84c06ee80dc0c1c5e9a826ea696a80962781dde71`
 
 **变更点**: 零改(P0弹药). events 表四列(id/ts/event_type/payload)+两索引. 零新增持久通道(乘 Litestream). mock 13/13.
 

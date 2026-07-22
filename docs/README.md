@@ -167,7 +167,7 @@ omn-merge/
 ├── patches/p0/           (events-table + retry-after, 保留至 R3)
 ├── docs/                 (含 omn-v4.3.2-k3-review-20260722.md K3 审阅稿, omn-bundle, DEPLOYMENT_GUIDE)
 ├── audit/                (审计链 00-13 + 时序/归因)
-├── upstream/             (omniroute-3.8.43 + omniroute-3.8.49 只读双树)
+├── upstream/             (omniroute-3.8.43 + omniroute-3.8.49 只读双树, gitlink mode 160000 — ⚠本地裸锚, .gitmodules 无 URL 配套)
 ├── .github/workflows/    (sync-to-hf-space.yml 部署链)
 ├── tools/                (merge_files.py + assemble_k3_*.sh)
 └── archive/              (历史归档, 冻结; 内一切文件不准改)
@@ -175,6 +175,8 @@ omn-merge/
     ├── candidate-v4.3-reviewed/ / baseline-4.2.3/ / 4.2.3/ / 4.3.1/ / 5.0/ / 5.1/ / cf-worker/
     └── omn-legacy/         (← 根 omn/ 整体归档: tabbit 教程 + 版本副 + n-omn-main.zip)
 ```
+
+**upstream/ gitlink 已知状态(2026-07-23, 尾注补记)**: `upstream/omniroute-3.8.43`+`upstream/omniroute-3.8.49` 在本仓以 **gitlink mode 160000** 记录(commit 5c546af), `.gitmodules` **无对应 URL 配套**(`git submodule status` 报 `fatal: no submodule mapping found`)。本地审计仓只读引用无碍 — 工作树有完整上游树实体可 grep/取证; 但**若此仓日后需 push 且要他处 clone 复原上游树, gitlink 需配套 submodule URL** 或改上游树为 vendored 实体入仓。当前定性: 本地审计仓, 无 push 场景, gitlink 裸锚状态已知可接受。上游真源另存 `~/omniroute-v3.8.43@b729a8f`(本地完整 clone, 0 号批前已有)。
 
 ### omn-logic/ 五件清单与 sha
 

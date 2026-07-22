@@ -1,0 +1,359 @@
+#!/bin/bash
+set -eo pipefail
+
+# ─────────────────────────────────────────────────────────────
+# NIM OmniRoute initializer v4.6.0
+# ─────────────────────────────────────────────────────────────
+# Fix from v4.5.6:
+#   1. ALL_LINES 多行拼接改用数组，彻底解决变量解析为空的问题
+#   2. 补全 OR_API_KEY 写入逻辑（v4.5.6 被省略号替代导致 FATAL）
+#   3. 登录前等待健康检查，登录后执行 purge（时序正确）
+# ─────────────────────────────────────────────────────────────
+
+OMNIROUTE_PORT=${OMNIROUTE_PORT:-20128}
+DATA_DIR=${DATA_DIR:-/data}
+DB_PATH="$DATA_DIR/storage.sqlite"
+BASE_URL="http://127.0.0.1:$OMNIROUTE_PORT"
+OR_API_KEY_FILE="$DATA_DIR/.or-api-key"
+COOKIE_FILE="/tmp/or-cookie.txt"
+
+_RPM=${NIM_RPM:-60}
+_CONCURRENT=${NIM_CONCURRENT:-5}
+_MIN_INTERVAL_MS=${NIM_MIN_INTERVAL_MS:-500}
+_FALLBACK_STRATEGY="round-robin"
+_STICKY_LIMIT=1
+_REQUEST_BODY_LIMIT=10485760
+_COMPRESS_MODE="stacked"
+_COMPRESS_THRESHOLD=12000
+_THINKING_MODE="adaptive"
+_THINKING_BUDGET=8000
+
+REGISTERED=0; SKIPPED=0; FAILED=0
+
+# ═════════════════════════════════════════════════════════════
+# 函数定义
+# ═════════════════════════════════════════════════════════════
+
+# ── 1. 物理层防御 ─────────────────────────────────────────────
+purge_proxy_db() {
+  echo "[init] DB: Purging stale proxy state..."
+  if [ -f "$DB_PATH" ]; then
+    sqlite3 "$DB_PATH" "DELETE FROM proxy_assignments WHERE scope = 'global';"
+    sqlite3 "$DB_PATH" "DELETE FROM proxy_registry WHERE name LIKE 'relay-%';"
+    sqlite3 "$DB_PATH" "PRAGMA wal_checkpoint(TRUNCATE);"
+    sync
+    echo "[init] DB: Purge complete."
+  fi
+}
+
+# ── 2. Relay 注册（数组方式，彻底解决变量解析为空）────────────
+register_relays() {
+  echo "[init] Configuring Relay lines..."
+  local RELAY_AUTH="62354bd1ec5b5047ae3987247d73b506743982b2de8eef3732ede26b9846a599"
+  local NOTES="{\"relayAuth\":\"$RELAY_AUTH\"}"
+  local NOW
+  NOW=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+  # ── 线路定义：格式 名称|类型|主机|来源 ──────────────────────
+  # 通过环境变量 RELAY_EXTRA_LINES 可追加更多线路（换行分隔）
+  # 若不设置，使用以下三条默认线路
+  local -a RELAY_LIST=(
+    "relay-vercel-01|vercel|n-or.vercel.app|vercel-relay"
+    "relay-deno-01|deno|n-or.laisiwang.deno.net|deno-relay"
+    "relay-cf-01|cloudflare|n-or.laisiwang.workers.dev|cloudflare-relay"
+  )
+
+  # 追加环境变量中的额外线路
+  if [ -n "$RELAY_EXTRA_LINES" ]; then
+    while IFS= read -r extra_line; do
+      extra_line=$(echo "$extra_line" | tr -d '[:space:]')
+      [ -n "$extra_line" ] && RELAY_LIST+=("$extra_line")
+    done <<< "$RELAY_EXTRA_LINES"
+  fi
+
+  local GLOBAL_ASSIGN_ID=""
+  local GLOBAL_ASSIGN_TYPE=""
+
+  for item in "${RELAY_LIST[@]}"; do
+    # 使用 IFS 分割，避免 cut 在某些环境的兼容问题
+    local R_NAME R_TYPE R_HOST R_SRC
+    R_NAME=$(echo "$item" | cut -d'|' -f1 | tr -d '[:space:]')
+    R_TYPE=$(echo "$item" | cut -d'|' -f2 | tr -d '[:space:]')
+    R_HOST=$(echo "$item" | cut -d'|' -f3 | tr -d '[:space:]')
+    R_SRC=$(echo "$item"  | cut -d'|' -f4 | tr -d '[:space:]')
+
+    [ -z "$R_NAME" ] || [ -z "$R_TYPE" ] || [ -z "$R_HOST" ] && {
+      echo "[init] WARNING: Skipping malformed relay entry: $item"
+      continue
+    }
+
+    # 基于名称生成确定性 UUID（幂等）
+    local R_ID
+    R_ID=$(printf '%s' "$R_NAME" | md5sum | awk '{print $1}' \
+      | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')
+
+    echo "[init] DB: Locking $R_NAME (type=$R_TYPE, host=$R_HOST)..."
+    sqlite3 "$DB_PATH" "
+      INSERT OR REPLACE INTO proxy_registry
+        (id, name, type, host, port, username, password,
+         region, notes, status, source, family, created_at, updated_at)
+      VALUES
+        ('$R_ID', '$R_NAME', '$R_TYPE', '$R_HOST', 443,
+         '', '', NULL, '$NOTES', 'active', '$R_SRC', 'auto',
+         '$NOW', '$NOW');
+    "
+
+    # 优先 vercel（实测最稳），其次 deno，跳过 cloudflare
+    if [ "$R_TYPE" = "cloudflare" ]; then
+      continue
+    fi
+    if [ -z "$GLOBAL_ASSIGN_ID" ] || [ "$R_TYPE" = "vercel" ]; then
+      GLOBAL_ASSIGN_ID="$R_ID"
+      GLOBAL_ASSIGN_TYPE="$R_TYPE"
+    fi
+  done
+
+  # WAL 落盘
+  sqlite3 "$DB_PATH" "PRAGMA wal_checkpoint(TRUNCATE);"
+  sync
+  echo "[init] DB: All relay lines locked."
+
+  # 执行全局分配（显式带 type 防止被后端默认值覆盖）
+  if [ -n "$GLOBAL_ASSIGN_ID" ]; then
+    echo "[init] API: Assigning $GLOBAL_ASSIGN_ID as global (type=$GLOBAL_ASSIGN_TYPE)..."
+    curl -s -b "$COOKIE_FILE" \
+      -X PATCH "$BASE_URL/api/v1/management/proxies" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"id\": \"$GLOBAL_ASSIGN_ID\",
+        \"type\": \"$GLOBAL_ASSIGN_TYPE\",
+        \"assignment\": { \"scope\": \"global\" }
+      }" > /dev/null
+    echo "[init] Global relay assignment complete."
+  fi
+}
+
+# ── 3. 模型注册 ───────────────────────────────────────────────
+register_model() {
+  local MODEL_ID="$1"
+  local CODE
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/provider-models" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg p "nvidia" --arg m "$MODEL_ID" \
+          '{provider:$p, modelId:$m}')")
+  case "$CODE" in
+    200|201) echo "[init] model $MODEL_ID OK" ;;
+    409)     echo "[init] model $MODEL_ID exists" ;;
+    *)       echo "[init] model $MODEL_ID WARN HTTP $CODE" ;;
+  esac
+}
+
+# ── 4. HF Dataset 快照 ───────────────────────────────────────
+_hf_snapshot() {
+  if [ -z "$HF_TOKEN" ] || [ -z "$HF_DATASET_REPO" ]; then
+    echo "[init] HF snapshot skipped."; return 0
+  fi
+  echo "[init] Preparing HF Dataset snapshot..."
+  sleep 5
+  local SNAP="/tmp/omni-snapshot"
+  mkdir -p "$SNAP"
+  local RAW="/tmp/raw_config.json"
+  local CODE
+  CODE=$(curl -s -o "$RAW" -w "%{http_code}" \
+    -b "$COOKIE_FILE" "$BASE_URL/api/settings/export-json")
+  [ "$CODE" != "200" ] && {
+    echo "[init] WARN: export-json HTTP $CODE, skipping."; return 0
+  }
+  jq 'del(.usageHistory,.domainCostHistory,.domainBudgets)|.//{}' \
+    "$RAW" > "$SNAP/omni_config.json"
+  jq '.apiKeys//{}' "$RAW" > "$SNAP/keys.json"
+  jq '.providerConnections//{}' "$RAW" > "$SNAP/providers.json"
+  jq '.settings//{}' "$RAW" > "$SNAP/settings.json"
+  jq '.combos//{}' "$RAW" > "$SNAP/combos.json"
+  b64() { base64 < "$1" | tr -d '\n'; }
+  local PL
+  PL=$(jq -n \
+    --arg msg "Sync - $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg c1 "$(b64 "$SNAP/omni_config.json")" \
+    --arg c2 "$(b64 "$SNAP/keys.json")" \
+    --arg c3 "$(b64 "$SNAP/providers.json")" \
+    --arg c4 "$(b64 "$SNAP/settings.json")" \
+    --arg c5 "$(b64 "$SNAP/combos.json")" \
+    '{summary:$msg,files:[
+      {path:"omni_data/omni_config.json",encoding:"base64",content:$c1},
+      {path:"omni_data/keys.json",encoding:"base64",content:$c2},
+      {path:"omni_data/providers.json",encoding:"base64",content:$c3},
+      {path:"omni_data/settings.json",encoding:"base64",content:$c4},
+      {path:"omni_data/combos.json",encoding:"base64",content:$c5}
+    ]}')
+  local CH
+  CH=$(curl -s -o /tmp/hf-resp.json -w "%{http_code}" \
+    -X POST "https://huggingface.co/api/datasets/$HF_DATASET_REPO/commit/main" \
+    -H "Authorization: Bearer $HF_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$PL")
+  [ "$CH" = "200" ] || [ "$CH" = "201" ] \
+    && echo "[init] HF snapshot OK." \
+    || echo "[init] WARN: HF snapshot HTTP $CH"
+}
+
+# ═════════════════════════════════════════════════════════════
+# 主执行流程
+# ═════════════════════════════════════════════════════════════
+
+echo "[init] Starting NIM OmniRoute initializer v4.6.0..."
+
+[ -z "$INITIAL_PASSWORD" ] && { echo "[init] ERROR: INITIAL_PASSWORD required"; exit 1; }
+[ -z "$NIM_KEYS" ]         && { echo "[init] ERROR: NIM_KEYS required"; exit 1; }
+
+# ── A: 等待 OmniRoute 就绪 ──────────────────────────────────
+echo "[init] Waiting for OmniRoute..."
+until curl -sf "$BASE_URL/api/monitoring/health" > /dev/null 2>&1; do sleep 3; done
+OR_VER=$(curl -sf "$BASE_URL/api/monitoring/health" \
+  | jq -r '.version//"unknown"' 2>/dev/null || echo "unknown")
+echo "[init] OmniRoute ready. v$OR_VER"
+
+# ── B: 登录 ─────────────────────────────────────────────────
+echo "[init] Logging in..."
+LOGIN_HTTP=$(curl -s -o /tmp/or-login.json -w "%{http_code}" \
+  -c "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"password\":\"$INITIAL_PASSWORD\"}")
+[ "$LOGIN_HTTP" != "200" ] && [ "$LOGIN_HTTP" != "201" ] && {
+  echo "[init] ERROR: Login HTTP $LOGIN_HTTP"
+  cat /tmp/or-login.json; exit 1
+}
+echo "[init] Logged in."
+
+# ── C: 获取/创建 OR_API_KEY → 写入 .or-api-key ──────────────
+echo "[init] Resolving OR_API_KEY..."
+DB_KEY=""
+[ -f "$DB_PATH" ] && {
+  DB_KEY=$(sqlite3 "$DB_PATH" \
+    "SELECT key FROM api_keys WHERE name='gate-internal' LIMIT 1;" \
+    2>/dev/null || true)
+  [ -z "$DB_KEY" ] && DB_KEY=$(sqlite3 "$DB_PATH" \
+    "SELECT key FROM api_keys LIMIT 1;" 2>/dev/null || true)
+}
+
+if [ -n "$DB_KEY" ]; then
+  echo "[init] Reusing existing API key."
+  printf '%s' "$DB_KEY" > "$OR_API_KEY_FILE"
+  chmod 600 "$OR_API_KEY_FILE"
+else
+  echo "[init] Creating new API key..."
+  KEY_HTTP=$(curl -s -o /tmp/or-key.json -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/keys" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"gate-internal","expiresAt":null}')
+  [ "$KEY_HTTP" = "200" ] || [ "$KEY_HTTP" = "201" ] || {
+    echo "[init] ERROR: /api/keys HTTP $KEY_HTTP"
+    cat /tmp/or-key.json; exit 1
+  }
+  KEY_VAL=$(jq -r '.key//empty' /tmp/or-key.json)
+  [ -z "$KEY_VAL" ] || [ "$KEY_VAL" = "null" ] && {
+    echo "[init] ERROR: empty key"; exit 1
+  }
+  printf '%s' "$KEY_VAL" > "$OR_API_KEY_FILE"
+  chmod 600 "$OR_API_KEY_FILE"
+fi
+echo "[init] OR_API_KEY written → $OR_API_KEY_FILE"
+
+# ── D: 物理清理（登录后执行，Litestream L0 已稳定）──────────
+purge_proxy_db
+
+# ── E: NIM Keys 批量注册 ─────────────────────────────────────
+echo "[init] Registering NIM provider keys..."
+INDEX=1
+while IFS= read -r RAW_KEY; do
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r\n\t ' )
+  [ -z "$KEY" ] && continue
+  NAME=$(printf "nim-%02d" "$INDEX")
+  BODY=$(jq -n \
+    --arg p "nvidia" --arg k "$KEY" --arg n "$NAME" \
+    '{provider:$p, apiKey:$k, name:$n, priority:1, testStatus:"unknown"}')
+  CODE=$(curl -s -o /tmp/or-p-$INDEX.json -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/providers" \
+    -H "Content-Type: application/json" \
+    -d "$BODY")
+  case "$CODE" in
+    200|201) REGISTERED=$((REGISTERED+1)); echo "[init] $NAME OK" ;;
+    409)     SKIPPED=$((SKIPPED+1));       echo "[init] $NAME skip" ;;
+    *)       FAILED=$((FAILED+1));         echo "[init] $NAME HTTP $CODE" ;;
+  esac
+  INDEX=$((INDEX+1))
+done <<< "$NIM_KEYS"
+echo "[init] Keys: +$REGISTERED skip=$SKIPPED fail=$FAILED"
+
+# ── F: 系统参数 ──────────────────────────────────────────────
+echo "[init] Applying system settings..."
+curl -s -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/resilience" \
+  -H "Content-Type: application/json" \
+  -d "{\"requestQueue\":{
+        \"requestsPerMinute\":$_RPM,
+        \"minTimeBetweenRequestsMs\":$_MIN_INTERVAL_MS,
+        \"concurrentRequests\":$_CONCURRENT}}" > /dev/null
+curl -s -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d "{\"fallbackStrategy\":\"$_FALLBACK_STRATEGY\",
+       \"stickyRoundRobinLimit\":$_STICKY_LIMIT,
+       \"requestBodyLimit\":$_REQUEST_BODY_LIMIT}" > /dev/null
+curl -s -b "$COOKIE_FILE" -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d "{\"compression\":{\"enabled\":true,
+       \"defaultMode\":\"$_COMPRESS_MODE\",
+       \"autoTriggerTokens\":$_COMPRESS_THRESHOLD},
+       \"thinkingBudget\":{\"enabled\":true,
+       \"mode\":\"$_THINKING_MODE\",
+       \"maxTokens\":$_THINKING_BUDGET}}" > /dev/null
+curl -s -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/resilience/reset" \
+  -H "Content-Type: application/json" > /dev/null
+echo "[init] System settings applied."
+
+# ── G: Relay 注册与锁定 ──────────────────────────────────────
+register_relays
+
+# ── H: 增量判断 ──────────────────────────────────────────────
+IS_INIT=$(sqlite3 "$DB_PATH" \
+  "SELECT COUNT(*) FROM combos WHERE name='nim-pool';" \
+  2>/dev/null || echo "0")
+
+if [ "$IS_INIT" -gt 0 ]; then
+  _hf_snapshot
+  echo "[init] Done (incremental). v4.6.0"
+  exit 0
+fi
+
+# ── I: 首次初始化 ────────────────────────────────────────────
+echo "[init] First-time initialization..."
+for MODEL in \
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1" \
+  "nvidia/llama-3.3-nemotron-super-49b-v1" \
+  "nvidia/llama-3.1-nemotron-70b-instruct" \
+  "meta/llama-3.3-70b-instruct" \
+  "meta/llama-3.1-405b-instruct" \
+  "mistralai/mistral-large-2-instruct" \
+  "google/gemma-3-27b-it" \
+  "deepseek-ai/deepseek-r1-0528" \
+  "qwen/qwq-32b" \
+  "moonshotai/kimi-k2-instruct"; do
+  register_model "$MODEL"
+done
+
+COMBO_HTTP=$(curl -s -o /tmp/or-combo.json -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/combos" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"nim-pool","providers":["nvidia"],
+       "fallbackStrategy":"round-robin",
+       "description":"NVIDIA NIM unified pool"}')
+echo "[init] Combo HTTP $COMBO_HTTP"
+
+_hf_snapshot
+echo "[init] First-time init complete. v4.6.0"

@@ -63,7 +63,7 @@ NVIDIA integrate.api.nvidia.com   ← 上游 LLM 推理服务
 ### v4.2.3 相对 v3.8.0 的完整变更
 
 1. **模型分档**：`TIER_FAST`(4) / `TIER_STABLE`(7) / `TIER_RESTRICTED`(5)，由 `NIM_PROFILE=fast|balanced|full` 控制入池范围
-2. **单变量调试**：`NIM_MODE=DEBUG` 开启全程日志归档至 `/data/omni-data/log/` + 关闭 SQLite 自动备份
+2. **单变量调试**：`NIM_MODE=DEBUG` 开启全程日志归档至 `/data/omn-data/log/` + 关闭 SQLite 自动备份
 3. **combo 对象数组格式**：`models_to_json` 生成 `[{"model":"x"}]` 而非 `["x"]`（官方 USER_GUIDE 要求）
 4. **首次探活**：首次初始化也执行 `check_nim_model_health`，自动过滤 NVIDIA 目录中不存在的模型
 5. **路由前缀修正**：`models_to_json` 添加 `sed 's/^/nvidia\//'`，消除 OmniRoute 内置 provider 映射导致的裸 ID 路由歧义
@@ -295,7 +295,7 @@ NVIDIA NIM 存在两层权限验证：
 | `R2_SECRET_ACCESS_KEY` | entrypoint + litestream.yml | Cloudflare R2 秘密密钥 |
 | `R2_ACCOUNT_ID` | entrypoint + litestream.yml | Cloudflare R2 账户 ID |
 | `HF_TOKEN` | init: `hf_snapshot()` 中 HfApi 认证 | HuggingFace Dataset 上传 |
-| `HF_DATASET_REPO` | init: `hf_snapshot()` 中 repo_id | 配置快照目标仓库 |
+| `OMN_DATASET_REPO` | init: `hf_snapshot()` 中 repo_id | 配置快照目标仓库 |
 
 ### 可选调优变量（均有默认值，通常无需设置）
 
@@ -475,7 +475,7 @@ curl -s -w "\nHTTP %{http_code}" \
 
 ### 一键排查
 
-在 HF Settings 中设置 `NIM_MODE=DEBUG`，Factory Reboot，查看 `/data/omni-data/log/init_*.log` 获取完整初始化 trace。
+在 HF Settings 中设置 `NIM_MODE=DEBUG`，Factory Reboot，查看 `/data/omn-data/log/init_*.log` 获取完整初始化 trace。
 
 ---
 

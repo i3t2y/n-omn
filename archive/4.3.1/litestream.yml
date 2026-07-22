@@ -1,0 +1,14 @@
+# litestream.yml — Cloudflare R2 (S3-compatible, 需显式 endpoint)
+dbs:
+  - path: /data/storage.sqlite
+    monitor-interval: 1s
+    checkpoint-interval: 1m
+    replicas:
+      - type: s3
+        bucket: ${R2_BUCKET}
+        path: omniroute-v3
+        endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+        region: auto
+        access-key-id: ${R2_ACCESS_KEY_ID}
+        secret-access-key: ${R2_SECRET_ACCESS_KEY}
+        force-path-style: true

@@ -1,0 +1,41 @@
+name: Sync to Hugging Face
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+
+          DEPLOY_COMMIT=$(git rev-parse main)
+
+          git checkout --orphan hf-temp
+          git rm -rf .
+
+          git checkout "$DEPLOY_COMMIT" -- .
+
+          git rm -rf docs/
+          # git rm -rf 另一个目录/
+          # git rm -f 某个文件.md
+
+          git add -A
+          git commit -m "Deploy from $DEPLOY_COMMIT"
+
+          git push "https://nomke:${HF_TOKEN}@huggingface.co/spaces/nomke/omn" hf-temp:main --force
+
+          git checkout main
+          git branch -D hf-temp

@@ -1,0 +1,1 @@
+{"name": "omniroute-gate-v5", "version": "5.0.0", "description": "OmniRoute 3.8.43 终极优化版 Gate（零依赖纯 Node.js 内置模块）", "main": "gate.js", "scripts": {"start": "node gate.js"}, "engines": {">=18.0.0"}, "keywords": ["omniroute", "gate", "proxy", "nvidia-nim"], "license": "MIT"}

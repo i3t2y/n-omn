@@ -1,0 +1,55 @@
+# =========================================================
+# OmniRoute 一键文件合并工具 (动态命名 + 编码修正版)
+# =========================================================
+
+# 1. 获取当前目录名称 (例如: 4.2.3 或 v4.3)
+$currentDirName = (Get-Item .).Name
+
+# 2. 构建动态输出文件名
+$outputFile = "OmniRoute_Bundle_$($currentDirName).md"
+
+# 3. 定义待合并的目标文件列表
+$targetFiles = @(
+    "Dockerfile", "gate.js", "init-nim-keys.sh", 
+    "litestream.yml", "package.json", "README.md", "entrypoint.sh"
+)
+
+# 4. 初始化 Markdown 内容
+$markdownContent = "# OmniRoute Project Source Archive ($currentDirName)`n"
+$markdownContent += "> 归档版本: $currentDirName | 生成时间: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`n`n"
+
+Write-Host "检测到目录名: $currentDirName" -ForegroundColor Yellow
+
+foreach ($fileName in $targetFiles) {
+    if (Test-Path $fileName) {
+        Write-Host "正在处理: $fileName..." -ForegroundColor Cyan
+        
+        # 强制指定 UTF8 读取，防止中文乱码
+        $content = Get-Content -Path $fileName -Raw -Encoding UTF8
+        
+        # 判定高亮类型
+        $ext = [System.IO.Path]::GetExtension($fileName).ToLower()
+        $lang = "text"
+        switch ($ext) {
+            ".sh"   { $lang = "bash" }
+            ".js"   { $lang = "javascript" }
+            ".json" { $lang = "json" }
+            ".yml"  { $lang = "yaml" }
+            ".md"   { $lang = "markdown" }
+            ""      { if ($fileName -eq "Dockerfile") { $lang = "dockerfile" } }
+        }
+
+        $markdownContent += "## 文件: $fileName`n"
+        $markdownContent += "````$lang`n"
+        $markdownContent += "$content`n"
+        $markdownContent += "`````n`n"
+    } else {
+        Write-Warning "未找到文件: $fileName"
+    }
+}
+
+# 5. 导出文件并强制 UTF8 编码
+$markdownContent | Out-File -FilePath $outputFile -Encoding utf8
+
+Write-Host "`n成功！已根据目录名生成归档文件: " -NoNewline
+Write-Host "$outputFile" -ForegroundColor Green

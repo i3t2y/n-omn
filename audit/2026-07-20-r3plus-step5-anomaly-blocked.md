@@ -1,5 +1,7 @@
 # R3+ Step5 写跳验收闭环 — 异常分支命中阻塞卡 (2026-07-20)
 
+> **状态: 2026-07-21 已闭环.** combo 400 真因钉死 = init readonly 块 jq `@tsv` 喂对象致 `set -e` 静默崩 (upsert 从未执行), 四处补丁应用推送普通 restart 七项核验+双探针全绿实证. 根因/补丁/验收/归档全见 `2026-07-21-nonoke-omn-v4.3.0-rootfix-closure.md`. 本卡为阻塞期过程记录, **不再 open**, 勿据本卡复活旧线程.
+
 > 裁决 A 执行探针发现 combo 未在上游路由表实际建立. nf-codex/nim-pool 两 combo 探针全 400 "Unable to determine provider".
 > 命中裁决 §异常分支 "400/404/503 (combo 不存在或路由失败) → 与 init 全绿推断冲突, 立即停, 不抢修, 向首席请求协取 HF instance 日志".
 

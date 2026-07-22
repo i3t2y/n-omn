@@ -1,0 +1,137 @@
+#!/bin/sh
+set -e
+
+# ── 默认值 ────────────────────────────────────────────────────
+OMNIROUTE_PORT=${OMNIROUTE_PORT:-20128}
+EXPOSED_PORT=${EXPOSED_PORT:-7860}
+DATA_DIR=${DATA_DIR:-/data}
+CALL_LOGS_TABLE_MAX_ROWS=${CALL_LOGS_TABLE_MAX_ROWS:-100000}
+PROXY_LOGS_TABLE_MAX_ROWS=${PROXY_LOGS_TABLE_MAX_ROWS:-100000}
+
+echo "[entrypoint] ── OmniRoute HF Space Entrypoint ──────────────"
+echo "[entrypoint] OMNIROUTE_PORT=$OMNIROUTE_PORT"
+echo "[entrypoint] EXPOSED_PORT=$EXPOSED_PORT"
+echo "[entrypoint] DATA_DIR=$DATA_DIR"
+
+mkdir -p "$DATA_DIR"
+
+# ── Step 1: Litestream restore（OmniRoute 启动前完成）────────
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] R2 credentials found. Attempting Litestream restore..."
+
+  RESTORE_OUTPUT=$(litestream restore \
+    -config /litestream.yml \
+    -if-replica-exists \
+    "$DATA_DIR/storage.sqlite" 2>&1)
+  RESTORE_EXIT=$?
+
+  if [ $RESTORE_EXIT -eq 0 ]; then
+    echo "[entrypoint] Litestream restore complete."
+  elif echo "$RESTORE_OUTPUT" | grep -qi "no replica\|no backup\|not found"; then
+    echo "[entrypoint] INFO: No existing replica found (first deploy). Fresh database."
+  else
+    echo "[entrypoint] FATAL: Litestream restore failed: $RESTORE_OUTPUT"
+    exit 1
+  fi
+else
+  echo "[entrypoint] WARN: R2 credentials not set. Skipping Litestream restore."
+fi
+
+# ── Step 1.5
+# ── 强制同步 INITIAL_PASSWORD → DB password 字段（幂等）──────
+if [ -n "$INITIAL_PASSWORD" ] && [ -f "$DATA_DIR/storage.sqlite" ]; then
+  STORED=$(sqlite3 "$DATA_DIR/storage.sqlite" \
+    "SELECT value FROM key_value WHERE namespace='settings' AND key='password' LIMIT 1;" 2>/dev/null || true)
+  # STORED 是 JSON 序列化值，如 "\"$2b$12$xxx\"" 或 "\"plaintext\""
+  # 判断去掉引号后是否已经是 bcrypt hash（$2b$ 开头）
+  INNER=$(node -e "try{process.stdout.write(JSON.parse(process.env.STORED||'\"\"'))}catch(e){}" STORED="$STORED" 2>/dev/null || true)
+  if echo "$INNER" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
+    echo "[entrypoint] DB password is already bcrypt hash, skipping sync."
+  else
+    echo "[entrypoint] Syncing INITIAL_PASSWORD to DB (plaintext trigger)..."
+    JSON_VALUE=$(node -e "process.stdout.write(JSON.stringify(process.env.INITIAL_PASSWORD))")
+    sqlite3 "$DATA_DIR/storage.sqlite" \
+      "INSERT OR REPLACE INTO key_value (namespace, key, value) VALUES ('settings', 'password', '$JSON_VALUE');"
+    echo "[entrypoint] Password field reset. OmniRoute will auto-migrate to bcrypt on startup."
+  fi
+fi
+
+# ── Step 2: 启动 OmniRoute（后台）────────────────────────────
+echo "[entrypoint] Starting OmniRoute on port $OMNIROUTE_PORT..."
+
+PORT="$OMNIROUTE_PORT" \
+DATA_DIR="$DATA_DIR" \
+REQUIRE_API_KEY=true \
+HOSTNAME=127.0.0.1 \
+NODE_OPTIONS="--max-old-space-size=1024" \
+DISABLE_SQLITE_AUTO_BACKUP=true \
+PROVIDER_LIMITS_SYNC_INTERVAL_MINUTES=1440 \
+CALL_LOGS_TABLE_MAX_ROWS="$CALL_LOGS_TABLE_MAX_ROWS" \
+PROXY_LOGS_TABLE_MAX_ROWS="$PROXY_LOGS_TABLE_MAX_ROWS" \
+JWT_SECRET="$JWT_SECRET" \
+API_KEY_SECRET="$API_KEY_SECRET" \
+INITIAL_PASSWORD="$INITIAL_PASSWORD" \
+node /app/server.js &
+
+OR_PID=$!
+echo "[entrypoint] OmniRoute PID=$OR_PID"
+
+# ── Step 3: 等待 OmniRoute 健康检查（最长 180s）────────────
+echo "[entrypoint] Waiting for OmniRoute health check (max 180s)..."
+i=0
+while [ "$i" -lt 180 ]; do
+  if ! kill -0 "$OR_PID" 2>/dev/null; then
+    echo "[entrypoint] FATAL: OmniRoute exited before becoming ready"
+    exit 1
+  fi
+  if curl -sf "http://127.0.0.1:$OMNIROUTE_PORT/api/monitoring/health" >/dev/null 2>&1; then
+    echo "[entrypoint] OmniRoute ready after ${i}s"
+    break
+  fi
+  sleep 2
+  i=$((i + 2))
+done
+
+if [ "$i" -ge 180 ]; then
+  echo "[entrypoint] FATAL: OmniRoute did not become ready within timeout"
+  exit 1
+fi
+
+# ── Step 4: 后台运行 init 脚本────────────────────────────────
+echo "[entrypoint] Running NIM key init script in background..."
+bash /entrypoint-init-nim.sh &
+
+# ── Step 5: 等待 /data/.or-api-key（最长 120s）──────────────
+echo "[entrypoint] Waiting for OR_API_KEY to be written (max 120s)..."
+j=0
+while [ "$j" -lt 120 ]; do
+  if [ -f "$DATA_DIR/.or-api-key" ] && [ -s "$DATA_DIR/.or-api-key" ]; then
+    echo "[entrypoint] OR_API_KEY ready"
+    break
+  fi
+  if ! kill -0 "$OR_PID" 2>/dev/null; then
+    echo "[entrypoint] FATAL: OmniRoute exited while waiting for OR_API_KEY"
+    exit 1
+  fi
+  sleep 2
+  j=$((j + 2))
+done
+
+if [ ! -f "$DATA_DIR/.or-api-key" ] || [ ! -s "$DATA_DIR/.or-api-key" ]; then
+  echo "[entrypoint] FATAL: OR_API_KEY not created within timeout"
+  exit 1
+fi
+
+# ── Step 6: 启动 Litestream replicate（后台持续复制）────────
+if [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ] && [ -n "$R2_ACCOUNT_ID" ]; then
+  echo "[entrypoint] Starting Litestream replication in background..."
+  litestream replicate -config /litestream.yml &
+  LS_PID=$!
+  echo "[entrypoint] Litestream PID=$LS_PID"
+else
+  echo "[entrypoint] WARN: Litestream replication disabled (no R2 credentials)."
+fi
+
+# ── Step 7: 前台启动 gate.js（撑住容器）─────────────────────
+echo "[entrypoint] Starting gate on port $EXPOSED_PORT..."
+exec node /gate/gate.js

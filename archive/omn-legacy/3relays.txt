@@ -1,0 +1,42 @@
+https://n-or.vercel.app/
+https://n-or.laisiwang.deno.net/
+https://n-or.laisiwang.workers.dev/
+
+
+https://nomke-omn.hf.space/
+
+
+curl -X POST https://nomke-omn.hf.space/api/v1/management/proxies \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "relay-vercel",
+    "type": "https",
+    "host": "n-or.vercel.app",
+    "port": 443,
+    "password": "62354bd1ec5b5047ae3987247d73b506743982b2de8eef3732ede26b9846a599",
+    "status": "active"
+  }'
+
+
+curl -X POST https://nomke-omn.hf.space/api/v1/management/proxies \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "relay-deno",
+    "type": "https",
+    "host": "n-or.laisiwang.deno.net",
+    "port": 443,
+    "password": "62354bd1ec5b5047ae3987247d73b506743982b2de8eef3732ede26b9846a599",
+    "status": "active"
+  }'
+
+
+curl -X POST https://nomke-omn.hf.space/api/v1/management/proxies \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "relay-cf",
+    "type": "https",
+    "host": "n-or.laisiwang.workers.dev",
+    "port": 443,
+    "password": "62354bd1ec5b5047ae3987247d73b506743982b2de8eef3732ede26b9846a599",
+    "status": "active"
+  }'

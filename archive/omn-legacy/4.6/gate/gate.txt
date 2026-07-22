@@ -1,0 +1,76 @@
+// gate/gate.js v4
+// 职责：
+//   1. 管理接口屏蔽（由 ADMIN_ACCESS 环境变量控制）
+//   2. 端口映射（7860 → 127.0.0.1:20128）
+//   3. 容器前台进程
+// 依赖：零（纯 Node 内置模块）
+
+const http = require('http');
+
+const OR_PORT = parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
+const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
+// 新增：读取 ADMIN_ACCESS 变量，默认为 '0' (关闭)
+const ADMIN_ACCESS = process.env.ADMIN_ACCESS === '1';
+
+const server = http.createServer((req, res) => {
+  const p = req.url.split('?')[0];
+
+  // ── 健康检查 ────────────────────────────────────────────
+  if (p === '/healthz') {
+    const probe = http.request(
+      { hostname: '127.0.0.1', port: OR_PORT, path: '/api/monitoring/health', method: 'GET' },
+      (pr) => {
+        pr.ok = pr.statusCode >= 200 && pr.statusCode < 300;
+        res.writeHead(pr.ok ? 200 : 503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: pr.ok }));
+        pr.resume();
+      }
+    );
+    probe.on('error', () => {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false }));
+    });
+    probe.end();
+    return;
+  }
+
+  // ── 管理接口屏蔽逻辑 ─────────────────────────────────────
+  // 如果开启了 ADMIN_ACCESS，全部放行；否则只放行业务端点
+  const allowed =
+    ADMIN_ACCESS ||
+    p.startsWith('/v1') ||
+    p.startsWith('/api/monitoring');
+
+  if (!allowed) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'forbidden', message: 'Admin access is disabled. Set ADMIN_ACCESS=1 in Space secrets to enable.' }));
+    return;
+  }
+
+  // ── 反向代理到 OmniRoute ────────────────────────────────
+  const proxy = http.request(
+    {
+      hostname: '127.0.0.1',
+      port: OR_PORT,
+      path: req.url,
+      method: req.method,
+      headers: req.headers,
+    },
+    (pr) => {
+      res.writeHead(pr.statusCode, pr.headers);
+      pr.pipe(res);
+    }
+  );
+
+  proxy.on('error', () => {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'bad gateway' }));
+  });
+
+  req.pipe(proxy);
+});
+
+server.listen(GATE_PORT, '0.0.0.0', () => {
+  console.log(`[gate] Listening on 0.0.0.0:${GATE_PORT} → 127.0.0.1:${OR_PORT}`);
+  console.log(`[gate] Admin access is ${ADMIN_ACCESS ? 'ENABLED' : 'DISABLED'}`);
+});

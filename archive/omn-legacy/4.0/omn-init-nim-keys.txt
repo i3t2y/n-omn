@@ -1,0 +1,415 @@
+#!/bin/bash
+set -eo pipefail
+
+# ─────────────────────────────────────────────────────────────
+# NIM OmniRoute initializer
+# v4.0.0
+# 核心变更（相比 v3.x）：
+#   - 弃用文件标记（/data/.or-api-key 存在性、/data/.init-done）
+#   - 改为直接查询 SQLite 判断初始化状态，容器重建后完全幂等
+#   - API Key：优先从 api_keys 表读取已有 key，无则创建
+#   - NIM Keys：POST 注册，已有则 409 跳过
+#   - Combo：查询 combos 表，已有 nim-pool 则跳过首次初始化段
+# ─────────────────────────────────────────────────────────────
+
+# ── 路径与端口配置 ────────────────────────────────────────────
+OMNIROUTE_PORT=${OMNIROUTE_PORT:-20128}
+DATA_DIR=${DATA_DIR:-/data}
+DB_PATH="$DATA_DIR/storage.sqlite"
+
+BASE_URL="http://127.0.0.1:$OMNIROUTE_PORT"
+OR_API_KEY_FILE="$DATA_DIR/.or-api-key"
+COOKIE_FILE="/tmp/or-cookie.txt"
+
+# ── 临时文件 ──────────────────────────────────────────────────
+LOGIN_RESP_FILE="/tmp/or-login.json"
+KEY_RESP_FILE="/tmp/or-key.json"
+RESILIENCE_RESP_FILE="/tmp/or-resilience.json"
+SETTINGS_RESP_FILE="/tmp/or-settings.json"
+COMPRESS_RESP_FILE="/tmp/or-compress.json"
+MEMORY_LEGACY_RESP_FILE="/tmp/or-memory-legacy.json"
+MEMORY_EXT_RESP_FILE="/tmp/or-memory-ext.json"
+COMBO_RESP_FILE="/tmp/or-combo.json"
+
+# ── 动态参数（HF Space Variables 可覆盖）────────────────────
+_RPM=${NIM_RPM:-60}
+_CONCURRENT=${NIM_CONCURRENT:-5}
+_MIN_INTERVAL_MS=${NIM_MIN_INTERVAL_MS:-500}
+_FALLBACK_STRATEGY="round-robin"
+_STICKY_LIMIT=1
+_REQUEST_BODY_LIMIT=10485760
+_COMPRESS_MODE="stacked"
+_COMPRESS_THRESHOLD=12000
+_THINKING_MODE="adaptive"
+_THINKING_BUDGET=8000
+
+REGISTERED=0
+SKIPPED=0
+FAILED=0
+
+echo "[init] Starting NIM OmniRoute initializer v4.0.0..."
+echo "[init] BASE_URL=$BASE_URL"
+echo "[init] DB_PATH=$DB_PATH"
+
+# ── 必要环境变量检查 ──────────────────────────────────────────
+if [ -z "$INITIAL_PASSWORD" ]; then
+  echo "[init] ERROR: INITIAL_PASSWORD is required"
+  exit 1
+fi
+
+if [ -z "$NIM_KEYS" ]; then
+  echo "[init] ERROR: NIM_KEYS is required"
+  exit 1
+fi
+
+# ── 等待 OmniRoute 就绪 ───────────────────────────────────────
+echo "[init] Waiting for OmniRoute to start..."
+until curl -sf "$BASE_URL/api/monitoring/health" > /dev/null 2>&1; do
+  sleep 3
+done
+echo "[init] OmniRoute is up."
+
+# ── 版本探测 ──────────────────────────────────────────────────
+OR_VERSION=$(curl -sf "$BASE_URL/api/monitoring/health" 2>/dev/null \
+  | jq -r '.version // "unknown"' 2>/dev/null || echo "unknown")
+echo "[init] OmniRoute version: $OR_VERSION"
+
+# ── 登录 ──────────────────────────────────────────────────────
+echo "[init] Logging in..."
+
+LOGIN_HTTP=$(curl -s -o "$LOGIN_RESP_FILE" -w "%{http_code}" \
+  -c "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"password\":\"$INITIAL_PASSWORD\"}")
+
+if [ "$LOGIN_HTTP" != "200" ] && [ "$LOGIN_HTTP" != "201" ]; then
+  echo "[init] ERROR: Login failed, HTTP $LOGIN_HTTP"
+  cat "$LOGIN_RESP_FILE" || true
+  exit 1
+fi
+
+if ! grep -q "auth_token" "$COOKIE_FILE" 2>/dev/null; then
+  echo "[init] ERROR: No auth_token cookie received"
+  exit 1
+fi
+
+echo "[init] Logged in."
+
+# ── API Key：从数据库读取已有 key，无则创建 ──────────────────
+#
+# 重建幂等的核心：不依赖 .or-api-key 文件是否存在，
+# 而是直接查询 api_keys 表。Litestream 恢复后表有数据则复用，
+# 确保每次重建后 gate.js 使用的 key 完全一致。
+#
+echo "[init] Checking api_keys table for existing key..."
+
+DB_KEY=""
+if [ -f "$DB_PATH" ]; then
+  DB_KEY=$(sqlite3 "$DB_PATH" \
+    "SELECT key FROM api_keys WHERE name='gate-internal' LIMIT 1;" \
+    2>/dev/null || true)
+
+  # 兜底：name 可能不同，取任意一个
+  if [ -z "$DB_KEY" ]; then
+    DB_KEY=$(sqlite3 "$DB_PATH" \
+      "SELECT key FROM api_keys LIMIT 1;" \
+      2>/dev/null || true)
+  fi
+fi
+
+if [ -n "$DB_KEY" ]; then
+  echo "[init] Found existing API key in database, reusing."
+  echo "$DB_KEY" > "$OR_API_KEY_FILE"
+  chmod 600 "$OR_API_KEY_FILE"
+  echo "[init] OR_API_KEY written from DB to $OR_API_KEY_FILE"
+else
+  echo "[init] No existing key in DB, creating via /api/keys..."
+
+  KEY_HTTP=$(curl -s -o "$KEY_RESP_FILE" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/keys" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"gate-internal","expiresAt":null}')
+
+  if [ "$KEY_HTTP" = "200" ] || [ "$KEY_HTTP" = "201" ]; then
+    OR_API_KEY_VALUE=$(jq -r '.key // empty' "$KEY_RESP_FILE")
+
+    if [ -z "$OR_API_KEY_VALUE" ] || [ "$OR_API_KEY_VALUE" = "null" ]; then
+      echo "[init] ERROR: Created key but could not parse .key from response"
+      cat "$KEY_RESP_FILE" || true
+      exit 1
+    fi
+
+    echo "$OR_API_KEY_VALUE" > "$OR_API_KEY_FILE"
+    chmod 600 "$OR_API_KEY_FILE"
+    echo "[init] OR_API_KEY created and written to $OR_API_KEY_FILE"
+  else
+    echo "[init] ERROR: /api/keys returned HTTP $KEY_HTTP"
+    cat "$KEY_RESP_FILE" || true
+    exit 1
+  fi
+fi
+
+# ── NIM Keys 批量注册（幂等：已有 409 跳过）─────────────────
+echo "[init] Registering NIM provider keys..."
+
+INDEX=1
+while IFS= read -r RAW_KEY; do
+  KEY=$(printf '%s' "$RAW_KEY" | tr -d '\r' | xargs)
+  [ -z "$KEY" ] && continue
+
+  NAME=$(printf "nim-%02d" "$INDEX")
+  RESP_FILE="/tmp/or-provider-$INDEX.json"
+
+  BODY=$(jq -n \
+    --arg provider "nvidia" \
+    --arg apiKey "$KEY" \
+    --arg name "$NAME" \
+    '{provider: $provider, apiKey: $apiKey, name: $name, priority: 1, testStatus: "unknown"}')
+
+  HTTP_CODE=$(curl -s -o "$RESP_FILE" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/providers" \
+    -H "Content-Type: application/json" \
+    -d "$BODY")
+
+  case "$HTTP_CODE" in
+    200|201) echo "[init] $NAME registered OK";        REGISTERED=$((REGISTERED + 1)) ;;
+    409)     echo "[init] $NAME already exists, skip"; SKIPPED=$((SKIPPED + 1)) ;;
+    *)       echo "[init] $NAME unexpected HTTP $HTTP_CODE"
+             cat "$RESP_FILE" || true
+             FAILED=$((FAILED + 1)) ;;
+  esac
+
+  INDEX=$((INDEX + 1))
+done <<< "$NIM_KEYS"
+
+echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed."
+
+# ── Resilience 配置 ───────────────────────────────────────────
+echo "[init] Applying Resilience config (RPM=$_RPM, interval=${_MIN_INTERVAL_MS}ms, concurrent=$_CONCURRENT)..."
+
+RESILIENCE_CODE=$(curl -s -o "$RESILIENCE_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/resilience" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"requestQueue\": {
+      \"requestsPerMinute\": $_RPM,
+      \"minTimeBetweenRequestsMs\": $_MIN_INTERVAL_MS,
+      \"concurrentRequests\": $_CONCURRENT
+    }
+  }")
+
+echo "[init] Resilience PATCH HTTP $RESILIENCE_CODE"
+if [ "$RESILIENCE_CODE" != "200" ] && [ "$RESILIENCE_CODE" != "204" ]; then
+  echo "[init] WARN: Resilience config may have failed:"
+  cat "$RESILIENCE_RESP_FILE" || true
+fi
+
+# ── Settings（路由策略 + 请求体限制）─────────────────────────
+SETTINGS_CODE=$(curl -s -o "$SETTINGS_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"fallbackStrategy\": \"$_FALLBACK_STRATEGY\",
+    \"stickyRoundRobinLimit\": $_STICKY_LIMIT,
+    \"requestBodyLimit\": $_REQUEST_BODY_LIMIT
+  }")
+
+echo "[init] Settings routing HTTP $SETTINGS_CODE"
+
+# ── Compression + Thinking Budget ────────────────────────────
+COMPRESS_CODE=$(curl -s -o "$COMPRESS_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"compression\": {
+      \"enabled\": true,
+      \"defaultMode\": \"$_COMPRESS_MODE\",
+      \"autoTriggerTokens\": $_COMPRESS_THRESHOLD
+    },
+    \"thinkingBudget\": {
+      \"enabled\": true,
+      \"mode\": \"$_THINKING_MODE\",
+      \"maxTokens\": $_THINKING_BUDGET
+    }
+  }")
+
+echo "[init] Compression + Thinking HTTP $COMPRESS_CODE"
+
+# ── Memory legacy config + Skills ────────────────────────────
+MEMORY_LEGACY_CODE=$(curl -s -o "$MEMORY_LEGACY_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PATCH "$BASE_URL/api/settings" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memoryEnabled": true,
+    "memoryStrategy": "hybrid",
+    "memoryMaxTokens": 2000,
+    "memoryRetentionDays": 30,
+    "skillsEnabled": true
+  }')
+
+echo "[init] Memory legacy + Skills HTTP $MEMORY_LEGACY_CODE"
+
+# ── Memory extended config（PUT /api/settings/memory）────────
+MEMORY_EXT_CODE=$(curl -s -o "$MEMORY_EXT_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X PUT "$BASE_URL/api/settings/memory" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "embeddingSource": "remote",
+    "embeddingProviderModel": "voyage-ai/voyage-3",
+    "staticEnabled": false,
+    "transformersEnabled": false
+  }')
+
+echo "[init] Memory extended HTTP $MEMORY_EXT_CODE"
+
+# ── Circuit breaker reset ─────────────────────────────────────
+CB_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/resilience/reset" \
+  -H "Content-Type: application/json")
+
+echo "[init] Circuit breaker reset HTTP $CB_CODE"
+
+# ── 参数摘要 ──────────────────────────────────────────────────
+echo "[init] ──────────────────────────────────────────────────────"
+echo "[init]   RPM=$_RPM  interval=${_MIN_INTERVAL_MS}ms  concurrent=$_CONCURRENT"
+echo "[init]   strategy=$_FALLBACK_STRATEGY  bodyLimit=${_REQUEST_BODY_LIMIT}B"
+echo "[init]   compress=$_COMPRESS_MODE @ ${_COMPRESS_THRESHOLD}t"
+echo "[init]   thinking=$_THINKING_MODE @ ${_THINKING_BUDGET}t"
+echo "[init] ──────────────────────────────────────────────────────"
+
+# ── 首次初始化检查：查询 combos 表（不依赖文件标记）────────
+#
+# nim-pool combo 存在 = 首次初始化已完成
+# 使用 combos 表而非 provider_connections 的原因：
+#   combo 创建是初始化最后一步，存在即代表流程完整走完过
+#
+echo "[init] Checking first-init status via SQLite (combos table)..."
+
+IS_INITIALIZED=0
+if [ -f "$DB_PATH" ]; then
+  COMBO_COUNT=$(sqlite3 "$DB_PATH" \
+    "SELECT COUNT(*) FROM combos WHERE name='nim-pool';" \
+    2>/dev/null || echo "0")
+
+  if [ "${COMBO_COUNT:-0}" -gt 0 ] 2>/dev/null; then
+    IS_INITIALIZED=1
+  fi
+fi
+
+if [ "$IS_INITIALIZED" = "1" ]; then
+  echo "[init] Already initialized (nim-pool combo found in DB). Skipping model/combo registration."
+  echo "[init] Done (incremental mode). v4.0.0"
+  exit 0
+fi
+
+echo "[init] First-time init: registering models and combos..."
+
+# ── 模型注册 ──────────────────────────────────────────────────
+register_model() {
+  local MODEL_ID="$1"
+  local RESP="/tmp/or-model-$(echo "$MODEL_ID" | tr '/' '-').json"
+
+  CODE=$(curl -s -o "$RESP" -w "%{http_code}" \
+    -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/provider-models" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n \
+      --arg provider "nvidia" \
+      --arg modelId "$MODEL_ID" \
+      '{provider: $provider, modelId: $modelId}')")
+
+  case "$CODE" in
+    200|201) echo "[init] model $MODEL_ID OK" ;;
+    409)     echo "[init] model $MODEL_ID already exists" ;;
+    *)       echo "[init] model $MODEL_ID WARN HTTP $CODE"; cat "$RESP" || true ;;
+  esac
+}
+
+# nim-pool 核心模型
+register_model "minimaxai/minimax-m2.7"
+register_model "moonshotai/kimi-k2-thinking"
+register_model "moonshotai/kimi-k2.6"
+register_model "z-ai/glm-5.1"
+register_model "nvidia/nemotron-3-super-120b-a12b"
+register_model "qwen/qwen3-coder-480b-a35b-instruct"
+register_model "mistralai/mistral-small-4-119b-2603"
+register_model "mistralai/mistral-medium-3.5-128b"
+register_model "meta/llama-3.2-90b-vision-instruct"
+
+# 额外目录项（备用，不放入 Combo）
+register_model "deepseek-ai/deepseek-v4-pro"
+register_model "deepseek-ai/deepseek-v4-flash"
+
+echo "[init] Model registration done."
+
+# ── Combo: nim-pool（通用，round-robin）─────────────────────
+COMBO_CODE=$(curl -s -o "$COMBO_RESP_FILE" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/combos" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "nim-pool",
+    "strategy": "round-robin",
+    "models": [
+      "minimaxai/minimax-m2.7",
+      "moonshotai/kimi-k2-thinking",
+      "moonshotai/kimi-k2.6",
+      "z-ai/glm-5.1",
+      "nvidia/nemotron-3-super-120b-a12b",
+      "qwen/qwen3-coder-480b-a35b-instruct",
+      "mistralai/mistral-small-4-119b-2603",
+      "mistralai/mistral-medium-3.5-128b",
+      "meta/llama-3.2-90b-vision-instruct"
+    ]
+  }')
+
+echo "[init] Combo nim-pool HTTP $COMBO_CODE"
+if [ "$COMBO_CODE" != "200" ] && [ "$COMBO_CODE" != "201" ]; then
+  echo "[init] WARN: nim-pool combo response:"
+  cat "$COMBO_RESP_FILE" || true
+fi
+
+# ── Combo: nim-codex（代码任务，context-relay）───────────────
+#
+# context-relay：Key 耗尽时自动生成上下文摘要注入给下一个 Key
+# 适合 Codex CLI、大型重构、多轮代码审查
+# 使用方式：客户端 model 填 nim-codex
+#
+CODEX_COMBO_RESP="/tmp/or-codex-combo.json"
+
+CODEX_CODE=$(curl -s -o "$CODEX_COMBO_RESP" -w "%{http_code}" \
+  -b "$COOKIE_FILE" \
+  -X POST "$BASE_URL/api/combos" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "nim-codex",
+    "strategy": "context-relay",
+    "models": [
+      "qwen/qwen3-coder-480b-a35b-instruct",
+      "deepseek-ai/deepseek-v4-pro",
+      "mistralai/mistral-medium-3.5-128b"
+    ]
+  }')
+
+echo "[init] Combo nim-codex HTTP $CODEX_CODE"
+if [ "$CODEX_CODE" != "200" ] && [ "$CODEX_CODE" != "201" ]; then
+  echo "[init] WARN: nim-codex combo response:"
+  cat "$CODEX_COMBO_RESP" || true
+fi
+
+# ── 最终健康检查 ──────────────────────────────────────────────
+HEALTH=$(curl -sf "$BASE_URL/api/monitoring/health" 2>/dev/null || echo '{}')
+echo "[init] ──────────────────────────────────────────────────────"
+echo "[init] Final status  : $(echo "$HEALTH" | jq -r '.status // "unknown"')"
+echo "[init] Final version : $(echo "$HEALTH" | jq -r '.version // "unknown"')"
+echo "[init] ──────────────────────────────────────────────────────"
+echo "[init] Done (first-init mode). v4.0.0"

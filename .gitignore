@@ -10,6 +10,15 @@ node_modules/
 .env
 .env.*
 
+# 密钥文件
+*.key
+secrets/
+*.pem
+
+# pm.py — 含明文 dev key (T+48h 轮换), 绝不入 git
+pm.py
+pm_*.py
+
 # 临时快照目录
 /tmp/omni-snapshot/
 
@@ -19,3 +28,7 @@ audit-report.md
 # macOS
 .DS_Store
 .claude/
+
+# 自验临时脚本
+.claude/hooks/_selftest.py
+.claude/hooks/*.pyc

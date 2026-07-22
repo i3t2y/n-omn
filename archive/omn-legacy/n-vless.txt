@@ -1,0 +1,620 @@
+# ── Notepad-- 处理：Ctrl+H → 查找 @{{ → 替换 ${{ → 全部替换
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  sync-deploy.yml — n-vless 自动部署脚本（最终优化版）           ║
+# ║                                                                  ║
+# ║  流水线结构：                                                    ║
+# ║    gate（门控 + PRESET 解析 + 构建 matrix）                      ║
+# ║      ├─ gen-names   （GEN_NAMES=1 时）                           ║
+# ║      └─ sync → deploy × N （正常部署时）                         ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: n-vless sync & deploy
+
+on:
+  # 定时触发：每天 UTC 03:00，可被 CRON_ENABLE=0 屏蔽
+  schedule:
+    - cron: '0 3 * * *'
+
+  # 手动触发：可在界面填写 preset 一次性覆盖 Variables，不影响持久配置
+  workflow_dispatch:
+    inputs:
+      preset:
+        description: >
+          场景预设（留空则沿用 Variables）：
+          gen | first | daily | solo:N | secrets | delete:1 | delete:all
+        required: false
+        default: ''
+
+# ── 并发控制 ──────────────────────────────────────────────────────────
+# 同一时间只允许一个 workflow 实例运行，防止手动触发和定时触发撞车互删 Worker
+# cancel-in-progress: false = 不取消正在跑的，新触发的排队等待
+concurrency:
+  group: n-vless-deploy
+  cancel-in-progress: false
+
+jobs:
+
+  # ════════════════════════════════════════════════════════════════════
+  # gate：门控 + PRESET 解析 + 构建动态 matrix
+  # 所有下游 job 的行为参数都由此 job 的 outputs 决定
+  # ════════════════════════════════════════════════════════════════════
+  gate:
+    runs-on: ubuntu-latest
+    # outputs 声明：把 run 步骤写入 $GITHUB_OUTPUT 的值暴露给下游 job
+    # 下游通过 needs.gate.outputs.<key> 读取
+    outputs:
+      proceed:      ${{ steps.check.outputs.proceed }}
+      matrix:       ${{ steps.check.outputs.matrix }}
+      gen_names:    ${{ steps.check.outputs.gen_names }}
+      pass_mode:    ${{ steps.check.outputs.pass_mode }}
+      delete_mode:  ${{ steps.check.outputs.delete_mode }}
+      secrets_only: ${{ steps.check.outputs.secrets_only }}
+      sync_code:    ${{ steps.check.outputs.sync_code }}
+      sub_mode:     ${{ steps.check.outputs.sub_mode }}
+      fake_page:    ${{ steps.check.outputs.fake_page }}
+      fake_url:     ${{ steps.check.outputs.fake_url }}
+
+    steps:
+      - name: Check Gate & Build Matrix
+        id: check
+        env:
+          # 三层优先级数据来源：
+          # 第一层：本次手动触发在界面填写的 preset（一次性，不持久）
+          PRESET_INPUT:  ${{ github.event.inputs.preset }}
+          # 第二层：Variables 中持久保存的 PRESET（日常默认场景）
+          PRESET_VAR:    ${{ vars.PRESET }}
+          # 第三层：各细粒度变量（PRESET 为空时的最终兜底值）
+          CRON_ENABLE:   ${{ vars.CRON_ENABLE }}
+          EVENT_NAME:    ${{ github.event_name }}
+          DEPLOY_SCOPE:  ${{ vars.DEPLOY_SCOPE }}
+          SOLO_INDEX:    ${{ vars.SOLO_INDEX }}
+          GEN_NAMES:     ${{ vars.GEN_NAMES }}
+          PASS_MODE:     ${{ vars.PASS_MODE }}
+          DELETE_MODE:   ${{ vars.DELETE_MODE }}
+          SECRETS_ONLY:  ${{ vars.SECRETS_ONLY }}
+          SYNC_CODE:     ${{ vars.SYNC_CODE }}
+          SUB_MODE:      ${{ vars.SUB_MODE }}
+          FAKE_PAGE:     ${{ vars.FAKE_PAGE }}
+          FAKE_URL:      ${{ vars.FAKE_URL }}
+
+        run: |
+          # ── PRESET 解析（三层优先级）────────────────────────────
+          # bash 的 :- 语法：若 A 为空则取 B，类似 Python 的 a or b
+          # 优先级：inputs.preset > vars.PRESET > 细粒度变量（不改动）
+          PRESET="${PRESET_INPUT:-$PRESET_VAR}"
+          echo ">>> PRESET resolved: '$PRESET'"
+
+          # case 语句类似 Python 的 match-case（Python 3.10+）
+          # 根据 PRESET 值覆盖对应的细粒度变量
+          case "$PRESET" in
+
+            gen)
+              # 只生成随机 Worker 名，不做任何部署
+              GEN_NAMES=1
+              ;;
+
+            first)
+              # 首次全量部署：双 pass 绕过 CF 扫描
+              GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=2
+              ;;
+
+            daily)
+              # 日常维护：全部账号单次快速部署
+              GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=1
+              ;;
+
+            solo:*)
+              # 单账号部署，冒号后的数字为账号位置
+              # bash 去前缀语法：${var#prefix} 删除 prefix
+              # 类似 Python 的 s.removeprefix('solo:')
+              GEN_NAMES=0; DEPLOY_SCOPE=1; SOLO_INDEX="${PRESET#solo:}"
+              ;;
+
+            secrets)
+              # 只更新 Secrets，不重新部署 Worker 代码
+              GEN_NAMES=0; SECRETS_ONLY=1
+              ;;
+
+            delete:1)
+              # 删除各账号中 WORKER_NAMES 对应的 Worker
+              GEN_NAMES=0; DELETE_MODE=1; SECRETS_ONLY=0
+              ;;
+
+            delete:all)
+              # 删除各账号下所有 Worker（清空重置，慎用）
+              GEN_NAMES=0; DELETE_MODE=2; SECRETS_ONLY=0
+              ;;
+
+            "")
+              # PRESET 为空：沿用所有细粒度变量，不覆盖任何值
+              echo ">>> No PRESET, using individual Variables as-is"
+              ;;
+
+            *)
+              # 未知 PRESET 值：打印警告，回退到细粒度变量
+              echo "WARNING: Unknown PRESET='$PRESET', falling back to individual vars"
+              ;;
+          esac
+
+          # ── 定时触发门控 ─────────────────────────────────────────
+          # EVENT_NAME=schedule 且 CRON_ENABLE=0 时，拦截定时触发
+          # 手动触发（workflow_dispatch）不受此限制
+          if [ "$EVENT_NAME" = "schedule" ] && [ "$CRON_ENABLE" = "0" ]; then
+            echo ">>> Cron blocked (CRON_ENABLE=0), skipping all jobs"
+            echo "proceed=false"         >> $GITHUB_OUTPUT
+            echo 'matrix={"index":[1]}' >> $GITHUB_OUTPUT
+            # 填入安全默认值，防止下游 job 读到空值报错（虽然它们不会运行）
+            echo "gen_names=0"           >> $GITHUB_OUTPUT
+            echo "pass_mode=1"           >> $GITHUB_OUTPUT
+            echo "delete_mode=1"         >> $GITHUB_OUTPUT
+            echo "secrets_only=0"        >> $GITHUB_OUTPUT
+            echo "sync_code=0"           >> $GITHUB_OUTPUT
+            echo "sub_mode=1"            >> $GITHUB_OUTPUT
+            echo "fake_page=0"           >> $GITHUB_OUTPUT
+            echo "fake_url="             >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo ">>> Gate passed (event: $EVENT_NAME)"
+          echo "proceed=true" >> $GITHUB_OUTPUT
+
+          # ── 将解析后的变量写入 outputs ────────────────────────────
+          # $GITHUB_OUTPUT 是 Actions 提供的特殊文件路径
+          # 向其写入 key=value，其他 job 通过 needs.gate.outputs.key 读取
+          # 类似 Python 函数的 return，但是 key-value 形式
+          echo "gen_names=$GEN_NAMES"       >> $GITHUB_OUTPUT
+          echo "pass_mode=$PASS_MODE"       >> $GITHUB_OUTPUT
+          echo "delete_mode=$DELETE_MODE"   >> $GITHUB_OUTPUT
+          echo "secrets_only=$SECRETS_ONLY" >> $GITHUB_OUTPUT
+          echo "sync_code=$SYNC_CODE"       >> $GITHUB_OUTPUT
+          echo "sub_mode=$SUB_MODE"         >> $GITHUB_OUTPUT
+          echo "fake_page=$FAKE_PAGE"       >> $GITHUB_OUTPUT
+          echo "fake_url=$FAKE_URL"         >> $GITHUB_OUTPUT
+
+          # ── 构建动态 matrix ──────────────────────────────────────
+          # matrix 是一个 JSON 对象，决定 deploy job 并行启动几个实例
+          # GEN_NAMES=1：不需要 deploy，给占位值
+          # DEPLOY_SCOPE=2：10 个账号全部跑
+          # DEPLOY_SCOPE=1：只跑 SOLO_INDEX 那一个
+          if [ "$GEN_NAMES" = "1" ]; then
+            echo 'matrix={"index":[1]}' >> $GITHUB_OUTPUT
+            echo ">>> Matrix: placeholder (gen-names mode)"
+          elif [ "$DEPLOY_SCOPE" = "2" ]; then
+            echo 'matrix={"index":[1,2,3,4,5,6,7,8,9,10]}' >> $GITHUB_OUTPUT
+            echo ">>> Matrix: all 10 accounts"
+          else
+            # 单账号模式：只包含 SOLO_INDEX 这一个值
+            # 例：SOLO_INDEX=3 → matrix={"index":[3]}
+            echo "matrix={\"index\":[$SOLO_INDEX]}" >> $GITHUB_OUTPUT
+            echo ">>> Matrix: solo index $SOLO_INDEX"
+          fi
+
+  # ════════════════════════════════════════════════════════════════════
+  # gen-names：生成随机 Worker 名并写入 Variables
+  # 仅当 gate 解析结果 gen_names=1 时运行
+  # ════════════════════════════════════════════════════════════════════
+  gen-names:
+    needs: gate
+    runs-on: ubuntu-latest
+    if: needs.gate.outputs.gen_names == '1'
+    permissions:
+      contents: read
+    steps:
+      - name: Generate & Save Worker Names
+        env:
+          GH_TOKEN:     ${{ secrets.GH_PAT }}
+          REPO:         ${{ github.repository }}
+          WORKER_COUNT: ${{ vars.WORKER_COUNT }}
+        run: |
+          # ── 单词池（儿童友好，3-5 字母）─────────────────────────
+          WORDS=("cat" "dog" "fox" "owl" "bee" "hen" "ant" "bat" "ram" "cub"
+                 "frog" "fish" "bird" "duck" "lamb" "bear" "deer" "lion" "seal" "crab"
+                 "pony" "swan" "rose" "leaf" "tree" "rain" "snow" "moon" "star" "wave"
+                 "hill" "pond" "sand" "rock" "mist" "dawn" "tide" "glow" "cake" "milk"
+                 "mint" "plum" "pear" "kiwi" "corn" "bean" "ball" "bell" "book" "drum"
+                 "flag" "kite" "lamp" "nest" "ring" "rope" "sock" "tent" "yarn"
+                 "candy" "honey" "apple" "bloom")
+
+          # ── 过滤长度 3-5 的单词（防御性校验）───────────────────
+          # bash 数组：FILTERED=() 初始化空数组，类似 Python 的 filtered = []
+          # "${WORDS[@]}" 展开数组所有元素，类似 Python 的 for w in words:
+          # ${#w} 取字符串长度，类似 Python 的 len(w)
+          FILTERED=()
+          for w in "${WORDS[@]}"; do
+            LEN=${#w}
+            if [ $LEN -ge 3 ] && [ $LEN -le 5 ]; then
+              FILTERED+=("$w")   # += 追加元素，类似 Python 的 list.append()
+            fi
+          done
+
+          WLEN=${#FILTERED[@]}        # 数组长度，类似 Python 的 len(filtered)
+          N=${WORKER_COUNT:-10}       # 若变量未设置则默认 10，类似 Python 的 n = count or 10
+
+          # ── 随机抽取两个不重复的词 ────────────────────────────────
+          # $RANDOM：bash 内置随机整数（0~32767）
+          # % WLEN 取余得到合法数组下标，类似 Python 的 random.randrange(wlen)
+          IDX1=$(( RANDOM % WLEN ))
+          IDX2=$(( RANDOM % WLEN ))
+          # 确保两个下标不重复，类似 Python 的 while idx2 == idx1: idx2 = ...
+          while [ $IDX2 -eq $IDX1 ]; do IDX2=$(( RANDOM % WLEN )); done
+          W1="${FILTERED[$IDX1]}"
+          W2="${FILTERED[$IDX2]}"
+
+          # ── 随机生成一个小写字母 ──────────────────────────────────
+          # /dev/urandom：Linux 系统随机源，类似 Python 的 os.urandom()
+          # tr -dc 'a-z'：只保留 a-z（-d 删除，-c 取补集）
+          # head -c 1：只取第一个字节
+          L=$(tr -dc 'a-z' < /dev/urandom | head -c 1)
+
+          # ── 生成 N 个 Worker 名 ──────────────────────────────────
+          # 格式：<word1>-<word2>-<letter><digit>，如 duck-nest-f3
+          # digit = index % 10，index=10 时 digit=0
+          NAMES_ARR=()
+          for i in $(seq 1 $N); do   # seq 1 N 生成 1..N 序列，类似 Python 的 range(1, N+1)
+            DIGIT=$(( i % 10 ))
+            NAMES_ARR+=("${W1}-${W2}-${L}${DIGIT}")
+          done
+
+          # ── 拼接为逗号分隔字符串 ─────────────────────────────────
+          # printf '%s,' 对每个元素输出"值,"
+          # sed 's/,$//' 删除末尾多余的逗号
+          # 类似 Python 的 ','.join(names_arr)
+          WORKER_NAMES=$(printf '%s,' "${NAMES_ARR[@]}" | sed 's/,$//')
+          echo ">>> WORKER_NAMES: $WORKER_NAMES"
+
+          # ── Job Summary 预览表格 ──────────────────────────────────
+          # $GITHUB_STEP_SUMMARY：写入 Markdown 会渲染在 Actions → Summary 页面
+          echo "## Generated Worker Identity" >> $GITHUB_STEP_SUMMARY
+          echo "| # | Worker Name | Numeric Sub | Named Sub |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|---|"                              >> $GITHUB_STEP_SUMMARY
+          for i in $(seq 1 $N); do
+            NM="${NAMES_ARR[$((i-1))]}"
+            D=$(( i % 10 ))
+            S=$(printf "%02d" $(( i % 10 )))   # 两位补零，类似 Python 的 f"{n:02d}"
+            echo "| $i | $NM | $D.w${S}.cc.cd | $NM.w${S}.cc.cd |" >> $GITHUB_STEP_SUMMARY
+          done
+
+          # ── 写入 GitHub Variables（PATCH 不存在则 POST 新建）────
+          # 先尝试 PATCH 更新；404/422 说明不存在，改为 POST 新建
+          # -s 静默模式，-o /dev/null 丢弃响应体，-w "%{http_code}" 只取状态码
+          # 类似 Python requests 的 response.status_code
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+            "https://api.github.com/repos/$REPO/actions/variables/WORKER_NAMES" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"WORKER_NAMES\",\"value\":\"$WORKER_NAMES\"}")
+
+          if [ "$STATUS" = "404" ] || [ "$STATUS" = "422" ]; then
+            # Variable 不存在，用 POST 新建
+            STATUS2=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              "https://api.github.com/repos/$REPO/actions/variables" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"WORKER_NAMES\",\"value\":\"$WORKER_NAMES\"}")
+            echo ">>> POST WORKER_NAMES: HTTP $STATUS2"
+          elif [ "$STATUS" = "204" ]; then
+            echo ">>> OK: WORKER_NAMES updated"
+          else
+            # 其他异常：打印完整响应体辅助排查
+            ERRBODY=$(curl -s -X PATCH \
+              "https://api.github.com/repos/$REPO/actions/variables/WORKER_NAMES" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"WORKER_NAMES\",\"value\":\"$WORKER_NAMES\"}")
+            echo ">>> ERROR (HTTP $STATUS): $ERRBODY"
+          fi
+
+  # ════════════════════════════════════════════════════════════════════
+  # sync：同步上游仓库代码
+  # SYNC_CODE=1 时执行 git merge，=0 时跳过（只打印日志，不报错）
+  # 修正 403 错误：删除 permissions 声明，改用 GH_PAT 令牌接管权限
+  # ════════════════════════════════════════════════════════════════════
+  sync:
+    needs: gate
+    runs-on: ubuntu-latest
+    # 两个条件同时满足才运行：
+    # 1. 不是生成名字模式  2. gate 判断可以继续
+    if: needs.gate.outputs.gen_names != '1' && needs.gate.outputs.proceed == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 使用你的全权令牌，彻底绕过 GitHub 默认的只读限制
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0   # 拉取完整历史，merge 时需要
+
+      - name: Sync upstream
+        env:
+          SYNC_CODE: ${{ vars.SYNC_CODE }}
+        run: |
+          # SYNC_CODE != 1 时直接跳过，不视为失败
+          if [ "$SYNC_CODE" != "1" ]; then
+            echo ">>> Skipping sync (SYNC_CODE=$SYNC_CODE)"
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # || true：命令失败时不中断脚本，类似 Python 的 try/except pass
+          git remote add upstream https://github.com/yonggekkk/Cloudflare-vless-trojan.git || true
+          git fetch upstream
+
+          # -X theirs：冲突时以上游版本为准（覆盖本地改动）
+          # [skip ci]：防止 push 再次触发 workflow 形成循环
+          git merge upstream/main --allow-unrelated-histories -X theirs \
+            -m "chore: sync upstream $(date +%Y%m%d) [skip ci]" || true
+          
+          # 此时 push 会自动使用 checkout 步骤注入的令牌凭据
+          git push origin main || echo ">>> Sync skipped (nothing to push)"
+
+  # ════════════════════════════════════════════════════════════════════
+  # deploy：核心部署 job，动态 matrix 并行部署多个账号
+  # timeout-minutes 防止 CF API 无响应时白白消耗 Actions 分钟数
+  # ════════════════════════════════════════════════════════════════════
+  deploy:
+    needs: [gate, sync]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15    # 单个实例最长运行 15 分钟，超时自动终止
+    if: needs.gate.outputs.gen_names != '1' && needs.gate.outputs.proceed == 'true'
+    strategy:
+      fail-fast: false     # false = 某个实例失败不影响其他实例继续跑
+      matrix: ${{ fromJson(needs.gate.outputs.matrix) }}   # 如 {"index":[1,2,...,10]}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 提取当前 matrix 实例对应的账号凭证和 Worker 信息 ─────────
+      - name: Extract Credentials & Identity
+        id: creds
+        env:
+          CF_ACCOUNT_IDS: ${{ secrets.CF_ACCOUNT_IDS }}
+          CF_TOKENS:      ${{ secrets.CF_TOKENS }}
+          WORKER_NAMES:   ${{ vars.WORKER_NAMES }}
+          SUB_MODE:       ${{ needs.gate.outputs.sub_mode }}
+          MATRIX_INDEX:   ${{ matrix.index }}    # 当前实例的 index 值，如 3
+        run: |
+          # cut -d',' -f$N：按逗号分隔取第 N 个字段
+          # 类似 Python 的 ids.split(',')[n-1]（注意 cut 从 1 开始计数）
+          ACCOUNT=$(echo "$CF_ACCOUNT_IDS" | cut -d',' -f$MATRIX_INDEX)
+          TOKEN=$(echo "$CF_TOKENS"        | cut -d',' -f$MATRIX_INDEX)
+          WNAME=$(echo "$WORKER_NAMES"     | cut -d',' -f$MATRIX_INDEX)
+
+          # ── Sub 域名动态推算（无需额外变量）─────────────────────
+          # DIGIT：取个位数，index=10 时 DIGIT=0
+          # SFXNUM：两位补零字符串，如 1→"01"，10→"00"
+          DIGIT=$(( MATRIX_INDEX % 10 ))
+          SFXNUM=$(printf "%02d" $(( MATRIX_INDEX % 10 )))
+          WSUB_N="$DIGIT.w${SFXNUM}.cc.cd"       # 数字域名：如 3.w03.cc.cd
+          WSUB_K="$WNAME.w${SFXNUM}.cc.cd"       # 命名域名：如 duck-nest-f3.w03.cc.cd
+
+          # SUB_MODE=2 用命名域名，否则用数字域名
+          [ "$SUB_MODE" = "2" ] && WSUB="$WSUB_K" || WSUB="$WSUB_N"
+
+          # 写入 step outputs，供后续步骤通过 steps.creds.outputs.* 读取
+          echo "account=$ACCOUNT" >> $GITHUB_OUTPUT
+          echo "token=$TOKEN"     >> $GITHUB_OUTPUT
+          echo "wname=$WNAME"     >> $GITHUB_OUTPUT
+          echo "wsub=$WSUB"       >> $GITHUB_OUTPUT
+          echo ">>> Identity: $WNAME → $WSUB (pos $MATRIX_INDEX)"
+
+      # ── 删除旧 Worker ─────────────────────────────────────────────
+      - name: Delete Worker(s)
+        if: needs.gate.outputs.secrets_only == '0'
+        env:
+          TOKEN:       ${{ steps.creds.outputs.token }}
+          ACCOUNT:     ${{ steps.creds.outputs.account }}
+          WNAME:       ${{ steps.creds.outputs.wname }}
+          DELETE_MODE: ${{ needs.gate.outputs.delete_mode }}
+        run: |
+          if [ "$DELETE_MODE" = "2" ]; then
+            # Mode 2：列出账号下所有 Worker 然后逐一删除
+            echo ">>> Mode 2: deleting ALL workers under account"
+            RESPONSE=$(curl -s \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts" \
+              -H "Authorization: Bearer $TOKEN")
+            # grep -oP：Perl 兼容正则，提取所有 "id":"xxx" 中的 xxx
+            # 类似 Python 的 re.findall(r'"id"\s*:\s*"([^"]+)"', response)
+            WORKERS=$(echo "$RESPONSE" | grep -oP '"id"\s*:\s*"\K[^"]+' || true)
+            for W in $WORKERS; do
+              curl -s -o /dev/null -X DELETE \
+                "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$W" \
+                -H "Authorization: Bearer $TOKEN"
+              echo ">>> Deleted: $W"
+            done
+          else
+            # Mode 1：只删除当前 WNAME 对应的 Worker
+            RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME" \
+              -H "Authorization: Bearer $TOKEN")
+            if   [ "$RESP" = "200" ]; then echo ">>> Deleted: $WNAME"
+            elif [ "$RESP" = "404" ]; then echo ">>> Not found (already gone): $WNAME"
+            else                           echo ">>> Unexpected HTTP $RESP"; fi
+          fi
+
+      # ── 修补 Worker 源文件，注入路径和伪装页面逻辑 ───────────────
+      - name: Patch Worker File
+        if: needs.gate.outputs.secrets_only == '0'
+        env:
+          MY_PATH:   ${{ secrets.MY_WS_PATH }}
+          WNAME:     ${{ steps.creds.outputs.wname }}
+          WSUB:      ${{ steps.creds.outputs.wsub }}
+          FAKE_PAGE: ${{ needs.gate.outputs.fake_page }}
+          FAKE_URL:  ${{ needs.gate.outputs.fake_url }}
+        run: |
+          CORE="Vless_workers_pages/nat64套壳版明文.js"
+
+          # 防御性校验：MY_WS_PATH 必须存在，否则部署的 Worker 无法正常工作
+          if [ -z "$MY_PATH" ]; then
+            echo "ERROR: MY_WS_PATH is not set. Aborting."
+            exit 1
+          fi
+
+          # 在文件开头插入 globalThis 兼容行
+          # cat - "$CORE"：- 代表 stdin（即 echo 的输出），整体类似 Python 的 prepend
+          echo 'var window = globalThis;' | cat - "$CORE" > /tmp/_patch.js
+          mv /tmp/_patch.js "$CORE"
+
+          # 替换 JS 文件中的 ws path，sed -i 原地修改
+          # 类似 Python 的 content.replace("let path = '...'", f"let path = '/{path}'")
+          sed -i "s|let path = '.*'|let path = '/$MY_PATH'|g" "$CORE"
+          echo ">>> Path injected: /$MY_PATH"
+
+          ENTRY="$CORE"    # 默认入口文件就是核心文件
+
+          # FAKE_PAGE=1 或 =2 时，生成包裹层 _entry.js
+          if [ "$FAKE_PAGE" = "1" ] || [ "$FAKE_PAGE" = "2" ]; then
+            echo "import _core from \"./Vless_workers_pages/nat64套壳版明文.js\";"  > _entry.js
+            echo "export default {"                                                 >> _entry.js
+            echo "  async fetch(request, env, ctx) {"                              >> _entry.js
+            echo "    const _u = new URL(request.url);"                            >> _entry.js
+            echo "    const _p = '/$MY_PATH';"                                     >> _entry.js
+            # 非 WebSocket 且路径不匹配时触发伪装逻辑
+            echo "    if (request.headers.get('upgrade') !== 'websocket' &&"       >> _entry.js
+            echo "        _u.pathname !== _p && _u.pathname !== _p + '/') {"       >> _entry.js
+            if [ "$FAKE_PAGE" = "2" ]; then
+              # Mode 2：301 跳转到 FAKE_URL
+              echo "      return Response.redirect('$FAKE_URL', 301);"             >> _entry.js
+            else
+              # Mode 1：返回 nginx 风格 404 页面
+              # 用变量存储 HTML 避免 YAML 折行报错
+              _404='<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><hr/><p>nginx/1.18.0</p></body></html>'
+              echo "      return new Response('$_404',{status:404,headers:{'content-type':'text/html'}});" >> _entry.js
+            fi
+            echo "    }"                                                            >> _entry.js
+            echo "    return _core.fetch(request, env, ctx);"                      >> _entry.js
+            echo "  }"                                                              >> _entry.js
+            echo "};"                                                               >> _entry.js
+            ENTRY="_entry.js"    # 更新入口文件为包裹层
+          fi
+
+          # 生成 wrangler.toml（每次覆盖写入，不保留旧内容）
+          # custom_domain = true：使用自定义域名路由，不依赖 workers.dev
+          echo "name = \"$WNAME\""                    > wrangler.toml
+          echo "main = \"$ENTRY\""                   >> wrangler.toml
+          echo "compatibility_date = \"2025-01-01\"" >> wrangler.toml
+          echo ""                                    >> wrangler.toml
+          echo "[[routes]]"                          >> wrangler.toml
+          echo "pattern = \"$WSUB\""                 >> wrangler.toml
+          echo "custom_domain = true"               >> wrangler.toml
+          echo ">>> wrangler.toml:"
+          cat wrangler.toml
+
+      # ── 第一次部署 ────────────────────────────────────────────────
+      # continue-on-error: true：忽略 10007 伪错误
+      # （Worker 已上传成功，但 subdomain API 竞态返回 404）
+      # 真实失败由后面 Verify 步骤的存在性校验检测
+      - name: Deploy Worker (1st pass)
+        if: needs.gate.outputs.secrets_only == '0'
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken:        ${{ steps.creds.outputs.token }}
+          accountId:       ${{ steps.creds.outputs.account }}
+          command:         deploy
+          wranglerVersion: "4"
+
+      # ── PASS_MODE=2 时的双部署流程（仅首次使用）─────────────────
+      - name: Wait for scanner cycle
+        if: needs.gate.outputs.secrets_only == '0' && needs.gate.outputs.pass_mode == '2'
+        run: |
+          echo ">>> Waiting 30s for CF scanner cycle..."
+          sleep 30
+
+      - name: Delete Flagged Worker
+        if: needs.gate.outputs.secrets_only == '0' && needs.gate.outputs.pass_mode == '2'
+        env:
+          TOKEN:   ${{ steps.creds.outputs.token }}
+          ACCOUNT: ${{ steps.creds.outputs.account }}
+          WNAME:   ${{ steps.creds.outputs.wname }}
+        run: |
+          RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME" \
+            -H "Authorization: Bearer $TOKEN")
+          echo ">>> Flagged worker deleted: HTTP $RESP"
+          sleep 10
+
+      - name: Deploy Worker (2nd pass)
+        if: needs.gate.outputs.secrets_only == '0' && needs.gate.outputs.pass_mode == '2'
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken:        ${{ steps.creds.outputs.token }}
+          accountId:       ${{ steps.creds.outputs.account }}
+          command:         deploy
+          wranglerVersion: "4"
+
+      # ── 等待 Worker 在 CF 边缘节点稳定 ───────────────────────────
+      - name: Wait for Worker to stabilize
+        run: sleep 15
+
+      # ── 通过 CF API 设置 Secrets（纯 curl，无需 npm）─────────────
+      # wrangler secret put 需要额外安装 npm，curl 直接调用 API 快约 15s
+      - name: Set Secrets
+        env:
+          TOKEN:       ${{ steps.creds.outputs.token }}
+          ACCOUNT:     ${{ steps.creds.outputs.account }}
+          VLESS_UUID:  ${{ secrets.VLESS_UUID }}
+          SUB_DOMAIN:  ${{ steps.creds.outputs.wsub }}
+          WORKER_NAME: ${{ steps.creds.outputs.wname }}
+        run: |
+          # PUT /secrets：不存在时新建，已存在时覆盖（幂等操作，类似 Python 的 dict[key] = value）
+          R1=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WORKER_NAME/secrets" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"uuid\",\"text\":\"$VLESS_UUID\",\"type\":\"secret_text\"}")
+          echo ">>> Set uuid: HTTP $R1"
+
+          R2=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WORKER_NAME/secrets" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type:
+          R2=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WORKER_NAME/secrets" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"SUB\",\"text\":\"$SUB_DOMAIN\",\"type\":\"secret_text\"}")
+          echo ">>> Set SUB: HTTP $R2"
+
+      # ── 验证部署结果 + 主动关闭 workers.dev ──────────────────────
+      - name: Verify workers.dev disabled
+        env:
+          TOKEN:   ${{ steps.creds.outputs.token }}
+          ACCOUNT: ${{ steps.creds.outputs.account }}
+          WNAME:   ${{ steps.creds.outputs.wname }}
+
+        run: |
+          # ── 存在性校验：防止 continue-on-error 掩盖真实部署失败 ─
+          # GET /workers/scripts/:name 返回 200 = Worker 存在
+          # 非 200 说明 Worker 真的没有部署成功，此时才真正报错
+          EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME" \
+            -H "Authorization: Bearer $TOKEN")
+          if [ "$EXISTS" != "200" ]; then
+            echo "ERROR: Worker $WNAME not found (HTTP $EXISTS). Deploy truly failed."
+            exit 1
+          fi
+          echo ">>> Worker exists: OK (HTTP $EXISTS)"
+
+          # ── 主动关闭 workers.dev subdomain ───────────────────────
+          # 不在 wrangler.toml 里写 workers_dev = false（会触发 10007）
+          # 改为部署完成后手动 POST 关闭，此时 Worker 已确认存在，不会再报 10007
+          CLOSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME/subdomain" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"enabled":false}')
+          echo ">>> Disable subdomain: HTTP $CLOSE"
+
+          # ── 读回验证 subdomain 状态 ───────────────────────────────
+          RESULT=$(curl -s \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME/subdomain" \
+            -H "Authorization: Bearer $TOKEN")
+          echo ">>> Subdomain status: $RESULT"
+
+          # grep -q：安静模式，只判断是否匹配，类似 Python 的 'enabled: true' in result
+          if echo "$RESULT" | grep -q '"enabled":true'; then
+            echo "WARNING: workers.dev is still enabled!"
+          else
+            echo "OK: workers.dev is disabled"
+          fi

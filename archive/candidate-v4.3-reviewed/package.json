@@ -1,0 +1,15 @@
+{
+  "name": "gate",
+  "version": "2.0.0",
+  "private": true,
+  "description": "零依赖(仅 http/crypto) gate: PSK(INTERNAL_PSK for /v1/*) 双通道 + 后台 fail-closed(GATE_ADMIN_TOKEN via Basic Auth) + 令牌桶限流, 前置于上游服务 (HF Space :7860 -> :20128)",
+  "main": "gate.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node gate.js"
+  },
+  "dependencies": {
+  }
+}

@@ -1,0 +1,14 @@
+# litestream.yml — v0.5.9
+# 关键:dbs.path 是 restore/replicate 共同的“数据库标识”,
+# restore 的临时落地路径通过命令行 -o 指定,绝不写成配置里的 db path。
+dbs:
+  - path: /data/storage.sqlite
+    replicas:
+      - type: s3
+        bucket: omniroute-data
+        path: data/storage.sqlite
+        region: auto
+        endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+        access-key-id: ${R2_ACCESS_KEY_ID}
+        secret-access-key: ${R2_SECRET_ACCESS_KEY}
+        sync-interval: 10s

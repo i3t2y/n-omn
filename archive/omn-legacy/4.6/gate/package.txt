@@ -1,0 +1,13 @@
+{
+  "name": "omni-hf-gate",
+  "version": "1.0.0",
+  "description": "API gateway for HuggingFace Space deployment",
+  "main": "gate/gate.js",
+  "scripts": {
+    "start": "node gate/gate.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=20"
+  }
+}

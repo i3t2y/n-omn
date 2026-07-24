@@ -2,17 +2,14 @@
 // OmniRoute PSK 出口 Proxy (HF Space :7860 -> 127.0.0.1:20128)
 // 唯一出口代理, 经 OmniRoute 直连, 无外部 Relay / cf-worker / context-relay.
 //
-// 红线 2 (暴露面, 看管性改写——受后台开关约束):
-//   默认 (GATE_ADMIN_TOKEN 未设/空/过短): 后台关闭, 外网仅 GET /healthz + /v1 + /v1/*; 其余 404.
-//   设置有效 GATE_ADMIN_TOKEN: 后台白名单路径经 HTTP Basic Auth (admin/<token>) 放行;
-//     白名单为 B3 v3.8.43 真实路由的最小权限保守子集, 非全量; 未验证路径恒 404, 不 allow-everything.
-// 兼容: 保留原变量名 GATE_ADMIN_TOKEN (v8.0 后台鉴权变量, slim 删除前);
-//   废弃 v8.0 "空 Token 内网直连不鉴权" 旧语义; 现: 空 Token = 后台关闭 (404).
-// 三类入口分离: /healthz(免认证) | /v1,/v1/*(INTERNAL_PSK) | 后台白名单(GATE_ADMIN_TOKEN via Basic Auth).
-//   互不回退, PSK 不访问后台, admin token 不访问 /v1.
-// 后台认证仅外层入口保护, 不替代/OmniRoute 自身认证; Gate 不注入 Session, 不伪造 Cookie.
-//   完成 Basic Auth 校验后, 删除/替换外层 Authorization 头, 不转发给上游 (防凭据泄露).
-// 红线 (PSK/admin token): 缺失/格式错/长度不同/内容不同 → 401; crypto.timingSafeEqual 常量时间; 长度不等不退字符串比较.
+// 暴露面 (单布尔开关后台 GATE_ADMIN_ENABLED === '1'):
+//   关 (未设/非 '1'): 后台关闭, 外网仅 GET /healthz + /v1 + /v1/*; 其余全 404 (门藏).
+//   开 (=== '1'): 后台全路径**无闸**直透传 OmniRoute (无 Basic Auth 框/无凭据验/无 cookie);
+//     后台自身的写执行鉴权全交 OmniRoute 自身 INITIAL_PASSWORD(bcrypt) + loginGuard(IP 锁) + JWT session.
+// 三类入口分离: /healthz(免认证) | /v1,/v1/*(INTERNAL_PSK) | 其余全路径(GATE_ADMIN_ENABLED 开时直透传, 关时 404).
+//   互不回退, PSK 不访问后台, 后台路径不走 PSK.
+// gate 层不做入口认证 (砍 Basic Auth: 浏览器原生框反复弹弊大于利); Gate 不注入 Session, 不伪造 Cookie.
+// 红线 (PSK): 缺失/格式错/长度不同/内容不同 → 401; crypto.timingSafeEqual 常量时间; 长度不等不退字符串比较.
 // SSE: 逐块转发 (不聚合), 不 text/json 读流, 尊重背压, 客户端断开取消上游, 清理监听/定时器/流.
 // 进程: SIGTERM/SIGINT 自处理优雅关 (entrypoint.sh trap 亦转发).
 // 无第二套限流: 28 RPM/1 并发/2200ms 由 OmniRoute requestQueue 执行, 本文件零限流代码.
@@ -24,13 +21,11 @@ const crypto = require('crypto');
 const fs = require('fs');
 
 const INTERNAL_PSK = process.env.INTERNAL_PSK || '';
-const GATE_ADMIN_TOKEN = process.env.GATE_ADMIN_TOKEN || '';
+const ADMIN_ENABLED = process.env.GATE_ADMIN_ENABLED === '1';   // 纯布尔开关: 仅确置 '1' 开后台; 未设/'0'/任意他值均关 (保守 fail-closed)
 const OR_PORT = parseInt(process.env.OMNIROUTE_PORT || '20128', 10);
 const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
 const UPSTREAM_TIMEOUT_MS = parseInt(process.env.GATE_UPSTREAM_TIMEOUT_MS || '30000', 10) || 30000;
 const SHUTDOWN_GRACE_MS = parseInt(process.env.GATE_SHUTDOWN_GRACE_MS || '5000', 10) || 5000;
-const ADMIN_TOKEN_MIN_LEN = 16;
-const ADMIN_REALM = 'OmniRoute Admin';
 
 // ── fail-closed: PSK 必须非空且最小长度 ──────────────────────
 if (!INTERNAL_PSK || INTERNAL_PSK.length < 16) {
@@ -47,14 +42,11 @@ if (!OR_API_KEY) {
   process.exit(1);
 }
 
-// ── 后台开关 (单变量 GATE_ADMIN_TOKEN, 兼任开关 + 入口认证) ──
-// 空/过短 → 后台关闭 (路径 404); 有效 → 后台白名单 + Basic Auth.
-// 不记录/回显/转发 GATE_ADMIN_TOKEN.
-const ADMIN_ENABLED = GATE_ADMIN_TOKEN.length >= ADMIN_TOKEN_MIN_LEN;
-if (process.env.GATE_ADMIN_TOKEN && GATE_ADMIN_TOKEN.length < ADMIN_TOKEN_MIN_LEN) {
-  console.error(`[gate] WARN: GATE_ADMIN_TOKEN 长度 <${ADMIN_TOKEN_MIN_LEN}, 后台关闭 (不记录 token 值).`);
-}
-console.log(`[gate] admin UI: ${ADMIN_ENABLED ? 'enabled' : 'disabled'} (开关状态可记, 不记 token).`);
+// ── 后台开关 (纯布尔 GATE_ADMIN_ENABLED === '1', 仅作暴露面开关, 不作入口认证) ──
+// '1' → 后台全路径开放**无闸**直透传 OR; 非 '1' (未设/空/'0'/任意他值) → 后台全 404 (门藏).
+// 不弹 Basic Auth 框 (浏览器原生框反复弹弊大于利); 后台写执行认证全交 OR 自身
+// INITIAL_PASSWORD (bcrypt) + loginGuard (5次/15min IP锁) + JWT session 兜底.
+console.log(`[gate] admin UI: ${ADMIN_ENABLED ? 'enabled' : 'disabled'} (GATE_ADMIN_ENABLED 开关状态).`);
 
 // timing-safe equal: 双方 Buffer, 长度不等先返回不泄露内容, 长度相等路径走 timingSafeEqual.
 function safeEqual(a, b) {
@@ -64,69 +56,7 @@ function safeEqual(a, b) {
   if (ba.length !== bb.length) return false;
   return crypto.timingSafeEqual(ba, bb);
 }
-// HTTP Basic Auth: user 固定 'admin', password = GATE_ADMIN_TOKEN. timing-safe 比密码.
-function adminBasicAuthOk(req) {
-  const header = req.headers.authorization || '';
-  if (!header.startsWith('Basic ')) return false;
-  let decoded;
-  try { decoded = Buffer.from(header.slice('Basic '.length).trim(), 'base64').toString('utf8'); }
-  catch (e) { return false; }          // base64 解码失败
-  if (typeof decoded !== 'string' || decoded.indexOf(':') < 0) return false;
-  const sep = decoded.indexOf(':');
-  const user = decoded.slice(0, sep);
-  const pass = decoded.slice(sep + 1);
-  if (user !== 'admin') return false;
-  return safeEqual(pass, GATE_ADMIN_TOKEN);   // timing-safe, 长度不等不退字符串比较
-}
 
-// ── 后台白名单 (B3 v3.8.43 真实路由最小权限保守子集, 源码 audit/06 ◆) ──
-// 页面导航 (Next App Router 真实存在):
-const ADMIN_PAGE_PREFIXES = [
-  '/login', '/forgot-password', '/auth/callback', '/callback', '/authorize',
-  '/connect', '/terms', '/privacy', '/docs', '/status', '/landing',
-  '/home', '/dashboard',
-];
-// 页面允许方法 (GET 导航):
-const ADMIN_PAGE_METHODS = ['GET'];
-// 只读看板管理 API (B3 src/app/api 顶层只读子集; 排除 restart/shutdown/init/webhooks 等高风险写执行):
-const ADMIN_API_ROUTES = [
-  { pre: '/api/providers',          methods: ['GET'] },
-  { pre: '/api/combos',             methods: ['GET'] },
-  { pre: '/api/resilience',         methods: ['GET'] },
-  { pre: '/api/keys',               methods: ['GET'] },
-  { pre: '/api/provider-models',     methods: ['GET'] },
-  { pre: '/api/models',             methods: ['GET'] },
-  { pre: '/api/settings',           methods: ['GET'] },
-  { pre: '/api/provider-stats',     methods: ['GET'] },
-  { pre: '/api/provider-metrics',   methods: ['GET'] },
-  { pre: '/api/sessions',           methods: ['GET'] },
-  { pre: '/api/session-pools',      methods: ['GET'] },
-  { pre: '/api/rate-limit',         methods: ['GET'] },
-  { pre: '/api/rate-limits',        methods: ['GET'] },
-  { pre: '/api/token-health',       methods: ['GET'] },
-  { pre: '/api/synced-available-models', methods: ['GET'] },
-  { pre: '/api/free-models',        methods: ['GET'] },
-  { pre: '/api/free-provider-rankings', methods: ['GET'] },
-  { pre: '/api/tags',               methods: ['GET'] },
-];
-
-function isStaticAssetPath(p) {
-  if (p.startsWith('/_next/')) return true;
-  return /^\/(favicon\.ico|favicon\.svg|apple-touch-icon\.(png|svg)|icon-192\.svg|icon-512\.png|sw\.js|openapi\.yaml)/.test(p);
-}
-function isAdminPagePath(p) {
-  if (p === '/') return true;
-  if (isStaticAssetPath(p)) return true;
-  return ADMIN_PAGE_PREFIXES.some(pre => p === pre || p.startsWith(pre + '/') || p.startsWith(pre));
-}
-function apiRouteMatch(p, method) {
-  for (const r of ADMIN_API_ROUTES) {
-    if (p === r.pre || p.startsWith(r.pre + '/')) {
-      return r.methods.includes(method);
-    }
-  }
-  return false;
-}
 
 // ── 结构化诊断日志 (gate 出口 proxy 错误/abort) ──
 //   一行 JSON stderr (HF Space 抓取): requestId/path/method/upstream/elapsedMs/httpStatus/errorCode/abortSource/destroyInitiator
@@ -225,44 +155,16 @@ function normalizePath(p) {
   }
 }
 
-// ── 暴露面白名单 (默认仅 /healthz + /v1; 管理白名单仅 token 有效时) ──
-//   非 /healthz / 非 /v1: 须 ADMIN_ENABLED 且路径在白名单 (页/api/静态), 否则 404.
-//   后台关闭时即使带 OmniRoute Cookie/Session 也 404 (不泄露后台是否存在).
+// ── 暴露面 (单布尔开关: 默认仅 /healthz + /v1; GATE_ADMIN_ENABLED==='1' 时其余全路径走后台) ──
+//   非 /healthz / 非 /v1: 须 GATE_ADMIN_ENABLED==='1', 否则 404 (门关即全 404, 不泄露后台是否存在).
 app.use((req, res, next) => {
   req._normPath = normalizePath(req.path);
   if (shuttingDown && req._normPath !== '/healthz') return res.status(503).json({ ok: false });
   if (req._normPath === '/healthz') return next();
   if (req._normPath === '/v1' || req._normPath.startsWith('/v1/')) return next();
-  // 后台
+  // 后台: GATE_ADMIN_ENABLED==='1' 时全路径直放行透传 OR (无闸);
+  //   关时 (非 '1') 全 404 (门藏, 不暴露后台存在). 写执行认证交 OR 自身.
   if (!ADMIN_ENABLED) return res.status(404).end();
-  const p = req._normPath;
-  // 静态资源 (开关开后免 Basic Auth, 仍须白名单)
-  if (isAdminPagePath(p)) {
-    if (isStaticAssetPath(p)) return next();   // 静态免 token, 仅须开关开
-    // 页面导航须 method GET + Basic Auth (后中间件)
-    if (ADMIN_PAGE_METHODS.includes(req.method)) return next();
-    return res.status(405).json({ error: 'method_not_allowed' });
-  }
-  if (apiRouteMatch(p, req.method)) return next();
-  if (apiRouteMatch(p, 'GET') && req.method !== 'GET') {
-    return res.status(405).json({ error: 'method_not_allowed' });
-  }
-  return res.status(404).end();   // 非白名单 + 未知 → 404, 开启用时仍 404
-});
-
-// ── 后台页 + api Basic Auth (静态免) ──
-//   通过后删除 Authorization 头 (不转发 Basic 给上游 OmniRoute, 防凭据泄露).
-app.use((req, res, next) => {
-  if (req._normPath === '/healthz' || req._normPath === '/v1' || req._normPath.startsWith('/v1/')) return next();
-  if (!ADMIN_ENABLED) return next();   // 后台关 (已在白名单中间件 404, 此处不到)
-  const p = req._normPath;
-  if (isStaticAssetPath(p)) return next();   // 静态免 token
-  if (!isAdminPagePath(p) && !apiRouteMatch(p, req.method)) return next();   // 非白名单 (已 404, 不到)
-  if (!adminBasicAuthOk(req)) {
-    res.setHeader('WWW-Authenticate', `Basic realm="${ADMIN_REALM}", charset="UTF-8"`);
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-  delete req.headers.authorization;   // 不转发 Basic 给上游; OmniRoute 自身认证照走 (Cookie/Session)
   next();
 });
 
@@ -341,7 +243,11 @@ function proxyV1(req, res) {
   }
   req.on('error', () => { clientAborted = true; cleanup(); });
   req.on('aborted', () => { clientAborted = true; cleanup(); });
-  req.on('close', () => { clientAborted = true; cleanup(); });
+  // 不监 req 'close': body 读完 Node 正常 emit 'close' (非 client 真断), 旧版误判 clientAborted
+  //   会 destroy upstreamReq, 掐断 OR 慢响应(如 /api/auth/login bcrypt 比对 100-300ms),
+  //   致浏览器收 ECONNRESET 无提示进不去。真 client 中途断由 'aborted'/'error' 兜。
+  //   响应已开始后 client 跑路由 res 'close' (见下), 仅响应头未发时才掐 upstream。
+  res.on('close', () => { if (!res.headersSent) { clientAborted = true; cleanup(); } });
 
   upstreamReq.on('timeout', () => {
     gateTimeout = true;
@@ -450,7 +356,11 @@ function proxyAdmin(req, res) {
   }
   req.on('error', () => { clientAborted = true; cleanup(); });
   req.on('aborted', () => { clientAborted = true; cleanup(); });
-  req.on('close', () => { clientAborted = true; cleanup(); });
+  // 不监 req 'close': body 读完 Node 正常 emit 'close' (非 client 真断), 旧版误判 clientAborted
+  //   会 destroy upstreamReq, 掐断 OR 慢响应(如 /api/auth/login bcrypt 比对 100-300ms),
+  //   致浏览器收 ECONNRESET 无提示进不去后台。真 client 中途断由 'aborted'/'error' 兜。
+  //   响应头未发时 client 跑路才掐 upstream, 响应已开始流式则 client 自然关不算 abort。
+  res.on('close', () => { if (!res.headersSent) { clientAborted = true; cleanup(); } });
   upstreamReq.on('timeout', () => {
     gateTimeout = true;
     upstreamReq.destroy(new Error('upstream_timeout'));

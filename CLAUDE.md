@@ -42,10 +42,8 @@
 - pre-commit: 扫暂存区, 命中即拒; git add/commit 一律 ask 人工裁决。
 
 ## §7 网关接线段
-- gate 契约: /v1/* 用 X-Internal-PSK 单头(safeCompare(bearer, PSK));
-  Authorization Bearer 值须 = PSK, 非 OMNIROUTE_API_KEY。
-- gate 后台关: GATE_ADMIN_TOKEN<16 → /api/* 404; 经 gate 读 combos 不可行,
-  读 Dataset hf_snapshot 代替。
+- gate 契约: /v1/* 用 Authorization Bearer 头; Bearer 值须 = INTERNAL_PSK(非 OMNIROUTE_API_KEY); safeEqual crypto.timingSafeEqual 常量时比(gate.js:173-178)。启动 fail-closed: INTERNAL_PSK 缺/<16 → FATAL exit(gate.js:31)。
+- gate 后台开关: GATE_ADMIN_ENABLED==='1' 则 /api/* 及其余全路径后台直透传(无闸), 否则 404; 纯布尔非 TOKEN(gate.js:24,159-165)。经 gate 读 combos 不可行, 读 Dataset hf_snapshot 代替。
 - 速率三准则(一切对外请求默认档): 并发 ≤2-3; 缓存去重; Retry-After 优先,
   无则退避, 严禁立即重试。
 - 日志纪律: HF 免费层不存日志; boot 后 30min 内抓取归档(会话+快照各一份);

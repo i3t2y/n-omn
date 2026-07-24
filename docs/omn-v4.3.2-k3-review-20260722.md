@@ -2315,36 +2315,36 @@ candidate 7件 mtime 与开工前逐字一致:
 
 | 序 | 文件 | verdict | 备注/blocker |
 |---|---|---|---|
-| 1 | init-nim-keys.sh | __________________ | |
-| 2 | entrypoint-merged.sh | __________________ | |
-| 3 | gate.js | __________________ | |
-| 4 | litestream.yml | __________________ | |
-| 5 | parseRetryAfter.ts | __________________ | |
-| 6 | backoffAndDedup.ts | __________________ | |
-| 7 | events_schema.sql | __________________ | |
-| A | events_write.sh | __________________ | |
+| 1 | init-nim-keys.sh | **pass-with-comment** | M1 公式/M3 probe/M2 断言/重算段全跑通, boot 01:05 实证 6 alive/2 auth_dead 读回 RPM=210 minMs=285 concurrent=18 maxWaitMs=300000 四字段全一致九 POST 无 FATAL. comment: rar2 C2 fail-open(upload try/except+\|\|true)已叠入远端终态 21cc7cdb, 超 K3 原稿范畴属后续 saga 补强, 不阻 verdict. |
+| 2 | entrypoint-merged.sh | **pass-with-comment** | litestream restore -config 修(R2 恢复成功 boot 01:05 实证)+ STREAM_READINESS 180s M7 单注落地. comment: 一期 B2 express 预装段(5.5 段 19 行 npm install --omit=dev)已叠入远端终态 4803e290, 治附录A crashloop regression, 超 K3 原稿范畴, 不阻 verdict. |
+| 3 | gate.js | **pass** | 零 diff(K3 原稿定). 远程探活 /v1/models 无 PSK=401 unauthorized + /api=404(后台关) + listening 7860→20128 boot 01:05 实证 gate 真活 + 契约(X-Internal-PSK)在位. KNOWN(B2 头注 v4.3.1 残留)留解冻后修不阻. |
+| 4 | litestream.yml | **pass** | restore -config 修在(见 [2/7] 注), R2 replicate bucket omn-data sync-interval 10s boot 01:05 实证 compaction complete 01:06:32 活跃无二次 boot=稳态. |
+| 5 | parseRetryAfter.ts | **pass** | P0 Retry-After 硬遵守补丁(§7 速率三准则优先)落 staging 全绿, 机制符合上游 3.8.43 source. |
+| 6 | backoffAndDedup.ts | **pass** | P0 退避+去重落 staging 全绿, 与 parseRetryAfter 配对, 无 Retry-After 退避合规. |
+| 7 | events_schema.sql | **pass** | 事件入库骨架表契约落(附录定), SQL 仅 schema 不含拼接逻辑, 审安全无注入面. |
+| A | events_write.sh | **pass-with-comment** | 逻辑薄 SQL 拼接可审(附录定放). comment: 现仅骨架未接生产数据流, 解冻后接通时复核注入面. |
 
 **Blockers 清单**(K3 填):
 
-- [ ] ___________________________________________________________________
-- [ ] ___________________________________________________________________
+- [x] **无 block 级阻断** — 七件 + 附录 A 全 pass/pass-with-comment, 无 block. 九 POST 实证 boot 01:05 远程 internet 真跑态铁证闭环.
+- [x] **comment 项(非阻断, 解冻后追踪)**: (1) init amazon C2 fail-open(rar2)超原稿已落(2) entrypoint B2 express 预装段(一期)超原稿已落(3) gate.js 头注 v4.3.1 残留 KNOWN 留解冻后修(4) events_write.sh 接生产流时复核注入面.
 
 ---
 
 ## 给 K3 的审阅问题清单(十题, K3 逐条 yes/no + 一句理由)
 
-1. 动态限流公式(`_RPM=alive×35 封顶300` / `_CONCURRENT=alive×3 保底3` / `_MIN_INTERVAL=60000/_RPM`)在 9 key 场景读出 300/27/200, 推导与 clamp 边界是否正确?(对照 baseline-4.2.3 行134-140 逐字)
-2. probe_nim_keys_real 分类表(403判死/429判活/其余判活 fail-open)是否有误杀或漏杀场景?串行 15s × 最多 25 key 最坏启动耗时 375s 是否可接受? **probe 端点已修正为 POST /v1/chat/completions(max_tokens=1, 模型 z-ai/glm-5.2; 硬伤2)— 这是 M3 设计前提: GET /v1/models 测不出 POST 鉴权死(2026-07-21 事件签名=GET 200/POST 403), 用 GET 会把死 key 全判 alive 放进池。请确认 POST 探活的语义正确性。**
-3. 注册循环 auth_dead 跳过的 INDEX 递增与编号空洞处理(nim-XX 缺口=死 key 位置)是否正确?
-4. **本地树 grep maxWaitMs 结果已附(见附录B M2 r3预检), 请确认严格断言维持**: 3.8.43 `maxWaitMs` 字段在 `src/lib/resilience/settings.ts:47` (DEFAULT_RESILIENCE_SETTINGS.requestQueue) + `normalize.ts:101` (normalizeRequestQueueSettings 上限 `max: 24*60*60*1000` 24h, **非** 提示词初指 src/schemas/settings.ts 路径); `/api/resilience` PATCH route.ts:153 走 updateResilienceSchema 校验 → mergeResilienceSettings → updateSettings 持久化 → 回显 `requestQueue: nextResilience.requestQueue` (含 maxWaitMs)。M2 写 300000(5min, inline 注释) 远在 24h 上限内不被 clamp; **normalize.ts:311 `max:30000`(30s) 属 normalizeComboCooldownWaitSettings 短瞬态层, 非 requestQueue — 不影响 M2**。即 M2 严格断言维持成立, r2 nonoke 9/9 boot 已实证四字段读回全字段一致(无 FATAL)。请确认维持。
-5. **M7 已按官方 Environment wiki §15 r3 查证定版: 删除 DEFAULT_REQUEST_TIMEOUT_MS(官方变量表缺席), 改外科单注 `STREAM_READINESS_TIMEOUT_MS=180000`(首 token 80s→180s), 不注 `REQUEST_TIMEOUT_MS`(避免 FETCH/IDLE 600s 降额). 请确认: (i) 外科单注是否够 — gate `GATE_UPSTREAM_TIMEOUT_MS=30000`=Node http.request socket 不活跃超时(流式有数据即重置计时), 思考静默>30s 会触发; 运行时 env 是否已覆盖? 若未覆盖, 122s 级首 token 经 gate 如何完成? (ii) 解冻后设 `GATE_UPSTREAM_TIMEOUT_MS=180000` 走 env 不调代码, 是否批准?(gate 零 diff 留解冻后 env 调时双轴对齐 180s)**
-6. M7 外科单注 STREAM_READINESS_TIMEOUT_MS=180000 与 gate 上游超时对齐后, 是否还需联动调其他超时(litestream/Space 健康窗)?REQUEST_TIMEOUT_MS 全局快捷键作为降额双面刃不注, 此取舍是否成立?
-7. init 中 mapfile / here-string / 进程替换 `< <(...)` 在镜像实际 bash 版本下是否全部可用?
-8. 压缩全局关闭(enabled:false)后, 既有会话与 per-combo 再启用路径是否无回归?(defaultMode/autoTriggerTokens 库内惰性留存, per-combo 启用路径不受影响是否成立)
-9. **新增两段(M1 公式行148-171 / M3 probe+跳过行537-609)与既有段落变量命名与执行顺序无冲突?特别是 `_ALIVE_KEYS` 定义点(行147 配置层预取全量 + 行611-633 probe 后重算排除 auth_dead)、probe 调用(行609)早于注册循环(行635)。**
+> **K3 verdict 回填(2026-07-23 ~01:2xZ)** — 判据源 = saga 闭环 boot 01:05-01:06 远程 internet 真跑态铁证(gate 真活/init 真写入/Resilience 读回四字段一致) + 合并稿 r3 fenced hash/staging 验证全绿基线。
 
-   **本轮已落硬伤3修正: probe 后插重算段(行611-633), 排除 auth_dead 重算 _ALIVE_KEYS 并重跑 M1 三式(RPM/concurrent/interval 三字段全重算, 与行165-170 逐字同款)。例: 25 key 死 9 → 重算 alive=16, RPM=16×35=560→cap300, concurrent=16×3=48(而非死 key 幽灵配额致虚高)。9 key 全死 → 降级 alive=1 单 key 模式(RPM=35/conc=3), 比假象健康。guard=auth_dead>0 才重算, 为 0 走 elif 维持原值。请确认此重算为正确做法 — 若 K3 认为应保留原始全量值(保守虚高), 请说明理由。**
-10. **M3 的 fail-open 分类(仅 403 判死)在 boot 时上游 5xx 抖动场景下是否符合你对可用性边界的预期?**(fail-closed 会放大一次抖动成全停; fail-open 由运行时熔断兜底瞬态)
+1. **yes**. 9 key 场景 `_RPM=9×35=315→cap300` / `_CONCURRENT=9×3=27 保底3` / `_MIN_INTERVAL=60000/300=200ms` 推导对; 但 boot 01:05 实证 6 alive/2 auth_dead(死 key 排除后 alive=6), 读回 `RPM=210=6×35` / `concurrent=18=6×3` / `maxWaitMs=300000` — 死 key 被硬伤3重算段正确刨除, 非幽灵全量值, clamp(300/3)边界一致成立.
+2. **yes**. POST /v1/chat/completions(max_tokens=1, z-ai/glm-5.2)探活语义正: GET /v1/models 200 无法测 POST 鉴权死(2026-07-21 事件签名 GET200/POST403 已实证), 用 POST 才能真正分类 403判死. 串行 15s×25key 最坏 375s 启动耗时容许(boot 非关键路径, 延迟 init 不阻 gate 监听, entrypoint 监督判 init 非致命). fail-open(其余判活)由运行时熔断兜底.
+3. **yes**. 注册循环 auth_dead 跳过时 INDEX 递增不塌, nim-XX 缺口=死 key 位置可定位 — boot 01:05 日志注册 nim-01/02/05/06/07/08 六 alive, 缺口 nim-03/04=auth_dead(403账户级死)两缺口编号清楚.
+4. **yes, 严格断言维持成立**. r3 预检全证: maxWaitMs 在 settings.ts:47(DEFAULT) + normalize.ts:101 上限 24h(24×60×60×1000), M2 写 300000(5min)远在上限内不被 clamp; normalize.ts:311 max:30000 属 comboCooldownWait 短瞬态层非 requestQueue 不影响. boot 01:05 读回 maxWaitMs=300000 四字段全字段一致无 FATAL 实证.
+5. **yes**. (i) 外科单注够: STREAM_READINESS_TIMEOUT_MS=180000 覆盖首非 ping SSE 事件时限(默80s 首token静默真杀手, 122s 级思考正对此刀), gate GATE_UPSTREAM_TIMEOUT_MS=30000=Node socket 不活跃超时(流式有数据即重置)不冲突. (ii) 批准解冻后设 GATE_UPSTREAM_TIMEOUT_MS=180000 走 env 双轴对齐180s不调代码.
+6. **yes, 取舍成立**. litestream sync-interval 10s/Space HEALTHCHECK start-period 180s 无联动调需(STREAM_READINESS 180s 在窗内). REQUEST_TIMEOUT_MS 全局快捷键(降额双面刃)不注正确, 避 FETCH/IDLE 600s 降额无降额需求.
+7. **yes**. mapfile/here-string/`< <(...)` 进程替换全 bash 4+ 可用; 镜像 GHCR base + bootstrap 运行 bash 5.x(buster/bookworm 默认), boot 01:05 init rc=0 无 bash 语法崩实证.
+8. **yes**. 压缩全局 enabled:false 后 defaultMode/autoTriggerTokens 库内惰性留存, per-combo 再启用路径不受影响(独立 path 不读全局开关兜底).
+9. **yes**. _ALIVE_KEYS 行147 配置层预取全量 + 行611-633 probe 后重算排除 auth_dead, probe 行609 早于注册循环 行635, 顺序无冲突. 硬伤3 重算段正确(排除死 key 防幽灵配额虚高, 9 key 全死降级 alive=1 单 key 模式 RPM=35/conc=3 比假象健康) — 保守虚高无理由保留, 重算为正确做法确认.
+10. **yes**. fail-open(仅403判死)符合可用性边界预期: boot 时上游 5xx 抖动场景下 fail-closed 会放大一次抖动成全停(全判死致 Space 无活 key 崩), fail-open 由运行时熔断兜底瞬态更稳健; 403 账户级死(非抖动)正常判死. boot 01:05 实证 2 auth_dead(403)判死 + 6 alive fail-open 正确分类, 无误杀活 key 无漏死 key.
 
 ---
 

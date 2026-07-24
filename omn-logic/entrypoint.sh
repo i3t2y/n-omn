@@ -232,6 +232,25 @@ fi
 if [ ! -f /logic/gate.js ]; then
   echo "[entrypoint] FATAL: gate.js 不存在"; _shutdown; exit 1
 fi
+
+# ── 5.5 预装 gate 依赖 (三层解耦: /logic 逐 boot 重建 = ephemeral, 每次 boot 装一次) ──
+# gate.js = express 版 (require('express')), bootstrap 仅拉 Dataset 文件不跑 npm install,
+# /logic/node_modules 缺 → require 崩 crashloop。此处 boot 时补装 express(非 dev)。
+if [ -f /logic/package.json ]; then
+  if [ ! -d /logic/node_modules/express ]; then
+    echo "[entrypoint] 预装 gate 依赖 (npm install --omit=dev)..."
+    if (cd /logic && npm install --omit=dev --silent --no-audit --no-fund 2>&1); then
+      echo "[entrypoint] gate 依赖就绪"
+    else
+      echo "[entrypoint] FATAL: npm install 失败, gate require express 必崩"; _shutdown; exit 1
+    fi
+  else
+    echo "[entrypoint] gate 依赖已就绪 (node_modules/express 存在, 跳过 npm install)"
+  fi
+else
+  echo "[entrypoint] FATAL: /logic/package.json 不存在, 无法预装 gate 依赖"; _shutdown; exit 1
+fi
+
 echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
 node /logic/gate.js &
 GATE_PID=$!

@@ -931,11 +931,21 @@ hf_snapshot() {
 import os
 from datetime import datetime, timezone
 from huggingface_hub import HfApi
-api = HfApi(token=os.environ["HF_TOKEN"])
-api.upload_folder(folder_path="/tmp/omn-snapshot", path_in_repo="omn_data",
-    repo_id=os.environ["OMN_DATASET_REPO"], repo_type="dataset",
-    commit_message=f"Sync omn_data - {datetime.now(timezone.utc).isoformat()}")
-print("[init] HF Dataset uploaded.")
+from huggingface_hub.utils import HfHubHTTPError
+try:
+    api = HfApi(token=os.environ["HF_TOKEN"])
+    api.upload_folder(folder_path="/tmp/omn-snapshot", path_in_repo="omn_data",
+        repo_id=os.environ["OMN_DATASET_REPO"], repo_type="dataset",
+        commit_message=f"Sync omn_data - {datetime.now(timezone.utc).isoformat()}")
+    print("[init] HF Dataset uploaded.")
+except Exception as e:
+    # C2 fail-open: HF_TOKEN 权限不足(403/Write 权限缺)或网络异常 → 不让 init 整进程 exit 1
+    #   (set -e 下 python traceback exit 1 会触发 init rc=1 → Space supervisor 误判不健康重启 → crashloop)。
+    #   数据主路径是 R2 Litestream, 快照仅为冗余; 此处静默告警跳过, 保 gate/上游/init 主体不崩。
+    msg = str(e).replace(os.environ.get("HF_TOKEN", "") or "x", "<REDACTED>")
+    print(f"[init] snapshot: WARN HF Dataset 上传失败 (fail-open 跳过, 数据主路径 R2 不受影响): {type(e).__name__}")
+    if isinstance(e, HfHubHTTPError) and "403" in msg:
+        print("[init] snapshot: WARN 403 Forbidden — HF_TOKEN 缺 write 权限, 检查 Space Secret E 项 HF_TOKEN scope (需 dataset-write)")
 PYEOF
 }
 
@@ -984,7 +994,10 @@ upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
 upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
 
 context_accumulator_update
-hf_snapshot
+# C2 fail-open 双保险: hf_snapshot 内 python upload 异常已 try/except 降级 WARN exit 0;
+#   此处 ||true 兜底函数级 (curl/jq 等非 python 段若异常), 防 set -e 触发 init 整进程 exit 1 致 Space crashloop。
+#   snapshot 仅冗余备份, R2 是数据主路径, 失败不致命。
+hf_snapshot || true
 purge_proxy_db
 
 touch "$INIT_MARKER"

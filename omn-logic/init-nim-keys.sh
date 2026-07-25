@@ -156,6 +156,11 @@ gc_stale_providers() {
   fi
   _NIM_TOTAL=$(printf '%s' "$NIM_KEYS" | grep -c '' 2>/dev/null || printf '0')
   # 提 (name,id) 对; 按 name 分组, 留首个, 判僵尸(nim-NN 编号>总数)+重复(idx>0) → 待删 id 列表去空去重
+  # 修法(2026-07-25 bug): _DEL_JSON 赋值包 set +eo pipefail 抬门防 pipefail 杀 init.
+  #   根因: set -eo pipefail(行2)下, 无待删态 jq 输出空 → grep -v '^$' 空输入返 rc=1(无匹配)
+  #   → pipefail 致 pipeline rc=1 → set -e 杀 init, 致 7 registered 后全段不执行(combo/Resilience 永不建).
+  #   抬门严格包 _DEL_JSON 前后, 不波及函数其余段; ${_DEL_JSON:-[]} 兜底极端空态等价无待删.
+  set +eo pipefail
   _DEL_JSON=$(jq -r --argjson max "$_NIM_TOTAL" '
     [(.connections[]? // empty) | select((.provider? // "") == "nvidia")
        | {name: (.name? // ""), id: (.id? // "")} | select(.id != "")]
@@ -164,6 +169,8 @@ gc_stale_providers() {
     | (if $isnim then ($nm | ltrimstr("nim-") | tonumber) else -1 end) as $num
     | ($g | to_entries | map(select((($num > $max) and $isnim) or (.key > 0)) | .value.id))[]
   ' "$_GC_FILE" 2>/dev/null | grep -v '^$' | jq -R . | jq -s 'unique')
+  set -eo pipefail
+  _DEL_JSON="${_DEL_JSON:-[]}"
   _DEL_COUNT=$(printf '%s' "$_DEL_JSON" | jq 'length' 2>/dev/null || printf '0')
   if [ "$_DEL_COUNT" -le 0 ] || [ -z "$_DEL_JSON" ]; then
     echo "[init] gc_stale: 无待删连接 (当前 NIM_KEYS=$_NIM_TOTAL, 增量幂等)"; return 0

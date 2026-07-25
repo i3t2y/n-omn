@@ -49,7 +49,8 @@
 
 ## §6 网关接线段
 - /v1/* Bearer = INTERNAL_PSK(safeEqual 常量时比); 缺/<16 fail-closed。
-- GATE_ADMIN_TOKEN: 维护窗口临时配置(≥16), 用后删除恢复仅 API 模式。
+- GATE_ADMIN_ENABLED: 维护窗口临时配 '1'(布尔开关, gate.js:24), 用后恢复 '0'/删除仅 API 模式。
+  (GATE_ADMIN_TOKEN 机制已废于 82d6559 saga回填期 "gate单开关" 改造, 现 gate.js 无 Token 认证, 纯布尔开关)
 - 工具接入(Codex/Claude Code/任何客户端): base_url 一律指 gate /v1,
   禁裸连 integrate.api.nvidia.com 单 key。
 - 长思考流: GATE_UPSTREAM_TIMEOUT_MS=180000(对齐上游 M7)。

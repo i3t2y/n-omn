@@ -45,6 +45,26 @@
 tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accounts unavailable|Preserving last upstream error|ECONNREFUSED 127.0.0.1:20129|Excluded due to decommission'
 ```
 
+## 战后建设队列 (③ 稳定后按依赖序启动; ② 浸泡期逻辑层零变更, 列队不插队)
+
+> 圣上 2026-07-25 令: 六件 + 每模型 probe 列入此节, 防战后喧嚣遗忘。排序 = 依赖序 (前崩不阻后, 每件独立可验证)。阻塞点 = push (③ 后 nomn 首推 + 分支保护由圣上 GitHub 侧设)。
+
+| 序 | 件 | 动哪个文件 | 依赖前件 | 阻塞 |
+|----|----|-----------|---------|------|
+| 1 | **P0 entrypoint 统一落盘** (LOG_DIR tee 前缀, 持久落盘解 HF 30min 抓取窗口死线) | `dev/logic/entrypoint.sh` (逻辑层, ② 后动) | 无 (地基) | ② 稳 |
+| 2 | 每模型 probe (init 探活扩到池内全模型, 与 P0-tee 同批) | `dev/logic/init-nim-keys.sh` | P0-tee 落盘才能看全模型探活日志 | ② 稳 + P0 |
+| 3 | **P1 incidents 库进 litestream 复制链** (ops/incidents 随 storage.sqlite 同步到 R2, 非仅仓 git) | `dev/logic/litestream.yml` | P0-tee (日志归档前提) | ② 稳 |
+| 4 | **P2 watcher 本体 + 模板化摘要生成器** (消费特征串清单落地为进程, 非仅 HANDOFF 静态表) | 新 skill `incident-digest` + 脚本 | P1 (读 incidents 库) | P1 |
+| 5 | **P3 外推 + handoff-sync 防漂移检查** (跨会话 HANDOFF/STATUS/DECISIONS 对账, 漂移告警) | 新 workflow / 新 skill `handoff-sync` | P2 (摘要源) | P2 |
+| 6 | **T6 base-image.yml** (BASE_IMAGE 钉锚变 Variable 化 workflow, Rebuild FROM=9c9aecf 守门) | `.github/workflows/` 新件 | ③ 中 dispatch 骨架首跑绿后定型 | push |
+| 7 | **claude-code-action cron 异步解读层** (脱敏证据包定时解读, 非同步链) | `.github/workflows/` 新件 + Anthropic API key secret | P0~P2 产脱敏证据包 + ③ 稳 | P3 + push + secret |
+
+注:
+- 现役 `handoff` skill = §0 交接块生成器, 非 `handoff-sync`。当初规划的 `incident-digest`/`handoff-sync` 两 skill 一件未建 (疑点一核实)。
+- claude-code-action 需 Anthropic API key 作 GitHub Secret, 该 secret 从未配置, workflow 写好也跑不起来 (疑点三)。
+- 分支保护依赖 nomn 首推后由圣上 GitHub 侧设 (非仓内改动)。
+- 此节为圣上 must① 落地, 非 must② (push 闸) / should (③ 后动) / could (T6/claude-code-action 同批 P3)。
+
 ## 历史 watcher 闭环 (已除病, 留作特征参考)
 
 - express `MODULE_NOT_FOUND` crashloop → saga express fix 闭环 (audit/2026-07-23-crashloop-express-fix-landed.md)

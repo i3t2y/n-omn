@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-07-25 · HF Space 日志抓取通道: GitHub Actions → n-omn evidence 分支, OpenConnector 日志线废弃
+圣上令: 抓取 Space 日志用 GitHub Actions, 直接放 n-omn 私库。落地形态: fetch-space-logs.yml (cron 30min + dispatch), 单投 nonoke/omn (matrix 留 nomke 扩位, 待 HF_TOKEN_NOMKE), 脱敏闸 fail-closed (复用 secret-scan), evidence 分支与 main 分层。定位: CI 侧证据采集, 非逻辑层, 不受 ② 零变更约束, 阻塞仅 push+secret。与 P0-tee 互补: P0-tee 解决容器内持久落盘 (战后), 本通道解决 HF 可见窗口的仓内归档 (现在)。下游: claude-code-action 异步解读层未来从 evidence 分支消费 (机器产事实, LLM 产解读不变)。出处: 圣上 2026-07-25 令 + HF logs API 社区实证 (api/spaces/{ns}/{repo}/logs/{run,build})。
+
+---
+
 ## 2026-07-25 · ② key 池基线 32 (非预案 25): 生产实池 32 行入池照准, cap 300 首触 + concurrent=96 缩放双验讫
 ② 预案原拟 25 key 稳态, 圣上重启后 NIM_KEYS 填 32 行 = 地面真值。圣上裁决 32 照准 (非偏差): ② 终极目的是验证 ③ 晋级生产将真实使用的配置, 直接验 32 行生产实池比验虚构 25 更对准目标。三点支撑: (1) cap 行为等价——25×35=875 与 32×35=1120 同远超 300, cap 300 首触已验讫与 key 数无关; (2) 最强证据在读回——Resilience 推导按 alive=32 重算 concurrent=32×3=96 (非 25 预案 75), boot #1 读回 `300/200/96/300000` 与 32 推导一字不差, 无 cap 的 concurrent 缩放路径一并验讫 (25 预案验不到); (3) 共享配额风险随池变大进一步稀释, 429 概率更低。③ 生产以 32 行为准 (非 25)。落库: STATUS ②行刷 32 + incidents 偏差裁决节, 文件名保留 `...-25key-baseline.md` 不动 (落笔时刻计划历史, 改名是考古污染)。出处: 圣上 2026-07-25 裁决一 + boot #1 (11:02) 读回实证 32×3=96。
 

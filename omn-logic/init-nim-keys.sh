@@ -637,8 +637,24 @@ probe_nim_keys_real() {
         echo "[init] probe key#${_idx}: HTTP $_http → alive"
         _PROBE_ALIVE=$((_PROBE_ALIVE+1))
         ;;
+      000)
+        # 000 = transport error/超时/HF ingress 冷启抖. 单次易误判, 补一次 30s 宽超时重试 (K3 2026-07-25 ②钉点2):
+        #   二次 403 → 真 AUTH_DEAD; 二次 200/429/4xx5xx → fail-open alive; 二次仍 000 → fail-open alive (boot 抖动不放大全停).
+        #   限 000 一类 (403/429/2xx 已是有效响应, 不重试). 25 key 期 000 抖动不污染验收.
+        echo "[init] probe key#${_idx}: HTTP 000 → 重试 (30s 宽超时)"
+        _rb=$(curl -s -m 30 -w $'\n%{http_code}' -X POST \
+          "$NVIDIA_BASE_URL/v1/chat/completions" \
+          -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
+          -d "$_probe_body" 2>/dev/null || printf '\n000')
+        _rh=$(printf '%s' "$_rb" | tail -n1); [ -z "$_rh" ] && _rh="000"
+        case "$_rh" in
+          403) echo "[init] probe key#${_idx}: 重试 HTTP 403 → AUTH_DEAD (账户级死, 入 auth_dead)"; AUTH_DEAD_KEYS+=("$_rkey"); _PROBE_DEAD=$((_PROBE_DEAD+1)) ;;
+          000) echo "[init] probe key#${_idx}: 重试仍 000 → alive (fail-open, 瞬态抖动不放大)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
+          *) echo "[init] probe key#${_idx}: 重试 HTTP $_rh → alive (fail-open, 非账户级死)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
+        esac
+        ;;
       *)
-        # 4xx(非403)/5xx/超时/000 → fail-open 判活 (boot 抖动不放大全停; 瞬态故障运行时熔断兜底)
+        # 4xx(非403)/5xx/超时 → fail-open 判活 (boot 抖动不放大全停; 瞬态故障运行时熔断兜底)
         echo "[init] probe key#${_idx}: HTTP $_http → alive (fail-open, 非账户级死)"
         _PROBE_ALIVE=$((_PROBE_ALIVE+1))
         ;;

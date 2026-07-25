@@ -13,7 +13,8 @@
 ## B. 请求面(切换/大改必过)
 - [ ] B1. 一笔正常 /v1 请求 200, call_logs 有记录
 - [ ] B2. 一笔 >1.5MB body 请求被 gate 413 拦截, call_logs 零记录(零足迹), stdout 无 fallback
-- [ ] B3. 流式请求 SSE 正常透传, 长思考(>30s 静默)不被 timeout 切断
+- [ ] B3. 一笔长思考请求(首 token 静默 >30s)完整走完, 不被 gate 切断
+        (GATE_UPSTREAM_TIMEOUT_MS=180000 生效证据)
 
 ## C. 持久化(切换必过)
 - [ ] C1. litestream replicate 进程存活, 无静默停止
@@ -24,3 +25,11 @@
 - [ ] D1. ops/STATUS.md 更新(部署=commit, 验证时间)
 - [ ] D2. 新锁定决策已追加 DECISIONS.md
 - [ ] D3. 旧环境冻结保留期明确(默认1周)再退役
+
+## M. 迁移日(③④⑤ 专用)
+- [ ] M1. 20129 幽灵: 只读定位(strings 粗筛表名→定点SELECT确认)→定点UPDATE清除
+        → litestream 同步绝育; 禁全库 LIKE 盲删
+- [ ] M2. 限流双层盘点: init Resilience(预期300/75) 与 requestQueue(28/1)
+        是否都在生效、是否都有意为之, 结论写 HANDOFF
+- [ ] M3. 上线首24h: 风暴特征串计数=0 (FALLBACK MODE / all accounts
+        unavailable / Preserving last upstream error)

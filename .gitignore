@@ -27,8 +27,10 @@ audit-report.md
 
 # macOS
 .DS_Store
-.claude/
 
-# 自验临时脚本
+# .claude/ 凭据护栏: 仅忽略 settings*/凭件, skills 流程知识入版本控制共享 team
+.claude/settings.json
+.claude/settings.local.json
 .claude/hooks/_selftest.py
 .claude/hooks/*.pyc
+.claude/_backup-*/

@@ -178,10 +178,14 @@ else
 fi
 
 # ── 2. 启动上游服务 ──
+# 2026-07-25 #4 回归修复: 4.2.3 entrypoint 启动行内联 NODE_OPTIONS=--max-old-space-size=4096,
+# 4.3.2 迁移时丢失 → dev Node 默认堆 ~1GB, 经 25-key 同体 fallback 堆载累积触顶 OOM 崩盘
+# (弹H末日: Mark-Compact 1015→1023MB 触顶 → heap out of memory → Space 关机)。
+# 生产 4.2.3 同 #4 链用 4GB 堆扛过 25 次未崩 → 4GB 是该链生产验证过的值, SSOT 优先于推测。
 cd /app
-node server.js &
+NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" node server.js &
 OR_PID=$!
-echo "[entrypoint] 上游服务 PID=$OR_PID"
+echo "[entrypoint] 上游服务 PID=$OR_PID (heap ${NODE_OPTIONS:-default})"
 
 # ── 3. 健康等待 (180s) ──
 _DL=$(( $(date +%s) + 180 ))

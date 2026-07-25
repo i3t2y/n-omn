@@ -27,6 +27,21 @@ const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
 const UPSTREAM_TIMEOUT_MS = parseInt(process.env.GATE_UPSTREAM_TIMEOUT_MS || '30000', 10) || 30000;
 const SHUTDOWN_GRACE_MS = parseInt(process.env.GATE_SHUTDOWN_GRACE_MS || '5000', 10) || 5000;
 
+// ── #4 context guard 配置 (2026-07-25 裁 b): 单阈值字节硬拦 ──────────────────
+// 斩病链首环: 400-context-overflow → N×round-robin fallback 同体转发 → heap OOM → Space shutdown.
+// 病链根因: omniroute 计数偏 NVIDIA 实测 ~40% (自认 212813 vs 实测 297040); 200000 软限+压缩(仅省3%)
+//   数学上不防 400 → real_context 降级为"压缩 Governor"非"防400盾"; 改上游 src 拓扑上需双部署重建
+//   (生产官方镜像+http-proxy-middleware gate, dev 自建GHCR+手写http gate, auth.ts 是 Next.js 打包产物)
+//   故改 gate 自有代码(§5零风险, dev Dataset push+Restart 即生效).
+// 标定: dev+生产两起真实 400 的 NVIDIA 实测比率上界 = 8 bytes/token (弹H 3900147B→487511tok);
+//   est = bytes/8 > 195000 ⟺ bytes > 1.56MB, 灰区估算数学退化(三段式零收益复杂度), 故单阈值.
+//   1500000B @8B/tok ≈ 187500 tok, 距 200000 软限留 12500 余量给 tokenizer 波动/39-tools schema 口径差(实测偏差40%).
+// KNOWN-LIMITATION: 无 content-length 的 chunked 上传不拦 (现有客户端日志均带 content-length);
+//   比率 <8 的假想流量可能漏拦, 由 NODE_OPTIONS 4096 + fallback exhaustion 终态兜底, (a) 落地后闭合.
+const CTX_GUARD_ENABLED = process.env.GATE_CTX_GUARD_ENABLED !== '0';
+const CTX_MAX_BYTES = parseInt(process.env.GATE_CTX_MAX_BYTES || '1500000', 10) || 1500000;
+const CTX_BYTES_PER_TOKEN = parseInt(process.env.GATE_CTX_BYTES_PER_TOKEN || '8', 10) || 8;
+
 // ── fail-closed: PSK 必须非空且最小长度 ──────────────────────
 if (!INTERNAL_PSK || INTERNAL_PSK.length < 16) {
   console.error('[gate] FATAL: INTERNAL_PSK missing or <16 chars. HF Space Secret 必须配置。');
@@ -180,6 +195,25 @@ app.use('/v1', (req, res, next) => {
   }
   req.headers.authorization = `Bearer ${OR_API_KEY}`;   // /v1 转发用 OR_API_KEY
   next();
+});
+
+// ── #4 context guard: 超阈 body 在 gate 直拒 413, 不进 OmniRoute 堆 ──
+// 斩断病链首环: 400-context-overflow → N×round-robin fallback 同体转发 → heap OOM → Space shutdown.
+// 仅判 content-length 字节, 不缓冲 body (零内存开销, 不扰 SSE 流式); chunked 无 content-length 放行.
+// 插入点在 PSK 校验后 (未认证请求已在 PSK 层 401, 不消耗本检查), proxyV1 前 (不进上游堆).
+app.use('/v1', (req, res, next) => {
+  if (!CTX_GUARD_ENABLED || req.method !== 'POST') return next();
+  const cl = parseInt(req.headers['content-length'] || '0', 10);
+  if (!cl || cl <= CTX_MAX_BYTES) return next();
+  const estTokens = Math.floor(cl / CTX_BYTES_PER_TOKEN);
+  logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 413,
+    errorCode: 'CONTEXT_LENGTH_EXCEEDED', abortSource: 'gate_context_guard',
+    destroyInitiator: null, msg: `context_guard_reject bytes=${cl} est_tokens=${estTokens}` });
+  return res.status(413).json({ error: {
+    type: 'context_length_exceeded',
+    message: `Request body ${cl} bytes exceeds context guard (${CTX_MAX_BYTES}B, est ~${estTokens} tokens > 200000 budget). Reduce message length.`,
+    est_tokens: estTokens, limit_bytes: CTX_MAX_BYTES,
+  } });
 });
 
 // ── SSE 透传代理: 手写 http, 逐块 pipe, 客户端断开 abort 上游 ─

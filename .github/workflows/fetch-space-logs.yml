@@ -67,11 +67,12 @@ jobs:
         id: desens
         run: |
           set -euo pipefail
-          # 复用 .claude/hooks/secret-scan.{py,sh} 三模式等价正则:
+          # 复用 .claude/hooks/secret-scan.{py,sh} 三模式 + 防御性历史泄露检测:
           #   1. nvapi- NIM key 明文 (20+ 字符)
           #   2. Bearer 明文 / X-Internal-PSK 头明文 (16+ 字符实值, 非占位)
           #   3. hf_ token / R2 access key 明文 (omniroute-data.*access)
-          #   4. GATE_ADMIN_TOKEN 实值
+          #   4. GATE_ADMIN_TOKEN 实值 — 防御性历史泄露检测 (该机制已于 82d6559 废弃,
+          #      现 gate.js 纯布尔无 Token 不 echo 真值, 扫描仅防历史日志残留/回滚旧版)
           HIT=0
           for f in out/*.log; do
             [ -f "$f" ] || continue
@@ -86,6 +87,9 @@ jobs:
             fi
             if grep -qiE 'omniroute-data.*[Aa]ccess[A-Za-z0-9_-]{8,}' "$f"; then
               echo "::error file=$f::命中 R2 access key 明文, 整 job fail-closed"; HIT=1
+            fi
+            if grep -nE 'GATE_ADMIN_TOKEN[^A-Za-z0-9]{1,3}[A-Za-z0-9_\-]{16,}' "$f"; then
+              echo "::error file=$f::命中 GATE_ADMIN_TOKEN 实值 (历史泄露, 机制已废于 82d6559), 整 job fail-closed"; HIT=1
             fi
           done
           if [ "$HIT" = "1" ]; then

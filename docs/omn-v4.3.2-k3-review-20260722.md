@@ -1,5 +1,7 @@
 # omn v4.3.2 K3 审阅稿
 
+> **历史快照声明**: 本档嵌入/参考的 gate.js 代码含 `GATE_ADMIN_TOKEN` (Basic Auth) 机制, 该机制已于 `82d6559` (2026-07-23, saga回填期 "gate单开关" 改造, `GATE_ADMIN_TOKEN.length` 判换为 `GATE_ADMIN_ENABLED === '1'` 纯布尔) 废弃。现行机制见 `dev/logic/gate.js` (`GATE_ADMIN_ENABLED` 纯布尔开关, gate.js:24)。本档保留原貌供 v4.3.2 K3 审阅历史审计, 非现行规范。
+
 > 生成: 2026-07-22 (冻结令窗口内, staging 路线)
 > 签发 cg52 v2 + Supreme 四裁断 (M1动态三式 / M3 fail-open / M4 enabled:false / M7 env注入+gate不动)
 > 供 K3 审阅 v4.3.2 终态代码 (M1-M5/M7 改造落 staging, M6 跳)

@@ -1,5 +1,7 @@
 # OmniRoute Project Merge - v4.3.0
 
+> **历史快照声明**: 本档嵌入的 gate.js 代码为 v4.3.0 部署快照, 其 `GATE_ADMIN_TOKEN` (Basic Auth) 机制已于 `82d6559` (2026-07-23, saga回填期 "gate单开关" 改造, `GATE_ADMIN_TOKEN.length` 判换为 `GATE_ADMIN_ENABLED === '1'` 纯布尔) 废弃。现行机制见 `dev/logic/gate.js` (`GATE_ADMIN_ENABLED` 纯布尔开关, gate.js:24)。本档保留原貌供历史审计, 非现行规范。
+
 ## Dockerfile
 
 ```dockerfile

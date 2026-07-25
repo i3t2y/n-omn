@@ -16,7 +16,7 @@
 
 ### 待圣上 boot 时 (② 启动门 六项, 圣上手动)
 1. Space Variable 加 `GATE_UPSTREAM_TIMEOUT_MS=180000` (Variable, 与换 key 同次 Restart 生效)
-2. Secret `NIM_KEYS` 换 25 行; 3. 删 `GATE_ADMIN_TOKEN`; 4. Restart dev Space
+2. Secret `NIM_KEYS` 换 25 行; 3. `GATE_ADMIN_ENABLED`=0 (单布尔开关); 4. Restart dev Space
 (注: probe 修源已 push Dataset = `a1640dd5`, bootstrap 拉新件即含重试态)
 
 ### boot 后验 (cg52 四项 + 裁决五第五项)

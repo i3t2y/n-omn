@@ -29,15 +29,16 @@ dev 25key 期 与 nomke 生产 **同一批 25 NIM key**, 两边请求共耗每 k
 - **② 期间 call_logs 若现 429 聚簇 → 第一怀疑对象 = 配额共享, 非池子行为本身.** 先查 NIM 侧每 key 429 时间窗是否与生产/dev 请求重叠, 再判池病.
 
 ### 钉 3: 后台暴露面临时收敛
-dev 现 `GATE_ADMIN_ENABLED` 开态 (gate.js:24,159-165 布尔开关). 生产 25 key 敏感等级 > dev 7 测试 key → 暴露面应随敏感等级走.
+dev 现 `GATE_ADMIN_ENABLED` 开态 (gate.js:24 纯布尔开关 `=== '1'`, fail-closed; Token 机制已废于 82d6559 saga回填 "gate单开关" 改造). 生产 25 key 敏感等级 > dev 7 测试 key → 暴露面应随敏感等级走.
 
-- ② 期: **删 `GATE_ADMIN_TOKEN`** → 后台全 404, 纯 `/v1/*` API 模式. (此 Space Secret 变更 = 圣上手动, §2 Restart 不变, 我不触.)
-- 验证期结束 / 确需后台 → 再临时配. 退场条件达成先收敛.
+- ② 期: 设 `GATE_ADMIN_ENABLED=0` → 后台全 404, 纯 `/v1/*` API 模式. (此 Space Variable 变更 = 圣上手动, §2 Restart 不变, 我不触.)
+- 维护窗口(如剔模型)须后台 → 临时配 `=1`, 用后恢复 `0`. 不再涉及 Token 删除 (机制已废).
+- 验证期结束 / 确需后台 → 再临时配 `=1`. 退场条件达成先收敛=恢复 `0`.
 
 ## 执行 (圣上手动 Secret 变更 + Restart)
 
 1. Space Secret `NIM_KEYS` 换 25 行 (圣上手动, 值零入会话/零入 git)
-2. (钉 3) 删 `GATE_ADMIN_TOKEN` 或确认后台已关 — 圣上判
+2. (钉 3) 设 `GATE_ADMIN_ENABLED=0` 或确认后台已关 — 圣上判
 3. Restart dev Space (§2 圣上手动不变) → bootstrap 拉现役五件 (init 2832f694 等) → 重跑 init
 4. 按 release-checklist A 段过九段, **重点:**
    - A1 Resilience 读回 == `300/200/75/300000`

@@ -1,5 +1,7 @@
 # omn-merge · v4.3.0 部署版合并稿（根目录 7 脚本）
 
+> **历史快照声明**: 本档嵌入的 gate.js 代码为 v4.3.0 部署快照, 其 `GATE_ADMIN_TOKEN` (Basic Auth) 机制已于 `82d6559` (2026-07-23, saga回填期 "gate单开关" 改造, `GATE_ADMIN_TOKEN.length` 判换为 `GATE_ADMIN_ENABLED === '1'` 纯布尔) 废弃。现行机制见 `dev/logic/gate.js` (`GATE_ADMIN_ENABLED` 纯布尔开关, gate.js:24)。本档保留原貌供历史审计, 非现行规范。
+
 > 来源: 仓库根目录 `/home/laisi/omn-merge/` 当前部署态（LF 行尾）.
 > 生成日期: 2026-07-14
 > 部署链路: 根目录 → nomn/main(github.com/i3t2y/n-omn) → Actions sync-to-hf-space.yml → HF Space nomke/omn

@@ -13,18 +13,18 @@
 - ✅ 拓扑漂移已收敛: v3 §1 `dev/logic/` 路径落地本轮 (git mv omn-logic→dev/logic, 五件 history 保留); Dataset repo 名 `nonoke/omn-logic` 保持不变 (Dataset 名≠仓内目录, bootstrap 契约 Dataset 根平铺一字不动)
 - n-omn GitHub 远端 ahead 38 commit 未推 (§3 禁 push 待圣上判)
 
-### 待圣上手动 (② 启动门 六项)
-1. Space Variable 加 `GATE_UPSTREAM_TIMEOUT_MS=180000` (与换 key 同次 Restart, 不额外占窗口)
-2. Secret `NIM_KEYS` 换 25 行
-3. 删 `GATE_ADMIN_TOKEN` (钉 3 后台收敛)
-4. Restart dev Space (§2 圣上手动不变)
+### ② 启动门 四项 (已全落地 ✅)
+1. ✅ Space Variable `GATE_UPSTREAM_TIMEOUT_MS=180000` (已注入, boot#2 行为实证生效)
+2. ✅ Secret `NIM_KEYS` 填 32 行 (非预案 25, 圣上裁决一照准 32 是地面真值)
+3. ✅ `GATE_ADMIN_ENABLED=0` (非删 token, 布尔开关关 — 钉 3 后台收敛, boot#2 `[gate] admin UI: disabled`)
+4. ✅ Restart dev Space (§2 圣上手动) → boot#1 11:02 + boot#2 11:22
 
-### boot 后验 (cg52 四项 + 两新增)
-- 九段终验 + Resilience 读回 = `300/200/75/300000` (25 key 触 cap 300 首次实证)
-- probe 汇总 = 25 活 / 0 死
-- 长思考一笔 (首 token 静默 >30s 完整走完不被 gate 切 — gate 180000 修正实证)
-- 429 监视基线 (首小时 call_logs 按 status_code 分桶 — 共享配额判断零点)
-- ② 加速版退出: 2 次干净 boot (含 1 次主动 Restart 验幂等) + 请求矩阵四笔 + 过夜一轮 → 进③
+### boot 后验 (验收四笔 + 裁决五第五项)
+- ✅ 2 次干净 boot (boot#1 11:02 + boot#2 11:22 主动 Restart 验 32 key 幂等, 读回 `300/200/96/300000` 一字不差)
+- ⏳ **池成分健康 (裁决五第五项, release-checklist B4)**: matrix 四笔缺口 — nim-pool 笔1 200 (2.2s nemotron-3-super) / nim-pool 笔2 超时 101s (p2c 命中挂) / nim-codex 笔1 超时 101s (priority 挂无 fallback). 根因 = **池成分病非 combo 路由病**: gpt-oss-120b + llama-3.3-70b 上游挂/极慢, probe 只测 glm-5.2 无 init 期感知, pool p2c 25% 染慢 codex priority 100% 掉. 达成路径 = 圣上从 8 模型意向池剔两挂模型 → cg52 复跑 matrix 到双 combo 绿
+- ✅ 长思考一笔 (B3 + GATE_UPSTREAM 180000 实证): glm-5.2 SSE 真流式 (首 token 2.1s) + gpt-oss-120b 3.8s `: omniroute-keepalive` (gate 主动 keepalive 维持长连接无 30s 错包切 → 行为闭环, boot 日志无 echo 不追究)
+- ✅ 429 基线改挂③ (裁决三): 不重开 admin, 切 R2 生产 bucket omniroute-data 时 litestream 同一 storage.sqlite (含 dev 期 call_logs 全量) 复制到生产侧, 一行 SQL status_code 分桶白捡; 原"生产限流档裁决"时点改挂 429 基线 + ③ 后 24h 风暴串计数 = 0 两项齐后落 DECISIONS
+- ② 加速版退出六绿: 2 boot ✅ / 长思考 ✅ / 429 改挂 ✅ / 池成分 ⏳ / 过夜 ⏳ — 剩圣上剔挂模型 + 过夜 + 圣上手动链 (HF_TOKEN_NONOKE→push→sync-logic-dev 首跑绿→BASE_IMAGE 钉锚→dispatch 骨架→Rebuild FROM=9c9aecf) 三件
 
 ## watcher 模式: 风暴特征串 (命中即告警)
 

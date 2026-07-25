@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-07-25 · ② key 池基线 32 (非预案 25): 生产实池 32 行入池照准, cap 300 首触 + concurrent=96 缩放双验讫
+② 预案原拟 25 key 稳态, 圣上重启后 NIM_KEYS 填 32 行 = 地面真值。圣上裁决 32 照准 (非偏差): ② 终极目的是验证 ③ 晋级生产将真实使用的配置, 直接验 32 行生产实池比验虚构 25 更对准目标。三点支撑: (1) cap 行为等价——25×35=875 与 32×35=1120 同远超 300, cap 300 首触已验讫与 key 数无关; (2) 最强证据在读回——Resilience 推导按 alive=32 重算 concurrent=32×3=96 (非 25 预案 75), boot #1 读回 `300/200/96/300000` 与 32 推导一字不差, 无 cap 的 concurrent 缩放路径一并验讫 (25 预案验不到); (3) 共享配额风险随池变大进一步稀释, 429 概率更低。③ 生产以 32 行为准 (非 25)。落库: STATUS ②行刷 32 + incidents 偏差裁决节, 文件名保留 `...-25key-baseline.md` 不动 (落笔时刻计划历史, 改名是考古污染)。出处: 圣上 2026-07-25 裁决一 + boot #1 (11:02) 读回实证 32×3=96。
+
+---
+
+## 2026-07-25 · ② 退出标准第五项: 池成分健康 (matrix 四笔全绿), release-checklist B4 入闸
+② boot#2(11:22 双绿) 后 matrix 四笔验出一件事: probe 探活只测 glm-5.2 单模型 (init-nim-keys `probe_nim_keys_real` model=z-ai/glm-5.2), 池内 gpt-oss-120b / llama-3.3-70b 上游挂/极慢 init 期无感知; pool p2c 随机命中约 2/8 染慢 (~25% 超时), codex priority 钉首模型若挂则 100% 掉。**非 combo 路由病非网病非 gate 切, 是池成分病**。圣上 2026-07-25 裁决五: 池成分健康必须成为晋级标准一部分 (must 非 could, 池原样晋级 ③ = 已知坏成分带进生产)。落地: release-checklist B4 新条 — 矩阵四笔全绿 (nim-pool ≥2 笔 + nim-codex ≥1 笔成功), 达成路径 = 从意向上线模型池剔除挂/极慢模型 (本轮 gpt-oss-120b / llama-3.3-70b) 后复跑 matrix 到双 combo 绿; post-② 不变律 — ③ 之后每次池变更按此过闸。达成路径 = 圣上手 (Space 后台模型池配置), 剔完 cg52 复跑。"每模型 probe" (init 探活扩展到池内全模型) 入战后建设队列与 P0-tee 同批, 现在不动逻辑层。出处: 圣上 2026-07-25 裁决五 + ops/release-checklist.md B4 + STATUS 验收四笔矩阵实证 + incidents ② 退出标准条。
+
+---
+
+## 2026-07-25 · 429 基线改挂③: 不开后台不读库, litestream 切 R2 生产 bucket 时白捡
+② 验收"429 监视基线"原列 dev 期 call_logs status_code 分桶。圣上 2026-07-25 裁决三: 钉 3 纪律 (后台暴露面收敛) 刚执行, 不为一条基线重开 admin (GATE_ADMIN_ENABLED=1) 触更大暴露面换可有可无数据, 不值——换零成本获取路径: ③ 变量切换 R2→生产 bucket omniroute-data 时, litestream 把 dev 期同一 storage.sqlite (含 32 key 期 call_logs 全量) 复制到生产 bucket, 切换后从生产侧只读副本跑一次 status_code 分桶 = dev 期基线白捡到手, 一行 SQL 的事。原"生产限流档裁决" (动态 cap 300 vs 保守 28/1) 裁决时点改挂两项齐后: 429 基线 (③ 后白捡) + ③ 后 24h 风暴特征串计数 = 0, 两项齐落 DECISIONS。出处: 圣上 2026-07-25 裁决三 + STATUS 429 基线改挂③ 条 + ops/release-checklist.md M3 (24h 风暴计数)。
+
+---
+
 ## 2026-07-25 · GHCR BASE_IMAGE digest 钉锚 9c9aecf 作永久锚(T6 前替代浮动 :stable tag)
 基座 digest 钉锚: Space Variable `BASE_IMAGE=ghcr.io/i3t2y/omniroute-base@sha256:9c9aecfd9eb529f44ab99cf94970aea896328146c64adc8ba146bfe809231347`(圣上手动改, 下次 Rebuild 生效, Dockerfile 一字不动)。浮动 :stable 是过渡, :X.Y.Z 钉版 tag 才是常态; 本仓 :3.8.43 tag 从未建过, 故 audit 唯一锚本就是这串 digest。digest 钉锚拆除整个"骨架首投 Rebuild 用浮动 tag 错误基座"风险类; T6 base-image.yml 未来只把此锚自动化。出处: 本轮 registry API index digest 仲裁 + audit/k3-review-r2-v30.md:519 落定记。
 
@@ -31,7 +46,7 @@ HF 免费 Docker SDK 自 2026-07 关闭新建通道(报错 "hosting Gradio and D
 ---
 
 ## 2026-07-25 · gate 上游超时对齐 M7: GATE_UPSTREAM_TIMEOUT_MS=180000 (Variable, Restart 即生效非 Rebuild)
-生产日志实证 91s/199s/297s 长思考流是常态流量(首 token 前静默期), gate 30s socket 超时会切断首 token 前静默, 误伤②期间长思考验收数据。② boot 前生效(Variable 变更, 与换 key 合并同一次 Restart, 不额外占窗口)。与 M7 STREAM_READINESS_TIMEOUT_MS=180000 上游对齐。出处: 本决策由 4.2.3 生产日志零采数据推得, ② boot 前并 ops/incidents/2026-07-25-switch-step2-25key-baseline.md 事前三钉点。
+生产日志实证 91s/199s/297s 长思考流是常态流量(首 token 前静默期), gate 30s socket 超时会切断首 token 前静默, 误伤②期间长思考验收数据。② boot 前生效(Variable 变更, 与换 key 合并同一次 Restart, 不额外占窗口)。与 M7 STREAM_READINESS_TIMEOUT_MS=180000 上游对齐。**② 行为实证生效 (boot #2 期, 2026-07-25)**: GATE_UPSTREAM_TIMEOUT_MS Variable 已注入 (Space 列表 Updated 35 min, boot #2 前); boot 日志无该 Variable echo 行 (gate.js:27 `process.env || 30000` 默 fallback 不打印注入态), 但行为反推闭环 — gpt-oss-120b 长静默请求 3.8s 收 `: omniroute-keepalive` SSE 注释行 (gate 主动 keepalive 维持长连接), 两发分别 91.5s/200s 全 TimeoutError 无 502/504 错包 (若 gate socket 默 30s 切应在 ~30s 收错包, 实测无 = 不在 30s 切) → 超时已升 180000 生效。圣上 2026-07-25 裁决二判 boot 日志 echo 行缺失不追究, 行为证据闭环。出处: 本决策由 4.2.3 生产日志零采数据推得, ② boot 前并 ops/incidents/2026-07-25-switch-step2-25key-baseline.md 事前三钉点; ② 行为实证见 STATUS 长思考一笔。
 
 ---
 

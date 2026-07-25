@@ -31,7 +31,7 @@ description: 当贴入或读取 HF Space boot 日志时, 按 omn 引导九段清
 
 ## Resilience 读回预期 (按存活 key 数动态推导)
 
-读回字段须与预期一致, 不一致 = 推导链/cap 逻辑有病。源码 `omn-logic/init-nim-keys.sh:206-211` 主推导 + `652-683` M3 probe 后重算 (两段逐字对齐)。
+读回字段须与预期一致, 不一致 = 推导链/cap 逻辑有病。源码 `dev/logic/init-nim-keys.sh:206-211` 主推导 + `652-683` M3 probe 后重算 (两段逐字对齐)。
 
 | alive key | RPM | concurrent | minMs | maxWaitMs |
 |-----------|-----|------------|-------|-----------|

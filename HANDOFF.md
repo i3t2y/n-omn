@@ -10,7 +10,7 @@
 - 本轮四 commit: `5ee3778`(K3三件) `e76ccf3`(②三钉点) `1159de6`(probe修源+三样固化) `dbedbed`(STATUS)
 - 远端 Dataset: init=`a1640dd5` (probe 修态 push 闭环 byte-for-byte), 余4件见 ops/STATUS.md
 - ⚠ CLAUDE.md v3 圣上签改未 commit (留圣上自 commit / 明令)
-- ⚠ 拓扑漂移: v3 §1 定 `dev/logic/` 血统路径, 现 `omn-logic/` 名不符待收敛 (非 ② 阻塞, 待圣上批)
+- ✅ 拓扑漂移已收敛: v3 §1 `dev/logic/` 路径落地本轮 (git mv omn-logic→dev/logic, 五件 history 保留); Dataset repo 名 `nonoke/omn-logic` 保持不变 (Dataset 名≠仓内目录, bootstrap 契约 Dataset 根平铺一字不动)
 - n-omn GitHub 远端 ahead 38 commit 未推 (§3 禁 push 待圣上判)
 
 ### 待圣上手动 (② 启动门 六项)

@@ -45,7 +45,7 @@
 ## 切换五步序列态 (C2 落地后)
 - ① **清空** ✅ (本轮 C2 闭环即第一步清空)
 - ② dev 换 25 key 跑 1~2 天稳态 — ★下一步待排
-- ③ 建新生产 Space 复制 dev 配置, R2 指 omniroute-data
+- ③ nonoke/omn 晋级生产: 变量切换 R2→生产 bucket omniroute-data + GATE_ADMIN 按生产纪律 + Restart, 零建新 Space 零 Rebuild
 - ④ restore 生产副本验证数据连续
 - ⑤ 金丝雀放量, 旧 nomke 冻结一周
 

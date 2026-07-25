@@ -1,0 +1,66 @@
+name: Sync dev logic to HF Dataset
+
+# 三层解耦 · 逻辑层同步 (低风险: 推 Dataset 不触 Rebuild, 圣上手动 Restart 才生效)
+# 源: dev/logic/** (五件 init/entry/gate/litestream/package)
+# 目标: Dataset nonoke/omn-logic 仓内平铺 (entrypoint.sh / gate.js / ... 根目录)
+#   ─ bootstrap 与逻辑层唯一契约: "Dataset 根目录存在 entrypoint.sh"
+#   ─ 故 CI 做 dev/logic/$f → Dataset/$f 平铺映射, Dataset 侧布局一字不动
+#
+# 逐字节血缘: hf upload 后立即 hf_hub_download 读回 + sha256 cmp,
+#   不过 CI 直接红 (Dataset↔git 血缘一致性不再人盯)。
+# 触发: dev/logic/** 任意改动 (高频低风险, 不触 build 冻)。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dev/logic/**'
+      - '.github/workflows/sync-logic-dev.yml'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Upload logic files to Dataset (5 files, flat layout)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_NONOKE }}
+        run: |
+          pip install -q "huggingface_hub>=1.0,<2.0"
+          for f in entrypoint.sh gate.js init-nim-keys.sh litestream.yml package.json; do
+            hf upload nonoke/omn-logic "dev/logic/$f" "$f" \
+              --repo-type dataset --token "$HF_TOKEN" \
+              --commit-message "sync(logic): n-omn@${GITHUB_SHA::7} $f" || {
+                echo "[FATAL] upload failed for $f"; exit 1; }
+          done
+          echo "---- upload 5 files done ----"
+
+      - name: Verify sha256 readback (逐字节血缘验证)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_NONOKE }}
+        run: |
+          python3 - <<'EOF'
+          import hashlib, os
+          from huggingface_hub import hf_hub_download
+          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json"]
+          bad = 0
+          for f in files:
+              local = hashlib.sha256(open(f"dev/logic/{f}","rb").read()).hexdigest()
+              p = hf_hub_download("nonoke/omn-logic", f, repo_type="dataset",
+                                  token=os.environ["HF_TOKEN"])
+              remote = hashlib.sha256(open(p,"rb").read()).hexdigest()
+              ok = local == remote
+              print(f"{f}: {'OK' if ok else 'MISMATCH'} local={local[:8]} remote={remote[:8]}")
+              bad += 0 if ok else 1
+          if bad:
+              print(f"[FATAL] {bad} file(s) mismatch after upload — Dataset↔git 血缘断裂")
+          raise SystemExit(1 if bad else 0)
+          EOF

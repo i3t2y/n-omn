@@ -91,7 +91,7 @@ NIM_CODEX_MODELS=(
 )
 NIM_FAST_MODELS=(
   "deepseek-ai/deepseek-v4-flash"
-  "meta/llama-3.3-70b-instruct"
+  # "meta/llama-3.3-70b-instruct"  # 2026-07-25 Task E 漏网补剔 (snapshot 档): NIM_FAST_MODELS 不进 combo (无 upsert 1023/1024 链), 仅入 init_vars.json 快照 (行939 _arr_json fast_models); Task E 主剔三处 (TIER_FAST 行64 / TIER_STABLE 行68 / NIM_CODEX_MODELS 行89) 已落 — 此处漏网致快照说谎, boot 取证读 init_vars 见 llama 在册误导未来判案. 圣上裁"行94 同样注释化"顺势成全闸复验, 一 push 自动再触 sync-logic-dev 充活体探针.
   "google/gemma-4-31b-it"
 )
 NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" )

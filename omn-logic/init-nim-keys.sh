@@ -66,7 +66,7 @@ TIER_FAST=(
 TIER_STABLE=(
   "nvidia/nemotron-3-super-120b-a12b"
   "openai/gpt-oss-120b"
-  "qwen/qwen3.5-397b-a17b"
+  # "qwen/qwen3.5-397b-a17b"  # 2026-07-25 Task D 移除: catalog 可查≠可服务, POST /v1/chat/completions 上游返 function-not-found 404 (omniroute 真转发 NVIDIA 后被上游拒)
   "mistralai/mistral-small-4-119b-2603"
   "google/gemma-4-31b-it"
 )
@@ -116,14 +116,14 @@ upsert_combo() {
   BODY=$(jq -n --arg name "$NAME" --arg strat "$STRAT" \
                --argjson models "$(models_to_json "${MODELS[@]}")" \
                '{name:$name, strategy:$strat, models:$models}')
-  # R3+ Restart A (i′ 方案): jq 修正式 (裁决 §4 根因 bug).
-  # 旧式 `.combos[]? // .[]? | select(.name==$n)` 因 `//` 优先级低于 `|` 失控:
-  # GET /api/combos 返 {combos:[...]}; `.combos[]?` 对对象遍历失败返空, `// .[]?` 对对象取值失败返空,
-  # 结果 CID 永远空 → 永远 POST → 重名 400 死循环 (幂等 upsert 失效).
-  # 修正式 (数组/对象双容): `if type=="array" then . else (.combos // []) end []? | select(...)`
-  # — 根为数组直接遍历, 根为对象取 combos 字段, 兼两种响应结构.
+  # R3+ Restart A (i′ 方案)→ Task C1 终态 (圣上源码 v3.8.43@b729a8f 实证裁决):
+  # 旧式 `.combos[]? // .[]? | select(.name==$n)` 两病: ① `//` 优先级低于 `|` 失控
+  # → CID 永空 → 永远 POST → 重名 400 死循环(幂等失效); ② 空 combos 时 `.[]?` 回退遍历对象值,
+  # 对数组值取 `.name` 抛 "Cannot index array with string"(4.2.3 生产 14:23 实测, 4.3.2 同病)。
+  # 修正式 (数组/对象双容 + 对象守卫): 根为数组直接遍历, 根为对象取 .combos//.data 字段,
+  # select 加 `type=="object"` 守卫防对非对象值(数组值)取 .name 抛错 — 兼两种响应结构 + 空库首跑。
   CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
-        | jq -r --arg n "$NAME" '(if type=="array" then . else (.combos // []) end)[]? | select(.name==$n) | .id' | head -n1)
+        | jq -r --arg n "$NAME" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
   F="$(_resp omniroute-combo-$NAME.json)"
   if [ -n "$CID" ]; then
     CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
@@ -139,6 +139,41 @@ upsert_combo() {
     cat "$F" 2>/dev/null || true
     return 1
   fi
+}
+
+# ══ Task C2: 僵尸/重复 nvidia 连接 GC (圣上源码 v3.8.43@b729a8f 实证裁决) ══
+# GET /api/providers 返 {connections:[...]} (字段名非 .providers, 旧误名会静默失效)。
+# POST /api/providers 无 name 查重 → 每 boot 重复注册累积; init 内 409 分支是死代码 (POST 不校验 name)。
+# GC 职责二合一: ① 僵尸(name nim-NN 编号 > 当前 NIM_KEYS 总数的连接删)
+#                ② 同名重复(留首个 idx=0, 余删)
+# 删除走批量 DELETE /api/providers {ids:[]} 一次调用 (≤100/批)。幂等(再跑无待删)。
+gc_stale_providers() {
+  local _GC_FILE _GC_HTTP _NIM_TOTAL _DEL_JSON _DEL_COUNT _CLEAN_IDS
+  _GC_FILE="$(_resp omniroute-providers-gc.json)"
+  _GC_HTTP=$(curl -s -o "$_GC_FILE" -w "%{http_code}" -b "$COOKIE_FILE" "$BASE_URL/api/providers")
+  if [ "$_GC_HTTP" != "200" ]; then
+    echo "[init] gc_stale: GET /api/providers HTTP $_GC_HTTP 跳过 GC"; return 0
+  fi
+  _NIM_TOTAL=$(printf '%s' "$NIM_KEYS" | grep -c '' 2>/dev/null || printf '0')
+  # 提 (name,id) 对; 按 name 分组, 留首个, 判僵尸(nim-NN 编号>总数)+重复(idx>0) → 待删 id 列表去空去重
+  _DEL_JSON=$(jq -r --argjson max "$_NIM_TOTAL" '
+    [(.connections[]? // empty) | select((.provider? // "") == "nvidia")
+       | {name: (.name? // ""), id: (.id? // "")} | select(.id != "")]
+    | group_by(.name) | .[] | . as $g | ($g[0].name) as $nm
+    | ($nm | test("^nim-[0-9]+$")) as $isnim
+    | (if $isnim then ($nm | ltrimstr("nim-") | tonumber) else -1 end) as $num
+    | ($g | to_entries | map(select((($num > $max) and $isnim) or (.key > 0)) | .value.id))[]
+  ' "$_GC_FILE" 2>/dev/null | grep -v '^$' | jq -R . | jq -s 'unique')
+  _DEL_COUNT=$(printf '%s' "$_DEL_JSON" | jq 'length' 2>/dev/null || printf '0')
+  if [ "$_DEL_COUNT" -le 0 ] || [ -z "$_DEL_JSON" ]; then
+    echo "[init] gc_stale: 无待删连接 (当前 NIM_KEYS=$_NIM_TOTAL, 增量幂等)"; return 0
+  fi
+  _CLEAN_IDS=$(printf '%s' "$_DEL_JSON" | jq -c '{ids: .}')
+  local _DEL_HTTP _DEL_BODY
+  _DEL_BODY="$(_resp omniroute-providers-del.json)"
+  _DEL_HTTP=$(curl -s -o "$_DEL_BODY" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X DELETE "$BASE_URL/api/providers" -H "Content-Type: application/json" -d "$_CLEAN_IDS")
+  echo "[init] gc_stale: 删除 $_DEL_COUNT 个僵尸/重复 nvidia 连接 (批量 DELETE /api/providers HTTP $_DEL_HTTP, 上限 max=$_NIM_TOTAL)"
 }
 
 # ══ 按存活 Key 数动态推导 RPM/并发 ═════════════════════════════
@@ -662,6 +697,9 @@ while IFS= read -r RAW_KEY; do
   INDEX=$((INDEX+1))
 done <<< "$NIM_KEYS"
 echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed. (probe: $_PROBE_ALIVE alive / $_PROBE_DEAD dead-skipped)"
+
+# Task C2: 注册完 Key 后, Fetching provider IDs 前, GC 僵尸(编号>NIM_KEYS 数)/重复(POST 无查重累积)连接.
+gc_stale_providers
 
 echo "[init] Fetching provider IDs..."
 PROVIDERS_HTTP=$(curl -s -o "$PROVIDERS_FILE" -w "%{http_code}" -b "$COOKIE_FILE" "$BASE_URL/api/providers")

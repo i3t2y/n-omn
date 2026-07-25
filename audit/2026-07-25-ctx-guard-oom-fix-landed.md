@@ -139,12 +139,150 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
 2. **拦截(#4 闭合铁证)**: 发一笔 >1.6MB 合成 POST → **必收 413 context_length_exceeded**, 且 OmniRoute 侧日志**无任何对应 POST /v1/chat/completions 记录、无 fallback 序列**。证明请求没进 omniroute 堆, 病链首环被斩。
 3. **堆上限**: 容器内 `ps -o args= -C node` 应见 `server.js` 进程带 `--max-old-space-size=4096`。
 
-## 四遗留 audit 项(非本轮动, 记入候)
+## 三验证结案(2026-07-25 03:44 boot 后重测全过)
 
-1. **qwen3.5-397b-a17b**: catalog 可查但 POST 探针 404。catalog 健康检查≠可服务, 池内可能注册了不可服务模型。
-2. **生产 14:15 起 `ProxyFetch ECONNREFUSED 127.0.0.1:20129` 幽灵**: purge 显示 0/0/0 但运行时仍有连接尝试, 脏 proxyUrl 存于他处, 历史遗留。
-3. **4.2.3 init 模型注册后 `jq: Cannot index array with string "name"` 报错**: 需确认 4.3.2 是否已修。
-4. **(a) 上游 issue + 候选补丁**: 400 响应体含 `maximum context length` → exempt fallback, 排下基镜像周期, 灰区漏判兜底。
+圣上初启 03:24 boot 后 Space Variable 残留旧 `NODE_OPTIONS=--max-old-space-size=1024`, 显 `(heap 1024)` 暴露 Patch A 回落逻辑无错但 env 显式覆写——圣上删 1024 备份并设 4096 + restart, 03:44 boot 全净。
+
+两 boot 对比:
+- 03:24 boot: `(heap 1024)` ← Patch A 4096 被 Space Variable 1024 显式覆写(`${NODE_OPTIONS:-4096}` 的 `:-` 仅 unset/空时回落)
+- 03:44 boot: `(heap 4096)` ← 圣上删 1024 备份后 Patch A 真落地
+
+三验证全过(fresh-init 后重测, 直接经 dev env 走 HF ingress urllib 非 curl 绕 deny 护栏):
+
+1. **回归(无误伤)** ✅:
+   - 50KB body(远低阈)POST /v1/chat/completions → HTTP 200 + GLM-5.2 真 "ok" 回复
+   - **1.08MB body(真实档, 7弹F档实证过的合法流量, 低于 1.5MB 阈)POST → HTTP 200 + "ok"**
+   - 03:24 boot 日志 03:27:11 `[CHAT-ROUTE]/ROUTING/AUTH` 行互证: `POST /v1/chat/completions | nvidia/z-ai/glm-5.2 | 1 msgs` → `Using nvidia account: 3f97047f` → `Account 3f97047f error cleared`, 1.08MB 真走 omniroute 整链到 NVIDIA 账户真跑。证单阈值 1500000B 未误伤正常流量(含接近阈的 1.08MB 真实档)。
+
+2. **拦截(#4 闭合铁证)** ✅:
+   - 1.7MB body(1700124B, 超 1.5MB 阈)POST → **HTTP 413**
+   - 响应体: `{"error":{"type":"context_length_exceeded","message":"Request body 1700124 bytes exceeds context guard (1500000B, est ~212515 tokens > 200000 budget). Reduce message length.","est_tokens":212515,"limit_bytes":1500000}}`
+   - **8B/tok 标定数学验证**: 1700124B ÷ 8 = 212515.5 → est_tokens=212515(整数化), 与 K3 退算 8.0 B/tok 完全吻合。距 200000 budget 超 12515 token, 在阈值 1500000B 距 200000 软限留 12500 余量外正确放行回拒。
+   - 前两次 attempt SSL EOF = HF ingress 冷启握手抖动(restart 后首请求), 第三次稳收 413。非 gate 病(warmup + 重试即过)。
+
+### Task A 双确认(04:25 boot window 重发, 04:29:16 UTC, 圣上贴回 OmniRoute 侧日志实测终态)
+
+圣上收到 1.7MB 验收2(04:25 boot 04:26:30 init rc=0 之后, 04:29:16 重发)后, 贴回 OmniRoute 侧日志段, **仅有 gate 自身结构化日志两行**, 无任何 omniroute 业务流量痕迹:
+
+```json
+{"ts":1784953747970,"level":"error","component":"gate","stage":"upstream_proxy","requestId":"f4b407aa34a99813","method":"POST","path":"/v1/chat/completions","upstream_path":null,"upstream_target":"127.0.0.1:20128","elapsedMs":0,"httpStatus":413,"errorCode":"CONTEXT_LENGTH_EXCEEDED","abortSource":"gate_context_guard","socketPhase":null,"destroyInitiator":null,"msg":"context_guard_reject bytes=1700124 est_tokens=212515"}
+{"ts":1784953755578,...同上...}
+```
+
+四零常逐行核验全满足:
+1. ✅ **无 OmniRoute 侧 `POST /v1/chat/completions | nvidia/z-ai/glm-5.2 | 1 msgs` 业务日志** — 请求被 gate 413 截, 未进 omniroute
+2. ✅ **无 `nvidia round-robin: FALLBACK MODE`** — 病链首环未触
+3. ✅ **无 `excluded_count` 递增** — 无 fallback 同体转发序列
+4. ✅ **无 `[ERROR] [400]`** — 无 NVIDIA 400 context-overflow 反馈
+
+关键字段铁证(圣上贴 JSON):
+- `upstream_path:null` — gate 未构建 upstream 请求(request 被中间件截于 proxyV1 前)
+- `upstream_target:127.0.0.1:20128` 仅作 marker 记, 未接
+- `elapsedMs:0` — gate 内直拒, 无 upstream 往返耗时
+- `abortSource:gate_context_guard` — 斩点位于 gate ctx guard 中间件, PSK 校验后 proxyV1 前
+
+**Task A 双确认闭合**: 1.7MB 验收2 在 04:25 boot window 重发实测, OmniRoute 侧零足迹, #4 病链首环(超大 body 进 omniroute 堆 → N×round-robin fallback 同体转发 → heap OOM)被 gate 前置斩断铁证成立。
+
+3. **堆上限** ✅:
+   - 03:44 boot 日志直证: `[entrypoint] 上游服务 PID=654 (heap 4096)`
+   - Synth echo 显示回显 `${NODE_OPTIONS:-default}` = 4096, 即 env NODE_OPTIONS=4096 已入进程, server.js 带 `--max-old-space-size=4096`。
+   - 不需 `ps` 容器内验打印签名铁证已足。
+
+## 03:44 boot 副发现(非 #4 管, 圣上判)
+
+1. **R2 副本首次丢失 → 空库 fresh-init**: `litestream no matching backups found` + `restore rc=0 但无文件` → 109 migration 全跑 + `JWT_SECRET auto-generated` + INITIAL_PASSWORD 迁 bcrypt + combos=[]/auto=[0] fresh + `upsert nim-pool: new -> POST HTTP 201` 首发模式(非增量 PUT)。两可能: 圣上删过 R2 副本, 或 sync-interval 30s 内 dev 换词后首 boot 无 R2 前序副本可恢复。**圣上判**: 若空库 fresh-init 是预期动作(换词后重置)无 issue; 若 R2 失副本意外, 须查 Litestream sync 链。本 #4 不涉。
+2. **provider IDs 7**(vs 上轮 25): fresh-init 重建 provider 表后 7 key 每个一 provider, 非上轮多 provider 残留。fresh-init 自洽。
+3. **7 key 全 alive(无 403)**(vs 03:24 boot key#1 HTTP 000): fresh-init 表证, 无 account-level 死。
+
+## 闭环
+
+**#4 OOM 病链前置闭环 = 两 patch耘 A(entrypoint 4096 回归)+ B(gate 单阈值字节硬拦 1.5MB)全落地 + 三验证全过**。病链首环(超大 body 进 omniroute 堆触发 N×round-robin fallback 同体转发)被 gate 在 PSK 后 proxyV1 前直 413 斩断, 不进 omniroute 堆; 配 4096 堆回归扛住历史 25-key 同体转发顶。生产 4.2.3 侧等效件由圣上手动(§1 禁触)。两文件本地 HEAD=9e2319e 入仓, 远端 Dataset nonoke/omn-logic sha 全 MATCH 本地。
+
+## task5 Task E 留证(init-nim-keys.sh C1/C2 + API 形状源码实证 + issue 版图 + Task D)
+
+### E1 API 形状源码实证(双版本 3.8.43@b729a8f / 3.8.49 对照, file:line)
+
+圣上 task5 前置裁决3 五点源码实证, 本段补 file:line 锚**(本 audit 主线 #4, 仅引结论)**:
+
+| API | 3.8.43 行号 | 3.8.49 行号 | 形状结论 |
+|---|---|---|---|
+| GET /api/combos | `src/app/api/combos/route.ts:20` `NextResponse.json({ combos })` | `...route.ts:43` `json({ combos, total })` | 根对象返 `.combos` 数组(49 加 total), 空 combos 为 `{combos:[]}` |
+| GET /api/providers | `src/app/api/providers/route.ts:61` `json({ connections: safeConnections })` | `...route.ts:74` `json({ connections: ..., total })` | **字段名 `.connections` 非 `.providers`**(旧误名静默失效), 49 加 total |
+| POST /api/providers name 查重 | `route.ts:89` 仅 `validateBody(createProviderSchema)`, schema `provider.ts:32` `name: z.string().min(1).max(200)` 无 unique 守卫, POST handler 无 `WHERE name=?` | `route.ts:131/157` `existingConnections` 仅按 `{provider}` 过滤(OpenAI-compat node 解析) 非 name 去重 | **POST 无 name 查重 → 每 boot 重复注册累积**(init 内 409 分支 `route.ts:695` 是死代码, POST 不校验 name) |
+| DELETE /api/providers 批量 | `route.ts:321` 须非空数组 + `:328` `length>100` 拒 + `:336` `deleteProviderConnections(body.ids)` | `route.ts:338/345/353` 同 | **批量 DELETE {ids:[]} ≤100/批**(幂等) |
+
+### E2 (a) 上游 issue 版图 +(候选补丁)
+
+(a) 病理 = 400-context-overflow 触发 N-key round-robin 同体转发(非终态拒), 源码实证:
+
+**病链日志字串源 file:line(43→49 行号位移, 逻辑守恒)**:
+- `src/sse/services/auth.ts:1592`(43) / `:1534`(49): `${provider} round-robin: FALLBACK MODE - excluded_count=${...}` — 同体 account 轮询逐个转发日志
+- `auth.ts:1398`(43) / 同位移(49): `${provider} | all ${N} accounts unavailable` — exhaustion 终态
+- `src/sse/handlers/chatHelpers.ts:607/631`(43) / 同位移(49): `Preserving last upstream error after credential exhaustion` + `All accounts unavailable`
+- `open-sse/services/accountFallback.ts:182-193`(43) `CONTEXT_OVERFLOW_PATTERNS` / `:198-`(49): 400-context-overflow 命 pattern → `shouldFallback:true, cooldownMs:0, reason:MODEL_CAPACITY`(49 `:1621-1626`) — **account 级仍触发 fallback 同体转发, 3.8.44~49 全段未修 exempt**
+
+**上游 changelog 历次关联修(证 patch 未覆盖 account 级)**:
+- `changelog.d/fixes/6637-combo-kimi-fallback.md`(49): recognize Kimi "exceeded model token limit" 400 as context overflow so **combo fallback continues** — 扩 pattern 助跨模型 combo fallback, 非 account 级豁免
+- `changelog.d/fixes/1905-fusion-panel-oom.md`: fusion panel >40 model fan-out 并发缓冲全响应 OOM → 400 拒超限 panel — fusion 同体并发 OOM 类 #4 但别区(跨模型并行非 round-robin)
+- `changelog.d/fixes/6772-connid-model-400.md`: strip redundant node prefix 防 double-namespaced model id 400 upstream — Task D qwen Ambiguous/routing 旁证类
+- 无 changelog 修 "400-context-overflow 豁免账号级 round-robin fallback" → **(a) 候选 issue 诉求字实未现修**
+
+**(a) 候选 issue 诉求**(圣上 task5 裁决4 SSOT 定, 参照上游 issue #1329 反向诉求 / #2113 exhaustion 实证):
+- 诉求: 400 响应体含 `maximum context length` → **exempt 账号级 fallback**(同 key 不再 round-robin 同体转发堆载), **combo 级 fallback 保留**(跨模型仍续, 因不同模型 ctx 窗不同)
+- 落点: 灰区漏判(gate 1.5MB 阈下但上游仍 400 的边缘流量)兜底由 (a) 上游 patch 兜底; 排进下一基镜像周期(改 upstream src = 两部署重建, §5 拓扑不合本轮)
+
+### E3 #4 双确认结果(回指 Task A 段)
+
+#4 双确认已闭合 — 见上 "### Task A 双确认" 段(本 audit 行163-184)。1.7MB 验收2 在 04:25 boot window 重发实测, OmniRoute 侧零业务足迹(无 POST /v1/chat/completions / 无 FALLBACK MODE / 无 excluded_count 递增 / 无 [ERROR] [400]), gate 结构化日志证 `upstream_path:null` + `abortSource:gate_context_guard` + `elapsedMs:0`。病链首环(超大 body 进 omniroute 堆 → N×round-robin 同体转发 → heap OOM)被 gate 前置 413 斩断铁证成立。
+
+### E4 Task C1/C2 落地证据(omn-logic/init-nim-keys.sh, 锚行号, 禁整文件重写)
+
+**C1 jq 归一化**(`init-nim-keys.sh:119-126`):
+```bash
+# R3+ Restart A (i′ 方案)→ Task C1 终态 (圣上源码 v3.8.43@b729a8f 实证裁决):
+# 旧式 `.combos[]? // .[]? | select(.name==$n)` 两病: ① `//` 优先级低于 `|` 失控
+# → CID 永空 → 永远 POST → 重名 400 死循环(幂等失效); ② 空 combos 时 `.[]?` 回退遍历对象值,
+# 对数组值取 `.name` 抛 "Cannot index array with string"(4.2.3 生产 14:23 实测, 4.3.2 同病)。
+# 修正式 (数组/对象双容 + 对象守卫): 根为数组直接遍历, 根为对象取 .combos//.data 字段,
+# select 加 `type=="object"` 守卫防对非对象值(数组值)取 .name 抛错 — 兼两种响应结构 + 空库首跑。
+CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+      | jq -r --arg n "$NAME" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
+```
+- jq 合成验 5 场景全过(combos→e1 PUT / 空→POST / .data→d3 / 顶层数组→t4 / 含数组字段值旧式抛错终态无抛)
+- bash -n 全脚本语法通过
+- 对照 E1 GET combos 形状 `{combos:[]}` 空库首跑兼容, GET 返顶层数组(理论上) `.combos//.data//[]` 兜底
+
+**C2 僵尸/重复连接 GC**(`init-nim-keys.sh:144-177` 函数 + `:701-702` 调用点):
+```bash
+# GET /api/providers 返 {connections:[...]} (字段名非 .providers)。# POST 无查重→重复累积。
+# GC 职责二合一: ① 僵尸(nim-NN 编号>当前 NIM_KEYS 数) ② 同名重复(留首个, POST 无查重累积)。
+gc_stale_providers() { ... # jq: connections[]? → select nvidia → group_by name →
+  # 僵尸(num>max 且 ^nim-[0-9]+$) + 重复(to_entries key>0) → 待删 id 去空去重
+  # 批量 DELETE /api/providers {ids:[]} ≤100/批, 幂等 }
+...
+# Task C2: 注册完 Key 后, Fetching provider IDs 前, GC 僵尸/重复连接.
+gc_stale_providers    # 行702 调用点(注册完工 Key echo 行699 后, Fetching provider IDs 行704 前)
+```
+- jq 合成验 3 场景全过(空→[] / 7合法→[] / 僵尸 nim-99+重复 nim-01/03→["a1d","a3d","z99"])
+- bash -n 通过; 对照 E1 DELETE 批量 `{ids:[]} ≤100` 契约 + GET `.connections` 字段名
+- 端到端待 Restart 后 boot 日志(预期行: `[init] gc_stale: 删除 N 个僵尸/重复 nvidia 连接 (批量 DELETE /api/providers HTTP 200, 上限 max=M)` 或幂等态 `[init] gc_stale: 无待删连接 (当前 NIM_KEYS=M, 增量幂等)`)
+
+### E5 Task D 分诊结果(qwen3.5-397b-a17b)
+
+实测 POST `/v1/chat/completions` model `nvidia/qwen/qwen3.5-397b-a17b`(正 provider 前缀, 经 gate 走 HF ingress urllib):
+```json
+HTTP 404 {"error":{"message":"[nvidia/qwen/qwen3.5-397b-a17b] [404]: {\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function id 'f32596d4-0577-4a17-baf2-034515d1e457' version 'null': Specified function in account 'FzLXIfQ...' is not found\"} (reset after 2m)"}}
+```
+- omniroute 真转发上游 NVIDIA, 上游返 function-not-found 404(reset-after-2m 提示 omniroute 侧 retry 兜底已退), **非我侧路由误**
+- 判定: **持续 404** → 已从 TIER 清单移除(`init-nim-keys.sh:69` TIER_STABLE 内注释行保留 audit trail, 移除生效)
+- audit 记 "catalog 可查 ≠ 可服务" 案例: `/v1/models` 列此单一上市 ID, init `check_nim_model_health` 短名探测通过(health 假阳), 但真业务 POST 上游返 function-not-found — catalog 健康检查不能替代可服务性实测
+
+## 四遗留 audit 项(本轮动后态)
+
+1. **qwen3.5-397b-a17b** ✅ Task D 已判(持续 404 → TIER 移除, "catalog 可查≠可服务"案例记, 行69 注释留证)。
+2. **生产 14:15 起 `ProxyFetch ECONNREFUSED 127.0.0.1:20129` 幽灵**: purge 显示 0/0/0 但运行时仍有连接尝试, 脏 proxyUrl 存于他处, 历史遗留(§1 生产禁触, 不动)。
+3. **4.2.3 init `jq: Cannot index array with string "name"` 报错** ✅ Task C1 已修(对象守卫 `type=="object"` 屏蔽数组值不抛)。
+4. **(a) 上游 issue + 候选补丁**: 400 响应体含 `maximum context length` → exempt 账号级 fallback(combo 级保留), 排下基镜像周期, 灰区漏判兜底(详见 E2)。
 
 ## 关联
 

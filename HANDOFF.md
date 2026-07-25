@@ -5,12 +5,26 @@
 
 ## 交接时刻状态
 
-### 2026-07-25 · 切换 ② boot 前就位 (执行人: cg52 侧, Claude Code 侧落引导前修源/固化)
-- 本地 HEAD: 见 `git log --oneline -1` (动态, 不写死防漂移)
-- 远端 Dataset 五件 sha: 见 ops/STATUS.md (SSOT, 避双语漂移)
-- 待圣上手动: Space Variable 加 `GATE_UPSTREAM_TIMEOUT_MS=180000` + Secret `NIM_KEYS` 换 25 行 + 删 `GATE_ADMIN_TOKEN` + Restart dev Space
-- boot 后验: 九段 + Resilience 读回 300/200/75/300000 + probe 25 活 + 长思考一笔(>30s 静默不被切断) + 429 基线(首小时按 status_code 分桶)
-- 引导前修源就绪: init probe 000 重试小修 (omn-logic/init-nim-keys.sh, 待 commit + push Dataset, 与换 key 同一次 Restart 生效)
+### 2026-07-25 (本轮末) · 切换 ② boot 前固化批落地完毕 — 待圣上 Restart (执行人: cg52 侧, Claude Code 侧落引导前修源/固化)
+- 本地 HEAD: `dbedbed` (动态见 `git log --oneline -1`)
+- 本轮四 commit: `5ee3778`(K3三件) `e76ccf3`(②三钉点) `1159de6`(probe修源+三样固化) `dbedbed`(STATUS)
+- 远端 Dataset: init=`a1640dd5` (probe 修态 push 闭环 byte-for-byte), 余4件见 ops/STATUS.md
+- ⚠ CLAUDE.md v3 圣上签改未 commit (留圣上自 commit / 明令)
+- ⚠ 拓扑漂移: v3 §1 定 `dev/logic/` 血统路径, 现 `omn-logic/` 名不符待收敛 (非 ② 阻塞, 待圣上批)
+- n-omn GitHub 远端 ahead 38 commit 未推 (§3 禁 push 待圣上判)
+
+### 待圣上手动 (② 启动门 六项)
+1. Space Variable 加 `GATE_UPSTREAM_TIMEOUT_MS=180000` (与换 key 同次 Restart, 不额外占窗口)
+2. Secret `NIM_KEYS` 换 25 行
+3. 删 `GATE_ADMIN_TOKEN` (钉 3 后台收敛)
+4. Restart dev Space (§2 圣上手动不变)
+
+### boot 后验 (cg52 四项 + 两新增)
+- 九段终验 + Resilience 读回 = `300/200/75/300000` (25 key 触 cap 300 首次实证)
+- probe 汇总 = 25 活 / 0 死
+- 长思考一笔 (首 token 静默 >30s 完整走完不被 gate 切 — gate 180000 修正实证)
+- 429 监视基线 (首小时 call_logs 按 status_code 分桶 — 共享配额判断零点)
+- ② 加速版退出: 2 次干净 boot (含 1 次主动 Restart 验幂等) + 请求矩阵四笔 + 过夜一轮 → 进③
 
 ## watcher 模式: 风暴特征串 (命中即告警)
 

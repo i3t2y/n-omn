@@ -61,11 +61,11 @@ TIER_FAST=(
   "z-ai/glm-5.2"
   "deepseek-ai/deepseek-v4-flash"
   "deepseek-ai/deepseek-v4-pro"
-  "meta/llama-3.3-70b-instruct"
+  # "meta/llama-3.3-70b-instruct"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-pool 笔2 101s 超时 gpt-oss-120b + llama-3.3-70b 路由慢挂, check_nim_model_health 探 NVIDIA 目录有=available 不标 deprecated, filter_alive 不剔, 每 boot combo PUT 回冲; 落源不落库方能切除). 圣上裁决矛盾二取 ii (主池+codex 同步删 gpt-oss-120b)
 )
 TIER_STABLE=(
   "nvidia/nemotron-3-super-120b-a12b"
-  "openai/gpt-oss-120b"
+  # "openai/gpt-oss-120b"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-codex 笔1 101s 超时 priority 命中 gpt-oss-120b 挂无 fallback; 亦在 NIM_CODEX_MODELS 行89 同步删). 圣上裁决矛盾二取 ii
   # "qwen/qwen3.5-397b-a17b"  # 2026-07-25 Task D 移除: catalog 可查≠可服务, POST /v1/chat/completions 上游返 function-not-found 404 (omniroute 真转发 NVIDIA 后被上游拒)
   "mistralai/mistral-small-4-119b-2603"
   "google/gemma-4-31b-it"
@@ -86,7 +86,7 @@ echo "[init] NIM_PROFILE=$_PROFILE -> pool 意向 ${#NIM_POOL_MODELS[@]} 个模�
 
 NIM_CODEX_MODELS=(
   "deepseek-ai/deepseek-v4-pro"
-  "openai/gpt-oss-120b"
+  # "openai/gpt-oss-120b"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-codex 笔1 priority 命中此模型 101s 超时挂; 与 TIER_STABLE 行68 同步删以复 matrix 双 combo 绿路径). 圣上裁决矛盾二取 ii. strategy维持 priority (codex 2 model priority 可走, 矛盾三维持裁决)
   "z-ai/glm-5.2"
 )
 NIM_FAST_MODELS=(

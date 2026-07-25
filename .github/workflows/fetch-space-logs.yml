@@ -1,0 +1,143 @@
+# Fetch HF Space logs → n-omn evidence 分支
+# 圣上 2026-07-25 令: 抓取 Space 日志用 GitHub Actions, 直接放私库。
+# 定位: CI 侧证据采集, 非逻辑层, 不受 ② 零变更约束, 阻塞仅 push + HF_TOKEN_NONOKE secret。
+# 与 P0-tee 互补: P0-tee=容器内持久落盘(战后), 本通道=HF 可见窗口仓内归档(现在)。
+# 下游: claude-code-action 异步解读层未来从此 evidence 分支消费。
+# 出处: SEE DECISIONS.md "HF Space 日志抓取通道" 条 (2026-07-25)。
+
+name: Fetch HF Space logs → evidence
+
+on:
+  schedule:
+    # HF 免费 Space 日志可见窗口约 30min, 30min 一帧作 archival 用, 不作实时监控
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      log_type:
+        description: 抓哪类日志 (run=运行时, build=重建, both=双投)
+        type: choice
+        options: [run, build, both]
+        default: run
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-logs
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 抓取 HF Space 日志 (matrix 留 nomke 扩位, 当前单投 nonoke/omn)
+        id: fetch
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_NONOKE }}
+        run: |
+          set -euo pipefail
+          LOG_TYPE="${{ inputs.log_type || 'run' }}"
+          TS=$(date -u '+%Y%m%d-%H%M')
+          # matrix 留位: production line = nomke/omn (待 HF_TOKEN_NOMKE secret 建后扩)
+          # 当前单投 dev = nonoke/omn
+          SPACE="nonoke/omn"
+          mkdir -p out
+          fetch_one() {
+            local kind="$1"
+            echo "=== fetch $SPACE logs/$kind @ $TS ==="
+            curl -sf --max-time 60 \
+              -H "Authorization: Bearer ${HF_TOKEN}" \
+              "https://huggingface.co/api/spaces/${SPACE}/logs/${kind}" \
+              -o "out/${kind}.log" || {
+                echo "WARN: ${kind} 日志抓取失败 (端点 SSE 流或 Space 未启动), --max-time 60 已兜底"
+                return 1
+              }
+          }
+          case "$LOG_TYPE" in
+            run)   fetch_one run ;;
+            build) fetch_one build ;;
+            both)  fetch_one run; fetch_one build ;;
+          esac
+          echo "ts=$TS" >> "$GITHUB_OUTPUT"
+          echo "log_type=$LOG_TYPE" >> "$GITHUB_OUTPUT"
+          ls -la out/
+
+      - name: 脱敏闸 (复用 secret-scan 正则, fail-closed — 宁丢一帧日志, 不泄一凭据)
+        id: desens
+        run: |
+          set -euo pipefail
+          # 复用 .claude/hooks/secret-scan.{py,sh} 三模式等价正则:
+          #   1. nvapi- NIM key 明文 (20+ 字符)
+          #   2. Bearer 明文 / X-Internal-PSK 头明文 (16+ 字符实值, 非占位)
+          #   3. hf_ token / R2 access key 明文 (omniroute-data.*access)
+          #   4. GATE_ADMIN_TOKEN 实值
+          HIT=0
+          for f in out/*.log; do
+            [ -f "$f" ] || continue
+            if grep -nE 'nvapi-[A-Za-z0-9_\-]{20,}' "$f"; then
+              echo "::error file=$f::命中 nvapi- NIM key 明文, 整 job fail-closed"; HIT=1
+            fi
+            if grep -nE '(Bearer|X-Internal-PSK)[^A-Za-z0-9]{1,3}[A-Za-z0-9_\-]{16,}' "$f"; then
+              echo "::error file=$f::命中 Bearer/PSK 明文态, 整 job fail-closed"; HIT=1
+            fi
+            if grep -niE 'hf_[A-Za-z0-9]{20,}' "$f"; then
+              echo "::error file=$f::命中 hf_ token 明文, 整 job fail-closed"; HIT=1
+            fi
+            if grep -qiE 'omniroute-data.*[Aa]ccess[A-Za-z0-9_-]{8,}' "$f"; then
+              echo "::error file=$f::命中 R2 access key 明文, 整 job fail-closed"; HIT=1
+            fi
+          done
+          if [ "$HIT" = "1" ]; then
+            echo "::error::脱敏闸拦: 命中真值凭据形态, 不 commit 不 push, 宁丢一帧日志"
+            exit 1
+          fi
+          echo "脱敏闸已执行 PASS"
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 落 evidence 分支 (orphan 起步, main SSOT 洁净分层)
+        if: steps.desens.outputs.passed == 'true'
+        run: |
+          set -euo pipefail
+          TS="${{ steps.fetch.outputs.ts }}"
+          LOG_TYPE="${{ steps.fetch.outputs.log_type }}"
+          BRANCH="evidence"
+          # git user
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 浅克隆 / 建 evidence 分支 (不存在则 orphan)
+          git fetch --unshallow 2>/dev/null || git fetch
+          if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
+            git checkout "$BRANCH"
+            git pull --rebase origin "$BRANCH" 2>/dev/null || true
+          else
+            git checkout --orphan "$BRANCH"
+            git rm -rf . 2>/dev/null || true
+          fi
+          # 落文件: logs/nonoke--omn/YYYYMMDD-HHMM-{kind}.log 单文件时间戳
+          DEST_DIR="logs/nonoke--omn"
+          mkdir -p "$DEST_DIR"
+          for f in out/*.log; do
+            [ -f "$f" ] || continue
+            kind=$(basename "$f" .log)
+            cp "$f" "${DEST_DIR}/${TS}-${kind}.log"
+          done
+          # 保留期: 删 7 天前快照 (工作树不膨胀, git 历史留痕)
+          find "$DEST_DIR" -name '*.log' -mtime +7 -delete || true
+          git add -A "${DEST_DIR}/"
+          if git diff --cached --quiet; then
+            echo "无新快照, skip commit"
+          else
+            git commit -m "chore(evidence): HF $LOG_TYPE logs ${TS} [skip ci]"
+            git push origin "$BRANCH"
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 首跑验证回显 (圣上手动 dispatch 时判)
+        if: always()
+        run: |
+          echo "=== 验收三点回显 ==="
+          echo "1. evidence 分枝出现快照: (查 push 步 output pushed)"
+          echo "2. 脱敏闸已执行: steps.desens.outputs.passed = '${{ steps.desens.outputs.passed }}'"
+          echo "3. 日志正文: (快照内容确为 boot/run 日志, 非 404/空/error 页)"
+          git --no-pager log --oneline -3 2>/dev/null || true

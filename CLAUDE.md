@@ -14,9 +14,9 @@
 - n-omn 私库 = 唯一血统。根目录=生产血统; dev/logic/=dev逻辑层镜像
   (实物在 Dataset nonoke/omn-logic, 改动须 git 先行再 push);
   dev/base/=基镜像血缘; ops/=运营层(永不进Space, 不同步)。
-- nomke/omn = 现役生产(v4.2.3, 冻结中, 退役截止见 STATUS): 零触碰。
-- nomke-omn-v2 = 新生产(永续架构, 今日切换): 无 Supreme 令不动。
-- nonoke/omn = dev 金丝雀: 全部试验在此。
+- nomke/omn = 现役生产(v4.2.3, 无 Supreme 令不动); ③时 Pause 停写转冻结回退底牌。
+  nonoke/omn = dev 金丝雀; ②六绿后于 ③ 晋级生产(变量切换 R2→生产 bucket + Restart, 零 Rebuild)。
+  omn-v2 第三 Space 撤销(HF 免费层 2026-07 关闭新建 Docker Space 通道), 全程不新建任何 Space。
 - 两 Space 日志分开取证, 禁止交叉引用结论; R2 bucket 永不双写
   (新旧 Space 不得同时在线写同一 bucket)。
 - upstream/ 两树只读; 机制结论须 file:line 双版本对照;

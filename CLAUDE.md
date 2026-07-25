@@ -1,50 +1,56 @@
 # CLAUDE.md — omn-merge 工作宪法
-# v2 · 2026-07-21 · Supreme 签发 · 改动须 Supreme 批准
+# v3 · 2026-07-25 · Supreme 签发 · 改动须 Supreme 批准
 
-## §1 双空间铁律
-- nomke/omn = 生产, 4.2.3, 25 key, bucket omniroute-data: 零触碰。
-  不探针、不配置、不试验、不引用其日志支撑 dev 结论。
-- nonoke/omn = 永续 dev, v4.3.0, 8+1 key, bucket omn-data: 全部工作在此。
-- 探针只打 nonoke-omn.hf.space。
-- 两空间日志分开取证, 禁止交叉引用结论(第二轮误判根因的教训)。
+## §0 会话生命周期协议(最高优先级)
+- 会话开始: 读 HANDOFF.md + ops/STATUS.md + ops/DECISIONS.md 最近10条,
+  不凭记忆臆测, 不重复已锁定决策(翻案须 Supreme 明确指令)。
+- 任务范围: 一次会话一件事, 结束即交接。
+- 会话结束/里程碑: 输出交接块(完成/锁定决策/文件变更/未决/下一步),
+  供 Supreme 归档进 ops/。
+- 输出纪律: 改代码只输出 diff 或定点替换, 禁整文件重写; 全量文件由
+  git 出货, 不经会话即兴生成。
 
-## §2 冻结令(T+48h 宣判前, 即 2026-07-23 03:16 前)
-- 禁 Dataset push。禁 Space restart / factory reboot。禁改现役脚本与 gate 配置。
-- 金丝雀时序(授权已含, 到点执行, 不再请示):
-  R1 07-22 03:16 后 双 key 单发; R2 07-22 15:16 后 同档;
-  R3 07-23 03:16 后 全量 9 key → 宣判。
-- 异常即停: 非预期信号 → 停, 不抢修, 报回会话。
+## §1 拓扑铁律(2026-07-25 修订: 单源双Space)
+- n-omn 私库 = 唯一血统。根目录=生产血统; dev/logic/=dev逻辑层镜像
+  (实物在 Dataset nonoke/omn-logic, 改动须 git 先行再 push);
+  dev/base/=基镜像血缘; ops/=运营层(永不进Space, 不同步)。
+- nomke/omn = 现役生产(v4.2.3, 冻结中, 退役截止见 STATUS): 零触碰。
+- nomke-omn-v2 = 新生产(永续架构, 今日切换): 无 Supreme 令不动。
+- nonoke/omn = dev 金丝雀: 全部试验在此。
+- 两 Space 日志分开取证, 禁止交叉引用结论; R2 bucket 永不双写
+  (新旧 Space 不得同时在线写同一 bucket)。
+- upstream/ 两树只读; 机制结论须 file:line 双版本对照;
+  基座 3.8.43 + 4.2.3 行为参数 + 3.8.49 定点移植。
 
-## §3 Secrets 纪律
-- secret/token 值零入会话、零入文档、零入 git。记录只写位置不写值。
-- 一律使用 env 占位(${NIM_KEY} 等)。
-- GitHub 令牌仅只读克隆, 禁 push; 上游公开仓库克隆不需要令牌。
-- 已登记例外: ~/.claude/settings.json:26 vision key(env 迁移处理中)。
+## §2 Secrets 纪律
+- secret/token 值零入会话、零入文档、零入 git; 记录只写位置。
+- 一律 env 占位; 测试用合成串(chr 拼接), 禁真 key 或类真 PSK 入会话。
+- GitHub 令牌按最小 scope; HF Dataset 令牌仅写权限于目标 repo。
 
-## §4 文档链入口(SSOT)
-- 主文档: audit/2026-07-21-nim-403-账户级封禁-归因与改造立项.md
-- 交接包: 2026-07-21-step5-验收交接包-cg52.md v1(③④⑤⑥ 暂停, ②由金丝雀吸收)
-- 时序总表: audit/2026-07-21-cg52-五步归档执行时序总表.md
-- 任务书: cg52 新方向任务书 v2。冲突以主文档为准。
+## §3 文档链(SSOT)
+- 系统契约: HANDOFF.md(架构/不变量/排障入口)。
+- 状态: ops/STATUS.md(当前部署=commit, 切换五步态, 待办)。
+- 决策: ops/DECISIONS.md(只增不改)。
+- 事故: ops/incidents/(七段式)。验收: ops/release-checklist.md。
+- 历史: audit/。冲突以 HANDOFF.md 为准, 其次 DECISIONS.md。
 
-## §5 生成与取证纪律
-- 不人工翻更新记录; 机制结论必须 file:line 双版本(3.8.43/3.8.49)对照。
-- 内部状态只认日志签名与持久通道(Litestream→R2、Dataset git);
+## §4 验证与健康信号
+- 健康 = boot 九段全执行 + init rc=0; 任何中间段回显不构成证据。
+- 内部状态只认日志签名与持久通道(Litestream→R2、Dataset);
   探针只做最终确认, 顺序不可反。
-- upstream/ 两棵树只读: 禁整树替换、禁直接运行、禁入生产。
-- 基座裁决: 3.8.43@b729a8f 代码基座 + 4.2.3 行为参数 + 3.8.49 定点移植;
-  禁整体回退 4.2.3, 禁整体升级 3.8.49。
+- 切流量前过 ops/release-checklist.md A/B/C/M 全段。
 
-## §6 护栏段
-- PreToolUse hook(secret-scan.py): 扫 Bash/Write/Edit 载荷, 命中密钥形态 exit 2 拦截。
-- deny 16 条 / ask 2 条见 .claude/settings.json; settings.json 不入 git。
-- 自验纪律: 测试一律用合成串(chr 拼接构造), 严禁真 key 或类真 PSK 入会话。
-- pre-commit: 扫暂存区, 命中即拒; git add/commit 一律 ask 人工裁决。
+## §5 护栏段
+- PreToolUse hook(secret-scan.py) + pre-commit 扫描, 命中即拒。
+- git add/commit 一律 ask 人工裁决; deny/ask 清单见
+  .claude/settings.json(不入 git)。
+- 速率三准则: 并发 ≤2-3; 缓存去重; Retry-After 优先, 无则退避,
+  严禁立即重试。
 
-## §7 网关接线段
-- gate 契约: /v1/* 用 Authorization Bearer 头; Bearer 值须 = INTERNAL_PSK(非 OMNIROUTE_API_KEY); safeEqual crypto.timingSafeEqual 常量时比(gate.js:173-178)。启动 fail-closed: INTERNAL_PSK 缺/<16 → FATAL exit(gate.js:31)。
-- gate 后台开关: GATE_ADMIN_ENABLED==='1' 则 /api/* 及其余全路径后台直透传(无闸), 否则 404; 纯布尔非 TOKEN(gate.js:24,159-165)。经 gate 读 combos 不可行, 读 Dataset hf_snapshot 代替。
-- 速率三准则(一切对外请求默认档): 并发 ≤2-3; 缓存去重; Retry-After 优先,
-  无则退避, 严禁立即重试。
-- 日志纪律: HF 免费层不存日志; boot 后 30min 内抓取归档(会话+快照各一份);
-  任何有意 reboot 前先抓当前日志尾段。
+## §6 网关接线段
+- /v1/* Bearer = INTERNAL_PSK(safeEqual 常量时比); 缺/<16 fail-closed。
+- GATE_ADMIN_TOKEN: 维护窗口临时配置(≥16), 用后删除恢复仅 API 模式。
+- 工具接入(Codex/Claude Code/任何客户端): base_url 一律指 gate /v1,
+  禁裸连 integrate.api.nvidia.com 单 key。
+- 长思考流: GATE_UPSTREAM_TIMEOUT_MS=180000(对齐上游 M7)。
+- HF 免费层不存日志: boot 后 30min 内抓取归档, 有意 reboot 前先抓尾段。

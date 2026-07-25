@@ -184,11 +184,11 @@ _FALLBACK_STRATEGY="round-robin"
 _STICKY_LIMIT=1
 _COMPRESS_THRESHOLD=${NIM_COMPRESS_THRESHOLD:-12000}
 _COMPRESS_MODE="stacked"
-_NIM_REAL_CONTEXT=${CONTEXT_LENGTH_DEFAULT:-32768}
+_NIM_REAL_CONTEXT=${CONTEXT_LENGTH_DEFAULT:-200000}
 echo "[init] pool strategy=$_POOL_STRATEGY | codex strategy=$_CODEX_STRATEGY"
 
 # ── body limit 归一 ───────────────────────────────────────────
-_RAW_BODY_LIMIT=${NIM_REQUEST_BODY_LIMIT:-1}
+_RAW_BODY_LIMIT=${NIM_REQUEST_BODY_LIMIT:-4}
 if [ "$_RAW_BODY_LIMIT" -gt 500 ] 2>/dev/null; then
   _REQUEST_BODY_LIMIT_MB=$(( _RAW_BODY_LIMIT / 1048576 ))
   [ "$_REQUEST_BODY_LIMIT_MB" -lt 1 ] && _REQUEST_BODY_LIMIT_MB=1
@@ -825,7 +825,7 @@ curl -s -o /dev/null -w "[init] CB reset HTTP %{http_code}
 # (CF-4): init 仅应用一次性 per-model 32768 override, 不跨周期自动标定.
 
 # per-model 32K override (real_context=$_NIM_REAL_CONTEXT) — 42ea8e7 基线原态恢复.
-echo "[init] per-model 32K override (real_context=$_NIM_REAL_CONTEXT)..."
+echo "[init] per-model 200K override (real_context=$_NIM_REAL_CONTEXT)..."
 OVERRIDE_APPLIED=0; OVERRIDE_SKIPPED=0
 apply_context_override() {
   if sqlite3 "$_DB_PATH" \
@@ -842,7 +842,7 @@ echo "[init] override: $OVERRIDE_APPLIED applied, $OVERRIDE_SKIPPED failed."
 
 echo "[init] ─────────────────────────────────────────────"
 echo "[init]   PROFILE=$_PROFILE MODE=$NIM_MODE KEYS=$_ALIVE_KEYS RPM=$_RPM BODY=$_REQUEST_BODY_LIMIT_MB MB"
-echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT (per-model 32K override 应用, monitor 自动回写禁用)"
+echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT (per-model override 应用, monitor 自动回写禁用)"
 echo "[init] ─────────────────────────────────────────────"
 
 hf_snapshot() {

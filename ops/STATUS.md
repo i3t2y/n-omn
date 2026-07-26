@@ -105,5 +105,8 @@
 - [ ] CI 侧: fetch-space-logs.yml 首跑绿 (push 后圣上手动 dispatch run — 验: evidence 分支出快照 + secret-scan 闸已执行 + 内容确为 boot/run 日志); 与 P0-tee 互补 (P0-tee=容器内持久落盘战后, 本通道=HF 可见窗口仓内归档现), 走当前执行流非战后队列
 - [ ] 战后建设队列: 每模型 probe (init 探活扩展到池内全模型, 与 P0-tee 同批) — 现 probe 只测 glm-5.2 单模型, 挂模型 init 期无感知 (② 行为暴露)
 - [ ] ③ 后: 429 基线 (从生产 bucket omniroute-data 只读副本一行 SQL 分桶) + 24h 风暴特征串计数 = 0 → 落 DECISIONS "生产限流档裁决"
-- [ ] 全文件排查同类 jq/grep 空输入 pipeline(痛点1根治)
+- [x] 全文件排查同类 jq/grep 空输入 pipeline(痛点1根治) — 2026-07-26 实测净: 存货=0 (init-nim-keys.sh 已修地雷唯一 jq@tsv 行159-178 set+eo抬门+${:-[]}兜底; 其余 models_to_json/:108/_is_valid_strat 三调用处全 || 兜底; merge_files.py 废弃不达标)
 - [ ] audit/2026-07-25-k3-架构调整总览.md + docs/k3* 三 untracked commit 入档待判
+- [ ] fetch-logs 补丁三 commit + push (.github/workflows/fetch-space-logs.yml +9/-8, Checkout 步移 job 首) + 圣上 dispatch 验三硬标 (run 绿 + evidence 分支 logs/nonoke--omn/YYYYMMDD-HHMM-run.log 落真 + 文件头 Application Startup + grep compaction 收 04:30Z 至今告警)
+- [ ] R2 漂移嫌疑 Space 侧三子读锁案分道 (圣上全只读): 步1 env+ls 双路径 / 步2 litestream databases / 步3 litestream snapshots + R2 bucket mtime — Phase 2 冻结令关键钥匙
+- [ ] Phase 2 六步冻结: R2 三子读数报回前一律不启 (R2 先证后建铁律)

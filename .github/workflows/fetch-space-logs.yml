@@ -38,6 +38,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout (补丁二→补丁三 2026-07-26 — 移 job 首; 原 inter-step 插入位错致 clean:true 删 fetch 步 out/ 产出)
+        uses: actions/checkout@v4
+        with:
+          # 证据分支步骤含 git fetch + orphan 建支推 push, 需全量史;
+          # checkout 默认 clean:true 会 "Deleting the contents of <cwd>" — 必在 fetch 步前先跑,
+          # 否则 fetch 步先落 out/run.log 后 checkout clean 删之 (30193115626 run 病: fetch rc=28 bytes=245500
+          # 落盘后被 checkout clean 删 → evidence 步 out/*.log 空 → "无新快照 skip commit").
+          fetch-depth: 0
+
       - name: 抓取 HF Space 日志 (matrix 留 nomke 扩位, 当前单投 nonoke/omn)
         id: fetch
         env:
@@ -130,14 +139,6 @@ jobs:
           fi
           echo "脱敏闸已执行 PASS"
           echo "passed=true" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout (补丁二 2026-07-26 — workflow 缺 actions/checkout 致 git 报 not a git repository)
-        if: steps.desens.outputs.passed == 'true'
-        uses: actions/checkout@v4
-        with:
-          # 证据分支步骤含 git fetch + orphan 建支推 push, 需全量史;
-          # 浅克隆的 unshallow 会多一次网络往返, 直接全量更省, 顺医 fetch 冗余.
-          fetch-depth: 0
 
       - name: 落 evidence 分支 (orphan 起步, main SSOT 洁净分层)
         if: steps.desens.outputs.passed == 'true'

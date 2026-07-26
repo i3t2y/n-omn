@@ -99,3 +99,19 @@
 - dash 实跑 `_rev` 解析段双路: 成功路 `printf %.12s` 截 12 字符✅ + 失败路 `_rev` 空回退 main HEAD✅, 均退 0
 
 **教训钉死**: 根件 (`#!/bin/sh`) 改动须三闸 — ①`sh -n` 语法 ②dash 实跑 expansion 段 ③bash-ism grep 全扫. 缺一不可 (本次 `sh -n` 过但 expansion 崩即缺②③). 入 DECISIONS "根件 dash 兼容三闸" 条防再坑.
+
+## §8 fetch-logs 补丁二→补丁三 — actions/checkout 位序错致 clean:true 删前步产出 (7-26 闭环中)
+
+**承接 §7 同日 fetch-space-logs.yml 硬化**: §7 bootstrap crashloop 修后, 通道验转 fetch-space-logs.yml 端到端三硬标.
+
+**补丁二位错 (inter-step 插)**: 医 `fatal: not a git repository` (证据分支 git 操作在缺仓 runner 跑 — 补丁二病历 #30189840194), 插 `actions/checkout@v4` 步 — **但落位在 fetch step + 脱敏闸 之后, evidence step 之前**.
+- run #30193115626 实测: fetch step `rc=28 bytes=245500` 真落盘 `out/run.log` ✅ → actions/checkout@v4 默认 `clean: true` 跑 `Deleting the contents of '/home/runner/work/n-omn/n-omn'` → **删 fetch step 先落的 out/run.log** → 脱敏闸空 glob 通过 → evidence step `out/*.log` 空 → "无新快照 skip commit" → run 结论 success 但 evidence 分支零快照落地.
+- **三硬标缺一**: run 绿 ✅ / evidence 落地 ✗ — fetch-logs 通道补丁二本轮**未真通**, 病链起新端.
+
+**补丁三修 (checkout 移 job 首)**: actions/checkout 移 `Set up job` 之后第一 step (fetch step 之前). fetch step 在 checkout 后落 out/, evidence step 此时 cwd 已越过 clean:true 之劫, out/ untracked 留 → `cp out/*.log ${DEST_DIR}/` 成功 → `git add -A ${DEST_DIR}/` 成功 (DEST 非 out/ 不被 checkout clean 删, .gitignore 已 git rm -rf). diff +9/-8 (Checkout 步 +9, 删原 inter 位遗 -8).
+
+**意外正向实证 (245.5KB 压力测试读数, 圣上 7-26 指出)**: run 30193115626 fetch 段 245500 字节比圣上本地 60s 实测 142251 多约 100KB — 非噪声, 是从 03:32Z boot 至此刻 Space 累积 boot/restart (补丁二/三引发) + 圣上 Space 侧操作增厚历史. 补丁二暴露期无意完成一次天然压力测试: 245.5KB 积压 > 142KB 基线, 快照随 boot 次数自然增长. 验证"积压+实时窗"快照语义含金量 — 即使 workflow 每 30min cron 单跑, 单次抓取证据完整度随 Space 运行时长线性提升, boot 叙事类取证 (R2 漂移案/compaction 告警溯源) 单次快照即全量史, 证据价值再升一档.
+
+**教训钉死 (一坑三贴, 与 §7 同册列)**: actions/checkout workflow authoring 三铁律 — ① checkout 在场 (医 `fatal not a git repository`) ② `clean:true` 是作业内生成者杀手, 不杀前步产物 ③ checkout 位序第一 (产物落盘后于 checkout), 位序与有无同重. 入 DECISIONS "workflow authoring 三铁律" 条 (2026-07-26).
+
+**三硬标验 (待圣上 push 补丁三 + dispatch)**: ① run 绿 ② evidence 分支 `logs/nonoke--omn/20260726-HHMM-run.log` 落真 ③ 文件头 `===== Application Startup` boot 真日志 + grep compaction 收 04:30Z 至今告警实录入步3证袋. 三标全绿方闭 §8.

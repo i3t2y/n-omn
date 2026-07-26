@@ -3,6 +3,13 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-26 · 四死名 Variable 划除 (zero 真消费, 圣上 Space web 删) — NIM_RPM/NIM_PROBE/NIM_FREE_CONCURRENT/NIM_SCALE_WITH_KEYS
+切流 git SSOT 落地后圣上审 Space Variables 清单, 我核消费点定谳四死名 (现役 bootstrap.sh/entrypoint.sh/dev/logic/* 零真消费), 圣上 2026-07-26 Space web 侧删:
+- **NIM_RPM**: 现 boot 限流 RPM 由 init-nim-keys.sh 动态推导 (cap=300, `init:208/667` 算法), 非 env 注; `dev/logic/init-nim-keys.sh` 零 `${NIM_RPM}` 引用. (仅 `.claude/worktrees/nim-pool-rebuild/init-nim-keys.sh:48 _RPM=${NIM_RPM:-40}` = worktree 历史分叉态, 非现役血统.)
+- **NIM_PROBE / NIM_FREE_CONCURRENT / NIM_SCALE_WITH_KEYS**: 仓内零全引命中 (bootstrap/entrypoint/dev/logic 全扫). probe 逻辑现硬编码 POST glm-5.2 + 25 key 探活, 无 env 调参位.
+- **划除依据**: §1 生产禁触, Space Variable 删除属圣上 web 手 (我禁触 Space); 我仅核消费点证死名供圣上删. 删后无运行时影响 (零消费即删无回退风险), Variable 列表淆读净化 (四死名占位淆误读为现役配置).
+- **关联裁决 (LITESTREAM_STRICT=1 已裁, 见同日 (d) 条升格)**: 圣上同次设 `LITESTREAM_STRICT=1` (prod fail-早). 其余 Variables 真消费留: CONTEXT_LENGTH_DEFAULT (init:229 real_context 默认源) / NIM_COMPRESS_THRESHOLD (init:227) / NIM_MODE (init:20) / NIM_PROFILE (init:79) / NIM_REQUEST_BODY_LIMIT (init:233) / NODE_OPTIONS (entrypoint:186 堆 4096) / GATE_ADMIN_ENABLED (gate:24 布尔) / GATE_UPSTREAM_TIMEOUT_MS (gate:27 180000) / LOGIC_BUCKET_REPO+OMN_DATASET_REPO (双阶段别名见血统条) / R2_BUCKET (参数化生效). Secrets: HF_TOKEN (Space 容器 huggingface_hub 默认读名, boot Logged in+uploaded 通 = 活, 非删). 出处: 本会话圣上 Space Variables 审 + 我消费点核验.
+
 ## 2026-07-26 · R2 桶名参数化 $R2_BUCKET + workflow 六件命名规约 + HF_TOKEN 命名空间隔离 + LITESTREAM_STRICT 评估 (切流期两事故根因闭环, 圣上 7-26 令同步 web 手改回 git)
 切流链步2-6 执行期 nomke/omn 生产侧连发两起事故, 同根 = `dev/logic/litestream.yml` 桶名硬写 dev 桶 `omn-data` 随 logic 层平铺机制越界写 prod 端 (prod R2 key 无 dev 桶写权 → 403 AccessDenied 备份断供 → 12:13Z boot #1; web 手改 YAML line 9 损坏 → 12:53Z boot #2 litestream 进程崩退). 全全程圣上 HF web 手动修复 (cg52 瘫痪期旁观). 本日四条同案闭环:
 
@@ -12,7 +19,7 @@
 
 - **(c) HF_TOKEN 命名空间隔离 NONOKE/NOMKE 双 token (爆炸半径各半)**: `HF_TOKEN_NONOKE` 写 nonoke 系列 (dev Space + nonoke/omn-logic Dataset, write 仅 target scope), `HF_TOKEN_NOMKE` 写 nomke 系列 (prod Space + nomke/omn-logic Dataset). 双 token 越界即该隔离的运行时体现 — 事故一根本质 = prod 任务用 prod key 写 dev 桶, 参数化 + 命名空间隔离双闸后越界在 CI 阶段即拒 (而非 boot 期 403 才暴露). 原 GitHub repo secret `HF_TOKEN` 2026-07-26 删除, 仓内 env 名 `HF_TOKEN` (Space 容器 huggingface_hub 默认读名) 无改名涉. 出处: saga §8.3 教训 (c) + DECISIONS 同日 "删 R2 备份护栏" 条副作用收编.
 
-- **(d) LITESTREAM_STRICT 评估条 (prod 候选 = 1, 待圣上裁决)**: 现 entrypoint.sh `litestream replicate -config /logic/litestream.yml &` 后台 `&` 不阻塞 boot — litestream 崩退仅日志 WARN 不杀应用, boot 显绿但备份死 (事故二 litestream 退出后 prod 仍接单但无复制). 评 prod 候选 `LITESTREAM_STRICT=1`: litestream 进程 crash/exit 非 0 即 `kill 1` 退出 boot (备份死即 boot 死, fail-早胜 fail-晚, 应用层早挂显红胜过静默无备份跑). 待圣上裁决 (prod fail-早 vs 应用 uptime 何者优先); 若启用须配合 R2 偶发瞬时故障的容错 (否则一次 R2 503 即 Space 重启循环). 出处: saga §8.3 教训 (d) + dev/logic/entrypoint.sh:224-225.
+- **(d) LITESTREAM_STRICT=1 已裁落地 (prod fail-早, 圣上 7-26 批)**: 现 entrypoint.sh:278-284 `litestream replicate -config /logic/litestream.yml &` 后台 `&` 不阻塞 boot, 主循环每 1s 探 `kill -0 $LS_PID`, litestream 进程崩退时: `[ "${LITESTREAM_STRICT:-0}" = 1 ]` 成立 → `echo FATAL...; _shutdown; exit 1` (graceful 收尾 gateway/init 子进程后 boot 退出 1, 非 `kill 1` 硬杀); `= 0` 则仅 WARN + `LS_PID=""` 不阻塞应用 (事故二态: boot 绿但备份死). 圣上 2026-07-26 批 prod `LITESTREAM_STRICT=1` (nomke Space Variable 已设 =1, 圣上 web 侧) — 备份死即 boot 死, fail-早胜 fail-晚, 应用层早挂显红胜过静默无备份跑. **容错边界 (启用须记)**: 一次 R2 偶发瞬时故障 (503/网络抖) 触 litestream 退出即 Space 重启循环风险, 须配合 R2 稳定性 + 监控告警 (litestream 崩退即 boot 死 = 告警信号强, 非静默死); dev 侧非oke 默认留 0 容错演练期. dash 兼容已验 (`[ "${LITESTREAM_STRICT:-0}" = 1 ]` POSIX 兼, entrypoint 走 `#!/bin/bash` 非 dash 无 bash-ism 风险). 零代码改 (entrypoint 现有代码现支持, 纯 env 0→1 切换生效). 出处: saga §8.3 教训 (d) + dev/logic/entrypoint.sh:278-284 + 圣上 2026-07-26 裁决令.
 
 ## 2026-07-26 · 变量血统核实: LOGIC_BUCKET_REPO + OMN_DATASET_REPO 双生不同消费点 (HF_DATASET_REPO 死名)
 切流前悬案 (圣上令 §3 变量血统核实) 定谳 — `grep -n 'OMN_DATASET_REPO\|LOGIC_BUCKET_REPO\|HF_DATASET_REPO' bootstrap.sh entrypoint.sh dev/logic/*` 双件双命中实证:

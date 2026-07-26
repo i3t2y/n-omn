@@ -29,21 +29,32 @@
 - (a) R2 桶名参数化 `${R2_BUCKET}` (logic 层环境无关)
 - (b) workflow 六件命名规约 (`*-nonoke`=dev / `*-nomke`=prod, prod 三件仅 `workflow_dispatch`)
 - (c) HF_TOKEN 命名空间隔离 (NONOKE/NOMKE 双 token, 爆炸半径各半)
-- (d) LITESTREAM_STRICT 评估 (prod 候选 = 1, litestream 崩退即 boot 死 / 现 `&` 不阻塞; 待圣上裁决)
+- (d) LITESTREAM_STRICT=1 已裁落地 (圣上 7-26 批 prod fail-早; entrypoint.sh:278-284 主循环探 LS_PID 亡 → exit 1 graceful 收尾 boot 死; 零代码改纯 env 0→1)
 - 变量血统核实: `LOGIC_BUCKET_REPO` (bootstrap 拉逻辑层唯一真消费) + `OMN_DATASET_REPO` (init upload_folder 回写) 互为别名同一 logic Dataset 根; `HF_DATASET_REPO` 死名零消费划除。prod 两名同赋 `nomke/omn-logic`, dev 同赋 `nonoke/omn-logic`。
+- 四死名 Variable 划除 (圣上 Space web 侧删, 我核消费点证死名): `NIM_RPM` / `NIM_PROBE` / `NIM_FREE_CONCURRENT` / `NIM_SCALE_WITH_KEYS` (现役 bootstrap/entrypoint/dev/logic 零真消费; worktree 残留引用非现役血统)
 
 ### 环境变更记录 (只记不执行, 圣上 web 手通)
-- **nomke/omn 已设/应设**: `R2_BUCKET=omniroute-data` (Variable) + `OMN_DATASET_REPO=nomke/omn-logic`
+- **nomke/omn 已设/应设**: `R2_BUCKET=omniroute-data` (Variable) + `OMN_DATASET_REPO=nomke/omn-logic` + `LITESTREAM_STRICT=1` (圣上 7-26 设)
+- **nomke/omn 已删四死名 V**: `NIM_RPM` / `NIM_PROBE` / `NIM_FREE_CONCURRENT` / `NIM_SCALE_WITH_KEYS` (圣上 7-26 删)
 - **nonoke/omn 应设 (litestream 参数化前置)**: `R2_BUCKET=omn-data` — **须 sync logic 前先设** (否则 dev 端 env 缺得不扩致 R2 拒)
+
+### 2026-07-26 15:23Z nomke 生产 boot 铁证 (git SSOT 切流链步 ① 通)
+- **bootstrap**: 同步 Dataset `nomke/omn-logic` revision=`2b03a1992693` atomic 锁拉 (我 force push d66deb1 后远端 HEAD, 非圣上 web UI 中介态 = git SSOT 真生效)
+- **litestream**: `replicating to bucket=omniroute-data` (事故一根治: prod key 有权生产桶) + compaction monitor L1/L2/L3/L9 全启 + `compaction complete level=1 txid=0x2d size=237949` (事故二根治: YAML 解析通 litestream 进程未崩退, 退出且正常跑 compaction)
+- **compaction txid gap 疡自愈推进**: `15:23:52 detected database behind replica db=0x0 replica=0x2c` → `fetched L0 file 0x2c` → `15:24:04 l0 retention deleted_count=4 max_l1_txid=0x2d` 新链扫地 (疤疤摸一次非病, 前会话裸删留疤自愈中)
+- **九段全绿**: bootstrap 环境补全 ~60s (镜像 A 模式缺 python3/curl/jq/sqlite3/huggingface_hub, 自愈设计非病) + OR Next.js Ready 20128 (heap 4096) + R2 `已从恢复`✅ + init probe 25 key 全 200 alive + **25 registered 0 skipped 0 failed** + Resilience 读回 `300/75/200/300000` (concurrent=75=25×3 推导) + combo upsert PUT 两 200 (nim-pool + nim-codex) + override 6 applied + HF Dataset uploaded + **init rc=0**
+- **意向池 6 模型全绿**: glm-5.2/deepseek-v4-flash/deepseek-v4-pro/nemotron-3-super-120b/mistral-small-4-119b/gemma-4-31b (圣上剔挂模型后纯净池)
+- **LITESTREAM_STRICT 此 boot 未触** (15:23:51 litestream 启 PID=699 进程活, STRICT=1 路径仅 litestream 退出才触 exit 1; 圣上建 V 时点 boot 已过 15:23, 下次 Restart STRICT 路径才全生效)
 
 ### saga 续写
 - `ops/incidents/2026-07-25-task-e-model-prune-saga.md` §8.3 续写切流两事故 + 修复时间线 + 根因闭环 + 教训四条。
 
-### 待办 (本批未 commit, 待圣上 push)
-- [ ] 本批六件 workflow + litestream.yml + DECISIONS/STATUS/saga 一并 commit (圣上批 diff 后 push nomn)
-- [ ] LITESTREAM_STRICT 裁决 (圣上批 prod 候选 = 1 or 否)
-- [ ] nonoke/omn 设 `R2_BUCKET=omn-data` Variable (圣上 web, sync logic 前置)
-- [ ] 切流链步 3-6 推进 (Dispatch Skeleton → Rebuild → 变量切换 → Restart), 待本批 commit 推后
+### 待办 (force push 已落 nomn, 切流链推进中)
+- [x] 本批六件 workflow + litestream.yml + DECISIONS/STATUS/saga 一并 commit + **force push nomn 落定** (commit `d66deb1`, 圣上"以你的为准"令 + `--force-with-lease` 覆盖远端 c5df91b web UI 链, 反向键证六件 sha 全 == 本地)
+- [x] LITESTREAM_STRICT 裁决 = 1 (圣上 7-26 批 prod fail-早, Space Variable 已设)
+- [x] 四死名 Variable 划除 (圣上 Space web 删)
+- [ ] nonoke/omn 设 `R2_BUCKET=omn-data` Variable (圣上 web, sync logic 前置, dev 侧切流时)
+- [ ] 切流链步 ②-⑥ 推进 (② BASE_IMAGE 锚定 digest 9c9aecf → ③ Dispatch Skeleton → ④ Rebuild → ⑤ 变量切换 omn-data→omniroute-data → ⑥ Restart), 待圣上令
 
 ## 2026-07-26 · sync 真态实证 + admin 404 实证落地 + ③④按圣令跳过
 

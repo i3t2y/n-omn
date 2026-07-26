@@ -2,6 +2,33 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-07-26 · Phase 2 切流链六步全闭环 (变量切换径, 零 Rebuild) — production nomke/omn 现跑 dev logic 4.3.2
+
+> 圣上 7-26 钉死: nomke boot 跑 dev logic 升级态 4.3.2, 无须重建。切流走**变量切换径** (非骨架重推 Rebuild 径), 15:23Z nomke boot 坐实生产切流后态。
+
+### 切流链六步终态 (production 稳态)
+- ① **git SSOT** ✅ — workflow 六件制 + litestream.yml 参数化 + DECISIONS/STATUS/saga 全推远端 (commit `5d78728`, force push `--force-with-lease` 覆盖远端 c5df91b web UI 链; 反向键证六件 sha 全 == 本地)
+- ② **BASE_IMAGE 钉锚** ✅ — digest `9c9aecf` 设而无须 Rebuild 触发 (dev logic 4.3.2 赑 dev/logic/** Dataset 注入, 不依赖新镜像; Variable 6h 前 Updated)
+- ③ **Dispatch Skeleton 跳** ✅ — 圣上钉死 boot 已跑 4.3.2, ③④均免
+- ④ **Rebuild 跳** ✅ — 零 Rebuild 数据清零事件, R2 可恢复先证铁律无涉 (非 first-init 路径)
+- ⑤ **R2_BUCKET omn-data→omniroute-data** ✅ — 变量切换落 production 桶 (圣上 3h 前设, 跳过步⑤ nominal)
+- ⑥ **Restart** ✅ — 15:23Z nomke boot 九段全绿 rc=0 (见下铁证段)
+
+### 切流治理径定谳
+切流走**变量切换径** (production Space identity 不变 + dev/logic/** 已经 Sync 至 nomke/omn-logic Dataset + bootstrap 拉 dev logic 升级态注入 production Space runtime + R2 bucket 切生产桶 omniroute-data), **非骨架重推 Rebuild 径**。nomke/omn 跑 dev logic 4.3.2 血统 = 我 push dev/logic/** 已 Sync 至 nomke/omn-logic, bootstrap atomic --revision 锁拉注入, production Space runtime 升级态。
+
+### 双事故根治铁证落地 (15:23Z boot 实印)
+- **事故一 403 断供根治**: `bucket=omniroute-data` = prod R2 key 有权生产桶 → compaction complete txid=0x2d size=237949 平稳写入 (403 死链已绝)
+- **事故二 YAML 损坏根治**: git SSOT `bucket: ${R2_BUCKET}` (litestream.yml 真态 git 出货非 web 手编排) 正确解析 → litestream 进程 15:23:51 启 PID=699 + L1/L2/L3/L9 compaction monitor 全启 (进程未崩退/apimachinery 链路通)
+
+### 切流尾剩待 (非卡点, 战后/监控)
+1. **compaction txid gap 疡自愈监控**: 15:23Z 仍现 `detected db behind replica db=0x0 replica=0x2c` → `fetched L0 0x2c` → `max_l1_txid=0x2d` 新链扫地。疤疤摸一次非病 (前会话裸删留疤自愈中), 须盯下次 boot compaction 是否续号接连续号无新断档, gap 合规判到位。
+2. **LITESTREAM_STRICT=1 下次 Restart 才全生效**: 15:23Z boot litestream 启成功 PID=699 进程活, STRICT=1 路径仅在 litestream crash/exit 非 0 时触 `_shutdown; exit 1` (entrypoint.sh:278-284)。下次 Space 重启判:
+   - litestream 正常启 = STRICT 路径不触, production 仍跑 (fail-早仅在 litestream 真崩退时 apply)
+   - litestream 崩退 = graceful exit 1 boot 死, 显红胜静默死
+   - **容错边界 (DECISIONS 已记)**: R2 偶发 503/网络抖触 litestream 退出 = Space 重启循环风险, 须配合 R2 稳定性 + 监控告警
+3. **战后矩阵补验**: matrix 四笔 (③matrix 四 combo) 单 prod 写态跑 + 24h compaction ERROR 计数 + 新桶 omniroute-data 持续 snapshot 生成核 (切流后挂载验证, ③ 后白捡的基线无涉)
+
 ## 2026-07-26 · 切流执行期两事故闭环 + workflow 六件制落地 + litestream.yml 桶名参数化 (web 手改回 git)
 
 > 承接 Phase 2 冻结令解 (compaction 疡定谳不阻切流)。切流链步2-6 执行期 nomke/omn 生产侧连发两起事故, 均圣上 HF web 手动修复 (cg52 瘫痪期旁观)。本日工作 = 改动落回 git 恢复"仓=SSOT"。

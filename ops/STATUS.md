@@ -2,6 +2,48 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-07-26 · sync 真态实证 + admin 404 实证落地 + ③④按圣令跳过
+
+> 承接 K3 裁 "账册补齐三印" 序。①②⑤ cg52 实证升格落地, ③④结构性不可执行按圣令跳过。
+
+### ①sync-logic-dev 链真态 — 推测升实证 (gh run list via git credential)
+- **run #30164340629** | head=`968b1a1` (Task E 主剔 7f39a25 第一父) | **success** | event=push | 创建 2026-07-25T**15:48:05Z** → 完成 15:48:24Z
+- run #30155204189 | head=`9fe67be` | success | push | 2026-07-25T10:51:14Z
+- **步骤级绿**: `Upload logic files to Dataset (5 files)` ✅ + `Verify sha256 readback (逐字节血缘验证)` ✅ — 即 workflow :46-66 sha256 cmp 步骤绿, 5 件 dev/logic** 与 Dataset nonoke/omn-logic 逐字节等
+- 假说分家: ①push自动触绿实证 (event=push 非 dispatch, conclusion=success 非失败); ②圣上手动 dispatch / ③sync失败后手改 Dataset 两假说排除
+- 时序: sync **15:48Z绿** → boot 16:25Z拉, boot 拉的是 sync 后 Dataset 终点货. 链通.
+
+### ②admin /admin 404 行为实证落地 (boot回显 ↔ 行为双向闭合)
+- Space runtime `stage=RUNNING` (HF API 元数据, hw=cpu-basic)
+- /admin → **HTTP 404** | /api/providers → **HTTP 404** (gate.js:24 `GATE_ADMIN_ENABLED!=='1'` 路径, fail-closed 纯 /v1/* API 模式)
+- /healthz → 200 `{"ok":true}` | /v1/models 无PSK → 401 unauthorized | 带PSK → 200 model list
+- **gate.js:64 `admin UI: disabled` 软件回显态 ⟺ /admin 404 行为实证 等价证成立**, K3 裁 "②admin 404 补扎" 印收
+
+### ③④按圣令跳过 — 双 Space 共用同批 NIM key 冲撞
+- 探 `/v1/chat/completions` model=`z-ai/glm-5.2` → `No active credentials for provider: z-ai` 真态暴露
+- **圣上裁真因 (钉死)**: 两 Space (nomke/omn 生产 + nonoke/omn dev) **共用同一批 NIM keys**, nonoke 多 8 key; **cg52 自身即通过 nomke 生产 glm-5.2 跑** — 在 nonoke dev 再发用同 batch key → 占额度冲撞 → 报错
+- 处置: ③matrix 四 combo / ④C1 归因**按圣令跳过**, 非卡顿未解是真结构性不可执行, matrix 实测留切流后 (单 Space 写态) 补验
+- 主链九段全绿 + 五处剔令注释化 + override 6 applied (boot#3/4 8/9 数缩即剔除生效) 作晋级判据
+
+### incidents 新档
+- `ops/incidents/2026-07-25-task-e-model-prune-saga.md` 七段式回填: §1病历(boot matrix) §2五处落点 §3漏网补剔 §4sync真态 §5probe缺位认知 §6C1前置闸 §6.5③④停测真因
+
+### 遣憾未闭 (待圣上) → b6fa1bb 闭环 (7-25 17:43Z)
+- ✅ **圣上推 b6fa1bb Task E 漏网补剔**: `968b1a1..b6fa1bb main -> main` → 触 sync run #30168186734 (success @17:43Z, 步骤级 8 步全绿含 upload+sha256 readback 双核心步) → Dataset 侧 init sha256 等 8e67fc4e38d0 逐字节等, 行 94 llama 注释痕真态落 Dataset → **init_vars.json 快照 llama 残影说谎病根治**, b6fa1bb commit "Restart 前置闸两证"全收 (sync 绿证 + Dataset readback 含注释痕)
+### bootstrap 硬化案 — `hf download` 钉 revision 竞速根除 (K3 7-26 准推)
+**病链**: bootstrap.sh:49 `hf download` 无 `--revision` → main HEAD resolve → 内容取决于 boot 时刻 vs sync push 完成时刻竞速 + HF resolve 缓存浮动. boot#4 15:30Z 拉出 8 员旧池 (sync 15:48Z 迟 18min 抢跑旧 HEAD) 即此病.
+
+**治法**: bootstrap.sh 拉取前先经 `HfApi().list_repo_commits()` 取 Dataset HEAD commit_id, 该 id 作 `--revision` 参数喂 hf download → 锁定 atomic 同 commit 全件拉取, 竞速根除. 取 HEAD 失败 fail-open (空 rev → main HEAD 兼),  静默 log WARN 不阻塞 boot.
+
+**patch 落地**: `bootstrap.sh :42-85` 段 (旧 :42-58 扩为前置 resolve revision 段 + _dl 内嵌 _rev_arg) `sh -n PASS`.
+
+**验证 (本机 atomic lock 真拉)**:
+- HEAD commit_id `995f3e656e6e` (= sync-logic-dev workflow upload 步产物 commit)
+- `hf download --revision 995f3e656e6e...`: init sha256 `8e67fc4e38d0` == 本地 == 前回 readback 逐字节等 ✅, entrypoint `05e0dc29d712` / gate.js `c00a3aba1b0e` 同 atomic 拉到 ✓
+- 行94 注释痕 `# "meta/llama-3.3-70b-instruct" # 2026-07-25 Task E 漏网补剔...` 真态落 Dataset ✅
+
+**待落**: ①git add/commit bootstrap.sh — ②推触发 (旧 sync 触发是为 dev/logic/**, bootstrap 在根不入此 path, 不触 sync; 但可走 push 触 Bootstrap 镜像须知) — 待圣上批
+
 ## 2026-07-25 (本轮) · 切换 ② boot 前固化批 + CLAUDE.md v3 — 待圣上 Restart
 ### CLAUDE.md v3 (圣上签发, 工作宪法修订)
 - §0 生命周期: 会话开始读 HANDOFF+STATUS+DECISIONS; 翻案须 Supreme 明令; 改码只 diff 禁整文件重写

@@ -34,3 +34,4 @@ audit-report.md
 .claude/hooks/_selftest.py
 .claude/hooks/*.pyc
 .claude/_backup-*/
+out/

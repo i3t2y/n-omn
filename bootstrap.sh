@@ -40,15 +40,40 @@ fi
   echo "[bootstrap] FATAL: 缺 LOGIC_BUCKET_REPO"; exit 1; }
 
 # ── 3. 拉取逻辑层（stderr 落盘回放脱敏，保留真实退出码） ──
+#     竞速根治(2026-07-26 K3 硬化案): hf download 默认按 main HEAD resolve,
+#     内容取决于 boot 时刻 vs sync-logic-dev push 完成时刻竞速 + HF resolve 端缓存浮动.
+#     boot#4 15:30Z 拉出 8 员旧池(sync 15:48Z 迟 18min 抢跑旧 HEAD)即此病.
+#     治法: 拉前先取 Dataset HEAD commit_id, 按 commit id 拉取 = 锁定 atomic 同 commit
+#     全件, 竞速根除. fetch HEAD 失败 fail-open 回退空 (走 main HEAD) 不阻塞 boot.
 echo "[bootstrap] 同步 Dataset: $LOGIC_BUCKET_REPO"
 mkdir -p /tmp/logic
+
+# 3.1 取 Dataset HEAD commit_id (HF_HOME token 自动, 值零落会话)
+_rev=""
+_rev_err=/tmp/.rev.err; : > "$_rev_err"
+if command -v python3 >/dev/null 2>&1; then
+  _rev=$(LOGIC_BUCKET_REPO="$LOGIC_BUCKET_REPO" python3 -c '
+import os
+try:
+    os.environ.setdefault("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    from huggingface_hub import HfApi
+    cid = next(iter(HfApi().list_repo_commits(os.environ["LOGIC_BUCKET_REPO"], repo_type="dataset"))).commit_id
+    print(cid)
+except Exception as e:
+    pass  # fail-open 静默, 走 main HEAD
+' 2>"$_rev_err") || true
+  [ -n "$_rev" ] && echo "[bootstrap] Dataset HEAD 锁定 revision=${_rev:0:12} (竞速根治: atomic 同点拉取)" \
+                || { echo "[bootstrap] WARN: 取 HEAD commit_id 失败, 回退 main HEAD (竞速面未根治)"; [ -s "$_rev_err" ] && { [ -n "$HF_TOKEN" ] && sed "s/$HF_TOKEN/[REDACTED]/g" "$_rev_err" >&2 || cat "$_rev_err" >&2; }; }
+fi
+
 _dl() {
   _err=/tmp/.dl.err; : > "$_err"
   _tk=""; [ -n "$HF_TOKEN" ] && _tk="--token $HF_TOKEN"
+  _rev_arg=""; [ -n "$_rev" ] && _rev_arg="--revision $_rev"
   if command -v hf >/dev/null 2>&1; then
-    hf download "$LOGIC_BUCKET_REPO" --repo-type dataset --local-dir /tmp/logic $_tk --quiet 2>"$_err"
+    hf download "$LOGIC_BUCKET_REPO" --repo-type dataset --local-dir /tmp/logic $_tk $_rev_arg --quiet 2>"$_err"
   else
-    huggingface-cli download --repo-type dataset "$LOGIC_BUCKET_REPO" --local-dir /tmp/logic $_tk --quiet 2>"$_err"
+    huggingface-cli download --repo-type dataset "$LOGIC_BUCKET_REPO" --local-dir /tmp/logic $_tk $_rev_arg --quiet 2>"$_err"
   fi
   _rc=$?
   if [ -s "$_err" ]; then

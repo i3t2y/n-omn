@@ -4,6 +4,13 @@
 # 与 P0-tee 互补: P0-tee=容器内持久落盘(战后), 本通道=HF 可见窗口仓内归档(现在)。
 # 下游: claude-code-action 异步解读层未来从此 evidence 分支消费。
 # 出处: SEE DECISIONS.md "HF Space 日志抓取通道" 条 (2026-07-25)。
+#
+# 快照语义 (2026-07-26 字节解剖修正, 02:00Z cg52 + 圣上双窗口实证):
+#   连接建立瞬间, HF 倾吐容器自启动以来全部积压历史 (boot 至今全量叙事),
+#   随后转实时细流 — Space 空闲期细流近乎零。圣上两窗实证:
+#   10s 窗收 142237 字节, 60s 窗收 142251 字节 (多烧 50s 仅添 14B = 流非慢,
+#   端点行为指纹). 故每次抓取 = "全量历史积压 + 60s 实时窗" 而非 "60s 切片",
+#   单次抓取即覆盖完整 boot 叙事, cron 每 30min 频率绰绰有余, 反增证据价值.
 
 name: Fetch HF Space logs → evidence
 
@@ -46,13 +53,21 @@ jobs:
           fetch_one() {
             local kind="$1"
             echo "=== fetch $SPACE logs/$kind @ $TS ==="
-            curl -sf --max-time 60 \
+            # rc 分账 (2026-07-26): HF logs 端点返回码语义非 HTTP 标准 (rc=28 timeout 兜底正常,
+            #   非 0/非 28 = 真失败). 原 -sf 把所有非 0 当失败致证据自爆, 改 -sS -N 让 curl 走完
+            #   SSE 流, 把 stderr 警告与 body 字节分离: 出错真标 WARN, 但已落盘字节保留 (含积压历史).
+            #   与"积压+实时窗"快照语义同源 — 字节落盘即证据, 不因 60s 兜底 timeout 丢全量积压.
+            curl -sS -N --max-time 60 \
               -H "Authorization: Bearer ${HF_TOKEN}" \
               "https://huggingface.co/api/spaces/${SPACE}/logs/${kind}" \
-              -o "out/${kind}.log" || {
-                echo "WARN: ${kind} 日志抓取失败 (端点 SSE 流或 Space 未启动), --max-time 60 已兜底"
-                return 1
-              }
+              -o "out/${kind}.log" && rc=0 || rc=$?
+            local _bytes=0
+            [ -f "out/${kind}.log" ] && _bytes=$(wc -c < "out/${kind}.log" || echo 0)
+            echo "fetch_one $kind: rc=$rc bytes=${_bytes} (rc=28 60s 兜底 timeout=正常, rc=0=完整收 0=空窗)"
+            case "$rc" in
+              0|28) [ "$_bytes" -gt 0 ] && return 0 || { echo "WARN: $kind 空窗 (0 字节, Space 闲或未启动)"; return 0; } ;;
+              *)    echo "WARN: $kind 真失败 (rc=$rc 非 0/28), 但已落盘 ${_bytes}B 保留作部分证据"; return 1 ;;
+            esac
           }
           case "$LOG_TYPE" in
             run)   fetch_one run ;;
@@ -62,6 +77,23 @@ jobs:
           echo "ts=$TS" >> "$GITHUB_OUTPUT"
           echo "log_type=$LOG_TYPE" >> "$GITHUB_OUTPUT"
           ls -la out/
+
+          # GITHUB_STEP_SUMMARY 字节摘要 (2026-07-26 补 — rc 分账后字节即证据)
+          {
+            echo "## fetch $SPACE @ $TS"
+            echo ""
+            echo "| kind | rc | bytes |"
+            echo "|------|----|-------|"
+            for f in out/*.log; do
+              [ -f "$f" ] || continue
+              k=$(basename "$f" .log)
+              b=$(wc -c < "$f" || echo 0)
+              # rc 缺单独记 — 此步只列字节, rc 已在 fetch_one 行内 echo
+              echo "| $k | (见 fetch_one echo) | $b |"
+            done
+            echo ""
+            echo "快照语义: 积压+实时窗 (单次抓取即全量 boot 历史), rc=28=60s 兜底正常非失败"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 脱敏闸 (复用 secret-scan 正则, fail-closed — 宁丢一帧日志, 不泄一凭据)
         id: desens
@@ -132,7 +164,11 @@ jobs:
           if git diff --cached --quiet; then
             echo "无新快照, skip commit"
           else
-            git commit -m "chore(evidence): HF $LOG_TYPE logs ${TS} [skip ci]"
+            git commit \
+              -m "chore(evidence): HF $LOG_TYPE logs ${TS} [skip ci]" \
+              -m "快照语义: 积压+实时窗 (boot 至今全量历史 + 60s 实时窗), rc=28 60s 兜底正常非失败" \
+              -m "字节即证据 — 142KB+ 单次即覆盖完整 boot 叙事" \
+              -m "出处: .github/workflows/fetch-space-logs.yml rc 分账补丁 (2026-07-26)"
             git push origin "$BRANCH"
             echo "pushed=true" >> "$GITHUB_OUTPUT"
           fi

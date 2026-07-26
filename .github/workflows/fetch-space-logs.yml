@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           LOG_TYPE="${{ inputs.log_type || 'run' }}"
           TS=$(date -u '+%Y%m%d-%H%M')
-          # matrix 留位: production line = nomke/omn (待 HF_TOKEN_NOMKE secret 建后扩)
+          # matrix 留位: production line = nomke/omn (HF_TOKEN_NOMKE 已建 2026-07-26, 待 docspace 扩)
           # 当前单投 dev = nonoke/omn
           SPACE="nonoke/omn"
           mkdir -p out

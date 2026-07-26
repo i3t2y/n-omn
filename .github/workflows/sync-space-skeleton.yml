@@ -16,7 +16,11 @@ name: Sync Space skeleton to dev Space
 #
 # Token 命名空间隔离 (爆炸半径各半):
 #   HF_TOKEN_NONOKE  — 写 nonoke/omn (dev) + nonoke/omn-logic Dataset (见 sync-logic-dev.yml)
-#   HF_TOKEN_NOMKE   — 暂缓建, 待 nomke/omn 后续原地三层升级转 dev 时再补
+#   HF_TOKEN_NOMKE   — 已建 (2026-07-26 圣上手 GitHub repo secret 加建, 生产 nomke/omn 专 token;
+#                     原 GitHub repo secret HF_TOKEN 同批删除, 仓内无 env 名引用改名涉 — 仅 GitHub
+#                     repo Secret 命名规范化对齐 NONOKE/NOMKE 体系). 本 Space sync job 现仍单投 dev
+#                     (matrix.include 仅 nonoke/omn), 待 Phase 2 切流链至"生产 nomke 骨架 sync 启"节点
+#                     再 matrix.include 解除 nomke/omn 留位注释, 不本批启.
 # 触发: 仅 Space 骨架四件变更才跑 (低频, 防高频 Rebuild 触 HF 7/16+ build 冻/风控)。
 
 on:
@@ -38,7 +42,9 @@ jobs:
       matrix:
         include:
           - { space: 'nonoke/omn',   token_key: 'HF_TOKEN_NONOKE' }   # dev (现阶段单投)
-          # - { space: 'nomke/omn-v2', token_key: 'HF_TOKEN_NOMKE' }  # 已撤销, 见 DECISIONS 新拓扑
+          # - { space: 'nomke/omn',    token_key: 'HF_TOKEN_NOMKE' }   # 生产 v4.2.3 (HF_TOKEN_NOMKE 已建 7-26);
+                                                                       # 留位待 Phase 2 切流链至"生产 nomke 骨架 sync 启"
+                                                                       # 节点解除注释; omn-v2 第三 Space 已撤销勿复名 (§1)
     steps:
       - name: Checkout GitHub repository
         uses: actions/checkout@v4

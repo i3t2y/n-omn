@@ -115,3 +115,43 @@
 **教训钉死 (一坑三贴, 与 §7 同册列)**: actions/checkout workflow authoring 三铁律 — ① checkout 在场 (医 `fatal not a git repository`) ② `clean:true` 是作业内生成者杀手, 不杀前步产物 ③ checkout 位序第一 (产物落盘后于 checkout), 位序与有无同重. 入 DECISIONS "workflow authoring 三铁律" 条 (2026-07-26).
 
 **三硬标验 (待圣上 push 补丁三 + dispatch)**: ① run 绿 ② evidence 分支 `logs/nonoke--omn/20260726-HHMM-run.log` 落真 ③ 文件头 `===== Application Startup` boot 真日志 + grep compaction 收 04:30Z 至今告警实录入步3证袋. 三标全绿方闭 §8.
+
+### §8.1 fetch-logs 通道端到端闭环 + compaction 病真根暴露 (7-26 dispatch da0cf23 实证)
+
+**dispatch run 绿 (da0cf23 头挂补丁三)**: fetch rc=28 bytes=84744 → 脱敏闸 PASS → evidence 步 `git rm -rf` 清 orphan 后 `cp` + `git add` + commit 9d06883 `1 file changed, 1184 insertions(+) create mode 100644 logs/nonoke--omn/20260726-0813-run.log` → push origin evidence 新分支落地. **三硬标全绿**, fetch-logs CI 通道自此可信, 下游 claude-code-action 异步消费证据通道就绪. 补丁三 vs 补丁二对照铁证: Checkout 移 job 首后 clean:true 不再杀 fetch 产物, evidence 落真 (补丁二 skip commit 假绿根除).
+
+**evidence 快照读回 (git credential + raw API)**: 84744B 真落盘, 文件头 `===== Application Startup at 2026-07-26 07:45:40 =====` boot 真日志. 本 boot = **07:45:40 新 boot** (非前轮 03:32Z boot#7 口语, 序号无血缘 §1 档册新规), 镜像 A 模式补全环境 (python3 缺) → apt install → bootstrap 同步 → entrypoint → litestream 起来.
+
+**compaction 病真根暴露 (铁证推翻 dbs.path 漂移假说)**:
+```
+07:46:12.594  [entrypoint] ✓ 已从 R2 恢复 (原子 mv .storage.sqlite.restore.1 → storage.sqlite)
+07:46:13.140  [DB] SQLite database ready: /app/data/storage.sqlite (DATA_DIR=/app/data, SQLITE_FILE=/app/data/storage.sqlite)
+07:46:17.000  initialized db path=/app/data/storage.sqlite           ← litestream 监 /app/data (与 yml dbs.path 同, 无漂移)
+07:46:17.001  replicating to s3 omn-data bucket db/storage.sqlite sync-interval=10s (endpoint=...[R2_ACCOUNT_ID].r2.cloudflarestorage.com)
+07:46:18.109  detected database behind replica db_txid=0000000000000000 replica_txid=000000000000002c
+07:46:18.220  fetched latest L0 file from replica min_txid=0x2c max_txid=0x2c
+07:46:23.408  compaction failed L1 (0x10→0x10) -> (0x2c→0x2c) non-contiguous transaction ids
+              [持续每 30s 一次至 08:13 window 截止]
+```
+
+**铁证裁 (推翻前假说)**:
+- **dbs.path 漂移假说 ❌ 推翻**: litestream `initialized db path=/app/data/storage.sqlite` 与 entrypoint `DATA_DIR=/app/data` 全同, 与 litestream.yml `dbs.path=/app/data/storage.sqlite` 全同. 路径零漂移. 前轮 grep 推断 dbs.path 硬写 vs env 覆写冲突 — **铁证不成立**, env DATA_DIR 与 yml 默认值恰好一致 (=/app/data), 无覆写无漂移.
+- **R2 无副本/快照消失假说 ❌ 推翻**: entrypoint `✓ 已从 R2 恢复` 原子 mv 成功 + `fetched latest L0 file from replica min_txid=0x2c max_txid=0x2c` R2 副本有 L0 seg txid=0x2c. R2 副本存活, 非空.
+- **compaction 纯告警噪音假说 ❌ 推翻**: 真病态, restore 半态致 db_txid 与 replica_txid 落差.
+
+**真根 = restore-WAL-tail 半态致 txid gap**:
+- entrypoint restore 拉 R2 snapshot (txid=0x0 旧 snapshot 版本) mv 成 storage.sqlite, db_txid=0x0
+- litestream 启 replicate 后 `detected database behind replica` (db=0x0 vs replica=0x2c), 触发 `fetched latest L0 file from replica` 拉 txid=0x2c L0 seg
+- compaction L1 (30s interval) 合并本地 seg(txid 区间 0x10→0x10) + 拉回 seg(0x2c→0x2c) → 两 seg txid 跳号 (0x10 → 0x2c 中间 28 txid 缺) → LTX header extract timestamp fail `non-contiguous transaction ids`
+- 持续 ERROR 每 30s (L1 interval), L2/L3 未到 interval 未跑未报
+
+**病学新解 (替代 dbs.path 假说作头号)**:
+- H1' (restore 选低 txid snapshot 半态, WAL tail 未追上): 落 entrypoint restore 链选了 R2 低 txid snapshot 版本而非高 txid WAL tail, 致 db_txid=0x0 落后 replica_txid=0x2c. auto-recover=false 阻自愈, litestream replicate 启后被动拉 L0 seg 0x2c 但缺 0x10→0x2c 中间段, compaction 合并见 gap.
+- H2' (R2 副本 txid 链本身缺段): R2 snapshots .ltx 真 0x10+0x2c 缺中间 28 txid (某 boot 期 write 跳号), compaction 全局见链断. 即便 restore 拉 high txid 也无法 compaction.
+
+**R2 鉴别器优先级新裁 (前轮三子读须补)**:
+- 步3' 增: `sqlite3 /app/data/storage.sqlite "PRAGMA wal_checkpoint; SELECT * FROM pragma_wal_checkpoint;"` — 看 restore 后 db_txid 真态 (是否真=0x0 还是 restore 半态 mv 漂)
+- 步3' 增: R2 bucket 列 `snapshots/*.ltx` 全 txid 范围 + `db/storage.sqlite/wal/` L0 seg txid 序列, 验链完整 (0x10 → ? → 0x2c 中间真缺段, 或 R2 副只存 0x10+0x2c 两 seg)
+- 关键: restore 选 snapshot 还是 WAL tail 的 entrypoint 逻辑分支审, 钉死 entrypoint restore 选低 txid 版本的"半态"点
+
+**入档**: DECISIONS "R2 先证后建铁律" 条修正 — dbs.path 漂移嫌疑铁证推翻, 真根转 restore-WAL-tail 半态致 txid gap (compaction ERROR). R2 鉴别器三子读命令须增 db_txid 真态 + R2 .ltx txid 全序两步. 出处: 本档 §8.1 + evidence 分支 logs/nonoke--omn/20260726-0813-run.log.

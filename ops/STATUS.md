@@ -107,6 +107,6 @@
 - [ ] ③ 后: 429 基线 (从生产 bucket omniroute-data 只读副本一行 SQL 分桶) + 24h 风暴特征串计数 = 0 → 落 DECISIONS "生产限流档裁决"
 - [x] 全文件排查同类 jq/grep 空输入 pipeline(痛点1根治) — 2026-07-26 实测净: 存货=0 (init-nim-keys.sh 已修地雷唯一 jq@tsv 行159-178 set+eo抬门+${:-[]}兜底; 其余 models_to_json/:108/_is_valid_strat 三调用处全 || 兜底; merge_files.py 废弃不达标)
 - [ ] audit/2026-07-25-k3-架构调整总览.md + docs/k3* 三 untracked commit 入档待判
-- [ ] fetch-logs 补丁三 commit + push (.github/workflows/fetch-space-logs.yml +9/-8, Checkout 步移 job 首) + 圣上 dispatch 验三硬标 (run 绿 + evidence 分支 logs/nonoke--omn/YYYYMMDD-HHMM-run.log 落真 + 文件头 Application Startup + grep compaction 收 04:30Z 至今告警)
-- [ ] R2 漂移嫌疑 Space 侧三子读锁案分道 (圣上全只读): 步1 env+ls 双路径 / 步2 litestream databases / 步3 litestream snapshots + R2 bucket mtime — Phase 2 冻结令关键钥匙
-- [ ] Phase 2 六步冻结: R2 三子读数报回前一律不启 (R2 先证后建铁律)
+- [x] fetch-logs 补丁三 commit + push (.github/workflows/fetch-space-logs.yml +9/-8, Checkout 步移 job 首) + 圣上 dispatch 验三硬标 ✅ — run 绿 (dispatch da0cf23, commit 9d06883 evidence 分支落地 1 file +1184) + 文件头 Application Startup at 07:45:40 真日志 + grep compaction 收 07:46-08:13 持续 ERROR 实录入证袋. 通道端到端 §8 闭环.
+- [ ] R2 鉴别器 Space 侧三子读锁案分道 (圣上全只读, **7-26 铁证更新真根**): 步1 env DATA_DIR + ls 双路径 / 步2 litestream databases 自报路径 / 步3 litestream snapshots + R2 bucket mtime+snapshots+lifecycle — **铁证真根 = restore-WAL-tail 半态致 compaction txid gap** (非 dbs.path 漂移, 路径铁证全同). 新增两步: ① `sqlite3 /app/data/storage.sqlite "PRAGMA wal_checkpoint; SELECT * FROM pragma_wal_checkpoint;"` 看 db_txid 真态 (是否=0x0 还原态) ② R2 bucket 列 snapshots/*.ltx 全 txid 范围 + db/storage.sqlite/wal/ L0 seg txid 序列, 验链完整 (0x10→?→0x2c 中间真缺段 或 R2 只存 0x10+0x2c 两 seg) + entrypoint restore 选 snapshot 还是 WAL tail 逻辑分支审
+- [ ] Phase 2 六步冻结: R2 三子读数报回前一律不启 (R2 先证后建铁律, compaction txid gap 真根未闭前禁 Rebuild)

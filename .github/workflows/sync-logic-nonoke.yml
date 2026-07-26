@@ -1,6 +1,8 @@
-name: Sync dev logic to HF Dataset
+name: Sync dev logic to HF Dataset (nonoke)
 
 # 三层解耦 · 逻辑层同步 (低风险: 推 Dataset 不触 Rebuild, 圣上手动 Restart 才生效)
+# 2026-07-26 六件制改名: sync-logic-dev.yml → sync-logic-nonoke.yml (dev 专投 nonoke/omn-logic)。
+#   prod 版同案 (件名见 DECISIONS "workflow 六件命名规约" 条), 仅手动 dispatch (无 push 触发), 生产专 token。
 # 源: dev/logic/** (五件 init/entry/gate/litestream/package)
 # 目标: Dataset nonoke/omn-logic 仓内平铺 (entrypoint.sh / gate.js / ... 根目录)
 #   ─ bootstrap 与逻辑层唯一契约: "Dataset 根目录存在 entrypoint.sh"
@@ -15,7 +17,7 @@ on:
     branches: [main]
     paths:
       - 'dev/logic/**'
-      - '.github/workflows/sync-logic-dev.yml'
+      - '.github/workflows/sync-logic-nonoke.yml'
   workflow_dispatch:
 
 jobs:

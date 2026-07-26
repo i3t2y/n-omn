@@ -2,7 +2,7 @@ dbs:
   - path: /app/data/storage.sqlite
     replica:
       type: s3
-      bucket: omn-data
+      bucket: ${R2_BUCKET}
       path: db/storage.sqlite
       endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
       access-key-id: ${R2_ACCESS_KEY_ID}

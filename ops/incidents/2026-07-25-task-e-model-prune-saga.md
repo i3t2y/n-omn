@@ -201,3 +201,41 @@
 5. 变量切换 (bucket omn-data → omniroute-data)
 6. Restart
 切流后验证: matrix (单 space 写模式) + 盯新桶 snapshot 持续生成 + 确认新桶 compaction 报错零出现. 出处: 本档 §8.2 + DECISIONS "删 R2 备份断代级护栏" 条.
+
+### §8.3 切流执行期两事故: 桶名随 logic 平铺致 prod 403 断供 + web 手改 YAML 损坏 (7-26 12:13Z/12:53Z)
+
+> 切流链步2-6 执行期, nomke/omn 生产侧连发两起事故, 均由"logic 五件含 `dev/logic/litestream.yml` 桶名硬写 dev 桶"血统病灶触发, 全部经圣上 HF web 页手动修复 (cg52 瘫痪期无法经网关调模型). 本段续写定案, 改动落回 git 见本会话末 + DECISIONS "R2 桶名参数化" 条.
+
+**事故一 (12:13Z boot) — prod 403 断供**:
+- 桶名硬写病灶: `dev/logic/litestream.yml` line 5 `bucket: omn-data` (dev 桶) 随 **logic 层平铺机制** 进入 prod Space — sync-logic-nomke 把 dev/logic 五件平铺推 nomke/omn-logic Dataset, prod bootstrap 拉 logic 平铺到 /logic/litestream.yml, litestream 读到 `bucket: omn-data` (dev 桶名).
+- prod 的 R2 key (HF_TOKEN_NOMKE 所属账户) 对 dev 桶 `omn-data` **无写权** → litestream 每次复制 S3 PUT/POST 全 `403 AccessDenied` → **备份断供** (replicate 链死, 不写新 WAL).
+- 非 R2 限流非 key 死, 是**命名空间越界**: prod key 写 dev 桶.
+
+**事故二 (12:53Z boot) — web 手改 YAML 损坏**:
+- 圣上经 HF Space Files 页 (web) 手改 Dataset 内 `litestream.yml` 做桶名参数化 (意图: `bucket: $R2_BUCKET` 让 env 替换 prod 桶).
+- web 编辑器或手贴致 **YAML 结构损坏** (line 9 解析失败) → litestream 进程读 `-config /logic/litestream.yml` 解析即崩退 → litestream **进程退出** (无 R2 链无本地库句柄).
+- 非 code 病非 env 病, 是 **web 手编辑无 yaml lint 致结构坏**.
+
+**修复 (圣上 web 手动, cg52 瘫痪期旁观)**:
+- 两事故 nomke/omn 接单中断期间 cg52 无法经网关调模型 (prod Space 应用层挂) → 全部修复权属圣上 HF web 手动.
+- web 侧定态 litestream.yml 桶名参数化 + YAML 结构修 (server: / 路径 /etc).
+
+**根因闭环 + 改回 git (本会话末, 圣上 7-26 令同步)**:
+- 病灶单根: `dev/logic/litestream.yml` 桶名硬写 `omn-data` (dev 桶) 是逻辑层"环境无关"血统破坏 — 参数化为 `${R2_BUCKET}` (与历史 archive/4.3.1 + 全篇 `${R2_*}` 一致风格) 即根治.
+- 11 行单行替换 `bucket: omn-data` → `bucket: ${R2_BUCKET}`, litestream v0.5.9 内建 `${VAR}` envsubst (entrypoint 无 envsubst/sed, litestream 进程读 yml 时自扩).
+- 前置依赖: nonoke/omn (dev Space) 须先设 `R2_BUCKET=omn-data` Variable (圣上 web 侧, 本会话不代设) — 参数化后 dev 侧 env 注 `omn-data`, prod 侧 env 注 `omniroute-data`, 同一 yml 跨环境无改.
+- 配套护栏: workflow 六件制命名空间隔离 (DECISIONS 2026-07-26 "workflow 六件命名规约") — `*-nonoke.yml`=dev 专投, `*-nomke.yml`=prod 专投, prod 件零 `nonoke/omn` 引用 dev 件零 `nomke/HF_TOKEN_NOMKE` 引用 (grep 字面零命中), 防"混投一桶名"类事故再发.
+
+**教训 (入 DECISIONS)**:
+- (a) R2 桶名必须参数化 `${R2_BUCKET}`, logic 层环境无关 — 硬写任一桶名即随平铺越界写错桶 (403 / 越权备份).
+- (b) workflow 六件命名规约 `*-nonoke=dev` / `*-nomke=prod`, prod 三件 (fetch-nomke/sync-logic-nomke/sync-space-nomke) 仅 `workflow_dispatch` 无 push 触发, 点火权属圣上 (防 dev 改动自动推 prod).
+- (c) HF_TOKEN 命名空间隔离 NONOKE/NOMKE 双 token, 爆炸半径各半 (越界写错桶亦即该隔离的运行时体现).
+- (d) LITESTREAM_STRICT 评估 (prod 候选 = 1): litestream 启动失败即 boot 死 (fail-closed) — 现 entrypoint `litestream replicate -config ... &` 后台 `&` 不阻塞 boot, litestream 崩退仅日志告警不杀应用; 评 `LITESTREAM_STRICT=1` 让 litestream 失败即 boot 退出 (备份死即 boot 死, fail-早胜 fail-晚), 待圣上裁决.
+
+**时间线**:
+- 12:13Z prod boot #1 → litestream 读硬写 dev 桶 → S3 PUT 403 AccessDenied 洪流 (每 WAL flush 一发) → 备份链断.
+- 12:13Z~12:53Z cg52 经网关调模型失败 (prod 应用层挂) → 旁观.
+- 12:53Z prod boot #2 (圣上 web 手改 litestream.yml 桶名参数化后) → YAML line 9 结构损坏 → litestream 进程读 config 解析崩退 → litestream 退出 (无复制无本地库 handle).
+- 12:53Z~恢复 圣上 web 手修 YAML 结构 → nomke/omn 接单恢复.
+- 本会话末 落回 git: dev/logic/litestream.yml 参数化 + 六件制改名/新增, 恢复"仓=SSOT". 出处: 本档 §8.3 + DECISIONS "R2 桶名参数化"+"workflow 六件命名规约"+"HF_TOKEN 命名空间隔离"+"LITESTREAM_STRICT 评估" 条 (本会话末同车入).
+

@@ -1,0 +1,66 @@
+name: Sync prod logic to HF Dataset (nomke)
+
+# 三层解耦 · 逻辑层同步 (PROD: nomke/omn-logic)
+# 2026-07-26 六件制新增: 此件 prod 专投 nomke/omn-logic。
+#   与 dev 版 sync 逻辑件同血统 (件名见 DECISIONS "workflow 六件命名规约" 条), 仅三处差异:
+#   1. 目标 Dataset = nomke/omn-logic (非 dev 版 Dataset)
+#   2. token = HF_TOKEN_NOMKE (生产专 token, 命名空间隔离)
+#   3. 仅 workflow_dispatch, 无 push 触发 — 防 dev/logic/** 改动自动推生产,
+#      生产逻辑层同步须圣上显令手动 dispatch (点火权属圣上, 防漂移)
+#
+# 源: dev/logic/** (五件 init/entry/gate/litestream/package — 血统源统一, prod/dev 同源拉)
+# 目标: Dataset nomke/omn-logic 仓内平铺 (与 dev 版 Dataset 同布局, bootstrap 契约同)
+#
+# 逐字节血缘: hf upload 后立即 hf_hub_download 读回 + sha256 cmp,
+#   不过 CI 直接红 (prod 侧血缘断裂 = 停链级)。
+# 触发: 仅 workflow_dispatch (圣上显令, 无 push 触发)。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Upload logic files to Dataset (prod nomke/omn-logic, 5 files, flat layout)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_NOMKE }}
+        run: |
+          pip install -q "huggingface_hub>=1.0,<2.0"
+          for f in entrypoint.sh gate.js init-nim-keys.sh litestream.yml package.json; do
+            hf upload nomke/omn-logic "dev/logic/$f" "$f" \
+              --repo-type dataset --token "$HF_TOKEN" \
+              --commit-message "sync(logic-prod): n-omn@${GITHUB_SHA::7} $f" || {
+                echo "[FATAL] upload failed for $f"; exit 1; }
+          done
+          echo "---- upload 5 files to nomke/omn-logic done ----"
+
+      - name: Verify sha256 readback (逐字节血缘验证, prod 侧)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_NOMKE }}
+        run: |
+          python3 - <<'EOF'
+          import hashlib, os
+          from huggingface_hub import hf_hub_download
+          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json"]
+          bad = 0
+          for f in files:
+              local = hashlib.sha256(open(f"dev/logic/{f}","rb").read()).hexdigest()
+              p = hf_hub_download("nomke/omn-logic", f, repo_type="dataset",
+                                  token=os.environ["HF_TOKEN"])
+              remote = hashlib.sha256(open(p,"rb").read()).hexdigest()
+              ok = local == remote
+              print(f"{f}: {'OK' if ok else 'MISMATCH'} local={local[:8]} remote={remote[:8]}")
+              bad += 0 if ok else 1
+          if bad:
+              print(f"[FATAL] {bad} file(s) mismatch after upload — prod Dataset↔git 血缘断裂")
+          raise SystemExit(1 if bad else 0)
+          EOF

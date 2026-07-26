@@ -3,6 +3,25 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-26 · R2 桶名参数化 $R2_BUCKET + workflow 六件命名规约 + HF_TOKEN 命名空间隔离 + LITESTREAM_STRICT 评估 (切流期两事故根因闭环, 圣上 7-26 令同步 web 手改回 git)
+切流链步2-6 执行期 nomke/omn 生产侧连发两起事故, 同根 = `dev/logic/litestream.yml` 桶名硬写 dev 桶 `omn-data` 随 logic 层平铺机制越界写 prod 端 (prod R2 key 无 dev 桶写权 → 403 AccessDenied 备份断供 → 12:13Z boot #1; web 手改 YAML line 9 损坏 → 12:53Z boot #2 litestream 进程崩退). 全全程圣上 HF web 手动修复 (cg52 瘫痪期旁观). 本日四条同案闭环:
+
+- **(a) R2 桶名参数化 $R2_BUCKET (logic 层环境无关根治)**: `dev/logic/litestream.yml` 单行 `bucket: omn-data` → `bucket: ${R2_BUCKET}` (litestream v0.5.9 内建 `${VAR}` envsubst, entrypoint 无 envsubst/sed 进程自扩; 与历史 archive/4.3.1 + 全篇 `${R2_ACCOUNT_ID}`/`${R2_ACCESS_KEY_ID}`/`${R2_SECRET_ACCESS_KEY}` 同风格). logic 层 logic 层"环境无关"血统恢复 — 硬写任一桶名即随平铺越界, 参数化后 dev Space env 注 `R2_BUCKET=omn-data`, prod Space env 注 `R2_BUCKET=omniroute-data`, 同一 yml 跨环境零改. 前置依赖 (圣上 web 侧, 本会话不代设): nonoke/omn 必须先设 `R2_BUCKET=omn-data` Variable 再 sync logic (否则 dev 端 env 缺得不扩致 R2 拒). 出处: saga §8.3 事故一/二 + dev/logic/litestream.yml:5.
+
+- **(b) workflow 六件命名规约 (*-nonoke=dev / *-nomke=prod, prod 三件仅手动 dispatch)**: 六件制 = 双侧对称 (dev/prod 各三): `fetch-nonoke-logs.yml` / `fetch-nomke-logs.yml` (日志取证), `sync-logic-nonoke.yml` / `sync-logic-nomke.yml` (逻辑层同步), `sync-space-nonoke.yml` / `sync-space-nomke.yml` (骨架同步). prod 三件 (`*-nomke.yml`) 仅 `workflow_dispatch` 无 `push:` 触发 — 点火权属圣上显令, 防 dev/logic/** 改动自动平铺推 prod 致"混投一桶名"类事故再发 (事故一根 = dev sync 自动触推逻辑层越界). dev 三件保持 push 触发 (dev 改动自动 sync 是 dev 工作流常态). 命名空间隔离铁律: `*-nomke.yml` 内零 `nonoke/omn` / `HF_TOKEN_NONOKE` 字面, `*-nonoke.yml` 内零 `nomke` / `HF_TOKEN_NOMKE` 字面 (grep 字面零命中实证, 含注释层). 出处: saga §8.3 教训 (b) + .github/workflows/ 六件.
+
+- **(c) HF_TOKEN 命名空间隔离 NONOKE/NOMKE 双 token (爆炸半径各半)**: `HF_TOKEN_NONOKE` 写 nonoke 系列 (dev Space + nonoke/omn-logic Dataset, write 仅 target scope), `HF_TOKEN_NOMKE` 写 nomke 系列 (prod Space + nomke/omn-logic Dataset). 双 token 越界即该隔离的运行时体现 — 事故一根本质 = prod 任务用 prod key 写 dev 桶, 参数化 + 命名空间隔离双闸后越界在 CI 阶段即拒 (而非 boot 期 403 才暴露). 原 GitHub repo secret `HF_TOKEN` 2026-07-26 删除, 仓内 env 名 `HF_TOKEN` (Space 容器 huggingface_hub 默认读名) 无改名涉. 出处: saga §8.3 教训 (c) + DECISIONS 同日 "删 R2 备份护栏" 条副作用收编.
+
+- **(d) LITESTREAM_STRICT 评估条 (prod 候选 = 1, 待圣上裁决)**: 现 entrypoint.sh `litestream replicate -config /logic/litestream.yml &` 后台 `&` 不阻塞 boot — litestream 崩退仅日志 WARN 不杀应用, boot 显绿但备份死 (事故二 litestream 退出后 prod 仍接单但无复制). 评 prod 候选 `LITESTREAM_STRICT=1`: litestream 进程 crash/exit 非 0 即 `kill 1` 退出 boot (备份死即 boot 死, fail-早胜 fail-晚, 应用层早挂显红胜过静默无备份跑). 待圣上裁决 (prod fail-早 vs 应用 uptime 何者优先); 若启用须配合 R2 偶发瞬时故障的容错 (否则一次 R2 503 即 Space 重启循环). 出处: saga §8.3 教训 (d) + dev/logic/entrypoint.sh:224-225.
+
+## 2026-07-26 · 变量血统核实: LOGIC_BUCKET_REPO + OMN_DATASET_REPO 双生不同消费点 (HF_DATASET_REPO 死名)
+切流前悬案 (圣上令 §3 变量血统核实) 定谳 — `grep -n 'OMN_DATASET_REPO\|LOGIC_BUCKET_REPO\|HF_DATASET_REPO' bootstrap.sh entrypoint.sh dev/logic/*` 双件双命中实证:
+- **`LOGIC_BUCKET_REPO`** = **bootstrap.sh 唯一真消费项** (bootstrap.sh:39 缺则 FATAL + :48 echo + :55/:60 python list_repo_commits 取 HEAD commit_id + :74/:76 hf download --revision 拉逻辑层) — bootstrap 拉逻辑层 Dataset 的血统契约变量, **dev 应设 `nonoke/omn-logic`, prod 应设 `nomke/omn-logic`**.
+- **`OMN_DATASET_REPO`** = **dev/logic/init-nim-keys.sh 唯一消费项** (init-nim-keys.sh:910 缺则 skip return 0 + :999 hf upload_folder repo_id 回写 Dataset) — init 阶段 upload_folder 回写同一逻辑层 Dataset.
+- **互为别名 (同 repo 不同消费点)**: LOGIC_BUCKET_REPO (bootstrap 拉) + OMN_DATASET_REPO (init 写) 都指**同一逻辑层 Dataset 根** — 拉与写同一 repo, 仅 boot/init 两阶段不同命名. dev 两名同赋 `nonoke/omn-logic`, prod 同赋 `nomke/omn-logic` (两阶段同值, 勿分裂).
+- **`HF_DATASET_REPO` = 死名零消费**: 仓内 bootstrap/entrypoint/dev/logic/* 零命中, 残留旧名 (历史命名层), 划除. 出处: saga §8.3 切流前置核实 + 本会话 §3 任务.
+- **环境变更记录 (只记不设, 圣上 web 手通)**: nomke/omn 已设/应设 `R2_BUCKET=omniroute-data` (Variable) + `OMN_DATASET_REPO=nomke/omn-logic`; nonoke/omn 应设 `R2_BUCKET=omn-data` (litestream 参数化前置, 见 (a) 条). `LOGIC_BUCKET_REPO` 两侧同 OMN_DATASET_REPO 值.
+
 ## 2026-07-26 · bootstrap.sh 硬化案落地 + 根件 dash 兼容三闸 (5e5d9eb → 热修)
 bootstrap.sh `hf download --revision <HEAD commit_id>` 竞速根治案落地 (K3 裁, 圣上准): boot 前取 Dataset HEAD commit_id 作 --revision 锁 atomic 同点拉取, 根除 boot#4 拉旧 8 员意向池竞速; 失败 fail-open 回退 main HEAD 静默不阻塞 boot. 推后 5e5d9eb 触 Space 01:45Z crashloop — bootstrap.sh:65 引入 bash-only `${_rev:0:12}` 截取, Space `/bin/sh`=dash 不支持 → Bad substitution → set -e 杀 boot. 热修 `${_rev:0:12}`→`$(printf %.12s "$_rev")` (POSIX 兼) 解. **钉死**: 根件 (`#!/bin/sh`) 改动须三闸全过方推 — ①`sh -n` 语法 ②dash 实跑 expansion 段 ③bash-ism grep 全扫 (`${v:off:len}`/`${v/pat/rep}`/`[[ ]]`/`$(<file)`/arrays/`echo -e`), 缺一不可 (本次 ① 过但缺 ②③ 致崩). 出处: ops/incidents/2026-07-25-task-e-model-prune-saga.md §7.
 

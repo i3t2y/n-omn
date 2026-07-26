@@ -2,6 +2,49 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-07-26 · 切流执行期两事故闭环 + workflow 六件制落地 + litestream.yml 桶名参数化 (web 手改回 git)
+
+> 承接 Phase 2 冻结令解 (compaction 疡定谳不阻切流)。切流链步2-6 执行期 nomke/omn 生产侧连发两起事故, 均圣上 HF web 手动修复 (cg52 瘫痪期旁观)。本日工作 = 改动落回 git 恢复"仓=SSOT"。
+
+### 事故时间线 (nomke/omn 生产侧, 圣上 web 手动全程)
+- **12:13Z boot #1 — prod 403 断供**: `dev/logic/litestream.yml:5` 桶名硬写 `omn-data` (dev 桶) 随 logic 平铺机制越界进入 prod Space → prod R2 key (`HF_TOKEN_NOMKE` 所属) 对 dev 桶无写权 → litestream 每次 S3 PUT/POST `403 AccessDenied` → **备份链断供** (replicate 死, 不写新 WAL)。cg52 经网关调模型失败 → 旁观。根 = 命名空间越界 (prod key 写 dev 桶)。
+- **12:13Z~12:53Z — cg52 瘫痪**: prod 应用层挂期间无法经网关调模型 → 全部修复权属圣上 HF web 手动。
+- **12:53Z boot #2 — web 手改 YAML 损坏**: 圣上 web 手改 Dataset 内 `litestream.yml` 做桶名参数化意图 → YAML line 9 结构损坏 → litestream 进程读 `-config` 解析崩退 → litestream **进程退出** (无复制无本地库 handle)。非 code 病非 env 病, 是 web 手编辑无 yaml lint。nomke/omn 进一步瘫痪。
+- **12:53Z~恢复 — 圣上 web 手修**: 修 YAML 结构 + 桶名参数化定态 → nomke/omn 接单恢复。
+- **本日 (切流后改回 git)**: dev/logic/litestream.yml 参数化 + workflow 六件制改名/新增, 恢复 "仓 = SSOT"。
+
+### 本日 git 落地 (改动未 commit, 待圣上批后推)
+- **dev/logic/litestream.yml**: 单行 `bucket: omn-data` → `bucket: ${R2_BUCKET}` (litestream v0.5.9 内建 `${VAR}` envsubst, logic 层环境无关根治)
+- **workflow 六件制** (`.github/workflows/`):
+  - git mv `fetch-space-logs.yml` → `fetch-nonoke-logs.yml` (dev, 内容三改: name 加角色缀 + 顶部注释补改名出处 + commit msg 出处行)
+  - git mv `sync-logic-dev.yml` → `sync-logic-nonoke.yml` (dev, paths 自引用改名)
+  - git mv `sync-space-skeleton.yml` → `sync-space-nonoke.yml` (dev, 去 matrix 单投 nonoke/omn, 直引 HF_TOKEN_NONOKE)
+  - 新增 `fetch-nomke-logs.yml` (prod, 克隆自 dev 版 + 5 处差异: SPACE=nomke/omn + HF_TOKEN_NOMKE + logs/nomke--omn 卷 + cron 错峰 07/37 + 健康指纹摘要步)
+  - 新增 `sync-logic-nomke.yml` (prod nomke/omn-logic, HF_TOKEN_NOMKE, 仅 workflow_dispatch)
+  - 新增 `sync-space-nomke.yml` (prod nomke/omn, HF_TOKEN_NOMKE, 仅 workflow_dispatch 无 push 触发)
+  - 命名空间隔离实证: `*-nomke.yml` 零 `nonoke/omn`/`HF_TOKEN_NONOKE` 字面, `*-nonoke.yml` 零 `nomke`/`HF_TOKEN_NOMKE` 字面 (grep 字面零命中)
+  - yaml 解析全六件 OK
+
+### DECISIONS 入册 (4+1 条同案, 参见 DECISIONS.md 顶)
+- (a) R2 桶名参数化 `${R2_BUCKET}` (logic 层环境无关)
+- (b) workflow 六件命名规约 (`*-nonoke`=dev / `*-nomke`=prod, prod 三件仅 `workflow_dispatch`)
+- (c) HF_TOKEN 命名空间隔离 (NONOKE/NOMKE 双 token, 爆炸半径各半)
+- (d) LITESTREAM_STRICT 评估 (prod 候选 = 1, litestream 崩退即 boot 死 / 现 `&` 不阻塞; 待圣上裁决)
+- 变量血统核实: `LOGIC_BUCKET_REPO` (bootstrap 拉逻辑层唯一真消费) + `OMN_DATASET_REPO` (init upload_folder 回写) 互为别名同一 logic Dataset 根; `HF_DATASET_REPO` 死名零消费划除。prod 两名同赋 `nomke/omn-logic`, dev 同赋 `nonoke/omn-logic`。
+
+### 环境变更记录 (只记不执行, 圣上 web 手通)
+- **nomke/omn 已设/应设**: `R2_BUCKET=omniroute-data` (Variable) + `OMN_DATASET_REPO=nomke/omn-logic`
+- **nonoke/omn 应设 (litestream 参数化前置)**: `R2_BUCKET=omn-data` — **须 sync logic 前先设** (否则 dev 端 env 缺得不扩致 R2 拒)
+
+### saga 续写
+- `ops/incidents/2026-07-25-task-e-model-prune-saga.md` §8.3 续写切流两事故 + 修复时间线 + 根因闭环 + 教训四条。
+
+### 待办 (本批未 commit, 待圣上 push)
+- [ ] 本批六件 workflow + litestream.yml + DECISIONS/STATUS/saga 一并 commit (圣上批 diff 后 push nomn)
+- [ ] LITESTREAM_STRICT 裁决 (圣上批 prod 候选 = 1 or 否)
+- [ ] nonoke/omn 设 `R2_BUCKET=omn-data` Variable (圣上 web, sync logic 前置)
+- [ ] 切流链步 3-6 推进 (Dispatch Skeleton → Rebuild → 变量切换 → Restart), 待本批 commit 推后
+
 ## 2026-07-26 · sync 真态实证 + admin 404 实证落地 + ③④按圣令跳过
 
 > 承接 K3 裁 "账册补齐三印" 序。①②⑤ cg52 实证升格落地, ③④结构性不可执行按圣令跳过。

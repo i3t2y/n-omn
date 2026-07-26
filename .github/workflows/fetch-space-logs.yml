@@ -131,6 +131,14 @@ jobs:
           echo "脱敏闸已执行 PASS"
           echo "passed=true" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout (补丁二 2026-07-26 — workflow 缺 actions/checkout 致 git 报 not a git repository)
+        if: steps.desens.outputs.passed == 'true'
+        uses: actions/checkout@v4
+        with:
+          # 证据分支步骤含 git fetch + orphan 建支推 push, 需全量史;
+          # 浅克隆的 unshallow 会多一次网络往返, 直接全量更省, 顺医 fetch 冗余.
+          fetch-depth: 0
+
       - name: 落 evidence 分支 (orphan 起步, main SSOT 洁净分层)
         if: steps.desens.outputs.passed == 'true'
         run: |
@@ -141,8 +149,8 @@ jobs:
           # git user
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 浅克隆 / 建 evidence 分支 (不存在则 orphan)
-          git fetch --unshallow 2>/dev/null || git fetch
+          # 已全量 checkout (fetch-depth:0), 单 fetch origin 同步远端引用即可 — 原 --unshallow 兼顾浅克隆冗余顺医去
+          git fetch origin
           if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
             git checkout "$BRANCH"
             git pull --rebase origin "$BRANCH" 2>/dev/null || true

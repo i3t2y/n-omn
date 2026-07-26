@@ -74,7 +74,7 @@
 
 ## §7 5e5d9eb bootstrap bash-ism 致 boot crashloop (7-26 01:45Z 泥坑 → printf 热修)
 
-**新病暴露**: 5e5d9eb bootstrap 硬化案 (§6.5 / K3 裁) 推后, Space 01:45Z boot 真跑即崩:
+**新病暴露**: 5e5d9eb bootstrap 硬化案 (§5后续列表 "bootstrap hf download 无 --revision 竞速根因" / K3 裁) 推后, Space 01:45Z boot 真跑即崩:
 ```
 [bootstrap] >>> 启动 2026-07-26 01:45:54 <<<
 [bootstrap] 缺失基础工具: python3

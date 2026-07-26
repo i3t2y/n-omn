@@ -155,3 +155,49 @@
 - 关键: restore 选 snapshot 还是 WAL tail 的 entrypoint 逻辑分支审, 钉死 entrypoint restore 选低 txid 版本的"半态"点
 
 **入档**: DECISIONS "R2 先证后建铁律" 条修正 — dbs.path 漂移嫌疑铁证推翻, 真根转 restore-WAL-tail 半态致 txid gap (compaction ERROR). R2 鉴别器三子读命令须增 db_txid 真态 + R2 .ltx txid 全序两步. 出处: 本档 §8.1 + evidence 分支 logs/nonoke--omn/20260726-0813-run.log.
+
+### §8.2 三答归一 — compaction 疤定谳: 昨晚裸删留疤, 不阻切流 (圣上 7-26 定谳, cg52 四铁证对账)
+
+**圣上三答归一** (7-26 Space 侧鉴 + R2 控制台肉眼 + 日志自读):
+- 答一 (无 Command/Docker Command 字段): 免费档无该字段 — cg52 对免费 Space 能力误判, 方法1 **永久划掉**. 免费 Space 改启动行为唯一通道 = Files 页改 Dockerfile/入口脚本提交触 rebuild. 但本案不再需 (答2+3+日志自证链闭). 免费 Space 诊断通道定型为三条: ① fetch-space-logs workflow (补丁三已修) ② R2 控制台肉眼 ③ 日志自读.
+- 答二 (R2 有 .ltx, 删后重建过): "好像"升"确定" — 日志第 1121 行 `08:00:01.008Z snapshot complete txid=0x32 size=267503` 即控制台所见重建快照, 字节数咬合.
+- 答三 (删除发生在昨晚 cg52 首测): 与断档铁证严丝合缝.
+
+**cg52 四铁证独立对账 (evidence log sed/grep 验)**:
+1. 行 1121 `snapshot complete txid=0000000000000032 size=267503` ✅ 一字不差
+2. `grep -c 'compaction failed'` = **57** ✅
+3. `sort -u` 去 timestamp 后 57 行文本单一全同: `compaction failed level=1 error="non-contiguous transaction ids (0x10,0x10)->(0x2c,0x2c)"` ✅ 一字未差
+4. 时序 07:46:23 起每 ~30s (L1 interval) 一发至 08:14:04, 57×30s=28.5min 数学对齐 ✅
+
+**断档机械原理 (日志逐字实证)**:
+```
+07:46:12.594  entrypoint ✓ 已从 R2 恢复 (原子 mv .restore.1 → storage.sqlite)
+07:46:13.140  [DB] SQLite database ready /app/data/storage.sqlite (DATA_DIR=/app/data)
+07:46:17.000  initialized db path=/app/data/storage.sqlite           ← litestream 监 (path 一致无漂移)
+07:46:18.109  detected database behind replica db_txid=0x0 replica_txid=0x2c
+07:46:18.220  fetched latest L0 file from replica min_txid=0x2c max_txid=0x2c
+07:46:23.408  compaction failed L1 (0x10→0x10) -> (0x2c→0x2c) non-contiguous [每30s×57次]
+08:00:01.008  snapshot complete txid=0x32 size=267503                  ← 新链扫地重建, 越过 0x2c 推进至 0x32
+```
+
+**成因复盘 (圣上 7-26 钉死)**: 昨晚 cg52 首测那一删**删断了快照链但没删干净** — 0x2c 的旧 L0 残件留桶里; 之后新链从 0 重起写到 0x10 也上传. replica 同时躺两代残件, compaction 每巡逻试合并撞同一断档 — 非持续恶化故障, 是"同一处伤疤每 30 秒摸一次".
+
+**报错归宿 = 会自愈, 切桶即清零** (圣上 7-26 裁):
+- L0 复制正常 (新 WAL 照传, 否则到不了 0x32)
+- 快照正常 (0x32 08:00:01 已落成)
+- 恢复能力正常 (今后 boot 从快照 0x32 + 其后 L0 恢复, 不经断档窗口)
+- 两残件排在 0x32 新快照之前, retention 到期被清 → 报错自停 (接下来数小时还会在日志里刷, **预期白名单挂着, 勿误判故障复发**)
+- 切流后 prod 换 omniroute-data 新桶从零建链, 此报错根本不随行
+
+**诚实账 (圣上入册令)**: 断档窗口 0x11~0x2b 内若有写, 昨晚已删不可追 — dev 测试期数据, 当前库健康 + 应用全功能运行 (探活/ProviderLimitsSync 全绿), 切流零影响.
+
+**护栏条 (圣上 7-26 入 DECISIONS)**: 删 R2 备份 = 断代级破坏操作 — 今后测试脚本禁裸删 litestream 路径, 仅允许删 `test` 前缀对象 或 删前书面确认本地库可弃. 昨晚 cg52 首测该删即缺此护栏的直接产物.
+
+**Phase 2 冻结令解 + 切流链即刻启 (圣上 7-26 令)**: compaction 疡定谳不阻切流 — Phase 2 六步冻结令**解冻**, 切流链照序走:
+1. HF_TOKEN 备
+2. BASE_IMAGE 锚定 (待实报生产部署侧)
+3. Dispatch Skeleton
+4. Rebuild (此时 free, compaction 自愈同步)
+5. 变量切换 (bucket omn-data → omniroute-data)
+6. Restart
+切流后验证: matrix (单 space 写模式) + 盯新桶 snapshot 持续生成 + 确认新桶 compaction 报错零出现. 出处: 本档 §8.2 + DECISIONS "删 R2 备份断代级护栏" 条.

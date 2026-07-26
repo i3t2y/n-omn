@@ -62,7 +62,7 @@ try:
 except Exception as e:
     pass  # fail-open 静默, 走 main HEAD
 ' 2>"$_rev_err") || true
-  [ -n "$_rev" ] && echo "[bootstrap] Dataset HEAD 锁定 revision=${_rev:0:12} (竞速根治: atomic 同点拉取)" \
+  [ -n "$_rev" ] && echo "[bootstrap] Dataset HEAD 锁定 revision=$(printf %.12s "$_rev") (竞速根治: atomic 同点拉取)" \
                 || { echo "[bootstrap] WARN: 取 HEAD commit_id 失败, 回退 main HEAD (竞速面未根治)"; [ -s "$_rev_err" ] && { [ -n "$HF_TOKEN" ] && sed "s/$HF_TOKEN/[REDACTED]/g" "$_rev_err" >&2 || cat "$_rev_err" >&2; }; }
 fi
 

@@ -71,3 +71,31 @@
 - [ ] ECONNRESET 治理三后案 (SSE 心跳保活 / 压缩阈值对齐 202752 / bootstrap 钉 revision) — 切流后立项
 - [ ] bootstrap `hf download` 无 `--revision` 竞速根因 (圣上 K3 裁硬化案): sync workflow 上传后回写 SHA, bootstrap 按 SHA 拉取, 从根消除 boot#4 拉出旧源的竞速
 - [ ] probe 缺位 — matrix 路由读回真路径改为 fetch-space-logs evidence 分支消费, 非 Space stdout 直接
+
+## §7 5e5d9eb bootstrap bash-ism 致 boot crashloop (7-26 01:45Z 泥坑 → printf 热修)
+
+**新病暴露**: 5e5d9eb bootstrap 硬化案 (§6.5 / K3 裁) 推后, Space 01:45Z boot 真跑即崩:
+```
+[bootstrap] >>> 启动 2026-07-26 01:45:54 <<<
+[bootstrap] 缺失基础工具: python3
+[bootstrap] 镜像 A 模式：正在补全环境（约 60s）...
+[bootstrap] 环境补全完成
+[bootstrap] 同步 Dataset: nonoke/omn-logic
+/bootstrap.sh: 65: Bad substitution           ← FATAL
+```
+
+**根**: bootstrap.sh:65 我引入 bash-only 参数扩展 `${_rev:0:12}` (取前 12 字符). Space runner `/bin/sh` = **dash** (非 bash), dash 不支持 `${var:offset:length}` 截取语法 → 解析期 `Bad substitution` → `set -e` → bootstrap 退出 → Space crashloop.
+
+**我疏漏**: 本机 `bootstrap.sh` 用 `#!/bin/sh` shebang, 我开发态默认 `sh` 可能链 bash (或 dash 但 `sh -n` 仅语法核不捕获运行时 expansion 崩), 编辑期未 `dash -c '${1:0:12}'` 真验 → bash-ism 漏过闸. §1 铁律"根目录=生产血统"即此 — 根件 dash 兼容须实测不靠心算.
+
+**热修**: 单点 Edit, `${_rev:0:12}` → `$(printf %.12s "$_rev")` (POSIX dash 兼截取), 1 行 +1-1:
+```diff
+-  [ -n "$_rev" ] && echo "[bootstrap] Dataset HEAD 锁定 revision=${_rev:0:12} (竞速根治: atomic 同点拉取)" \
++  [ -n "$_rev" ] && echo "[bootstrap] Dataset HEAD 锁定 revision=$(printf %.12s "$_rev") (竞速根治: atomic 同点拉取)" \
+```
+
+**验证 (double proof)**:
+- `sh -n` 退 0 (语法) + bash-ism 全文扫净 (`${var:off:len}`/`${var/pat/rep}`/`[[ ]]`/`$(<file)`/arrays/`echo -e` 全 0 命中)
+- dash 实跑 `_rev` 解析段双路: 成功路 `printf %.12s` 截 12 字符✅ + 失败路 `_rev` 空回退 main HEAD✅, 均退 0
+
+**教训钉死**: 根件 (`#!/bin/sh`) 改动须三闸 — ①`sh -n` 语法 ②dash 实跑 expansion 段 ③bash-ism grep 全扫. 缺一不可 (本次 `sh -n` 过但 expansion 崩即缺②③). 入 DECISIONS "根件 dash 兼容三闸" 条防再坑.

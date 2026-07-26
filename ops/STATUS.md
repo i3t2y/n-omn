@@ -44,6 +44,13 @@
 
 **待落**: ①git add/commit bootstrap.sh — ②推触发 (旧 sync 触发是为 dev/logic/**, bootstrap 在根不入此 path, 不触 sync; 但可走 push 触 Bootstrap 镜像须知) — 待圣上批
 
+### 5e5d9eb bootstrap dash 崩 → printf 热修 (7-26 01:45Z Space crashloop P0)
+- **崩**: 5e5d9eb 推后 Space 01:45Z boot 真跑即崩 `/bootstrap.sh: 65: Bad substitution` → crashloop. 根 = bootstrap.sh:65 我引入 bash-only `${_rev:0:12}` 截取, Space `/bin/sh`=dash 不支持 → `set -e` 杀 boot.
+- **我疏漏**: `sh -n` 仅语法核不捕运行时 expansion 崩, 编辑期未 `dash -c` 真验 expansion → bash-ism 漏过闸. §1 根件=生产血统即此.
+- **热修**: `${_rev:0:12}` → `$(printf %.12s "$_rev")` (POSIX dash 兼), +1-1 单点. bash-ism 全文扫净 + dash 实跑 `_rev` 解析段双路 (成功截 12 字符 + 空路回退) 均退 0.
+- **教训 (入 DECISIONS)**: 根件 (`#!/bin/sh`) 改动须三闸 — ①`sh -n` ②dash 实跑 expansion 段 ③bash-ism grep 全扫. 缺一不可.
+- **推送**: 热修 + saga §7 入档 + 本段同车 commit, 待圣上 push nomn main + Restart 验 boot 通解 crashloop.
+
 ## 2026-07-25 (本轮) · 切换 ② boot 前固化批 + CLAUDE.md v3 — 待圣上 Restart
 ### CLAUDE.md v3 (圣上签发, 工作宪法修订)
 - §0 生命周期: 会话开始读 HANDOFF+STATUS+DECISIONS; 翻案须 Supreme 明令; 改码只 diff 禁整文件重写

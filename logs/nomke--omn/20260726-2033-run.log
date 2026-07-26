@@ -1,0 +1,2040 @@
+data: {"data":"===== Application Startup at 2026-07-26 15:34:10 =====\n","timestamp":"2026-07-26T15:34:10Z"}
+
+data: {"data":"[bootstrap] >>> 启动 2026-07-26 15:34:24 <<<","timestamp":"2026-07-26T15:34:24.866Z"}
+
+data: {"data":"[bootstrap] 缺失基础工具: python3","timestamp":"2026-07-26T15:34:24.866Z"}
+
+data: {"data":"[bootstrap] 镜像 A 模式：正在补全环境（约 60s）...","timestamp":"2026-07-26T15:34:24.866Z"}
+
+data: {"data":"Get:1 http://deb.debian.org/debian trixie InRelease [140 kB]","timestamp":"2026-07-26T15:34:24.968Z"}
+
+data: {"data":"Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]","timestamp":"2026-07-26T15:34:24.981Z"}
+
+data: {"data":"Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]","timestamp":"2026-07-26T15:34:24.981Z"}
+
+data: {"data":"Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9673 kB]","timestamp":"2026-07-26T15:34:25.012Z"}
+
+data: {"data":"Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [4412 B]","timestamp":"2026-07-26T15:34:25.057Z"}
+
+data: {"data":"Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [227 kB]","timestamp":"2026-07-26T15:34:25.057Z"}
+
+data: {"data":"Fetched 10.1 MB in 1s (11.2 MB/s)","timestamp":"2026-07-26T15:34:25.859Z"}
+
+data: {"data":"Reading package lists...","timestamp":"2026-07-26T15:34:26.524Z"}
+
+data: {"data":"Reading package lists...","timestamp":"2026-07-26T15:34:27.210Z"}
+
+data: {"data":"Building dependency tree...","timestamp":"2026-07-26T15:34:27.381Z"}
+
+data: {"data":"Reading state information...","timestamp":"2026-07-26T15:34:27.382Z"}
+
+data: {"data":"ca-certificates is already the newest version (20250419).","timestamp":"2026-07-26T15:34:27.587Z"}
+
+data: {"data":"The following additional packages will be installed:","timestamp":"2026-07-26T15:34:27.587Z"}
+
+data: {"data":"  libbrotli1 libcom-err2 libcurl4t64 libexpat1 libgnutls30t64 libgssapi-krb5-2","timestamp":"2026-07-26T15:34:27.587Z"}
+
+data: {"data":"  libidn2-0 libjq1 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0","timestamp":"2026-07-26T15:34:27.587Z"}
+
+data: {"data":"  libldap2 libncursesw6 libnghttp2-14 libnghttp3-9 libonig5 libp11-kit0","timestamp":"2026-07-26T15:34:27.588Z"}
+
+data: {"data":"  libpsl5t64 libpython3-stdlib libpython3.13-minimal libpython3.13-stdlib","timestamp":"2026-07-26T15:34:27.588Z"}
+
+data: {"data":"  libreadline8t64 librtmp1 libsasl2-2 libsasl2-modules-db libssh2-1t64","timestamp":"2026-07-26T15:34:27.588Z"}
+
+data: {"data":"  libtasn1-6 libunistring5 media-types netbase python3-minimal","timestamp":"2026-07-26T15:34:27.588Z"}
+
+data: {"data":"  python3-packaging python3-wheel python3.13 python3.13-minimal","timestamp":"2026-07-26T15:34:27.588Z"}
+
+data: {"data":"  readline-common","timestamp":"2026-07-26T15:34:27.589Z"}
+
+data: {"data":"Suggested packages:","timestamp":"2026-07-26T15:34:27.590Z"}
+
+data: {"data":"  gnutls-bin krb5-doc krb5-user python3-doc python3-tk python3-venv","timestamp":"2026-07-26T15:34:27.590Z"}
+
+data: {"data":"  python3-setuptools python3.13-venv python3.13-doc binutils binfmt-support","timestamp":"2026-07-26T15:34:27.590Z"}
+
+data: {"data":"  readline-doc sqlite3-doc","timestamp":"2026-07-26T15:34:27.590Z"}
+
+data: {"data":"Recommended packages:","timestamp":"2026-07-26T15:34:27.590Z"}
+
+data: {"data":"  bash-completion krb5-locales libldap-common libgpm2 publicsuffix","timestamp":"2026-07-26T15:34:27.590Z"}
+
+data: {"data":"  libsasl2-modules build-essential python3-dev libjs-sphinxdoc","timestamp":"2026-07-26T15:34:27.590Z"}
+
+data: {"data":"The following NEW packages will be installed:","timestamp":"2026-07-26T15:34:27.883Z"}
+
+data: {"data":"  curl jq libbrotli1 libcom-err2 libcurl4t64 libexpat1 libgnutls30t64","timestamp":"2026-07-26T15:34:27.883Z"}
+
+data: {"data":"  libgssapi-krb5-2 libidn2-0 libjq1 libk5crypto3 libkeyutils1 libkrb5-3","timestamp":"2026-07-26T15:34:27.883Z"}
+
+data: {"data":"  libkrb5support0 libldap2 libncursesw6 libnghttp2-14 libnghttp3-9 libonig5","timestamp":"2026-07-26T15:34:27.883Z"}
+
+data: {"data":"  libp11-kit0 libpsl5t64 libpython3-stdlib libpython3.13-minimal","timestamp":"2026-07-26T15:34:27.883Z"}
+
+data: {"data":"  libpython3.13-stdlib libreadline8t64 librtmp1 libsasl2-2 libsasl2-modules-db","timestamp":"2026-07-26T15:34:27.884Z"}
+
+data: {"data":"  libssh2-1t64 libtasn1-6 libunistring5 media-types netbase python3","timestamp":"2026-07-26T15:34:27.884Z"}
+
+data: {"data":"  python3-minimal python3-packaging python3-pip python3-wheel python3.13","timestamp":"2026-07-26T15:34:27.884Z"}
+
+data: {"data":"  python3.13-minimal readline-common sqlite3","timestamp":"2026-07-26T15:34:27.884Z"}
+
+data: {"data":"0 upgraded, 42 newly installed, 0 to remove and 2 not upgraded.","timestamp":"2026-07-26T15:34:27.917Z"}
+
+data: {"data":"Need to get 13.6 MB of archives.","timestamp":"2026-07-26T15:34:27.917Z"}
+
+data: {"data":"After this operation, 51.6 MB of additional disk space will be used.","timestamp":"2026-07-26T15:34:27.917Z"}
+
+data: {"data":"Get:1 http://deb.debian.org/debian trixie/main amd64 libexpat1 amd64 2.7.1-2 [108 kB]","timestamp":"2026-07-26T15:34:27.917Z"}
+
+data: {"data":"Get:2 http://deb.debian.org/debian trixie-updates/main amd64 libpython3.13-minimal amd64 3.13.5-2+deb13u4 [863 kB]","timestamp":"2026-07-26T15:34:27.921Z"}
+
+data: {"data":"Get:3 http://deb.debian.org/debian trixie-updates/main amd64 python3.13-minimal amd64 3.13.5-2+deb13u4 [2217 kB]","timestamp":"2026-07-26T15:34:27.925Z"}
+
+data: {"data":"Get:4 http://deb.debian.org/debian trixie/main amd64 python3-minimal amd64 3.13.5-1 [27.2 kB]","timestamp":"2026-07-26T15:34:27.931Z"}
+
+data: {"data":"Get:5 http://deb.debian.org/debian trixie/main amd64 media-types all 13.0.0 [29.3 kB]","timestamp":"2026-07-26T15:34:27.931Z"}
+
+data: {"data":"Get:6 http://deb.debian.org/debian trixie/main amd64 netbase all 6.5 [12.4 kB]","timestamp":"2026-07-26T15:34:27.931Z"}
+
+data: {"data":"Get:7 http://deb.debian.org/debian trixie/main amd64 libncursesw6 amd64 6.5+20250216-2 [135 kB]","timestamp":"2026-07-26T15:34:27.932Z"}
+
+data: {"data":"Get:8 http://deb.debian.org/debian trixie/main amd64 readline-common all 8.2-6 [69.4 kB]","timestamp":"2026-07-26T15:34:27.934Z"}
+
+data: {"data":"Get:9 http://deb.debian.org/debian trixie/main amd64 libreadline8t64 amd64 8.2-6 [169 kB]","timestamp":"2026-07-26T15:34:27.936Z"}
+
+data: {"data":"Get:10 http://deb.debian.org/debian trixie-updates/main amd64 libpython3.13-stdlib amd64 3.13.5-2+deb13u4 [1957 kB]","timestamp":"2026-07-26T15:34:27.938Z"}
+
+data: {"data":"Get:11 http://deb.debian.org/debian trixie-updates/main amd64 python3.13 amd64 3.13.5-2+deb13u4 [757 kB]","timestamp":"2026-07-26T15:34:27.945Z"}
+
+data: {"data":"Get:12 http://deb.debian.org/debian trixie/main amd64 libpython3-stdlib amd64 3.13.5-1 [10.2 kB]","timestamp":"2026-07-26T15:34:27.947Z"}
+
+data: {"data":"Get:13 http://deb.debian.org/debian trixie/main amd64 python3 amd64 3.13.5-1 [28.2 kB]","timestamp":"2026-07-26T15:34:27.947Z"}
+
+data: {"data":"Get:14 http://deb.debian.org/debian trixie/main amd64 libbrotli1 amd64 1.1.0-2+b7 [307 kB]","timestamp":"2026-07-26T15:34:27.948Z"}
+
+data: {"data":"Get:15 http://deb.debian.org/debian trixie/main amd64 libkrb5support0 amd64 1.21.3-5+deb13u1 [33.1 kB]","timestamp":"2026-07-26T15:34:27.949Z"}
+
+data: {"data":"Get:16 http://deb.debian.org/debian trixie/main amd64 libcom-err2 amd64 1.47.2-3+b11 [25.0 kB]","timestamp":"2026-07-26T15:34:27.950Z"}
+
+data: {"data":"Get:17 http://deb.debian.org/debian trixie/main amd64 libk5crypto3 amd64 1.21.3-5+deb13u1 [81.2 kB]","timestamp":"2026-07-26T15:34:27.951Z"}
+
+data: {"data":"Get:18 http://deb.debian.org/debian trixie/main amd64 libkeyutils1 amd64 1.6.3-6 [9456 B]","timestamp":"2026-07-26T15:34:27.952Z"}
+
+data: {"data":"Get:19 http://deb.debian.org/debian trixie/main amd64 libkrb5-3 amd64 1.21.3-5+deb13u1 [326 kB]","timestamp":"2026-07-26T15:34:27.954Z"}
+
+data: {"data":"Get:20 http://deb.debian.org/debian trixie/main amd64 libgssapi-krb5-2 amd64 1.21.3-5+deb13u1 [138 kB]","timestamp":"2026-07-26T15:34:27.955Z"}
+
+data: {"data":"Get:21 http://deb.debian.org/debian trixie/main amd64 libunistring5 amd64 1.3-2 [477 kB]","timestamp":"2026-07-26T15:34:27.958Z"}
+
+data: {"data":"Get:22 http://deb.debian.org/debian trixie/main amd64 libidn2-0 amd64 2.3.8-2 [109 kB]","timestamp":"2026-07-26T15:34:27.960Z"}
+
+data: {"data":"Get:23 http://deb.debian.org/debian trixie/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg1-9 [19.8 kB]","timestamp":"2026-07-26T15:34:27.961Z"}
+
+data: {"data":"Get:24 http://deb.debian.org/debian trixie/main amd64 libsasl2-2 amd64 2.1.28+dfsg1-9 [57.5 kB]","timestamp":"2026-07-26T15:34:27.962Z"}
+
+data: {"data":"Get:25 http://deb.debian.org/debian trixie/main amd64 libldap2 amd64 2.6.10+dfsg-1 [194 kB]","timestamp":"2026-07-26T15:34:27.964Z"}
+
+data: {"data":"Get:26 http://deb.debian.org/debian trixie/main amd64 libnghttp2-14 amd64 1.64.0-1.1+deb13u1 [76.2 kB]","timestamp":"2026-07-26T15:34:27.965Z"}
+
+data: {"data":"Get:27 http://deb.debian.org/debian trixie/main amd64 libnghttp3-9 amd64 1.8.0-1 [67.7 kB]","timestamp":"2026-07-26T15:34:27.966Z"}
+
+data: {"data":"Get:28 http://deb.debian.org/debian trixie/main amd64 libpsl5t64 amd64 0.21.2-1.1+b1 [57.2 kB]","timestamp":"2026-07-26T15:34:27.967Z"}
+
+data: {"data":"Get:29 http://deb.debian.org/debian trixie/main amd64 libp11-kit0 amd64 0.25.5-3 [425 kB]","timestamp":"2026-07-26T15:34:27.969Z"}
+
+data: {"data":"Get:30 http://deb.debian.org/debian trixie/main amd64 libtasn1-6 amd64 4.20.0-2+deb13u1 [50.1 kB]","timestamp":"2026-07-26T15:34:27.972Z"}
+
+data: {"data":"Get:31 http://deb.debian.org/debian trixie/main amd64 libgnutls30t64 amd64 3.8.9-3+deb13u4 [1469 kB]","timestamp":"2026-07-26T15:34:27.972Z"}
+
+data: {"data":"Get:32 http://deb.debian.org/debian trixie/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b5 [58.8 kB]","timestamp":"2026-07-26T15:34:27.979Z"}
+
+data: {"data":"Get:33 http://deb.debian.org/debian trixie/main amd64 libssh2-1t64 amd64 1.11.1-1+deb13u1 [245 kB]","timestamp":"2026-07-26T15:34:27.980Z"}
+
+data: {"data":"Get:34 http://deb.debian.org/debian trixie/main amd64 libcurl4t64 amd64 8.14.1-2+deb13u4 [392 kB]","timestamp":"2026-07-26T15:34:27.981Z"}
+
+data: {"data":"Get:35 http://deb.debian.org/debian trixie/main amd64 curl amd64 8.14.1-2+deb13u4 [270 kB]","timestamp":"2026-07-26T15:34:27.983Z"}
+
+data: {"data":"Get:36 http://deb.debian.org/debian trixie/main amd64 libonig5 amd64 6.9.9-1+b1 [189 kB]","timestamp":"2026-07-26T15:34:27.984Z"}
+
+data: {"data":"Get:37 http://deb.debian.org/debian trixie/main amd64 libjq1 amd64 1.7.1-6+deb13u2 [164 kB]","timestamp":"2026-07-26T15:34:27.985Z"}
+
+data: {"data":"Get:38 http://deb.debian.org/debian trixie/main amd64 jq amd64 1.7.1-6+deb13u2 [77.8 kB]","timestamp":"2026-07-26T15:34:27.985Z"}
+
+data: {"data":"Get:39 http://deb.debian.org/debian trixie/main amd64 python3-packaging all 25.0-1 [56.6 kB]","timestamp":"2026-07-26T15:34:27.986Z"}
+
+data: {"data":"Get:40 http://deb.debian.org/debian trixie/main amd64 python3-wheel all 0.46.1-2 [21.7 kB]","timestamp":"2026-07-26T15:34:27.987Z"}
+
+data: {"data":"Get:41 http://deb.debian.org/debian trixie/main amd64 python3-pip all 25.1.1+dfsg-1 [1457 kB]","timestamp":"2026-07-26T15:34:27.988Z"}
+
+data: {"data":"Get:42 http://deb.debian.org/debian trixie/main amd64 sqlite3 amd64 3.46.1-7+deb13u1 [384 kB]","timestamp":"2026-07-26T15:34:27.993Z"}
+
+data: {"data":"debconf: unable to initialize frontend: Dialog","timestamp":"2026-07-26T15:34:28.258Z"}
+
+data: {"data":"debconf: (TERM is not set, so the dialog frontend is not usable.)","timestamp":"2026-07-26T15:34:28.258Z"}
+
+data: {"data":"debconf: falling back to frontend: Readline","timestamp":"2026-07-26T15:34:28.258Z"}
+
+data: {"data":"debconf: unable to initialize frontend: Readline","timestamp":"2026-07-26T15:34:28.259Z"}
+
+data: {"data":"debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 42.)","timestamp":"2026-07-26T15:34:28.259Z"}
+
+data: {"data":"debconf: falling back to frontend: Teletype","timestamp":"2026-07-26T15:34:28.259Z"}
+
+data: {"data":"debconf: unable to initialize frontend: Teletype","timestamp":"2026-07-26T15:34:28.264Z"}
+
+data: {"data":"debconf: (This frontend requires a controlling tty.)","timestamp":"2026-07-26T15:34:28.264Z"}
+
+data: {"data":"debconf: falling back to frontend: Noninteractive","timestamp":"2026-07-26T15:34:28.264Z"}
+
+data: {"data":"Fetched 13.6 MB in 0s (146 MB/s)","timestamp":"2026-07-26T15:34:29.555Z"}
+
+data: {"data":"Selecting previously unselected package libexpat1:amd64.","timestamp":"2026-07-26T15:34:29.588Z"}
+
+data: {"data":"(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 5723 files and directories currently installed.)","timestamp":"2026-07-26T15:34:29.650Z"}
+
+data: {"data":"Preparing to unpack .../libexpat1_2.7.1-2_amd64.deb ...","timestamp":"2026-07-26T15:34:29.651Z"}
+
+data: {"data":"Unpacking libexpat1:amd64 (2.7.1-2) ...","timestamp":"2026-07-26T15:34:29.659Z"}
+
+data: {"data":"Selecting previously unselected package libpython3.13-minimal:amd64.","timestamp":"2026-07-26T15:34:29.696Z"}
+
+data: {"data":"Preparing to unpack .../libpython3.13-minimal_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-26T15:34:29.697Z"}
+
+data: {"data":"Unpacking libpython3.13-minimal:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:29.701Z"}
+
+data: {"data":"Selecting previously unselected package python3.13-minimal.","timestamp":"2026-07-26T15:34:29.788Z"}
+
+data: {"data":"Preparing to unpack .../python3.13-minimal_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-26T15:34:29.789Z"}
+
+data: {"data":"Unpacking python3.13-minimal (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:29.800Z"}
+
+data: {"data":"Setting up libpython3.13-minimal:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:29.966Z"}
+
+data: {"data":"Setting up libexpat1:amd64 (2.7.1-2) ...","timestamp":"2026-07-26T15:34:29.980Z"}
+
+data: {"data":"Setting up python3.13-minimal (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:29.989Z"}
+
+data: {"data":"Selecting previously unselected package python3-minimal.","timestamp":"2026-07-26T15:34:30.783Z"}
+
+data: {"data":"(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 6057 files and directories currently installed.)","timestamp":"2026-07-26T15:34:30.786Z"}
+
+data: {"data":"Preparing to unpack .../0-python3-minimal_3.13.5-1_amd64.deb ...","timestamp":"2026-07-26T15:34:30.786Z"}
+
+data: {"data":"Unpacking python3-minimal (3.13.5-1) ...","timestamp":"2026-07-26T15:34:30.794Z"}
+
+data: {"data":"Selecting previously unselected package media-types.","timestamp":"2026-07-26T15:34:30.837Z"}
+
+data: {"data":"Preparing to unpack .../1-media-types_13.0.0_all.deb ...","timestamp":"2026-07-26T15:34:30.838Z"}
+
+data: {"data":"Unpacking media-types (13.0.0) ...","timestamp":"2026-07-26T15:34:30.842Z"}
+
+data: {"data":"Selecting previously unselected package netbase.","timestamp":"2026-07-26T15:34:30.874Z"}
+
+data: {"data":"Preparing to unpack .../2-netbase_6.5_all.deb ...","timestamp":"2026-07-26T15:34:30.875Z"}
+
+data: {"data":"Unpacking netbase (6.5) ...","timestamp":"2026-07-26T15:34:30.878Z"}
+
+data: {"data":"Selecting previously unselected package libncursesw6:amd64.","timestamp":"2026-07-26T15:34:30.915Z"}
+
+data: {"data":"Preparing to unpack .../3-libncursesw6_6.5+20250216-2_amd64.deb ...","timestamp":"2026-07-26T15:34:30.916Z"}
+
+data: {"data":"Unpacking libncursesw6:amd64 (6.5+20250216-2) ...","timestamp":"2026-07-26T15:34:30.919Z"}
+
+data: {"data":"Selecting previously unselected package readline-common.","timestamp":"2026-07-26T15:34:30.957Z"}
+
+data: {"data":"Preparing to unpack .../4-readline-common_8.2-6_all.deb ...","timestamp":"2026-07-26T15:34:30.959Z"}
+
+data: {"data":"Unpacking readline-common (8.2-6) ...","timestamp":"2026-07-26T15:34:30.962Z"}
+
+data: {"data":"Selecting previously unselected package libreadline8t64:amd64.","timestamp":"2026-07-26T15:34:30.999Z"}
+
+data: {"data":"Preparing to unpack .../5-libreadline8t64_8.2-6_amd64.deb ...","timestamp":"2026-07-26T15:34:31Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libhistory.so.8 to /lib/x86_64-linux-gnu/libhistory.so.8.usr-is-merged by libreadline8t64'","timestamp":"2026-07-26T15:34:31.010Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libhistory.so.8.2 to /lib/x86_64-linux-gnu/libhistory.so.8.2.usr-is-merged by libreadline8t64'","timestamp":"2026-07-26T15:34:31.019Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libreadline.so.8 to /lib/x86_64-linux-gnu/libreadline.so.8.usr-is-merged by libreadline8t64'","timestamp":"2026-07-26T15:34:31.024Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libreadline.so.8.2 to /lib/x86_64-linux-gnu/libreadline.so.8.2.usr-is-merged by libreadline8t64'","timestamp":"2026-07-26T15:34:31.029Z"}
+
+data: {"data":"Unpacking libreadline8t64:amd64 (8.2-6) ...","timestamp":"2026-07-26T15:34:31.032Z"}
+
+data: {"data":"Selecting previously unselected package libpython3.13-stdlib:amd64.","timestamp":"2026-07-26T15:34:31.065Z"}
+
+data: {"data":"Preparing to unpack .../6-libpython3.13-stdlib_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-26T15:34:31.065Z"}
+
+data: {"data":"Unpacking libpython3.13-stdlib:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:31.069Z"}
+
+data: {"data":"Selecting previously unselected package python3.13.","timestamp":"2026-07-26T15:34:31.219Z"}
+
+data: {"data":"Preparing to unpack .../7-python3.13_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-26T15:34:31.220Z"}
+
+data: {"data":"Unpacking python3.13 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:31.223Z"}
+
+data: {"data":"Selecting previously unselected package libpython3-stdlib:amd64.","timestamp":"2026-07-26T15:34:31.252Z"}
+
+data: {"data":"Preparing to unpack .../8-libpython3-stdlib_3.13.5-1_amd64.deb ...","timestamp":"2026-07-26T15:34:31.254Z"}
+
+data: {"data":"Unpacking libpython3-stdlib:amd64 (3.13.5-1) ...","timestamp":"2026-07-26T15:34:31.257Z"}
+
+data: {"data":"Setting up python3-minimal (3.13.5-1) ...","timestamp":"2026-07-26T15:34:31.284Z"}
+
+data: {"data":"Selecting previously unselected package python3.","timestamp":"2026-07-26T15:34:31.446Z"}
+
+data: {"data":"(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 6560 files and directories currently installed.)","timestamp":"2026-07-26T15:34:31.450Z"}
+
+data: {"data":"Preparing to unpack .../00-python3_3.13.5-1_amd64.deb ...","timestamp":"2026-07-26T15:34:31.450Z"}
+
+data: {"data":"Unpacking python3 (3.13.5-1) ...","timestamp":"2026-07-26T15:34:31.457Z"}
+
+data: {"data":"Selecting previously unselected package libbrotli1:amd64.","timestamp":"2026-07-26T15:34:31.495Z"}
+
+data: {"data":"Preparing to unpack .../01-libbrotli1_1.1.0-2+b7_amd64.deb ...","timestamp":"2026-07-26T15:34:31.496Z"}
+
+data: {"data":"Unpacking libbrotli1:amd64 (1.1.0-2+b7) ...","timestamp":"2026-07-26T15:34:31.500Z"}
+
+data: {"data":"Selecting previously unselected package libkrb5support0:amd64.","timestamp":"2026-07-26T15:34:31.550Z"}
+
+data: {"data":"Preparing to unpack .../02-libkrb5support0_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:31.551Z"}
+
+data: {"data":"Unpacking libkrb5support0:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:31.554Z"}
+
+data: {"data":"Selecting previously unselected package libcom-err2:amd64.","timestamp":"2026-07-26T15:34:31.585Z"}
+
+data: {"data":"Preparing to unpack .../03-libcom-err2_1.47.2-3+b11_amd64.deb ...","timestamp":"2026-07-26T15:34:31.586Z"}
+
+data: {"data":"Unpacking libcom-err2:amd64 (1.47.2-3+b11) ...","timestamp":"2026-07-26T15:34:31.589Z"}
+
+data: {"data":"Selecting previously unselected package libk5crypto3:amd64.","timestamp":"2026-07-26T15:34:31.628Z"}
+
+data: {"data":"Preparing to unpack .../04-libk5crypto3_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:31.629Z"}
+
+data: {"data":"Unpacking libk5crypto3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:31.632Z"}
+
+data: {"data":"Selecting previously unselected package libkeyutils1:amd64.","timestamp":"2026-07-26T15:34:31.667Z"}
+
+data: {"data":"Preparing to unpack .../05-libkeyutils1_1.6.3-6_amd64.deb ...","timestamp":"2026-07-26T15:34:31.668Z"}
+
+data: {"data":"Unpacking libkeyutils1:amd64 (1.6.3-6) ...","timestamp":"2026-07-26T15:34:31.672Z"}
+
+data: {"data":"Selecting previously unselected package libkrb5-3:amd64.","timestamp":"2026-07-26T15:34:31.709Z"}
+
+data: {"data":"Preparing to unpack .../06-libkrb5-3_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:31.710Z"}
+
+data: {"data":"Unpacking libkrb5-3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:31.713Z"}
+
+data: {"data":"Selecting previously unselected package libgssapi-krb5-2:amd64.","timestamp":"2026-07-26T15:34:31.763Z"}
+
+data: {"data":"Preparing to unpack .../07-libgssapi-krb5-2_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:31.764Z"}
+
+data: {"data":"Unpacking libgssapi-krb5-2:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:31.769Z"}
+
+data: {"data":"Selecting previously unselected package libunistring5:amd64.","timestamp":"2026-07-26T15:34:31.813Z"}
+
+data: {"data":"Preparing to unpack .../08-libunistring5_1.3-2_amd64.deb ...","timestamp":"2026-07-26T15:34:31.814Z"}
+
+data: {"data":"Unpacking libunistring5:amd64 (1.3-2) ...","timestamp":"2026-07-26T15:34:31.818Z"}
+
+data: {"data":"Selecting previously unselected package libidn2-0:amd64.","timestamp":"2026-07-26T15:34:31.873Z"}
+
+data: {"data":"Preparing to unpack .../09-libidn2-0_2.3.8-2_amd64.deb ...","timestamp":"2026-07-26T15:34:31.874Z"}
+
+data: {"data":"Unpacking libidn2-0:amd64 (2.3.8-2) ...","timestamp":"2026-07-26T15:34:31.877Z"}
+
+data: {"data":"Selecting previously unselected package libsasl2-modules-db:amd64.","timestamp":"2026-07-26T15:34:31.914Z"}
+
+data: {"data":"Preparing to unpack .../10-libsasl2-modules-db_2.1.28+dfsg1-9_amd64.deb ...","timestamp":"2026-07-26T15:34:31.916Z"}
+
+data: {"data":"Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-26T15:34:31.919Z"}
+
+data: {"data":"Selecting previously unselected package libsasl2-2:amd64.","timestamp":"2026-07-26T15:34:31.948Z"}
+
+data: {"data":"Preparing to unpack .../11-libsasl2-2_2.1.28+dfsg1-9_amd64.deb ...","timestamp":"2026-07-26T15:34:31.949Z"}
+
+data: {"data":"Unpacking libsasl2-2:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-26T15:34:31.952Z"}
+
+data: {"data":"Selecting previously unselected package libldap2:amd64.","timestamp":"2026-07-26T15:34:31.987Z"}
+
+data: {"data":"Preparing to unpack .../12-libldap2_2.6.10+dfsg-1_amd64.deb ...","timestamp":"2026-07-26T15:34:31.988Z"}
+
+data: {"data":"Unpacking libldap2:amd64 (2.6.10+dfsg-1) ...","timestamp":"2026-07-26T15:34:31.995Z"}
+
+data: {"data":"Selecting previously unselected package libnghttp2-14:amd64.","timestamp":"2026-07-26T15:34:32.037Z"}
+
+data: {"data":"Preparing to unpack .../13-libnghttp2-14_1.64.0-1.1+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:32.038Z"}
+
+data: {"data":"Unpacking libnghttp2-14:amd64 (1.64.0-1.1+deb13u1) ...","timestamp":"2026-07-26T15:34:32.041Z"}
+
+data: {"data":"Selecting previously unselected package libnghttp3-9:amd64.","timestamp":"2026-07-26T15:34:32.075Z"}
+
+data: {"data":"Preparing to unpack .../14-libnghttp3-9_1.8.0-1_amd64.deb ...","timestamp":"2026-07-26T15:34:32.076Z"}
+
+data: {"data":"Unpacking libnghttp3-9:amd64 (1.8.0-1) ...","timestamp":"2026-07-26T15:34:32.080Z"}
+
+data: {"data":"Selecting previously unselected package libpsl5t64:amd64.","timestamp":"2026-07-26T15:34:32.120Z"}
+
+data: {"data":"Preparing to unpack .../15-libpsl5t64_0.21.2-1.1+b1_amd64.deb ...","timestamp":"2026-07-26T15:34:32.121Z"}
+
+data: {"data":"Unpacking libpsl5t64:amd64 (0.21.2-1.1+b1) ...","timestamp":"2026-07-26T15:34:32.124Z"}
+
+data: {"data":"Selecting previously unselected package libp11-kit0:amd64.","timestamp":"2026-07-26T15:34:32.165Z"}
+
+data: {"data":"Preparing to unpack .../16-libp11-kit0_0.25.5-3_amd64.deb ...","timestamp":"2026-07-26T15:34:32.167Z"}
+
+data: {"data":"Unpacking libp11-kit0:amd64 (0.25.5-3) ...","timestamp":"2026-07-26T15:34:32.170Z"}
+
+data: {"data":"Selecting previously unselected package libtasn1-6:amd64.","timestamp":"2026-07-26T15:34:32.224Z"}
+
+data: {"data":"Preparing to unpack .../17-libtasn1-6_4.20.0-2+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:32.225Z"}
+
+data: {"data":"Unpacking libtasn1-6:amd64 (4.20.0-2+deb13u1) ...","timestamp":"2026-07-26T15:34:32.229Z"}
+
+data: {"data":"Selecting previously unselected package libgnutls30t64:amd64.","timestamp":"2026-07-26T15:34:32.263Z"}
+
+data: {"data":"Preparing to unpack .../18-libgnutls30t64_3.8.9-3+deb13u4_amd64.deb ...","timestamp":"2026-07-26T15:34:32.264Z"}
+
+data: {"data":"Unpacking libgnutls30t64:amd64 (3.8.9-3+deb13u4) ...","timestamp":"2026-07-26T15:34:32.268Z"}
+
+data: {"data":"Selecting previously unselected package librtmp1:amd64.","timestamp":"2026-07-26T15:34:32.354Z"}
+
+data: {"data":"Preparing to unpack .../19-librtmp1_2.4+20151223.gitfa8646d.1-2+b5_amd64.deb ...","timestamp":"2026-07-26T15:34:32.355Z"}
+
+data: {"data":"Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...","timestamp":"2026-07-26T15:34:32.359Z"}
+
+data: {"data":"Selecting previously unselected package libssh2-1t64:amd64.","timestamp":"2026-07-26T15:34:32.397Z"}
+
+data: {"data":"Preparing to unpack .../20-libssh2-1t64_1.11.1-1+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:32.397Z"}
+
+data: {"data":"Unpacking libssh2-1t64:amd64 (1.11.1-1+deb13u1) ...","timestamp":"2026-07-26T15:34:32.404Z"}
+
+data: {"data":"Selecting previously unselected package libcurl4t64:amd64.","timestamp":"2026-07-26T15:34:32.444Z"}
+
+data: {"data":"Preparing to unpack .../21-libcurl4t64_8.14.1-2+deb13u4_amd64.deb ...","timestamp":"2026-07-26T15:34:32.444Z"}
+
+data: {"data":"Unpacking libcurl4t64:amd64 (8.14.1-2+deb13u4) ...","timestamp":"2026-07-26T15:34:32.448Z"}
+
+data: {"data":"Selecting previously unselected package curl.","timestamp":"2026-07-26T15:34:32.494Z"}
+
+data: {"data":"Preparing to unpack .../22-curl_8.14.1-2+deb13u4_amd64.deb ...","timestamp":"2026-07-26T15:34:32.495Z"}
+
+data: {"data":"Unpacking curl (8.14.1-2+deb13u4) ...","timestamp":"2026-07-26T15:34:32.506Z"}
+
+data: {"data":"Selecting previously unselected package libonig5:amd64.","timestamp":"2026-07-26T15:34:32.550Z"}
+
+data: {"data":"Preparing to unpack .../23-libonig5_6.9.9-1+b1_amd64.deb ...","timestamp":"2026-07-26T15:34:32.551Z"}
+
+data: {"data":"Unpacking libonig5:amd64 (6.9.9-1+b1) ...","timestamp":"2026-07-26T15:34:32.554Z"}
+
+data: {"data":"Selecting previously unselected package libjq1:amd64.","timestamp":"2026-07-26T15:34:32.600Z"}
+
+data: {"data":"Preparing to unpack .../24-libjq1_1.7.1-6+deb13u2_amd64.deb ...","timestamp":"2026-07-26T15:34:32.601Z"}
+
+data: {"data":"Unpacking libjq1:amd64 (1.7.1-6+deb13u2) ...","timestamp":"2026-07-26T15:34:32.604Z"}
+
+data: {"data":"Selecting previously unselected package jq.","timestamp":"2026-07-26T15:34:32.638Z"}
+
+data: {"data":"Preparing to unpack .../25-jq_1.7.1-6+deb13u2_amd64.deb ...","timestamp":"2026-07-26T15:34:32.640Z"}
+
+data: {"data":"Unpacking jq (1.7.1-6+deb13u2) ...","timestamp":"2026-07-26T15:34:32.643Z"}
+
+data: {"data":"Selecting previously unselected package python3-packaging.","timestamp":"2026-07-26T15:34:32.676Z"}
+
+data: {"data":"Preparing to unpack .../26-python3-packaging_25.0-1_all.deb ...","timestamp":"2026-07-26T15:34:32.677Z"}
+
+data: {"data":"Unpacking python3-packaging (25.0-1) ...","timestamp":"2026-07-26T15:34:32.680Z"}
+
+data: {"data":"Selecting previously unselected package python3-wheel.","timestamp":"2026-07-26T15:34:32.718Z"}
+
+data: {"data":"Preparing to unpack .../27-python3-wheel_0.46.1-2_all.deb ...","timestamp":"2026-07-26T15:34:32.719Z"}
+
+data: {"data":"Unpacking python3-wheel (0.46.1-2) ...","timestamp":"2026-07-26T15:34:32.723Z"}
+
+data: {"data":"Selecting previously unselected package python3-pip.","timestamp":"2026-07-26T15:34:32.756Z"}
+
+data: {"data":"Preparing to unpack .../28-python3-pip_25.1.1+dfsg-1_all.deb ...","timestamp":"2026-07-26T15:34:32.757Z"}
+
+data: {"data":"Unpacking python3-pip (25.1.1+dfsg-1) ...","timestamp":"2026-07-26T15:34:32.761Z"}
+
+data: {"data":"Selecting previously unselected package sqlite3.","timestamp":"2026-07-26T15:34:32.885Z"}
+
+data: {"data":"Preparing to unpack .../29-sqlite3_3.46.1-7+deb13u1_amd64.deb ...","timestamp":"2026-07-26T15:34:32.887Z"}
+
+data: {"data":"Unpacking sqlite3 (3.46.1-7+deb13u1) ...","timestamp":"2026-07-26T15:34:32.890Z"}
+
+data: {"data":"Setting up media-types (13.0.0) ...","timestamp":"2026-07-26T15:34:32.937Z"}
+
+data: {"data":"Setting up libkeyutils1:amd64 (1.6.3-6) ...","timestamp":"2026-07-26T15:34:32.952Z"}
+
+data: {"data":"Setting up libbrotli1:amd64 (1.1.0-2+b7) ...","timestamp":"2026-07-26T15:34:32.961Z"}
+
+data: {"data":"Setting up libnghttp2-14:amd64 (1.64.0-1.1+deb13u1) ...","timestamp":"2026-07-26T15:34:32.971Z"}
+
+data: {"data":"Setting up libcom-err2:amd64 (1.47.2-3+b11) ...","timestamp":"2026-07-26T15:34:32.980Z"}
+
+data: {"data":"Setting up libkrb5support0:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:32.993Z"}
+
+data: {"data":"Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-26T15:34:33.003Z"}
+
+data: {"data":"Setting up libp11-kit0:amd64 (0.25.5-3) ...","timestamp":"2026-07-26T15:34:33.013Z"}
+
+data: {"data":"Setting up libunistring5:amd64 (1.3-2) ...","timestamp":"2026-07-26T15:34:33.023Z"}
+
+data: {"data":"Setting up libncursesw6:amd64 (6.5+20250216-2) ...","timestamp":"2026-07-26T15:34:33.033Z"}
+
+data: {"data":"Setting up libk5crypto3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:33.043Z"}
+
+data: {"data":"Setting up libsasl2-2:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-26T15:34:33.063Z"}
+
+data: {"data":"Setting up libnghttp3-9:amd64 (1.8.0-1) ...","timestamp":"2026-07-26T15:34:33.073Z"}
+
+data: {"data":"Setting up libtasn1-6:amd64 (4.20.0-2+deb13u1) ...","timestamp":"2026-07-26T15:34:33.082Z"}
+
+data: {"data":"Setting up netbase (6.5) ...","timestamp":"2026-07-26T15:34:33.092Z"}
+
+data: {"data":"Setting up libkrb5-3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:33.118Z"}
+
+data: {"data":"Setting up libssh2-1t64:amd64 (1.11.1-1+deb13u1) ...","timestamp":"2026-07-26T15:34:33.128Z"}
+
+data: {"data":"Setting up readline-common (8.2-6) ...","timestamp":"2026-07-26T15:34:33.139Z"}
+
+data: {"data":"Setting up libldap2:amd64 (2.6.10+dfsg-1) ...","timestamp":"2026-07-26T15:34:33.155Z"}
+
+data: {"data":"Setting up libonig5:amd64 (6.9.9-1+b1) ...","timestamp":"2026-07-26T15:34:33.165Z"}
+
+data: {"data":"Setting up libjq1:amd64 (1.7.1-6+deb13u2) ...","timestamp":"2026-07-26T15:34:33.174Z"}
+
+data: {"data":"Setting up libidn2-0:amd64 (2.3.8-2) ...","timestamp":"2026-07-26T15:34:33.184Z"}
+
+data: {"data":"Setting up libgssapi-krb5-2:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-26T15:34:33.194Z"}
+
+data: {"data":"Setting up libreadline8t64:amd64 (8.2-6) ...","timestamp":"2026-07-26T15:34:33.205Z"}
+
+data: {"data":"Setting up jq (1.7.1-6+deb13u2) ...","timestamp":"2026-07-26T15:34:33.214Z"}
+
+data: {"data":"Setting up libpython3.13-stdlib:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:33.226Z"}
+
+data: {"data":"Setting up sqlite3 (3.46.1-7+deb13u1) ...","timestamp":"2026-07-26T15:34:33.236Z"}
+
+data: {"data":"Setting up libpython3-stdlib:amd64 (3.13.5-1) ...","timestamp":"2026-07-26T15:34:33.245Z"}
+
+data: {"data":"Setting up libgnutls30t64:amd64 (3.8.9-3+deb13u4) ...","timestamp":"2026-07-26T15:34:33.255Z"}
+
+data: {"data":"Setting up python3.13 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-26T15:34:33.264Z"}
+
+data: {"data":"Setting up libpsl5t64:amd64 (0.21.2-1.1+b1) ...","timestamp":"2026-07-26T15:34:34.155Z"}
+
+data: {"data":"Setting up python3 (3.13.5-1) ...","timestamp":"2026-07-26T15:34:34.166Z"}
+
+data: {"data":"running python rtupdate hooks for python3.13...","timestamp":"2026-07-26T15:34:34.177Z"}
+
+data: {"data":"running python post-rtupdate hooks for python3.13...","timestamp":"2026-07-26T15:34:34.177Z"}
+
+data: {"data":"Setting up python3-packaging (25.0-1) ...","timestamp":"2026-07-26T15:34:34.255Z"}
+
+data: {"data":"Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...","timestamp":"2026-07-26T15:34:34.375Z"}
+
+data: {"data":"Setting up libcurl4t64:amd64 (8.14.1-2+deb13u4) ...","timestamp":"2026-07-26T15:34:34.385Z"}
+
+data: {"data":"Setting up python3-wheel (0.46.1-2) ...","timestamp":"2026-07-26T15:34:34.396Z"}
+
+data: {"data":"Setting up python3-pip (25.1.1+dfsg-1) ...","timestamp":"2026-07-26T15:34:34.494Z"}
+
+data: {"data":"Setting up curl (8.14.1-2+deb13u4) ...","timestamp":"2026-07-26T15:34:35.384Z"}
+
+data: {"data":"Processing triggers for libc-bin (2.41-12+deb13u3) ...","timestamp":"2026-07-26T15:34:35.395Z"}
+
+data: {"data":"Collecting huggingface_hub<2.0,>=1.0","timestamp":"2026-07-26T15:34:35.837Z"}
+
+data: {"data":"  Downloading huggingface_hub-1.24.0-py3-none-any.whl.metadata (16 kB)","timestamp":"2026-07-26T15:34:35.862Z"}
+
+data: {"data":"Collecting click<9.0.0,>=8.4.2 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:35.889Z"}
+
+data: {"data":"  Downloading click-8.4.2-py3-none-any.whl.metadata (2.6 kB)","timestamp":"2026-07-26T15:34:35.894Z"}
+
+data: {"data":"Collecting filelock>=3.10.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:35.920Z"}
+
+data: {"data":"  Downloading filelock-3.32.0-py3-none-any.whl.metadata (2.0 kB)","timestamp":"2026-07-26T15:34:35.924Z"}
+
+data: {"data":"Collecting fsspec>=2023.5.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:35.946Z"}
+
+data: {"data":"  Downloading fsspec-2026.6.0-py3-none-any.whl.metadata (10 kB)","timestamp":"2026-07-26T15:34:35.949Z"}
+
+data: {"data":"Collecting hf-xet<2.0.0,>=1.5.1 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.002Z"}
+
+data: {"data":"  Downloading hf_xet-1.5.2-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)","timestamp":"2026-07-26T15:34:36.006Z"}
+
+data: {"data":"Collecting httpx<1,>=0.23.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.022Z"}
+
+data: {"data":"  Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)","timestamp":"2026-07-26T15:34:36.037Z"}
+
+data: {"data":"Requirement already satisfied: packaging>=20.9 in /usr/lib/python3/dist-packages (from huggingface_hub<2.0,>=1.0) (25.0)","timestamp":"2026-07-26T15:34:36.040Z"}
+
+data: {"data":"Collecting pyyaml>=5.1 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.072Z"}
+
+data: {"data":"  Downloading pyyaml-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)","timestamp":"2026-07-26T15:34:36.075Z"}
+
+data: {"data":"Collecting tqdm>=4.42.1 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.105Z"}
+
+data: {"data":"  Downloading tqdm-4.69.1-py3-none-any.whl.metadata (57 kB)","timestamp":"2026-07-26T15:34:36.108Z"}
+
+data: {"data":"Collecting typing-extensions>=4.1.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.129Z"}
+
+data: {"data":"  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)","timestamp":"2026-07-26T15:34:36.133Z"}
+
+data: {"data":"Collecting anyio (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.149Z"}
+
+data: {"data":"  Downloading anyio-4.14.2-py3-none-any.whl.metadata (4.6 kB)","timestamp":"2026-07-26T15:34:36.154Z"}
+
+data: {"data":"Collecting certifi (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.169Z"}
+
+data: {"data":"  Downloading certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)","timestamp":"2026-07-26T15:34:36.172Z"}
+
+data: {"data":"Collecting httpcore==1.* (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.186Z"}
+
+data: {"data":"  Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)","timestamp":"2026-07-26T15:34:36.189Z"}
+
+data: {"data":"Collecting idna (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.202Z"}
+
+data: {"data":"  Downloading idna-3.18-py3-none-any.whl.metadata (6.1 kB)","timestamp":"2026-07-26T15:34:36.206Z"}
+
+data: {"data":"Collecting h11>=0.16 (from httpcore==1.*->httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-26T15:34:36.215Z"}
+
+data: {"data":"  Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)","timestamp":"2026-07-26T15:34:36.218Z"}
+
+data: {"data":"Downloading huggingface_hub-1.24.0-py3-none-any.whl (771 kB)","timestamp":"2026-07-26T15:34:36.232Z"}
+
+data: {"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 771.9/771.9 kB 303.3 MB/s eta 0:00:00","timestamp":"2026-07-26T15:34:36.238Z"}
+
+data: {"data":"Downloading click-8.4.2-py3-none-any.whl (119 kB)","timestamp":"2026-07-26T15:34:36.241Z"}
+
+data: {"data":"Downloading hf_xet-1.5.2-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.4 MB)","timestamp":"2026-07-26T15:34:36.244Z"}
+
+data: {"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 524.3 MB/s eta 0:00:00","timestamp":"2026-07-26T15:34:36.254Z"}
+
+data: {"data":"Downloading httpx-0.28.1-py3-none-any.whl (73 kB)","timestamp":"2026-07-26T15:34:36.257Z"}
+
+data: {"data":"Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)","timestamp":"2026-07-26T15:34:36.261Z"}
+
+data: {"data":"Downloading filelock-3.32.0-py3-none-any.whl (97 kB)","timestamp":"2026-07-26T15:34:36.269Z"}
+
+data: {"data":"Downloading fsspec-2026.6.0-py3-none-any.whl (203 kB)","timestamp":"2026-07-26T15:34:36.272Z"}
+
+data: {"data":"Downloading h11-0.16.0-py3-none-any.whl (37 kB)","timestamp":"2026-07-26T15:34:36.276Z"}
+
+data: {"data":"Downloading pyyaml-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (801 kB)","timestamp":"2026-07-26T15:34:36.279Z"}
+
+data: {"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 801.6/801.6 kB 781.6 MB/s eta 0:00:00","timestamp":"2026-07-26T15:34:36.281Z"}
+
+data: {"data":"Downloading tqdm-4.69.1-py3-none-any.whl (675 kB)","timestamp":"2026-07-26T15:34:36.285Z"}
+
+data: {"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 675.5/675.5 kB 996.8 MB/s eta 0:00:00","timestamp":"2026-07-26T15:34:36.287Z"}
+
+data: {"data":"Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)","timestamp":"2026-07-26T15:34:36.292Z"}
+
+data: {"data":"Downloading anyio-4.14.2-py3-none-any.whl (125 kB)","timestamp":"2026-07-26T15:34:36.295Z"}
+
+data: {"data":"Downloading idna-3.18-py3-none-any.whl (65 kB)","timestamp":"2026-07-26T15:34:36.298Z"}
+
+data: {"data":"Downloading certifi-2026.7.22-py3-none-any.whl (136 kB)","timestamp":"2026-07-26T15:34:36.302Z"}
+
+data: {"data":"Installing collected packages: typing-extensions, tqdm, pyyaml, idna, hf-xet, h11, fsspec, filelock, click, certifi, httpcore, anyio, httpx, huggingface_hub","timestamp":"2026-07-26T15:34:36.359Z"}
+
+data: {"data":"","timestamp":"2026-07-26T15:34:37.643Z"}
+
+data: {"data":"Successfully installed anyio-4.14.2 certifi-2026.7.22 click-8.4.2 filelock-3.32.0 fsspec-2026.6.0 h11-0.16.0 hf-xet-1.5.2 httpcore-1.0.9 httpx-0.28.1 huggingface_hub-1.24.0 idna-3.18 pyyaml-6.0.3 tqdm-4.69.1 typing-extensions-4.16.0","timestamp":"2026-07-26T15:34:37.645Z"}
+
+data: {"data":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.","timestamp":"2026-07-26T15:34:37.645Z"}
+
+data: {"data":"[bootstrap] 环境补全完成","timestamp":"2026-07-26T15:34:38.167Z"}
+
+data: {"data":"[bootstrap] 同步 Dataset: nomke/omn-logic","timestamp":"2026-07-26T15:34:38.167Z"}
+
+data: {"data":"[bootstrap] Dataset HEAD 锁定 revision=a2c0120b77ce (竞速根治: atomic 同点拉取)","timestamp":"2026-07-26T15:34:38.610Z"}
+
+data: {"data":"/tmp/logic","timestamp":"2026-07-26T15:34:39.236Z"}
+
+data: {"data":"[bootstrap] 逻辑注入完成","timestamp":"2026-07-26T15:34:39.354Z"}
+
+data: {"data":"[bootstrap] 移交控制权给逻辑层","timestamp":"2026-07-26T15:34:39.356Z"}
+
+data: {"data":"[entrypoint] STREAM_READINESS_TIMEOUT_MS=180000 (M7 外科单注, wiki §15 实证)","timestamp":"2026-07-26T15:34:39.363Z"}
+
+data: {"data":"[entrypoint] 上游服务启动 | PORT=20128 EXPOSED=7860 DATA=/app/data (ephemeral, R2 是数据主路径)","timestamp":"2026-07-26T15:34:39.363Z"}
+
+data: {"data":"[entrypoint] lock acquired (flock /app/data/.omniroute.lock, fd 9).","timestamp":"2026-07-26T15:34:39.366Z"}
+
+data: {"data":"[entrypoint] ✓ 已从 R2 恢复 (原子 mv /app/data/.storage.sqlite.restore.1 → /app/data/storage.sqlite)","timestamp":"2026-07-26T15:34:49.756Z"}
+
+data: {"data":"[entrypoint] 上游服务 PID=660 (heap 4096)","timestamp":"2026-07-26T15:34:49.757Z"}
+
+data: {"data":"▲ Next.js 16.2.9","timestamp":"2026-07-26T15:34:49.988Z"}
+
+data: {"data":"- Local:         http://localhost:20128","timestamp":"2026-07-26T15:34:49.988Z"}
+
+data: {"data":"- Network:       http://0.0.0.0:20128","timestamp":"2026-07-26T15:34:49.988Z"}
+
+data: {"data":"✓ Ready in 0ms","timestamp":"2026-07-26T15:34:49.989Z"}
+
+data: {"data":"[CREDENTIALS] No external credentials file found, using defaults.","timestamp":"2026-07-26T15:34:50.329Z"}
+
+data: {"data":"[DB] cache_size already set to 16384KB","timestamp":"2026-07-26T15:34:50.352Z"}
+
+data: {"data":"[DB] SQLite database ready: /app/data/storage.sqlite (DATA_DIR=/app/data, SQLITE_FILE=/app/data/storage.sqlite)","timestamp":"2026-07-26T15:34:50.363Z"}
+
+data: {"data":"[STARTUP] Global fetch proxy patch initialized","timestamp":"2026-07-26T15:34:51.047Z"}
+
+data: {"data":"[HealthCheck] Starting proactive token health-check (tick every 60s)","timestamp":"2026-07-26T15:34:51.072Z"}
+
+data: {"data":"[Shutdown] Graceful shutdown handlers registered.","timestamp":"2026-07-26T15:34:51.072Z"}
+
+data: {"data":"[STARTUP] Spend batch writer started","timestamp":"2026-07-26T15:34:51.073Z"}
+
+data: {"data":"[STARTUP] Guardrail registry initialized","timestamp":"2026-07-26T15:34:51.073Z"}
+
+data: {"data":"[STARTUP] Builtin skill handlers registered","timestamp":"2026-07-26T15:34:51.073Z"}
+
+data: {"data":"[STARTUP] Quota cache background refresh started","timestamp":"2026-07-26T15:34:51.073Z"}
+
+data: {"data":"[ProviderLimitsSync] Scheduler started — interval: 70m","timestamp":"2026-07-26T15:34:51.073Z"}
+
+data: {"data":"[STARTUP] Provider limits sync scheduler started","timestamp":"2026-07-26T15:34:51.077Z"}
+
+data: {"data":"[ModelSync] Scheduler started — interval: 24h","timestamp":"2026-07-26T15:34:51.085Z"}
+
+data: {"data":"[STARTUP] Cloud/model sync background bootstrap initialized","timestamp":"2026-07-26T15:34:51.085Z"}
+
+data: {"data":"[BATCH] Initializing batch processor polling...","timestamp":"2026-07-26T15:34:51.096Z"}
+
+data: {"data":"[STARTUP] Batch processor started","timestamp":"2026-07-26T15:34:51.096Z"}
+
+data: {"data":"[STARTUP] Runtime settings hydrated: payloadRules, modelAliases, backgroundDegradation, cliCompatProviders, cacheControl, usageTracking, healthCheckLogs, thoughtSignature, modelsDevSync, corsOrigins, ccBridgeTransforms, systemTransforms, authzBypass, bannedSignals","timestamp":"2026-07-26T15:34:51.100Z"}
+
+data: {"data":"[STARTUP] Model alias seed: applied=0, skipped=6, failed=0","timestamp":"2026-07-26T15:34:51.101Z"}
+
+data: {"data":"[HOT_RELOAD] Runtime config hot-reload started (poll=5000ms, fsWatch=on)","timestamp":"2026-07-26T15:34:51.103Z"}
+
+data: {"data":"[COMPLIANCE] Audit log table initialized","timestamp":"2026-07-26T15:34:51.114Z"}
+
+data: {"data":"[STARTUP] Scheduled VACUUM initialized (#4437)","timestamp":"2026-07-26T15:34:51.118Z"}
+
+data: {"data":"[STARTUP] Embedded services bootstrap complete","timestamp":"2026-07-26T15:34:51.120Z"}
+
+data: {"data":"[AutoRefreshDaemon] Started — checking 0 credentials every 900s","timestamp":"2026-07-26T15:34:51.122Z"}
+
+data: {"data":"[ConnectionRecovery] Starting proactive cooldown recovery (tick every 60s)","timestamp":"2026-07-26T15:34:51.123Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Starting periodic sync every 86400s","timestamp":"2026-07-26T15:34:51.124Z"}
+
+data: {"data":"[STARTUP] Arena ELO sync initialized","timestamp":"2026-07-26T15:34:51.136Z"}
+
+data: {"data":"[PRICING_SYNC] Disabled (set PRICING_SYNC_ENABLED=true to enable)","timestamp":"2026-07-26T15:34:51.137Z"}
+
+data: {"data":"[MODELS_DEV] Disabled (enable via Settings > AI)","timestamp":"2026-07-26T15:34:51.137Z"}
+
+data: {"data":"[proxyLogger] Loaded 12 proxy logs from SQLite","timestamp":"2026-07-26T15:34:52.851Z"}
+
+data: {"data":"[REDIS] REDIS_URL is not set in production. Using in-memory rate limiting.","timestamp":"2026-07-26T15:34:52.882Z"}
+
+data: {"data":"[EmbedWsProxy] Listening on 127.0.0.1:20131","timestamp":"2026-07-26T15:34:54.597Z"}
+
+data: {"data":"[LocalHealthCheck] Starting local provider health check (initial delay 15s)","timestamp":"2026-07-26T15:34:54.779Z"}
+
+data: {"data":"[entrypoint] ✓ 就绪","timestamp":"2026-07-26T15:34:54.788Z"}
+
+data: {"data":"[entrypoint] 版本=3.8.43 (期望未设置, 跳过比对)","timestamp":"2026-07-26T15:34:54.820Z"}
+
+data: {"data":"[entrypoint] Init PID=698","timestamp":"2026-07-26T15:34:54.820Z"}
+
+data: {"data":"[entrypoint] Litestream PID=699","timestamp":"2026-07-26T15:34:54.820Z"}
+
+data: {"data":"[entrypoint] 全部就绪：OR=660 Init=698 LS=699 Gate→:7860 (background, entrypoint 持 PID 1 主监)","timestamp":"2026-07-26T15:34:54.820Z"}
+
+data: {"data":"[entrypoint] 预装 gate 依赖 (npm install --omit=dev)...","timestamp":"2026-07-26T15:34:54.820Z"}
+
+data: {"data":"[init] 🛠️ NIM_MODE=DEBUG：日志 tee -> /data/omn-data/log/init_20260726_153454.log（仅容器内，随 Space 日志可见，不入 Dataset）","timestamp":"2026-07-26T15:34:54.827Z"}
+
+data: {"data":"[init] NIM_PROFILE=balanced -> pool 意向 6 个模型","timestamp":"2026-07-26T15:34:54.830Z"}
+
+data: {"data":"[init] 动态限流 RPM=300 concurrent=75 interval=200ms (alive_keys=25, per_key_rpm=35 per_key_conc=3)","timestamp":"2026-07-26T15:34:54.833Z"}
+
+data: {"data":"[init] pool strategy=p2c | codex strategy=priority","timestamp":"2026-07-26T15:34:54.836Z"}
+
+data: {"data":"[init] body limit: raw=4 -> maxBodySizeMb=4","timestamp":"2026-07-26T15:34:54.837Z"}
+
+data: {"data":"[init] Starting NIM OmniRoute initializer v4.3.2 (profile=balanced, mode=DEBUG) on node v24.18.0...","timestamp":"2026-07-26T15:34:54.841Z"}
+
+data: {"data":"[init] BASE_URL=http://127.0.0.1:20128","timestamp":"2026-07-26T15:34:54.841Z"}
+
+data: {"data":"[init] Waiting for OmniRoute...","timestamp":"2026-07-26T15:34:54.841Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=litestream version=0.5.9 level=\"\"","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=\"initialized db\" path=/app/data/storage.sqlite","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=\"replicating to\" type=s3 sync-interval=10s bucket=omniroute-data path=db/storage.sqlite region=auto endpoint=https://3e0d9623e4c90591ce4d659772593266.r2.cloudflarestorage.com","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=\"starting L0 retention monitor\" interval=5m0s retention=5m0s","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=\"starting compaction monitor\" level=3 interval=1h0m0s","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=\"starting compaction monitor\" level=2 interval=5m0s","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=\"starting compaction monitor\" level=9 interval=1h0m0s","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"time=2026-07-26T15:34:54.849Z level=INFO msg=\"starting compaction monitor\" level=1 interval=30s","timestamp":"2026-07-26T15:34:54.849Z"}
+
+data: {"data":"[init] OmniRoute up (after 0s).","timestamp":"2026-07-26T15:34:54.878Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] synced 150 model intelligence entries from Arena leaderboards","timestamp":"2026-07-26T15:34:54.888Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Initial sync complete: 150 model intelligence entries","timestamp":"2026-07-26T15:34:54.888Z"}
+
+data: {"data":"[init] version: 3.8.43","timestamp":"2026-07-26T15:34:54.913Z"}
+
+data: {"data":"[init] Logging in...","timestamp":"2026-07-26T15:34:54.913Z"}
+
+data: {"data":"[init] Logged in.","timestamp":"2026-07-26T15:34:55.325Z"}
+
+data: {"data":"[init] purge: 注册表无 127.0.0.1:20129。","timestamp":"2026-07-26T15:34:55.351Z"}
+
+data: {"data":"[init] purge: registry=0 assignments=0 proxy_enabled=1剩余=0（期望 0/0/0）。","timestamp":"2026-07-26T15:34:55.379Z"}
+
+data: {"data":"[init] OMNIROUTE_API_KEY env set, skip /api/keys.","timestamp":"2026-07-26T15:34:55.382Z"}
+
+data: {"data":"[init] probe_nim_keys_real: 串行探活 NIM keys via POST /v1/chat/completions (model=z-ai/glm-5.2, timeout=15s/key, 403→dead, 余→alive fail-open)...","timestamp":"2026-07-26T15:34:55.382Z"}
+
+data: {"data":"[init] probe key#1: HTTP 200 → alive","timestamp":"2026-07-26T15:34:55.711Z"}
+
+data: {"data":"[ModelSync] No connections with autoSync enabled — skipping cycle","timestamp":"2026-07-26T15:34:56.088Z"}
+
+data: {"data":"time=2026-07-26T15:34:56.230Z level=INFO msg=\"detected database behind replica\" db=storage.sqlite db_txid=0000000000000000 replica_txid=0000000000000047","timestamp":"2026-07-26T15:34:56.230Z"}
+
+data: {"data":"[init] probe key#2: HTTP 200 → alive","timestamp":"2026-07-26T15:34:56.280Z"}
+
+data: {"data":"time=2026-07-26T15:34:56.658Z level=INFO msg=\"fetched latest L0 file from replica\" db=storage.sqlite min_txid=0000000000000047 max_txid=0000000000000047","timestamp":"2026-07-26T15:34:56.659Z"}
+
+data: {"data":"[entrypoint] gate 依赖就绪","timestamp":"2026-07-26T15:34:57.738Z"}
+
+data: {"data":"[entrypoint] starting gate on port 7860...","timestamp":"2026-07-26T15:34:57.738Z"}
+
+data: {"data":"[entrypoint] gate PID=816","timestamp":"2026-07-26T15:34:57.738Z"}
+
+data: {"data":"[gate] admin UI: disabled (GATE_ADMIN_ENABLED 开关状态).","timestamp":"2026-07-26T15:34:57.829Z"}
+
+data: {"data":"[gate] listening on 0.0.0.0:7860 -> 127.0.0.1:20128","timestamp":"2026-07-26T15:34:57.838Z"}
+
+data: {"data":"[init] probe key#3: HTTP 200 → alive","timestamp":"2026-07-26T15:34:58.611Z"}
+
+data: {"data":"[init] probe key#4: HTTP 200 → alive","timestamp":"2026-07-26T15:35:01.551Z"}
+
+data: {"data":"[init] probe key#5: HTTP 200 → alive","timestamp":"2026-07-26T15:35:03.066Z"}
+
+data: {"data":"time=2026-07-26T15:35:03.775Z level=INFO msg=\"compaction complete\" level=2 txid.min=000000000000003e txid.max=0000000000000047 size=250983","timestamp":"2026-07-26T15:35:03.775Z"}
+
+data: {"data":"time=2026-07-26T15:35:03.848Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000048 txid.max=0000000000000048 size=252039","timestamp":"2026-07-26T15:35:03.848Z"}
+
+data: {"data":"[init] probe key#6: HTTP 200 → alive","timestamp":"2026-07-26T15:35:05.553Z"}
+
+data: {"data":"[init] probe key#7: HTTP 200 → alive","timestamp":"2026-07-26T15:35:06.417Z"}
+
+data: {"data":"[init] probe key#8: HTTP 200 → alive","timestamp":"2026-07-26T15:35:07.833Z"}
+
+data: {"data":"[init] probe key#9: HTTP 200 → alive","timestamp":"2026-07-26T15:35:08.852Z"}
+
+data: {"data":"[init] probe key#10: HTTP 200 → alive","timestamp":"2026-07-26T15:35:09.589Z"}
+
+data: {"data":"[init] probe key#11: HTTP 200 → alive","timestamp":"2026-07-26T15:35:11.147Z"}
+
+data: {"data":"[init] probe key#12: HTTP 200 → alive","timestamp":"2026-07-26T15:35:12.150Z"}
+
+data: {"data":"[init] probe key#13: HTTP 200 → alive","timestamp":"2026-07-26T15:35:12.713Z"}
+
+data: {"data":"[init] probe key#14: HTTP 200 → alive","timestamp":"2026-07-26T15:35:14.447Z"}
+
+data: {"data":"[init] probe key#15: HTTP 200 → alive","timestamp":"2026-07-26T15:35:17.017Z"}
+
+data: {"data":"[init] probe key#16: HTTP 200 → alive","timestamp":"2026-07-26T15:35:20.839Z"}
+
+data: {"data":"[init] probe key#17: HTTP 200 → alive","timestamp":"2026-07-26T15:35:21.205Z"}
+
+data: {"data":"[init] probe key#18: HTTP 200 → alive","timestamp":"2026-07-26T15:35:22.686Z"}
+
+data: {"data":"[init] probe key#19: HTTP 200 → alive","timestamp":"2026-07-26T15:35:24.170Z"}
+
+data: {"data":"[init] probe key#20: HTTP 200 → alive","timestamp":"2026-07-26T15:35:24.672Z"}
+
+data: {"data":"[init] probe key#21: HTTP 200 → alive","timestamp":"2026-07-26T15:35:26.053Z"}
+
+data: {"data":"[init] probe key#22: HTTP 200 → alive","timestamp":"2026-07-26T15:35:26.504Z"}
+
+data: {"data":"[init] probe key#23: HTTP 200 → alive","timestamp":"2026-07-26T15:35:27.150Z"}
+
+data: {"data":"[init] probe key#24: HTTP 200 → alive","timestamp":"2026-07-26T15:35:27.885Z"}
+
+data: {"data":"[init] probe key#25: HTTP 200 → alive","timestamp":"2026-07-26T15:35:28.232Z"}
+
+data: {"data":"[init] probe 汇总: alive=25 dead=0 (auth_dead 跳 0 个注册, POST z-ai/glm-5.2)","timestamp":"2026-07-26T15:35:28.232Z"}
+
+data: {"data":"[init] probe 后 alive 无变化 (auth_dead=0), 限流维持原值 RPM=300 concurrent=75 interval=200ms","timestamp":"2026-07-26T15:35:28.233Z"}
+
+data: {"data":"[init] Registering NIM keys (auth_dead skip, INDEX 递增编号不塌)...","timestamp":"2026-07-26T15:35:28.233Z"}
+
+data: {"data":"[init] nim-01 OK","timestamp":"2026-07-26T15:35:28.281Z"}
+
+data: {"data":"[init] nim-02 OK","timestamp":"2026-07-26T15:35:28.352Z"}
+
+data: {"data":"[init] nim-03 OK","timestamp":"2026-07-26T15:35:28.398Z"}
+
+data: {"data":"[init] nim-04 OK","timestamp":"2026-07-26T15:35:28.469Z"}
+
+data: {"data":"[init] nim-05 OK","timestamp":"2026-07-26T15:35:28.554Z"}
+
+data: {"data":"[init] nim-06 OK","timestamp":"2026-07-26T15:35:28.610Z"}
+
+data: {"data":"[init] nim-07 OK","timestamp":"2026-07-26T15:35:28.676Z"}
+
+data: {"data":"[init] nim-08 OK","timestamp":"2026-07-26T15:35:28.741Z"}
+
+data: {"data":"[init] nim-09 OK","timestamp":"2026-07-26T15:35:28.796Z"}
+
+data: {"data":"[init] nim-10 OK","timestamp":"2026-07-26T15:35:28.869Z"}
+
+data: {"data":"[init] nim-11 OK","timestamp":"2026-07-26T15:35:28.921Z"}
+
+data: {"data":"[init] nim-12 OK","timestamp":"2026-07-26T15:35:28.974Z"}
+
+data: {"data":"[init] nim-13 OK","timestamp":"2026-07-26T15:35:29.110Z"}
+
+data: {"data":"[init] nim-14 OK","timestamp":"2026-07-26T15:35:29.310Z"}
+
+data: {"data":"[init] nim-15 OK","timestamp":"2026-07-26T15:35:29.348Z"}
+
+data: {"data":"[init] nim-16 OK","timestamp":"2026-07-26T15:35:29.413Z"}
+
+data: {"data":"[init] nim-17 OK","timestamp":"2026-07-26T15:35:29.461Z"}
+
+data: {"data":"[init] nim-18 OK","timestamp":"2026-07-26T15:35:29.505Z"}
+
+data: {"data":"[init] nim-19 OK","timestamp":"2026-07-26T15:35:29.544Z"}
+
+data: {"data":"[init] nim-20 OK","timestamp":"2026-07-26T15:35:29.604Z"}
+
+data: {"data":"[init] nim-21 OK","timestamp":"2026-07-26T15:35:29.648Z"}
+
+data: {"data":"[init] nim-22 OK","timestamp":"2026-07-26T15:35:29.681Z"}
+
+data: {"data":"[init] nim-23 OK","timestamp":"2026-07-26T15:35:29.746Z"}
+
+data: {"data":"[init] nim-24 OK","timestamp":"2026-07-26T15:35:29.790Z"}
+
+data: {"data":"[init] nim-25 OK","timestamp":"2026-07-26T15:35:29.864Z"}
+
+data: {"data":"[init] Keys: 25 registered, 0 skipped, 0 failed. (probe: 25 alive / 0 dead-skipped)","timestamp":"2026-07-26T15:35:29.864Z"}
+
+data: {"data":"[init] gc_stale: 无待删连接 (当前 NIM_KEYS=25, 增量幂等)","timestamp":"2026-07-26T15:35:29.925Z"}
+
+data: {"data":"[init] Fetching provider IDs...","timestamp":"2026-07-26T15:35:29.925Z"}
+
+data: {"data":"[init] Provider IDs: 25","timestamp":"2026-07-26T15:35:29.959Z"}
+
+data: {"data":"[init] purge: 注册表无 127.0.0.1:20129。","timestamp":"2026-07-26T15:35:29.980Z"}
+
+data: {"data":"[init] purge: registry=0 assignments=0 proxy_enabled=1剩余=0（期望 0/0/0）。","timestamp":"2026-07-26T15:35:30.023Z"}
+
+data: {"data":"[init] Resilience (RPM=300, concurrent=75, interval=200ms)...","timestamp":"2026-07-26T15:35:30.023Z"}
+
+data: {"data":"[init] Resilience PATCH body keys=[requestQueue] requestQueue.keys=[concurrentRequests,maxWaitMs,minTimeBetweenRequestsMs,requestsPerMinute] (无顶层 useUpstream429BreakerHints)","timestamp":"2026-07-26T15:35:30.033Z"}
+
+data: {"data":"[init] Resilience PATCH HTTP 200 (dur=24ms)","timestamp":"2026-07-26T15:35:30.062Z"}
+
+data: {"data":"[init] Resilience 读回: RPM=300 minMs=200 concurrent=75 maxWaitMs=300000 (预期 300/200/75/300000)","timestamp":"2026-07-26T15:35:30.089Z"}
+
+data: {"data":"[init] ✓ Resilience 读回全字段一致 (300/75/200/300000 已落定)","timestamp":"2026-07-26T15:35:30.089Z"}
+
+data: {"data":"[init] Routing + maxBodySizeMb=4...","timestamp":"2026-07-26T15:35:30.089Z"}
+
+data: {"data":"[init] Settings HTTP 200","timestamp":"2026-07-26T15:35:30.117Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos HTTP 200 :: combos=[839fd9b5-bee7-45ca-80ca-6e2710955669\tnim-pool\tp2c;5644c17d-68a7-4add-aa5a-b34bf4491ca2\tnim-codex\tpriority;]","timestamp":"2026-07-26T15:35:30.136Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos/auto HTTP 200 :: auto=[\t\t\t0]","timestamp":"2026-07-26T15:35:30.217Z"}
+
+data: {"data":"[init] [readonly] GET /api/providers HTTP 200 :: providers=09665ab2-ccd5-473b-9674-14967d3741b7\tnvidia;1830e4f7-dd8f-4c11-9d65-c0acdced6494\tnvidia;2bcea68b-9f7a-4673-b1f0-80a66320fc88\tnvidia;2d039916-88d8-495f-b886-bd5dc25ce047\tnvidia;2d9ef15f-bc96-49d8-b476-56b2ad65c431\tnvidia;3317f8d3-ffa6-4e41-a8ad-7eeaf91a3f93\tnvidia;38a09429-95ad-4b2f-940b-ed886fad7d7a\tnvidia;3f77f218-ee98-443b-b2de-e0cdb8761144\tnvidia;53f96ffa-5bb1-424c-925f-86c1b44688ec\tnvidia;58f42365-24ac-4844-b08b-af609b1057d1\tnvidia;7d5d42c4-bb15-43da-a1b5-a4a2b52871c2\tnvidia;9865dfaa-3680-4a2c-a952-16cf94dddd04\tnvidia;9cda5fc2-7ae2-426a-a38c-35b9aa4856af\tnvidia;a0c72227-ba89-4b89-bae4-cff099d02562\tnvidia;a68545c0-554a-43c9-9ad4-e09885e762e7\tnvidia;c5116293-3a1e-420b-890b-ddff9ee0db57\tnvidia;cb888a54-217d-4ad6-b191-1cc5d06841e0\tnvidia;ccaad834-d081-4ec4-8e8d-713afc7d722f\tnvidia;d1717878-cbd3-4392-b5af-5add1c10d751\tnvidia;d65f33e2-26b4-4096-bb40-214be567a5f8\tnvidia;d6a27df9-fb28-429e-9c1d-dbe475f7ea4d\tnvidia;dd511141-af6e-4944-8af4-c0397507c799\tnvidia;deb0258d-ecce-4c26-ad39-542c44736a0a\tnvidia;def58a55-cab9-4048-a69b-4fa1ae9d557a\tnvidia;f2b0933a-888d-4a49-ab58-6012fcfb9314\tnvidia;","timestamp":"2026-07-26T15:35:30.236Z"}
+
+data: {"data":"[init] [readonly] 三份 GET 完 — Restart B 写跳据此结构 (POST/PUT/PATCH), Restart A 仅读不写.","timestamp":"2026-07-26T15:35:30.236Z"}
+
+data: {"data":"[init] Compression globally disabled (enabled=false; per-combo 启用路径不受影响)...","timestamp":"2026-07-26T15:35:30.236Z"}
+
+data: {"data":"[init] Compression HTTP 200","timestamp":"2026-07-26T15:35:30.253Z"}
+
+data: {"data":"[init] Resetting circuit breakers (first-init clean start)...","timestamp":"2026-07-26T15:35:30.253Z"}
+
+data: {"data":"[init] CB reset HTTP 200","timestamp":"2026-07-26T15:35:30.267Z"}
+
+data: {"data":"[init] per-model 200K override (real_context=200000)...","timestamp":"2026-07-26T15:35:30.267Z"}
+
+data: {"data":"[init] override: 6 applied, 0 failed.","timestamp":"2026-07-26T15:35:30.337Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-07-26T15:35:30.337Z"}
+
+data: {"data":"[init]   PROFILE=balanced MODE=DEBUG KEYS=25 RPM=300 BODY=4 MB","timestamp":"2026-07-26T15:35:30.337Z"}
+
+data: {"data":"[init]   POOL_STRATEGY=p2c REAL_CONTEXT=200000 (per-model override 应用, monitor 自动回写禁用)","timestamp":"2026-07-26T15:35:30.337Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-07-26T15:35:30.337Z"}
+
+data: {"data":"[init] Incremental mode.","timestamp":"2026-07-26T15:35:30.342Z"}
+
+data: {"data":"[init] purge: 注册表无 127.0.0.1:20129。","timestamp":"2026-07-26T15:35:30.361Z"}
+
+data: {"data":"[init] purge: registry=0 assignments=0 proxy_enabled=1剩余=0（期望 0/0/0）。","timestamp":"2026-07-26T15:35:30.390Z"}
+
+data: {"data":"[init] check_nim_model_health...","timestamp":"2026-07-26T15:35:30.396Z"}
+
+data: {"data":"[init]   z-ai/glm-5.2 — available","timestamp":"2026-07-26T15:35:30.436Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-flash — available","timestamp":"2026-07-26T15:35:30.439Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-pro — available","timestamp":"2026-07-26T15:35:30.442Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-super-120b-a12b — available","timestamp":"2026-07-26T15:35:30.446Z"}
+
+data: {"data":"[init]   mistralai/mistral-small-4-119b-2603 — available","timestamp":"2026-07-26T15:35:30.449Z"}
+
+data: {"data":"[init]   google/gemma-4-31b-it — available","timestamp":"2026-07-26T15:35:30.452Z"}
+
+data: {"data":"[init] 0 deprecated / 118 available","timestamp":"2026-07-26T15:35:30.454Z"}
+
+data: {"data":"[init] upsert nim-pool: existed -> PUT combos/839fd9b5-bee7-45ca-80ca-6e2710955669 HTTP 200","timestamp":"2026-07-26T15:35:30.519Z"}
+
+data: {"data":"[init] upsert nim-codex: existed -> PUT combos/5644c17d-68a7-4add-aa5a-b34bf4491ca2 HTTP 200","timestamp":"2026-07-26T15:35:30.567Z"}
+
+data: {"data":"[init] context_accumulator_update: 增量累积每模型成功/失败口径...","timestamp":"2026-07-26T15:35:30.567Z"}
+
+data: {"data":"[init]   列探测 input=tokens_in output=tokens_out","timestamp":"2026-07-26T15:35:30.584Z"}
+
+data: {"data":"[init]   checkpoint last_ts=2026-07-26T15:18:21.291Z","timestamp":"2026-07-26T15:35:30.589Z"}
+
+data: {"data":"[init]   checkpoint -> ctx_last_log_ts=2026-07-26T15:31:21.256Z","timestamp":"2026-07-26T15:35:30.665Z"}
+
+data: {"data":"[init]   累积更新 1 个模型。","timestamp":"2026-07-26T15:35:30.665Z"}
+
+data: {"data":"[init] ═══累积 real_context 推荐（跨淘汰周期保留）═══","timestamp":"2026-07-26T15:35:30.669Z"}
+
+data: {"data":"[init]   model | last_ok | first_fail | ok/fail_n | conf | rec_ctx","timestamp":"2026-07-26T15:35:30.669Z"}
+
+data: {"data":"[init]   z-ai/glm-5.2 | 94437 | - | 12/0 | low | 84993","timestamp":"2026-07-26T15:35:30.669Z"}
+
+data: {"data":"[init] ═════════════════════════════════════════","timestamp":"2026-07-26T15:35:30.669Z"}
+
+data: {"data":"[init] HF Dataset snapshot（配置 + 可选 DEBUG log）...","timestamp":"2026-07-26T15:35:30.670Z"}
+
+data: {"data":"[init] snapshot: init_vars.json written","timestamp":"2026-07-26T15:35:30.736Z"}
+
+data: {"data":"[init] snapshot: DEBUG log 上传已禁用（默认关, NIM_DEBUG_LOG_TO_DATASET=1 开启).","timestamp":"2026-07-26T15:35:30.736Z"}
+
+data: {"data":"[init] HF Dataset uploaded.","timestamp":"2026-07-26T15:35:31.537Z"}
+
+data: {"data":"[init] Done (incremental). v4.3.2","timestamp":"2026-07-26T15:35:31.597Z"}
+
+data: {"data":"[entrypoint] NIM init 已退出 rc=0 (正常完成).","timestamp":"2026-07-26T15:35:31.786Z"}
+
+data: {"data":"time=2026-07-26T15:35:35.861Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=5 max_l1_txid=000000000000004a","timestamp":"2026-07-26T15:35:35.861Z"}
+
+data: {"data":"time=2026-07-26T15:35:35.861Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000049 txid.max=000000000000004a size=122383","timestamp":"2026-07-26T15:35:35.861Z"}
+
+data: {"data":"time=2026-07-26T15:36:06.855Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=000000000000004b","timestamp":"2026-07-26T15:36:06.855Z"}
+
+data: {"data":"time=2026-07-26T15:36:06.855Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000004b txid.max=000000000000004b size=33884","timestamp":"2026-07-26T15:36:06.855Z"}
+
+data: {"data":"time=2026-07-26T15:39:57.177Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=4 max_l1_txid=000000000000004b","timestamp":"2026-07-26T15:39:57.177Z"}
+
+data: {"data":"time=2026-07-26T15:40:06.363Z level=INFO msg=\"compaction complete\" level=2 txid.min=0000000000000048 txid.max=000000000000004b size=267523","timestamp":"2026-07-26T15:40:06.363Z"}
+
+data: {"data":"time=2026-07-26T15:44:56.727Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=000000000000004b","timestamp":"2026-07-26T15:44:56.727Z"}
+
+data: {"data":"time=2026-07-26T16:00:03.596Z level=INFO msg=\"snapshot complete\" txid=000000000000004b size=267523","timestamp":"2026-07-26T16:00:03.596Z"}
+
+data: {"data":"time=2026-07-26T16:00:05.690Z level=INFO msg=\"compaction complete\" level=3 txid.min=0000000000000008 txid.max=000000000000004b size=267523","timestamp":"2026-07-26T16:00:05.692Z"}
+
+data: {"data":"[SSE] Translators initialized for /v1/messages","timestamp":"2026-07-26T16:12:33.597Z"}
+
+data: {"data":"🛡️ [RATE-LIMIT] Loaded 0 explicit + 25 auto-enabled protection(s)","timestamp":"2026-07-26T16:12:33.657Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:12:33.668Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:12:33.601Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 35 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 35 msgs | 30 tools\"}","timestamp":"2026-07-26T16:12:33.704Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:12:33.618Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:12:33.705Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:12:33.627Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:12:33.705Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:12:33.628Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 53f96ffa...\"}","timestamp":"2026-07-26T16:12:33.705Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:12:38.125Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 53f96ffa error cleared\"}","timestamp":"2026-07-26T16:12:38.140Z"}
+
+data: {"data":"[16:13:00] 📊 \u001b[32m[USAGE] NVIDIA | in=96347 | out=531 | account=53f96ffa...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1984","timestamp":"2026-07-26T16:13:00.093Z"}
+
+data: {"data":"[16:13:00] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 26434ms | complete","timestamp":"2026-07-26T16:13:00.114Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:13:01.963Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:01.925Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 38 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 38 msgs | 30 tools\"}","timestamp":"2026-07-26T16:13:01.976Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:01.932Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:13:01.977Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:01.936Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:13:01.977Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:01.936Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: deb0258d...\"}","timestamp":"2026-07-26T16:13:01.977Z"}
+
+data: {"data":"time=2026-07-26T16:13:03.339Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=000000000000004e","timestamp":"2026-07-26T16:13:03.340Z"}
+
+data: {"data":"time=2026-07-26T16:13:03.339Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000004c txid.max=000000000000004e size=267791","timestamp":"2026-07-26T16:13:03.340Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:07.482Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account deb0258d error cleared\"}","timestamp":"2026-07-26T16:13:07.487Z"}
+
+data: {"data":"[16:13:30] 📊 \u001b[32m[USAGE] NVIDIA | in=97886 | out=603 | account=deb0258d...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=96832","timestamp":"2026-07-26T16:13:30.245Z"}
+
+data: {"data":"[16:13:30] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 28286ms | complete","timestamp":"2026-07-26T16:13:30.254Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:13:30.817Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:30.765Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 40 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 40 msgs | 30 tools\"}","timestamp":"2026-07-26T16:13:30.841Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:30.772Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:13:30.841Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:30.776Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:13:30.841Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:30.776Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 3317f8d3...\"}","timestamp":"2026-07-26T16:13:30.841Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:13:35.509Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 3317f8d3 error cleared\"}","timestamp":"2026-07-26T16:13:35.513Z"}
+
+data: {"data":"time=2026-07-26T16:13:35.683Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000004f txid.max=0000000000000052 size=16327","timestamp":"2026-07-26T16:13:35.683Z"}
+
+data: {"data":"[16:13:59] 📊 \u001b[32m[USAGE] NVIDIA | in=100442 | out=838 | account=3317f8d3...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1536","timestamp":"2026-07-26T16:13:59.627Z"}
+
+data: {"data":"[16:13:59] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 28806ms | complete","timestamp":"2026-07-26T16:13:59.634Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:14:00.414Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:00.369Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 42 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 42 msgs | 30 tools\"}","timestamp":"2026-07-26T16:14:00.426Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:00.376Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:14:00.426Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:00.379Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:14:00.426Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:00.380Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: c5116293...\"}","timestamp":"2026-07-26T16:14:00.426Z"}
+
+data: {"data":"time=2026-07-26T16:14:04.625Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000053 txid.max=0000000000000055 size=269580","timestamp":"2026-07-26T16:14:04.626Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:04.888Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account c5116293 error cleared\"}","timestamp":"2026-07-26T16:14:04.892Z"}
+
+data: {"data":"[16:14:32] 📊 \u001b[32m[USAGE] NVIDIA | in=101323 | out=814 | account=c5116293...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=64","timestamp":"2026-07-26T16:14:32.241Z"}
+
+data: {"data":"[16:14:32] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 31831ms | complete","timestamp":"2026-07-26T16:14:32.249Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:14:33.048Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:33.008Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 44 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 44 msgs | 30 tools\"}","timestamp":"2026-07-26T16:14:33.062Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:33.017Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:14:33.062Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:33.020Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:14:33.062Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:33.021Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: cb888a54...\"}","timestamp":"2026-07-26T16:14:33.062Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:34.617Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account cb888a54 error cleared\"}","timestamp":"2026-07-26T16:14:34.621Z"}
+
+data: {"data":"time=2026-07-26T16:14:34.739Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000056 txid.max=0000000000000057 size=8348","timestamp":"2026-07-26T16:14:34.739Z"}
+
+data: {"data":"[16:14:35] 📊 \u001b[32m[USAGE] NVIDIA | in=102180 | out=56 | account=cb888a54...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=102080","timestamp":"2026-07-26T16:14:35.135Z"}
+
+data: {"data":"[16:14:35] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 2088ms | complete","timestamp":"2026-07-26T16:14:35.143Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:14:35.645Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:35.586Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 46 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 46 msgs | 30 tools\"}","timestamp":"2026-07-26T16:14:35.670Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:35.602Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:14:35.670Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:35.607Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:14:35.670Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:35.608Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: d65f33e2...\"}","timestamp":"2026-07-26T16:14:35.670Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:14:36.635Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account d65f33e2 error cleared\"}","timestamp":"2026-07-26T16:14:36.642Z"}
+
+data: {"data":"time=2026-07-26T16:15:04.485Z level=INFO msg=\"compaction complete\" level=2 txid.min=000000000000004c txid.max=0000000000000057 size=269795","timestamp":"2026-07-26T16:15:04.485Z"}
+
+data: {"data":"time=2026-07-26T16:15:04.860Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000058 txid.max=000000000000005e size=271513","timestamp":"2026-07-26T16:15:04.860Z"}
+
+data: {"data":"[16:15:23] 📊 \u001b[32m[USAGE] NVIDIA | in=103975 | out=1856 | account=d65f33e2...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=102144","timestamp":"2026-07-26T16:15:23.770Z"}
+
+data: {"data":"[16:15:23] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 48127ms | complete","timestamp":"2026-07-26T16:15:23.776Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:15:24.899Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:24.857Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 49 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 49 msgs | 30 tools\"}","timestamp":"2026-07-26T16:15:24.919Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:24.865Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:15:24.919Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:24.869Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:15:24.919Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:24.870Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: ccaad834...\"}","timestamp":"2026-07-26T16:15:24.919Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:29.866Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account ccaad834 error cleared\"}","timestamp":"2026-07-26T16:15:29.874Z"}
+
+data: {"data":"[16:15:32] 📊 \u001b[32m[USAGE] NVIDIA | in=106251 | out=179 | account=ccaad834...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1856","timestamp":"2026-07-26T16:15:32.243Z"}
+
+data: {"data":"[16:15:32] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 7343ms | complete","timestamp":"2026-07-26T16:15:32.249Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:15:32.803Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:32.758Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 51 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 51 msgs | 30 tools\"}","timestamp":"2026-07-26T16:15:32.819Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:32.766Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:15:32.819Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:32.769Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:15:32.819Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:32.770Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: def58a55...\"}","timestamp":"2026-07-26T16:15:32.819Z"}
+
+data: {"data":"time=2026-07-26T16:15:34.872Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000005f txid.max=0000000000000061 size=18915","timestamp":"2026-07-26T16:15:34.872Z"}
+
+data: {"data":"[16:15:38] 📊 \u001b[32m[USAGE] NVIDIA | in=106460 | out=18 | account=def58a55...\u001b[0m | cache_read=1536","timestamp":"2026-07-26T16:15:38.105Z"}
+
+data: {"data":"[16:15:38] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 5304ms | complete","timestamp":"2026-07-26T16:15:38.112Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:38.100Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account def58a55 error cleared\"}","timestamp":"2026-07-26T16:15:38.129Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:15:38.649Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:38.610Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 53 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 53 msgs | 30 tools\"}","timestamp":"2026-07-26T16:15:38.673Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:38.618Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:15:38.673Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:38.622Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:15:38.673Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:38.623Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 2d039916...\"}","timestamp":"2026-07-26T16:15:38.673Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:40.047Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 2d039916 error cleared\"}","timestamp":"2026-07-26T16:15:40.050Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 3ms","timestamp":"2026-07-26T16:15:40.243Z"}
+
+data: {"data":"[16:15:41] 📊 \u001b[32m[USAGE] NVIDIA | in=106488 | out=165 | account=2d039916...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=105792","timestamp":"2026-07-26T16:15:41.824Z"}
+
+data: {"data":"[16:15:41] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 3177ms | complete","timestamp":"2026-07-26T16:15:41.833Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:15:42.478Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:42.437Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 55 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 55 msgs | 30 tools\"}","timestamp":"2026-07-26T16:15:42.520Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:42.446Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:15:42.520Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:42.450Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:15:42.520Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:42.451Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: d6a27df9...\"}","timestamp":"2026-07-26T16:15:42.520Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:15:43.178Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account d6a27df9 error cleared\"}","timestamp":"2026-07-26T16:15:43.182Z"}
+
+data: {"data":"time=2026-07-26T16:16:04.821Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000062 txid.max=0000000000000068 size=273869","timestamp":"2026-07-26T16:16:04.821Z"}
+
+data: {"data":"[16:16:18] 📊 \u001b[32m[USAGE] NVIDIA | in=110494 | out=256 | account=d6a27df9...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=106240","timestamp":"2026-07-26T16:16:18.584Z"}
+
+data: {"data":"[16:16:18] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 36117ms | complete","timestamp":"2026-07-26T16:16:18.600Z"}
+
+data: {"data":"(node:816) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 connect listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit","timestamp":"2026-07-26T16:16:18.949Z"}
+
+data: {"data":"(Use `node --trace-warnings ...` to show where the warning was created)","timestamp":"2026-07-26T16:16:18.949Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:16:19.284Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:16:19.241Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 57 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 57 msgs | 30 tools\"}","timestamp":"2026-07-26T16:16:19.301Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:16:19.249Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:16:19.303Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:16:19.252Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:16:19.303Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:16:19.253Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 7d5d42c4...\"}","timestamp":"2026-07-26T16:16:19.303Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:16:24.401Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 7d5d42c4 error cleared\"}","timestamp":"2026-07-26T16:16:24.415Z"}
+
+data: {"data":"time=2026-07-26T16:16:34.649Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000069 txid.max=000000000000006b size=25894","timestamp":"2026-07-26T16:16:34.649Z"}
+
+data: {"data":"[16:16:44] 📊 \u001b[32m[USAGE] NVIDIA | in=110845 | out=618 | account=7d5d42c4...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1536","timestamp":"2026-07-26T16:16:44.253Z"}
+
+data: {"data":"[16:16:44] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 24972ms | complete","timestamp":"2026-07-26T16:16:44.260Z"}
+
+data: {"data":"time=2026-07-26T16:17:04.478Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000006c txid.max=000000000000006d size=277747","timestamp":"2026-07-26T16:17:04.478Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:17:29.573Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:29.531Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 60 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 60 msgs | 30 tools\"}","timestamp":"2026-07-26T16:17:29.586Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:29.540Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:17:29.586Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:29.543Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:17:29.586Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:29.543Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: f2b0933a...\"}","timestamp":"2026-07-26T16:17:29.586Z"}
+
+data: {"data":"time=2026-07-26T16:17:34.483Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000006e txid.max=000000000000006e size=3702","timestamp":"2026-07-26T16:17:34.483Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:34.923Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account f2b0933a error cleared\"}","timestamp":"2026-07-26T16:17:34.926Z"}
+
+data: {"data":"[16:17:36] 📊 \u001b[32m[USAGE] NVIDIA | in=111511 | out=129 | account=f2b0933a...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-07-26T16:17:36.362Z"}
+
+data: {"data":"[16:17:36] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 6790ms | complete","timestamp":"2026-07-26T16:17:36.368Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:17:39.270Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:39.222Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 62 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 62 msgs | 30 tools\"}","timestamp":"2026-07-26T16:17:39.283Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:39.233Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:17:39.283Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:39.238Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:17:39.283Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:39.238Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 9cda5fc2...\"}","timestamp":"2026-07-26T16:17:39.283Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:44.628Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 9cda5fc2 error cleared\"}","timestamp":"2026-07-26T16:17:44.633Z"}
+
+data: {"data":"[16:17:51] 📊 \u001b[32m[USAGE] NVIDIA | in=111741 | out=424 | account=9cda5fc2...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1536","timestamp":"2026-07-26T16:17:51.803Z"}
+
+data: {"data":"[16:17:51] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 12534ms | complete","timestamp":"2026-07-26T16:17:51.809Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:17:54.530Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:54.477Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 64 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 64 msgs | 30 tools\"}","timestamp":"2026-07-26T16:17:54.544Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:54.486Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:17:54.544Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:54.489Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:17:54.544Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:54.490Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: d1717878...\"}","timestamp":"2026-07-26T16:17:54.544Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:17:59.455Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account d1717878 error cleared\"}","timestamp":"2026-07-26T16:17:59.464Z"}
+
+data: {"data":"time=2026-07-26T16:18:05.650Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=4 max_l1_txid=0000000000000075","timestamp":"2026-07-26T16:18:05.650Z"}
+
+data: {"data":"time=2026-07-26T16:18:05.650Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000006f txid.max=0000000000000075 size=279013","timestamp":"2026-07-26T16:18:05.650Z"}
+
+data: {"data":"[16:18:05] 📊 \u001b[32m[USAGE] NVIDIA | in=112309 | out=609 | account=d1717878...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=576","timestamp":"2026-07-26T16:18:05.672Z"}
+
+data: {"data":"[16:18:05] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 11143ms | complete","timestamp":"2026-07-26T16:18:05.679Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:18:06.939Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:06.895Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 67 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 67 msgs | 30 tools\"}","timestamp":"2026-07-26T16:18:06.950Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:06.904Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:18:06.950Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:06.909Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:18:06.950Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:06.909Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: a0c72227...\"}","timestamp":"2026-07-26T16:18:06.950Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:07.713Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account a0c72227 error cleared\"}","timestamp":"2026-07-26T16:18:07.716Z"}
+
+data: {"data":"[16:18:10] 📊 \u001b[32m[USAGE] NVIDIA | in=113639 | out=182 | account=a0c72227...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=111616","timestamp":"2026-07-26T16:18:10.023Z"}
+
+data: {"data":"[16:18:10] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 3087ms | complete","timestamp":"2026-07-26T16:18:10.030Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:18:10.858Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:10.808Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 69 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 69 msgs | 30 tools\"}","timestamp":"2026-07-26T16:18:10.889Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:10.817Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:18:10.889Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:10.820Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:18:10.889Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:10.821Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 38a09429...\"}","timestamp":"2026-07-26T16:18:10.889Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:18:16.828Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 38a09429 error cleared\"}","timestamp":"2026-07-26T16:18:16.830Z"}
+
+data: {"data":"[16:18:24] 📊 \u001b[32m[USAGE] NVIDIA | in=113830 | out=356 | account=38a09429...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=112128","timestamp":"2026-07-26T16:18:24.537Z"}
+
+data: {"data":"[16:18:24] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 13681ms | complete","timestamp":"2026-07-26T16:18:24.544Z"}
+
+data: {"data":"time=2026-07-26T16:18:36.670Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=000000000000007b","timestamp":"2026-07-26T16:18:36.671Z"}
+
+data: {"data":"time=2026-07-26T16:18:36.670Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000076 txid.max=000000000000007b size=24885","timestamp":"2026-07-26T16:18:36.671Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:19:38.533Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:38.472Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 72 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 72 msgs | 30 tools\"}","timestamp":"2026-07-26T16:19:38.551Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:38.480Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:19:38.551Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:38.483Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:19:38.552Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:38.483Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 9865dfaa...\"}","timestamp":"2026-07-26T16:19:38.552Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:43.555Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 9865dfaa error cleared\"}","timestamp":"2026-07-26T16:19:43.558Z"}
+
+data: {"data":"[16:19:48] 📊 \u001b[32m[USAGE] NVIDIA | in=114382 | out=419 | account=9865dfaa...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-07-26T16:19:48.448Z"}
+
+data: {"data":"[16:19:48] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 9915ms | complete","timestamp":"2026-07-26T16:19:48.454Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:19:50.429Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:50.369Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 74 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 74 msgs | 30 tools\"}","timestamp":"2026-07-26T16:19:50.442Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:50.378Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:19:50.442Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:50.381Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:19:50.442Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:50.381Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 3f77f218...\"}","timestamp":"2026-07-26T16:19:50.442Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:19:55.514Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 3f77f218 error cleared\"}","timestamp":"2026-07-26T16:19:55.518Z"}
+
+data: {"data":"time=2026-07-26T16:19:57.198Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=11 max_l1_txid=000000000000007b","timestamp":"2026-07-26T16:19:57.198Z"}
+
+data: {"data":"time=2026-07-26T16:20:03.844Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=0000000000000080","timestamp":"2026-07-26T16:20:03.845Z"}
+
+data: {"data":"time=2026-07-26T16:20:03.844Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000007c txid.max=0000000000000080 size=283767","timestamp":"2026-07-26T16:20:03.845Z"}
+
+data: {"data":"time=2026-07-26T16:20:10.649Z level=INFO msg=\"compaction complete\" level=2 txid.min=0000000000000058 txid.max=0000000000000080 size=283767","timestamp":"2026-07-26T16:20:10.649Z"}
+
+data: {"data":"[16:20:29] 📊 \u001b[32m[USAGE] NVIDIA | in=115142 | out=773 | account=3f77f218...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1536","timestamp":"2026-07-26T16:20:29.149Z"}
+
+data: {"data":"[16:20:29] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 38723ms | complete","timestamp":"2026-07-26T16:20:29.156Z"}
+
+data: {"data":"time=2026-07-26T16:20:36.668Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=0000000000000083","timestamp":"2026-07-26T16:20:36.668Z"}
+
+data: {"data":"time=2026-07-26T16:20:36.668Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000081 txid.max=0000000000000083 size=20018","timestamp":"2026-07-26T16:20:36.668Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:20:57.376Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:20:57.330Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 77 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 77 msgs | 30 tools\"}","timestamp":"2026-07-26T16:20:57.397Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:20:57.340Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:20:57.397Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:20:57.344Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:20:57.397Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:20:57.344Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: a68545c0...\"}","timestamp":"2026-07-26T16:20:57.397Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:21:01.471Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account a68545c0 error cleared\"}","timestamp":"2026-07-26T16:21:01.477Z"}
+
+data: {"data":"time=2026-07-26T16:21:06.743Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=7 max_l1_txid=0000000000000085","timestamp":"2026-07-26T16:21:06.743Z"}
+
+data: {"data":"time=2026-07-26T16:21:06.743Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000084 txid.max=0000000000000085 size=284401","timestamp":"2026-07-26T16:21:06.743Z"}
+
+data: {"data":"time=2026-07-26T16:21:37.002Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=0000000000000086","timestamp":"2026-07-26T16:21:37.003Z"}
+
+data: {"data":"time=2026-07-26T16:21:37.002Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000086 txid.max=0000000000000086 size=8388","timestamp":"2026-07-26T16:21:37.003Z"}
+
+data: {"data":"[16:22:04] 📊 \u001b[32m[USAGE] NVIDIA | in=115967 | out=635 | account=a68545c0...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=33088","timestamp":"2026-07-26T16:22:04.001Z"}
+
+data: {"data":"[16:22:04] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 66629ms | complete","timestamp":"2026-07-26T16:22:04.010Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:22:25.181Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:22:25.135Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 80 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 80 msgs | 30 tools\"}","timestamp":"2026-07-26T16:22:25.202Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:22:25.142Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:22:25.202Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:22:25.147Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:22:25.202Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:22:25.148Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: dd511141...\"}","timestamp":"2026-07-26T16:22:25.202Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:22:25.979Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account dd511141 error cleared\"}","timestamp":"2026-07-26T16:22:25.983Z"}
+
+data: {"data":"time=2026-07-26T16:22:33.485Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=000000000000008a","timestamp":"2026-07-26T16:22:33.485Z"}
+
+data: {"data":"time=2026-07-26T16:22:33.485Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000087 txid.max=000000000000008a size=285315","timestamp":"2026-07-26T16:22:33.485Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2bcea68b-9f7a-4673-b1f0-80a66320fc88 (inactive for 600s)","timestamp":"2026-07-26T16:22:33.679Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:1830e4f7-dd8f-4c11-9d65-c0acdced6494 (inactive for 600s)","timestamp":"2026-07-26T16:22:33.679Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:58f42365-24ac-4844-b08b-af609b1057d1 (inactive for 600s)","timestamp":"2026-07-26T16:22:33.679Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:09665ab2-ccd5-473b-9674-14967d3741b7 (inactive for 600s)","timestamp":"2026-07-26T16:22:33.679Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2d9ef15f-bc96-49d8-b476-56b2ad65c431 (inactive for 600s)","timestamp":"2026-07-26T16:22:33.679Z"}
+
+data: {"data":"[16:22:39] 📊 \u001b[32m[USAGE] NVIDIA | in=116652 | out=493 | account=dd511141...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=116032","timestamp":"2026-07-26T16:22:39.250Z"}
+
+data: {"data":"[16:22:39] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 14075ms | complete","timestamp":"2026-07-26T16:22:39.262Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:53f96ffa-5bb1-424c-925f-86c1b44688ec (inactive for 626s)","timestamp":"2026-07-26T16:23:03.681Z"}
+
+data: {"data":"time=2026-07-26T16:23:07.177Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=7 max_l1_txid=000000000000008b","timestamp":"2026-07-26T16:23:07.177Z"}
+
+data: {"data":"time=2026-07-26T16:23:07.177Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000008b txid.max=000000000000008b size=13009","timestamp":"2026-07-26T16:23:07.178Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:deb0258d-ecce-4c26-ad39-542c44736a0a (inactive for 626s)","timestamp":"2026-07-26T16:23:33.682Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:23:48.773Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:23:48.705Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 83 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 83 msgs | 30 tools\"}","timestamp":"2026-07-26T16:23:48.786Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:23:48.715Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:23:48.786Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:23:48.721Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:23:48.786Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:23:48.722Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 2bcea68b...\"}","timestamp":"2026-07-26T16:23:48.786Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:23:54.100Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 2bcea68b error cleared\"}","timestamp":"2026-07-26T16:23:54.104Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:3317f8d3-ffa6-4e41-a8ad-7eeaf91a3f93 (inactive for 628s)","timestamp":"2026-07-26T16:24:03.682Z"}
+
+data: {"data":"time=2026-07-26T16:24:03.751Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=6 max_l1_txid=000000000000008e","timestamp":"2026-07-26T16:24:03.751Z"}
+
+data: {"data":"time=2026-07-26T16:24:03.751Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000008c txid.max=000000000000008e size=285936","timestamp":"2026-07-26T16:24:03.751Z"}
+
+data: {"data":"[16:24:12] 📊 \u001b[32m[USAGE] NVIDIA | in=117211 | out=786 | account=2bcea68b...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-07-26T16:24:12.257Z"}
+
+data: {"data":"[16:24:12] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 23491ms | complete","timestamp":"2026-07-26T16:24:12.265Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:24:23.900Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:23.851Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 86 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 86 msgs | 30 tools\"}","timestamp":"2026-07-26T16:24:23.915Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:23.859Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:24:23.915Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:23.861Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:24:23.915Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:23.862Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 1830e4f7...\"}","timestamp":"2026-07-26T16:24:23.915Z"}
+
+data: {"data":"[ProxyEgress] nvidia/1830e4f7 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:24:24.589Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:24.587Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 1830e4f7 error cleared\"}","timestamp":"2026-07-26T16:24:24.590Z"}
+
+data: {"data":"[16:24:25] 📊 \u001b[32m[USAGE] NVIDIA | in=118044 | out=63 | account=1830e4f7...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=117376","timestamp":"2026-07-26T16:24:25.525Z"}
+
+data: {"data":"[16:24:25] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 1630ms | complete","timestamp":"2026-07-26T16:24:25.531Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:24:26.300Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:26.254Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 88 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 88 msgs | 30 tools\"}","timestamp":"2026-07-26T16:24:26.327Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:26.262Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:24:26.327Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:26.266Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:24:26.327Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:26.266Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 58f42365...\"}","timestamp":"2026-07-26T16:24:26.327Z"}
+
+data: {"data":"[ProxyEgress] nvidia/58f42365 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:24:31.654Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:24:31.651Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 58f42365 error cleared\"}","timestamp":"2026-07-26T16:24:31.656Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:c5116293-3a1e-420b-890b-ddff9ee0db57 (inactive for 629s)","timestamp":"2026-07-26T16:24:33.682Z"}
+
+data: {"data":"time=2026-07-26T16:24:36.015Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000008f txid.max=0000000000000091 size=26347","timestamp":"2026-07-26T16:24:36.015Z"}
+
+data: {"data":"time=2026-07-26T16:24:56.738Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=0000000000000091","timestamp":"2026-07-26T16:24:56.738Z"}
+
+data: {"data":"[16:24:59] 📊 \u001b[32m[USAGE] NVIDIA | in=120552 | out=1271 | account=58f42365...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1536","timestamp":"2026-07-26T16:24:59.713Z"}
+
+data: {"data":"[16:24:59] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 33412ms | complete","timestamp":"2026-07-26T16:24:59.719Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:25:00.559Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:00.499Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 91 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 91 msgs | 30 tools\"}","timestamp":"2026-07-26T16:25:00.575Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:00.510Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:25:00.575Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:00.514Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:25:00.575Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:00.515Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 09665ab2...\"}","timestamp":"2026-07-26T16:25:00.575Z"}
+
+data: {"data":"[ProxyEgress] nvidia/09665ab2 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:25:03.084Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:03.078Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 09665ab2 error cleared\"}","timestamp":"2026-07-26T16:25:03.085Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:cb888a54-217d-4ad6-b191-1cc5d06841e0 (inactive for 629s)","timestamp":"2026-07-26T16:25:03.683Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d65f33e2-26b4-4096-bb40-214be567a5f8 (inactive for 627s)","timestamp":"2026-07-26T16:25:03.684Z"}
+
+data: {"data":"[16:25:05] 📊 \u001b[32m[USAGE] NVIDIA | in=122268 | out=154 | account=09665ab2...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=118016","timestamp":"2026-07-26T16:25:05.088Z"}
+
+data: {"data":"[16:25:05] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 4532ms | complete","timestamp":"2026-07-26T16:25:05.098Z"}
+
+data: {"data":"time=2026-07-26T16:25:05.683Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=4 max_l1_txid=0000000000000095","timestamp":"2026-07-26T16:25:05.683Z"}
+
+data: {"data":"time=2026-07-26T16:25:05.683Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000092 txid.max=0000000000000095 size=287445","timestamp":"2026-07-26T16:25:05.683Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:25:05.684Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:05.639Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 93 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 93 msgs | 30 tools\"}","timestamp":"2026-07-26T16:25:05.703Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:05.647Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:25:05.703Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:05.650Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:25:05.704Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:05.650Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 2d9ef15f...\"}","timestamp":"2026-07-26T16:25:05.704Z"}
+
+data: {"data":"[ProxyEgress] nvidia/2d9ef15f in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:25:06.589Z"}
+
+data: {"data":"[16:25:06] 📊 \u001b[32m[USAGE] NVIDIA | in=122442 | out=18 | account=2d9ef15f...\u001b[0m | cache_read=121088","timestamp":"2026-07-26T16:25:06.593Z"}
+
+data: {"data":"[16:25:06] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 913ms | complete","timestamp":"2026-07-26T16:25:06.602Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:06.587Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 2d9ef15f error cleared\"}","timestamp":"2026-07-26T16:25:06.613Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:25:07.593Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:07.548Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 95 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 95 msgs | 30 tools\"}","timestamp":"2026-07-26T16:25:07.623Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:07.556Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:25:07.623Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:07.559Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:25:07.623Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:07.559Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 53f96ffa...\"}","timestamp":"2026-07-26T16:25:07.623Z"}
+
+data: {"data":"time=2026-07-26T16:25:11.880Z level=INFO msg=\"compaction complete\" level=2 txid.min=0000000000000081 txid.max=0000000000000095 size=287445","timestamp":"2026-07-26T16:25:11.881Z"}
+
+data: {"data":"[ProxyEgress] nvidia/53f96ffa in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:25:14.435Z"}
+
+data: {"data":"[16:25:23] 📊 \u001b[32m[USAGE] NVIDIA | in=122470 | out=182 | account=53f96ffa...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=122432","timestamp":"2026-07-26T16:25:23.841Z"}
+
+data: {"data":"[16:25:23] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 16247ms | complete","timestamp":"2026-07-26T16:25:23.846Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:25:24.582Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:24.535Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 97 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 97 msgs | 30 tools\"}","timestamp":"2026-07-26T16:25:24.599Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:24.543Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:25:24.599Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:24.546Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:25:24.599Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:25:24.547Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: deb0258d...\"}","timestamp":"2026-07-26T16:25:24.599Z"}
+
+data: {"data":"[ProxyEgress] nvidia/deb0258d in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:25:26.710Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:ccaad834-d081-4ec4-8e8d-713afc7d722f (inactive for 604s)","timestamp":"2026-07-26T16:25:33.684Z"}
+
+data: {"data":"time=2026-07-26T16:25:36.789Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=000000000000009e","timestamp":"2026-07-26T16:25:36.789Z"}
+
+data: {"data":"time=2026-07-26T16:25:36.789Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000096 txid.max=000000000000009e size=25819","timestamp":"2026-07-26T16:25:36.789Z"}
+
+data: {"data":"[16:25:46] 📊 \u001b[32m[USAGE] NVIDIA | in=124118 | out=384 | account=deb0258d...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=122624","timestamp":"2026-07-26T16:25:46.964Z"}
+
+data: {"data":"[16:25:46] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 22383ms | complete","timestamp":"2026-07-26T16:25:46.971Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:def58a55-cab9-4048-a69b-4fa1ae9d557a (inactive for 626s)","timestamp":"2026-07-26T16:26:03.684Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2d039916-88d8-495f-b886-bd5dc25ce047 (inactive for 624s)","timestamp":"2026-07-26T16:26:03.684Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d6a27df9-fb28-429e-9c1d-dbe475f7ea4d (inactive for 621s)","timestamp":"2026-07-26T16:26:03.684Z"}
+
+data: {"data":"time=2026-07-26T16:26:06.845Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=2 max_l1_txid=00000000000000a0","timestamp":"2026-07-26T16:26:06.845Z"}
+
+data: {"data":"time=2026-07-26T16:26:06.845Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000009f txid.max=00000000000000a0 size=21130","timestamp":"2026-07-26T16:26:06.845Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:26:29.240Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:26:29.174Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 100 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 100 msgs | 30 tools\"}","timestamp":"2026-07-26T16:26:29.255Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:26:29.183Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:26:29.255Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:26:29.186Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:26:29.255Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:26:29.187Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 3317f8d3...\"}","timestamp":"2026-07-26T16:26:29.255Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:7d5d42c4-bb15-43da-a1b5-a4a2b52871c2 (inactive for 609s)","timestamp":"2026-07-26T16:26:33.684Z"}
+
+data: {"data":"[ProxyEgress] nvidia/3317f8d3 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:26:35.035Z"}
+
+data: {"data":"time=2026-07-26T16:26:36.832Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a2","timestamp":"2026-07-26T16:26:36.832Z"}
+
+data: {"data":"time=2026-07-26T16:26:36.832Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a1 txid.max=00000000000000a2 size=290359","timestamp":"2026-07-26T16:26:36.832Z"}
+
+data: {"data":"[16:27:00] 📊 \u001b[32m[USAGE] NVIDIA | in=124550 | out=561 | account=3317f8d3...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1856","timestamp":"2026-07-26T16:27:00.573Z"}
+
+data: {"data":"[16:27:00] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 31335ms | complete","timestamp":"2026-07-26T16:27:00.580Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:27:04.461Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:04.404Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 102 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 102 msgs | 30 tools\"}","timestamp":"2026-07-26T16:27:04.483Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:04.415Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:27:04.483Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:04.419Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:27:04.483Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:04.419Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: c5116293...\"}","timestamp":"2026-07-26T16:27:04.483Z"}
+
+data: {"data":"time=2026-07-26T16:27:06.765Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a4","timestamp":"2026-07-26T16:27:06.765Z"}
+
+data: {"data":"time=2026-07-26T16:27:06.765Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a3 txid.max=00000000000000a4 size=21777","timestamp":"2026-07-26T16:27:06.765Z"}
+
+data: {"data":"[ProxyEgress] nvidia/c5116293 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:27:10.349Z"}
+
+data: {"data":"[16:27:19] 📊 \u001b[32m[USAGE] NVIDIA | in=125319 | out=582 | account=c5116293...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1536","timestamp":"2026-07-26T16:27:19.245Z"}
+
+data: {"data":"[16:27:19] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 14784ms | complete","timestamp":"2026-07-26T16:27:19.251Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:27:20.041Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:19.982Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 104 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 104 msgs | 30 tools\"}","timestamp":"2026-07-26T16:27:20.063Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:19.991Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:27:20.063Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:19.996Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:27:20.063Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:19.997Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: cb888a54...\"}","timestamp":"2026-07-26T16:27:20.063Z"}
+
+data: {"data":"[ProxyEgress] nvidia/cb888a54 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:27:22.469Z"}
+
+data: {"data":"[16:27:27] 📊 \u001b[32m[USAGE] NVIDIA | in=126108 | out=225 | account=cb888a54...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=125056","timestamp":"2026-07-26T16:27:27.462Z"}
+
+data: {"data":"[16:27:27] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 7423ms | complete","timestamp":"2026-07-26T16:27:27.469Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:27:28.276Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:28.214Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 106 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 106 msgs | 30 tools\"}","timestamp":"2026-07-26T16:27:28.304Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:28.226Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:27:28.304Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:28.231Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:27:28.304Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:27:28.232Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: d65f33e2...\"}","timestamp":"2026-07-26T16:27:28.304Z"}
+
+data: {"data":"[ProxyEgress] nvidia/d65f33e2 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:27:31.609Z"}
+
+data: {"data":"time=2026-07-26T16:27:36.864Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=00000000000000a9","timestamp":"2026-07-26T16:27:36.864Z"}
+
+data: {"data":"time=2026-07-26T16:27:36.864Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a5 txid.max=00000000000000a9 size=25839","timestamp":"2026-07-26T16:27:36.864Z"}
+
+data: {"data":"[16:27:52] 📊 \u001b[32m[USAGE] NVIDIA | in=126343 | out=381 | account=d65f33e2...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=126272","timestamp":"2026-07-26T16:27:52.315Z"}
+
+data: {"data":"[16:27:52] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 24043ms | complete","timestamp":"2026-07-26T16:27:52.326Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d1717878-cbd3-4392-b5af-5add1c10d751 (inactive for 604s)","timestamp":"2026-07-26T16:28:03.684Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:f2b0933a-888d-4a49-ab58-6012fcfb9314 (inactive for 629s)","timestamp":"2026-07-26T16:28:03.684Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:9cda5fc2-7ae2-426a-a38c-35b9aa4856af (inactive for 619s)","timestamp":"2026-07-26T16:28:03.684Z"}
+
+data: {"data":"time=2026-07-26T16:28:06.903Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000ae","timestamp":"2026-07-26T16:28:06.903Z"}
+
+data: {"data":"time=2026-07-26T16:28:06.903Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000aa txid.max=00000000000000ae size=292812","timestamp":"2026-07-26T16:28:06.903Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:a0c72227-ba89-4b89-bae4-cff099d02562 (inactive for 626s)","timestamp":"2026-07-26T16:28:33.684Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:38a09429-95ad-4b2f-940b-ed886fad7d7a (inactive for 617s)","timestamp":"2026-07-26T16:28:33.684Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:28:42.230Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:42.171Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 109 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 109 msgs | 30 tools\"}","timestamp":"2026-07-26T16:28:42.246Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:42.179Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:28:42.246Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:42.185Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:28:42.246Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:42.185Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: ccaad834...\"}","timestamp":"2026-07-26T16:28:42.246Z"}
+
+data: {"data":"[ProxyEgress] nvidia/ccaad834 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:28:43.021Z"}
+
+data: {"data":"[16:28:53] 📊 \u001b[32m[USAGE] NVIDIA | in=126922 | out=340 | account=ccaad834...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=126720","timestamp":"2026-07-26T16:28:53.728Z"}
+
+data: {"data":"[16:28:53] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 11499ms | complete","timestamp":"2026-07-26T16:28:53.735Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:28:55.765Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:55.720Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 111 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 111 msgs | 30 tools\"}","timestamp":"2026-07-26T16:28:55.782Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:55.728Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:28:55.783Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:55.731Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:28:55.783Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:28:55.732Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: def58a55...\"}","timestamp":"2026-07-26T16:28:55.783Z"}
+
+data: {"data":"time=2026-07-26T16:29:03.864Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=00000000000000b3","timestamp":"2026-07-26T16:29:03.865Z"}
+
+data: {"data":"time=2026-07-26T16:29:03.864Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000af txid.max=00000000000000b3 size=293439","timestamp":"2026-07-26T16:29:03.865Z"}
+
+data: {"data":"[16:29:11] 📊 \u001b[32m[USAGE] NVIDIA | in=127551 | out=237 | account=def58a55...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=127232","timestamp":"2026-07-26T16:29:11.547Z"}
+
+data: {"data":"[16:29:11] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 15785ms | complete","timestamp":"2026-07-26T16:29:11.557Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:29:12.377Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:29:12.324Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 113 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 113 msgs | 30 tools\"}","timestamp":"2026-07-26T16:29:12.393Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:29:12.334Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:29:12.393Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:29:12.338Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:29:12.393Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:29:12.339Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 2d039916...\"}","timestamp":"2026-07-26T16:29:12.393Z"}
+
+data: {"data":"[16:29:26] 📊 \u001b[32m[USAGE] NVIDIA | in=127798 | out=332 | account=2d039916...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=576","timestamp":"2026-07-26T16:29:26.637Z"}
+
+data: {"data":"[16:29:26] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 14266ms | complete","timestamp":"2026-07-26T16:29:26.648Z"}
+
+data: {"data":"time=2026-07-26T16:29:36.761Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=00000000000000b7","timestamp":"2026-07-26T16:29:36.761Z"}
+
+data: {"data":"time=2026-07-26T16:29:36.761Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000b4 txid.max=00000000000000b7 size=30421","timestamp":"2026-07-26T16:29:36.761Z"}
+
+data: {"data":"time=2026-07-26T16:29:56.582Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=4 max_l1_txid=00000000000000b7","timestamp":"2026-07-26T16:29:56.582Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:9865dfaa-3680-4a2c-a952-16cf94dddd04 (inactive for 620s)","timestamp":"2026-07-26T16:30:03.684Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:3f77f218-ee98-443b-b2de-e0cdb8761144 (inactive for 608s)","timestamp":"2026-07-26T16:30:03.684Z"}
+
+data: {"data":"time=2026-07-26T16:30:05.449Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000b8 txid.max=00000000000000ba size=295055","timestamp":"2026-07-26T16:30:05.449Z"}
+
+data: {"data":"time=2026-07-26T16:30:11.335Z level=INFO msg=\"compaction complete\" level=2 txid.min=0000000000000096 txid.max=00000000000000ba size=295055","timestamp":"2026-07-26T16:30:11.335Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:a68545c0-554a-43c9-9ad4-e09885e762e7 (inactive for 602s)","timestamp":"2026-07-26T16:31:03.685Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:31:33.454Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:31:33.388Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 116 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 116 msgs | 30 tools\"}","timestamp":"2026-07-26T16:31:33.474Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:31:33.399Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:31:33.474Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:31:33.403Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:31:33.474Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:31:33.404Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: d6a27df9...\"}","timestamp":"2026-07-26T16:31:33.474Z"}
+
+data: {"data":"[16:32:04] 📊 \u001b[32m[USAGE] NVIDIA | in=128189 | out=353 | account=d6a27df9...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-07-26T16:32:04.561Z"}
+
+data: {"data":"[16:32:04] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 31109ms | complete","timestamp":"2026-07-26T16:32:04.567Z"}
+
+data: {"data":"time=2026-07-26T16:32:04.694Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=15 max_l1_txid=00000000000000bd","timestamp":"2026-07-26T16:32:04.694Z"}
+
+data: {"data":"time=2026-07-26T16:32:04.694Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000bb txid.max=00000000000000bd size=296052","timestamp":"2026-07-26T16:32:04.694Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:32:04.875Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:04.868Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 1 msgs | 1 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 1 msgs | 1 tools\"}","timestamp":"2026-07-26T16:32:04.877Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:04.869Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:32:04.877Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:04.873Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:31c71... has no available affinity target\"}","timestamp":"2026-07-26T16:32:04.877Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:04.874Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 7d5d42c4...\"}","timestamp":"2026-07-26T16:32:04.877Z"}
+
+data: {"data":"[16:32:06] 📊 \u001b[32m[USAGE] NVIDIA | in=178 | out=32 | account=7d5d42c4...\u001b[0m \u001b[33m(estimated)\u001b[0m","timestamp":"2026-07-26T16:32:06.123Z"}
+
+data: {"data":"[16:32:06] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 1248ms | complete","timestamp":"2026-07-26T16:32:06.125Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:32:07.078Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:07.025Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 118 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 118 msgs | 30 tools\"}","timestamp":"2026-07-26T16:32:07.110Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:07.034Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:32:07.111Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:07.037Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:32:07.111Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:07.038Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: f2b0933a...\"}","timestamp":"2026-07-26T16:32:07.111Z"}
+
+data: {"data":"[16:32:23] 📊 \u001b[32m[USAGE] NVIDIA | in=129557 | out=734 | account=f2b0933a...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-07-26T16:32:23.048Z"}
+
+data: {"data":"[16:32:23] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 15972ms | complete","timestamp":"2026-07-26T16:32:23.055Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:32:23.960Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:23.903Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 120 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 120 msgs | 30 tools\"}","timestamp":"2026-07-26T16:32:23.987Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:23.912Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:32:23.987Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:23.916Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:32:23.987Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:23.917Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 9cda5fc2...\"}","timestamp":"2026-07-26T16:32:23.987Z"}
+
+data: {"data":"[16:32:29] 📊 \u001b[32m[USAGE] NVIDIA | in=130748 | out=375 | account=9cda5fc2...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=128512","timestamp":"2026-07-26T16:32:29.485Z"}
+
+data: {"data":"[16:32:29] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 5526ms | complete","timestamp":"2026-07-26T16:32:29.492Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:32:30.172Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:30.121Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 122 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 122 msgs | 30 tools\"}","timestamp":"2026-07-26T16:32:30.187Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:30.130Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:32:30.187Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:30.133Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:32:30.187Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:32:30.133Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: d1717878...\"}","timestamp":"2026-07-26T16:32:30.187Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:dd511141-af6e-4944-8af4-c0397507c799 (inactive for 608s)","timestamp":"2026-07-26T16:32:33.687Z"}
+
+data: {"data":"time=2026-07-26T16:32:37.612Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=5 max_l1_txid=00000000000000c5","timestamp":"2026-07-26T16:32:37.612Z"}
+
+data: {"data":"time=2026-07-26T16:32:37.612Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000be txid.max=00000000000000c5 size=26493","timestamp":"2026-07-26T16:32:37.612Z"}
+
+data: {"data":"[16:32:57] 📊 \u001b[32m[USAGE] NVIDIA | in=136733 | out=1505 | account=d1717878...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=130240","timestamp":"2026-07-26T16:32:57.884Z"}
+
+data: {"data":"[16:32:57] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 27713ms | complete","timestamp":"2026-07-26T16:32:57.891Z"}
+
+data: {"data":"time=2026-07-26T16:33:07.062Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=5 max_l1_txid=00000000000000ca","timestamp":"2026-07-26T16:33:07.062Z"}
+
+data: {"data":"time=2026-07-26T16:33:07.062Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000c6 txid.max=00000000000000ca size=299103","timestamp":"2026-07-26T16:33:07.062Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2bcea68b-9f7a-4673-b1f0-80a66320fc88 (inactive for 610s)","timestamp":"2026-07-26T16:34:03.687Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:1830e4f7-dd8f-4c11-9d65-c0acdced6494 (inactive for 609s)","timestamp":"2026-07-26T16:34:33.688Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:58f42365-24ac-4844-b08b-af609b1057d1 (inactive for 602s)","timestamp":"2026-07-26T16:34:33.688Z"}
+
+data: {"data":"time=2026-07-26T16:34:57.176Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=12 max_l1_txid=00000000000000ca","timestamp":"2026-07-26T16:34:57.176Z"}
+
+data: {"data":"time=2026-07-26T16:35:02.705Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000cb txid.max=00000000000000cc size=299103","timestamp":"2026-07-26T16:35:02.705Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:09665ab2-ccd5-473b-9674-14967d3741b7 (inactive for 601s)","timestamp":"2026-07-26T16:35:03.688Z"}
+
+data: {"data":"time=2026-07-26T16:35:09.834Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000bb txid.max=00000000000000cc size=299103","timestamp":"2026-07-26T16:35:09.835Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2d9ef15f-bc96-49d8-b476-56b2ad65c431 (inactive for 627s)","timestamp":"2026-07-26T16:35:33.688Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:53f96ffa-5bb1-424c-925f-86c1b44688ec (inactive for 619s)","timestamp":"2026-07-26T16:35:33.688Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:deb0258d-ecce-4c26-ad39-542c44736a0a (inactive for 607s)","timestamp":"2026-07-26T16:35:33.688Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:36:03.148Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:36:03.087Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 124 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 124 msgs | 30 tools\"}","timestamp":"2026-07-26T16:36:03.164Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:36:03.098Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:36:03.164Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:36:03.104Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:36:03.165Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:36:03.105Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: a0c72227...\"}","timestamp":"2026-07-26T16:36:03.165Z"}
+
+data: {"data":"[16:36:10] 📊 \u001b[32m[USAGE] NVIDIA | in=138303 | out=119 | account=a0c72227...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-07-26T16:36:10.806Z"}
+
+data: {"data":"[16:36:10] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 7661ms | complete","timestamp":"2026-07-26T16:36:10.813Z"}
+
+data: {"data":"time=2026-07-26T16:36:32.987Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000cd txid.max=00000000000000d0 size=299756","timestamp":"2026-07-26T16:36:32.987Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:3317f8d3-ffa6-4e41-a8ad-7eeaf91a3f93 (inactive for 629s)","timestamp":"2026-07-26T16:37:03.689Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:c5116293-3a1e-420b-890b-ddff9ee0db57 (inactive for 623s)","timestamp":"2026-07-26T16:37:33.689Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:cb888a54-217d-4ad6-b191-1cc5d06841e0 (inactive for 611s)","timestamp":"2026-07-26T16:37:33.689Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d65f33e2-26b4-4096-bb40-214be567a5f8 (inactive for 602s)","timestamp":"2026-07-26T16:37:33.690Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:ccaad834-d081-4ec4-8e8d-713afc7d722f (inactive for 621s)","timestamp":"2026-07-26T16:39:03.690Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:def58a55-cab9-4048-a69b-4fa1ae9d557a (inactive for 605s)","timestamp":"2026-07-26T16:39:03.690Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2d039916-88d8-495f-b886-bd5dc25ce047 (inactive for 615s)","timestamp":"2026-07-26T16:39:33.693Z"}
+
+data: {"data":"time=2026-07-26T16:39:57.435Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=18 max_l1_txid=00000000000000d0","timestamp":"2026-07-26T16:39:57.436Z"}
+
+data: {"data":"time=2026-07-26T16:40:02.662Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000d1 txid.max=00000000000000d2 size=299756","timestamp":"2026-07-26T16:40:02.662Z"}
+
+data: {"data":"time=2026-07-26T16:40:06.858Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000cd txid.max=00000000000000d2 size=299756","timestamp":"2026-07-26T16:40:06.858Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:40:58.906Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:40:58.852Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 122 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 122 msgs | 30 tools\"}","timestamp":"2026-07-26T16:40:58.924Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:40:58.862Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:40:58.924Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:40:58.865Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:40:58.924Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:40:58.866Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 38a09429...\"}","timestamp":"2026-07-26T16:40:58.924Z"}
+
+data: {"data":"[ProxyEgress] nvidia/38a09429 in=113.20.2.214 out=44.196.116.2 proxy=direct status=success","timestamp":"2026-07-26T16:41:05.341Z"}
+
+data: {"data":"time=2026-07-26T16:41:33.571Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=4 max_l1_txid=00000000000000d5","timestamp":"2026-07-26T16:41:33.572Z"}
+
+data: {"data":"time=2026-07-26T16:41:33.571Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000d3 txid.max=00000000000000d5 size=299972","timestamp":"2026-07-26T16:41:33.572Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d6a27df9-fb28-429e-9c1d-dbe475f7ea4d (inactive for 623s)","timestamp":"2026-07-26T16:42:03.696Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:7d5d42c4-bb15-43da-a1b5-a4a2b52871c2 (inactive for 628s)","timestamp":"2026-07-26T16:42:33.694Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:f2b0933a-888d-4a49-ab58-6012fcfb9314 (inactive for 620s)","timestamp":"2026-07-26T16:42:33.694Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:9cda5fc2-7ae2-426a-a38c-35b9aa4856af (inactive for 608s)","timestamp":"2026-07-26T16:42:33.694Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d1717878-cbd3-4392-b5af-5add1c10d751 (inactive for 601s)","timestamp":"2026-07-26T16:42:33.694Z"}
+
+data: {"data":"time=2026-07-26T16:44:56.701Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=2 max_l1_txid=00000000000000d5","timestamp":"2026-07-26T16:44:56.701Z"}
+
+data: {"data":"time=2026-07-26T16:45:03.065Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000d6 txid.max=00000000000000d7 size=299972","timestamp":"2026-07-26T16:45:03.065Z"}
+
+data: {"data":"time=2026-07-26T16:45:06.057Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000d3 txid.max=00000000000000d7 size=299972","timestamp":"2026-07-26T16:45:06.057Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:a0c72227-ba89-4b89-bae4-cff099d02562 (inactive for 624s)","timestamp":"2026-07-26T16:46:33.697Z"}
+
+data: {"data":"[16:48:22] 📊 \u001b[32m[USAGE] NVIDIA | in=138027 | out=11454 | account=38a09429...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-07-26T16:48:22.746Z"}
+
+data: {"data":"[16:48:22] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 443843ms | complete","timestamp":"2026-07-26T16:48:22.754Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-07-26T16:48:24.809Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:48:24.771Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 4 msgs | 30 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 4 msgs | 30 tools\"}","timestamp":"2026-07-26T16:48:24.821Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:48:24.776Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-07-26T16:48:24.821Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:48:24.780Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:eebcc... has no available affinity target\"}","timestamp":"2026-07-26T16:48:24.821Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-07-26T16:48:24.781Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 2bcea68b...\"}","timestamp":"2026-07-26T16:48:24.821Z"}
+
+data: {"data":"time=2026-07-26T16:48:33.993Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=00000000000000dc","timestamp":"2026-07-26T16:48:33.994Z"}
+
+data: {"data":"time=2026-07-26T16:48:33.994Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000d8 txid.max=00000000000000dc size=300602","timestamp":"2026-07-26T16:48:33.994Z"}
+
+data: {"data":"[16:49:24] 📊 \u001b[32m[USAGE] NVIDIA | in=49673 | out=1009 | account=2bcea68b...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=576","timestamp":"2026-07-26T16:49:24.397Z"}
+
+data: {"data":"[16:49:24] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 59593ms | complete","timestamp":"2026-07-26T16:49:24.406Z"}
+
+data: {"data":"time=2026-07-26T16:49:32.732Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000dd txid.max=00000000000000de size=301037","timestamp":"2026-07-26T16:49:32.732Z"}
+
+data: {"data":"time=2026-07-26T16:49:56.321Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=2 max_l1_txid=00000000000000de","timestamp":"2026-07-26T16:49:56.321Z"}
+
+data: {"data":"time=2026-07-26T16:50:04.736Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000df txid.max=00000000000000df size=419","timestamp":"2026-07-26T16:50:04.736Z"}
+
+data: {"data":"time=2026-07-26T16:50:05.944Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000d8 txid.max=00000000000000de size=301037","timestamp":"2026-07-26T16:50:05.944Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:38a09429-95ad-4b2f-940b-ed886fad7d7a (inactive for 628s)","timestamp":"2026-07-26T16:51:33.699Z"}
+
+data: {"data":"time=2026-07-26T16:54:57.051Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=7 max_l1_txid=00000000000000df","timestamp":"2026-07-26T16:54:57.051Z"}
+
+data: {"data":"time=2026-07-26T16:55:04.994Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000df txid.max=00000000000000df size=419","timestamp":"2026-07-26T16:55:04.994Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2bcea68b-9f7a-4673-b1f0-80a66320fc88 (inactive for 606s)","timestamp":"2026-07-26T16:58:33.703Z"}
+
+data: {"data":"time=2026-07-26T17:00:04.392Z level=INFO msg=\"snapshot complete\" txid=00000000000000df size=301037","timestamp":"2026-07-26T17:00:04.392Z"}
+
+data: {"data":"time=2026-07-26T17:00:11.857Z level=INFO msg=\"compaction complete\" level=3 txid.min=000000000000004c txid.max=00000000000000df size=301037","timestamp":"2026-07-26T17:00:11.857Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 3ms","timestamp":"2026-07-26T17:25:40.246Z"}
+
+data: {"data":"time=2026-07-26T17:26:03.288Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000e1","timestamp":"2026-07-26T17:26:03.288Z"}
+
+data: {"data":"time=2026-07-26T17:26:03.288Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000e0 txid.max=00000000000000e1 size=301037","timestamp":"2026-07-26T17:26:03.289Z"}
+
+data: {"data":"time=2026-07-26T17:30:02.191Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000e0 txid.max=00000000000000e1 size=301037","timestamp":"2026-07-26T17:30:02.191Z"}
+
+data: {"data":"time=2026-07-26T17:34:56.532Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000e1","timestamp":"2026-07-26T17:34:56.532Z"}
+
+data: {"data":"time=2026-07-26T18:00:04.223Z level=INFO msg=\"snapshot complete\" txid=00000000000000e1 size=301037","timestamp":"2026-07-26T18:00:04.223Z"}
+
+data: {"data":"time=2026-07-26T18:00:08.547Z level=INFO msg=\"compaction complete\" level=3 txid.min=00000000000000e0 txid.max=00000000000000e1 size=301037","timestamp":"2026-07-26T18:00:08.547Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 4ms","timestamp":"2026-07-26T18:35:40.250Z"}
+
+data: {"data":"time=2026-07-26T18:36:04.340Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000e3","timestamp":"2026-07-26T18:36:04.340Z"}
+
+data: {"data":"time=2026-07-26T18:36:04.340Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000e2 txid.max=00000000000000e3 size=301037","timestamp":"2026-07-26T18:36:04.340Z"}
+
+data: {"data":"time=2026-07-26T18:40:02.730Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000e2 txid.max=00000000000000e3 size=301037","timestamp":"2026-07-26T18:40:02.731Z"}
+
+data: {"data":"time=2026-07-26T18:44:56.413Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000e3","timestamp":"2026-07-26T18:44:56.413Z"}
+
+data: {"data":"time=2026-07-26T19:00:04.168Z level=INFO msg=\"compaction complete\" level=3 txid.min=00000000000000e2 txid.max=00000000000000e3 size=301037","timestamp":"2026-07-26T19:00:04.168Z"}
+
+data: {"data":"time=2026-07-26T19:00:04.318Z level=INFO msg=\"snapshot complete\" txid=00000000000000e3 size=301037","timestamp":"2026-07-26T19:00:04.318Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 3ms","timestamp":"2026-07-26T19:45:40.250Z"}
+
+data: {"data":"time=2026-07-26T19:46:03.517Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000e5","timestamp":"2026-07-26T19:46:03.517Z"}
+
+data: {"data":"time=2026-07-26T19:46:03.517Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000e4 txid.max=00000000000000e5 size=301037","timestamp":"2026-07-26T19:46:03.517Z"}
+
+data: {"data":"time=2026-07-26T19:50:02.936Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000e4 txid.max=00000000000000e5 size=301037","timestamp":"2026-07-26T19:50:02.936Z"}
+
+data: {"data":"time=2026-07-26T19:54:56.645Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000e5","timestamp":"2026-07-26T19:54:56.646Z"}
+
+data: {"data":"time=2026-07-26T20:00:04.395Z level=INFO msg=\"snapshot complete\" txid=00000000000000e5 size=301037","timestamp":"2026-07-26T20:00:04.395Z"}
+
+data: {"data":"time=2026-07-26T20:00:04.658Z level=INFO msg=\"compaction complete\" level=3 txid.min=00000000000000e4 txid.max=00000000000000e5 size=301037","timestamp":"2026-07-26T20:00:04.659Z"}
+
+: keep-alive
+

@@ -2,6 +2,29 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-07-27 · 3.8.49 升级 Step -1 静态核毕 (互斥表已核正交 + 3 卡口锁径) — 裁决权归圣上, 未预设
+
+> 圣上 2026-07-26 "搜索查证能升级 3.8.49 吗" 令 → cg52 Step -1 纯本地只读静态核毕, 未触 Space/未联网 (仅 GH API 验 release tag)/未触生产凭。互斥表 + 3 卡口双实证入 SSOT (DECISIONS 顶插 + audit 落盘)。
+
+### Step -1 结论双实证
+- **互斥核 — 3.8.49 三新机制与我侧血统五件全正交** (audit §6):
+  - real_context=200000 override 走 `model_context_overrides` 表 (init:893), 3.8.49 该表/接口/消费函数体 getModelContextLimit 双版 diff rc=0 字节级零改, Feature 5004 注释双版同句 "persisted override wins over static catalog + models.dev sync" (modelCapabilities.ts:524 ≡ 3.8.43:447)
+  - nvidia 不在 3.8.49 GLM-5.2 authoritative provider 6 map 中, 1M 静态表仅填 fallback 路径不触 (我 override `??` 之前 wins, 生产 effective=200K 不变)
+  - gate.js #4 CTX guard (1.5MB 字节硬拦) 与 3.8.49 token 数机制正交, 无双重限制误杀
+- **3 卡口锁执行径** (audit §11): ① 上游 GitHub 无 v3.8.49 tag (最高 v3.8.48, `git/refs/tags/v3.8.49` 404); ② 3.8.49 = fork release/v3.8.49 分支 ce80af6 非上游 release (CLAUDE.md:23 §1 至高 + audit/全维度 §1.5 锁 "基座 3.8.43 + 3.8.49 定点移植" "禁整体升 3.8.49"); ③ upstream_check.sh 取 /releases/latest 自动流最高只到 3.8.48 (3.8.49 不可触自动流, 整体切须手动 build)
+
+### 4 升级径候选 (裁决权归圣上, 未预设)
+1. **定点移植径 (守 §1)** — 欲拿 3.8.49 某 patch 走 dev/logic/** 五件 backport, 非切 base
+2. **整体切 3.8.49 base (破 §1 基座钉锚)** — 须圣上明令改 CLAUDE.md:23 + DECISIONS (新裁决覆盖旧锚), 手动 build :3.8.49 fork digest 钉版
+3. **整体切 3.8.48 base (守自动流)** — 上游真 release, da99fac1 已就绪, 须 3.8.48 vs 3.8.43 互斥重核 + Step 0 dev 24h
+4. **不升级 (互斥表归档)** — 现 nomke 25-key 九段绿 rc=0 稳, 升级非必项
+
+### 待办 (Step -1 后, 阻塞于裁决令)
+- ⏳ 圣上裁决 4 径中哪条 (或新径) — audit §1.5 "禁整体升 3.8.49" 翻案须明令
+- (若选径1) cg52 出 3.8.49 backport 适用候选清单 (#6524 max_token override / GLM-5.2 1M authoritative / 等)
+- (若选径2/3) K3 Step 0 dev nonoke/omn 24h 实证四点 (real_context 读回 / gate 1.5MB 拦 / 25-key 探活 / litestream snapshot)
+- 出处: audit/2026-07-27-3.8.49-compat-static-audit.md §6/§11/§12 + DECISIONS 2026-07-27 条
+
 ## 2026-07-26 · Phase 2 切流链六步全闭环 (变量切换径, 零 Rebuild) — production nomke/omn 现跑 dev logic 4.3.2
 
 > 圣上 7-26 钉死: nomke boot 跑 dev logic 升级态 4.3.2, 无须重建。切流走**变量切换径** (非骨架重推 Rebuild 径), 15:23Z nomke boot 坐实生产切流后态。

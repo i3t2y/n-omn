@@ -3,6 +3,12 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-27 · 3.8.49 升级可行性 Step -1 静态核定谳: 互斥表已核正交 + 3 卡口锁执行径 (裁决权归圣上, 未预设)
+圣上 2026-07-26 "搜索查证能升级 3.8.49 吗" 令 → cg52 跑 Step -1 (静态核, 纯本地只读). 两阶段实证:
+- **互斥核 (§6)**: 3.8.49 三新机制 (getAuthoritativeStaticContextWindow / max_token override #6524 / maxInputTokens 新链) 与我侧血统五件 **全正交**. 我侧 real_context=200000 走 `model_context_overrides` 表 (init-nim-keys.sh:893), 3.8.49 该表/接口/消费函数体 getModelContextLimit 字节级零改 (双版 diff rc=0), Feature 5004 注释双版同句 "persisted override wins over static catalog + models.dev sync" (modelCapabilities.ts:524 ≡ 3.8.43:447). nvidia 不在 3.8.49 GLM-5.2 authoritative provider 6 map 中, 1M 静态表仅填 fallback 路径不触 (我 override `??` 之前 wins, 生产 effective=200000 不变). gate.js #4 CTX guard (Patch B 1.5MB 字节硬拦) 与 3.8.49 token 数机制正交 (gate 防字节堤, 3.8.49 防模型 catalog 错), 无双重限制误杀.
+- **执行径卡口 (§11)**: 3 卡口实证 — ① 上游 GitHub diegosouzapw/OmniRoute 无 v3.8.49 tag (最高 release=v3.8.48 2026-07-13, `git/refs/tags/v3.8.49` HTTP 404); ② 3.8.49 是 fork 的 release/v3.8.49 分支 ce80af6 非上游 tag release (CLAUDE.md:23 §1 至高 + audit/2026-07-22-全维度接手方案 §1.5 锁 "基座 3.8.43 + 3.8.49 定点移植", "禁整体升级 3.8.49"); ③ upstream_check.sh 取 /releases/latest → 自动流最高只能到 3.8.48 (3.8.48 base da99fac1 已预构建就绪), 3.8.49 不可触自动流 (整体切须手动 build fork 分支 digest 钉版).
+- **4 升级径候选 (本档不预设裁决, 裁决权归圣上)**: 1.定点移植径 (守 §1, backport 至 dev/logic/**) / 2.整体切 3.8.49 base (破 §1 基座钉锚, 须明令改 CLAUDE.md:23+本条) / 3.整体切 3.8.48 base (守自动流, 真上游 release, 须 3.8.48 vs 3.8.43 互斥重核 + Step 0) / 4.不升级 (互斥表归档, 现 nomke 25-key 九段绿 rc=0 稳). 裁决令未至前, audit/2026-07-22-全维度接手方案 §1.5 "禁整体升 3.8.49" 仍锁, 守 CLAUDE.md §0 "不重复已锁定决策 (翻案须 Supreme 明确指令)". 出处: audit/2026-07-27-3.8.49-compat-static-audit.md §6 互斥表 + §11 三卡口 + §12 四径候选.
+
 ## 2026-07-26 · 四死名 Variable 划除 (zero 真消费, 圣上 Space web 删) — NIM_RPM/NIM_PROBE/NIM_FREE_CONCURRENT/NIM_SCALE_WITH_KEYS
 切流 git SSOT 落地后圣上审 Space Variables 清单, 我核消费点定谳四死名 (现役 bootstrap.sh/entrypoint.sh/dev/logic/* 零真消费), 圣上 2026-07-26 Space web 侧删:
 - **NIM_RPM**: 现 boot 限流 RPM 由 init-nim-keys.sh 动态推导 (cap=300, `init:208/667` 算法), 非 env 注; `dev/logic/init-nim-keys.sh` 零 `${NIM_RPM}` 引用. (仅 `.claude/worktrees/nim-pool-rebuild/init-nim-keys.sh:48 _RPM=${NIM_RPM:-40}` = worktree 历史分叉态, 非现役血统.)

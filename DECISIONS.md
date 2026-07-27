@@ -3,6 +3,13 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-27 · 整体切 3.8.48 裁决 (径 C): 守自动流, GHCR 预构建镜像 da99fac1 就绪, 仅改 BASE_IMAGE 变量切换, 不构建新镜像
+圣上 2026-07-27 裁决走径 C — 整体切 3.8.48 base (上游真 release, 2026-07-13), 不构建新镜像 (GHCR 预构建镜像 `ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f` 已就绪), 仅改 BASE_IMAGE 变量切换 (dev nonoke/omn 先行蹚 24h → prod nomke/omn 后切, 回滚=改回 `ghcr.io/i3t2y/omniroute-base@sha256:9c9aecfd9eb529f44ab99cf94970aea896328146c64adc8ba146bfe809231347` 3.8.43 重启即回).
+- **不翻 CLAUDE.md:23**: §1 至高 "基座 3.8.43 + 4.2.3 行为参数 + 3.8.49 定点移植" 不动; 3.8.49 分支 (ce80af6) 仍为定点移植源池, 本次切的是 3.8.48 (上游真 release, 非 fork 分支), 不破基座钉锚.
+- **不用上游官方镜像三理由入册**: ① 官方 diegosouzapw/omniroute 镜像无 litestream 二进制 (备份链会断, 我方 omn-ops/ghcr/Dockerfile:43-54 自带 litestream-0.5.9 本地 tar COPY + 解 /usr/local/bin); ② HF 构建机拉 Docker Hub 有匿名速率限制 (Rebuild 可靠性风险); ③ digest 钉锚与供应链统一走自有 GHCR (BASE_IMAGE 钉 digest 不可变防漂移).
+- **3.8.48 兼容性 Step -1 静态核毕** (audit/2026-07-27-3.8.48-compat-static-audit.md): 三新机制 (getAuthoritativeStaticContextWindow / max_token override / maxInputTokens 新链) 在 3.8.48 全落地 + 我侧 real_context=200000 消费链 getModelContextLimit 3.8.48:513-526 与 3.8.43:436-449 字节级一致 (Feature 5004 persisted override wins); GLM-5.2 authoritative 静态表 3.8.48 modelSpecs.ts:54-75 已落, nvidia 不进 provider 6 map (我侧走 model_context_overrides 表径正交); 新增迁移 9 件 (113-122, 121 跳号, 117_proxy_pool_rotation 破坏式但自带回填且我侧血统未用 proxy_assignments 表, 余 8 件累加无损).
+- 出处: audit/2026-07-27-3.8.48-compat-static-audit.md (互斥铁证表 + 迁移清单 + litestream grep 实证). 切换执行序五步见 ops/STATUS.md 2026-07-27 段.
+
 ## 2026-07-27 · 3.8.49 升级可行性 Step -1 静态核定谳: 互斥表已核正交 + 3 卡口锁执行径 (裁决权归圣上, 未预设)
 圣上 2026-07-26 "搜索查证能升级 3.8.49 吗" 令 → cg52 跑 Step -1 (静态核, 纯本地只读). 两阶段实证:
 - **互斥核 (§6)**: 3.8.49 三新机制 (getAuthoritativeStaticContextWindow / max_token override #6524 / maxInputTokens 新链) 与我侧血统五件 **全正交**. 我侧 real_context=200000 走 `model_context_overrides` 表 (init-nim-keys.sh:893), 3.8.49 该表/接口/消费函数体 getModelContextLimit 字节级零改 (双版 diff rc=0), Feature 5004 注释双版同句 "persisted override wins over static catalog + models.dev sync" (modelCapabilities.ts:524 ≡ 3.8.43:447). nvidia 不在 3.8.49 GLM-5.2 authoritative provider 6 map 中, 1M 静态表仅填 fallback 路径不触 (我 override `??` 之前 wins, 生产 effective=200000 不变). gate.js #4 CTX guard (Patch B 1.5MB 字节硬拦) 与 3.8.49 token 数机制正交 (gate 防字节堤, 3.8.49 防模型 catalog 错), 无双重限制误杀.

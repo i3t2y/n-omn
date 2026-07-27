@@ -2,6 +2,24 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-07-27 · 3.8.48 整体切换 (径 C 裁决) — Step -1 静态核毕, 待圣上切变量
+圣上 2026-07-27 裁决走径 C: 整体切 3.8.48 base (上游真 release), 不构建新镜像 (GHCR 预构建已就绪), 仅改 BASE_IMAGE 变量切换。不翻 CLAUDE.md:23 (3.8.49 分支仍定点移植源池, 本次切 3.8.48 非 fork)。不用上游官方镜像三理由: 无 litestream / Hub 速率限制 / digest 钉锚统一 GHCR (入 DECISIONS). step -1 兼容性静态核毕 → 3.8.48 vs 3.8.43 互斥铁证表 (modelCapabilities 81 行含三新机制, modelContextOverrides/contextWindowResolver 0 行零改, modelSpecs 102 行含 GLM-5.2 authoritative 表) + 我侧 real_context=200000 消费链 getModelContextLimit 3.8.48:513-526 与 3.8.43:436-449 字节级一致 (Feature 5004 persisted override wins) + 新增迁移 9 件全清单 (113-122, 117_proxy_pool_rotation 破坏式但自带回填+我侧血统未用 proxy_assignments 表, 余 8 件累加无损). 出处: audit/2026-07-27-3.8.48-compat-static-audit.md.
+
+### 切换执行序五步 (Space 侧操作全圣上手, cg52 只列单; 等令)
+1. **圣上**: nonoke/omn 补设 `R2_BUCKET=omn-data` (旧账, 与本次并行)
+2. **圣上**: nonoke/omn `BASE_IMAGE → ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f`
+3. **dev 验收四点** (dev side): ① 版本=3.8.48 ② real_context 读回=200000 ③ gate 1.5MB 拦 (413 实测) ④ 25-key 探活全绿 + litestream snapshot 持续; fetch-nonoke-logs 抓帧留证
+4. **dev 24h 全绿 → 圣上切 nomke/omn** (prod): boot 三硬标 — 版本=3.8.48 / bucket=omniroute-data 不变 / snapshot complete; prod 侧 compaction/AccessDenied **无白名单, 见一即停**
+5. **回滚**: BASE_IMAGE 改回 `ghcr.io/i3t2y/omniroute-base@sha256:9c9aecfd9eb529f44ab99cf94970aea896328146c64adc8ba146bfe809231347` (3.8.43) 重启即回; 若新迁移已跑过 prod 库, 连 DB 从切换前 litestream 快照一起恢复
+
+### 待办清单
+- [ ] 圣上 nonoke/omn 设 R2_BUCKET=omn-data + BASE_IMAGE 切 3.8.48 digest da99fac1
+- [ ] dev nonoke/omn 验收四点 (版本/real_context/gate 413/25-key 探活+snapshot) + fetch-nonoke-logs 抓帧留证
+- [ ] dev 24h 全绿观察 → 判 dev 通过
+- [ ] 圣上 nomke/omn 切 3.8.48 + boot 三硬标验 (版本/bucket/snapshot) + prod 侧 compaction/AccessDenied 监控见一即停
+- [ ] 回滚底牌预备: 切换前 litestream 快照锚记 (回滚连 DB 一起恢复)
+- [ ] cg52 等 commit 令后提交本批 (audit + DECISIONS + STATUS 三件纯增)
+
 ## 2026-07-27 · 3.8.49 升级 Step -1 静态核毕 (互斥表已核正交 + 3 卡口锁径) — 裁决权归圣上, 未预设
 
 > 圣上 2026-07-26 "搜索查证能升级 3.8.49 吗" 令 → cg52 Step -1 纯本地只读静态核毕, 未触 Space/未联网 (仅 GH API 验 release tag)/未触生产凭。互斥表 + 3 卡口双实证入 SSOT (DECISIONS 顶插 + audit 落盘)。

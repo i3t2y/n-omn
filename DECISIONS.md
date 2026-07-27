@@ -3,8 +3,8 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
-## 2026-07-27 · 切换机制实证修正: HF Space Variable 不透 build-arg, 切换权威开关转 ARG 默认值 (git 管理)
-径 C 切换首演实证 (圣上 nonoke/omn Rebuild 后 build log 仍 `FROM ghcr.io/i3t2y/omniroute-base:stable@sha256:9c9aecfd...`), 旧前提 "改 Space Variable → Rebuild 切换" 被**实证推翻**:
+## 2026-07-27 · 切换机制实证修正: HF Space Variable 不透 build-arg, 切换权威开关转 ARG 默认值 (git 管理) — 首演反证成立定稿
+径 C 切换首演实证 (圣上 nonoke/omn Rebuild 后 build log 仍 `FROM ghcr.io/i3t2y/omniroute-base:stable@sha256:9c9aecfd...`), 旧前提 "改 Space Variable → Rebuild 切换" 被**实证推翻。首演反证成立** (2026-07-27 02:48Z dev nonoke/omn boot 实证, 机制修正定稿):
 - **机制病根**: HF Space Variables/Secrets 仅注入运行时 env, **不透传 docker build --build-arg 通道** (UI/README metadata 无此开关)。Dockerfile 行 8 `ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable` 用默认值 `:stable` 拉镜像, Variable 改值 (`:3.8.48@da99fac1...f408f`) 不进 build 期。build log `FROM :stable@9c9aecfd` 中 `:stable` = ARG 默认值原文铁证 (缓存/笔误/改错 Space 三假设均解释不了"默认值原文现于解析结果", 唯机制不透传可解)。
 - **旧条已证伪**: 2026-07-25 "GHCR BASE_IMAGE digest 钉锚 9c9aecf" 条言 "Space Variable 由圣上手动钉锚 digest 9c9aecf, 非 workflow 注入" + "Dockerfile 一字不动" 前提 — **此二句的"Variable 作权威开关"假设已被推翻**, Variable 实为运行时摆设 (build 不读, bootstrap 不读即纯死配置)。Dockerfile ARG 默认值才是权威开关。
 - **径 C 精神不破**: 仍不构建新镜像 (da99fac1 预构建产物, Space rebuild 仅 FROM 拉取), 仍 digest 钉锚。开关从 Space UI 挪进 git, SSOT 反更完整 (每次切换有 commit 历史可查)。回滚路径升级: `git revert` 该 commit + push + rebuild 即回 9c9aecfd, 比改变量更硬 (原回滚路径自带同一 bug — 若未来切更新版再靠改变量回滚会静默失效, 一并修了)。

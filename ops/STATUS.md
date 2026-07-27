@@ -2,11 +2,22 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
-## 2026-07-27 · 3.8.48 整体切换 (径 C 裁决) — Step -1 核毕 + 切换机制实证修正, 待 push ARG 改动
+## 2026-07-27 · 3.8.48 整体切换 (径 C 裁决) — ARG 改动已 push+sync+dev boot 实证三绿 (02:48Z), 待 gate 413 + snapshot 两笔补 → 24h 窗正式启
 圣上 2026-07-27 裁决走径 C: 整体切 3.8.48 base (上游真 release), 不构建新镜像 (GHCR 预构建已就绪), 仅改 BASE_IMAGE 切换。不翻 CLAUDE.md:23 (3.8.49 分支仍定点移植源池, 本次切 3.8.48 非 fork)。不用上游官方镜像三理由: 无 litestream / Hub 速率限制 / digest 钉锚统一 GHCR (入 DECISIONS). step -1 兼容性静态核毕 → 3.8.48 vs 3.8.43 互斥铁证表 (modelCapabilities 81 行含三新机制, modelContextOverrides/contextWindowResolver 0 行零改, modelSpecs 102 行含 GLM-5.2 authoritative 表) + 我侧 real_context=200000 消费链 getModelContextLimit 3.8.48:513-526 与 3.8.43:436-449 字节级一致 (Feature 5004 persisted override wins) + 新增迁移 9 件全清单 (113-122, 117_proxy_pool_rotation 破坏式但自带回填+我侧血统未用 proxy_assignments 表, 余 8 件累加无损). 出处: audit/2026-07-27-3.8.48-compat-static-audit.md.
 
-### 切换机制实证修正 (2026-07-27 首演现形)
+### 切换机制实证修正 (2026-07-27 首演现形 + dev boot 反证成立定稿)
 径 C 切换首演实证推翻旧前提 "改 Space Variable → Rebuild 切换": HF Space Variables 只注 runtime env, **不透 docker build --build-arg 通道**。圣上 nonoke/omn Rebuild 后 build log 仍 `FROM ghcr.io/i3t2y/omniroute-base:stable@sha256:9c9aecfd...` — `:stable` = Dockerfile 行 8 ARG 默认值原文 (非圣上改的 Variable 值 `:3.8.48@da99fac1...f408f`), Variable 未进 build 期。**切换权威开关 = Dockerfile ARG 默认值 (git 管理, commit 历史可查), 非 Space Variable**。旧 Variable 成死配置 (build 不读, bootstrap 不读即纯摆设)。径 C 精神不破: 仍不构建新镜像 + 仍 digest 钉锚; 回滚升级 `git revert` 该 commit + push + rebuild 即回 9c9aecfd (原回滚路径自带同 bug 一并修)。详见 DECISIONS "切换机制实证修正" 条 + Dockerfile 行 1-9 注释。
+
+### dev boot 三绿实证 (2026-07-27 02:48Z, 移迁链动态印证 + 病根反证成立)
+圣上手跑 commit `68ee550` (Dockerfile ARG 改) + push `747356b..68ee550 main -> main` → sync-space-nonoke.yml workflow run `30233008154` event=push auto-trigger conclusion=success → 同步 Dockerfile 到 dev nonoke/omn + 触 HF Rebuild → boot 02:48:44Z 全绿:
+- **① 版本=3.8.48** ✓ 三铁证: `[entrypoint] 版本=3.8.48` + `[init] version: 3.8.48` + `[init] Status: healthy / 3.8.48` — 机制修正反证成立 (改 ARG 默认值即切, 病根诊断无悬念, 旧 `no build stage` build error 根除)
+- **② real_context 读回=200000** ✓: `[init] per-model 200K override (real_context=200000)` + `override: 6 applied, 0 failed` + `POOL_STRATEGY=p2c REAL_CONTEXT=200000` — 静态核"persisted override wins 链字节级一致"动态印证
+- **④ 25-key 探活+snapshot 基础全绿** ✓: probe `alive=7 dead=0` + `Keys: 7 registered, 0 skipped, 0 failed` + Resilience 读回 `RPM=245/244/21/300000` 全字段一致 + `HF Dataset uploaded.` + `[entrypoint] NIM init 已退出 rc=0`
+- **移迁链动态印证**: 113-122 九件迁移 boot 时全跑 (`113_provider_node_icon_url` ... `122_free_proxy_sync_errors` 全 `Applied`, 含 `117_proxy_pool_rotation` 破坏式 + `119_model_capability_overrides` 新表) + `118 migration(s) applied successfully` 无中断 — 静态核"117 破坏式自带回填+我侧未用 proxy_assignments + 119 累加 CREATE TABLE"判与 dev 实态完全吻合
+- **dev 侧 restore 空库启动 (非阻塞, prod 侧须验 R2)**: `[entrypoint] ⚠ restore 失败 rc=1 (空库启动)` + `database not found in config` — dev nonoke/omn R2 omn-data 无 3.8.48 历史 snapshot (新 bucket 首 boot), litestream restore 空走空库 + migration 重建表。dev 无持久数据须保正常, **prod 切前须盯 R2 restore 拉 omniroute-data 真库 — restore 失败即停 (数据丢失风险)**
+
+### 版本断言软观察口子 (dev 阶段够, prod 切前补硬门)
+dev boot 版本行括号 `版本=3.8.48 (期望未设置, 跳过比对)` — entrypoint 有版本比对机制但未武装 (EXPECTED_VERSION 未设), 版本被**观察**非被**断言**。dev 阶段人眼核够, prod 切换时补 `EXPECTED_VERSION=3.8.48` 变量让版本不符直接 boot 失败, 把"boot 三硬标"里的版本标从人眼核升级机器拦截。此列入 prod 切换前变量清单, 与 prod 侧其他设置一起下。
 
 ### dev/prod 隔离拓扑 (push 前已核, code-level 钉死)
 - sync-space-nonoke.yml (dev): `push: branches: [main] paths: [Dockerfile]` 自动触 → 同步 Dockerfile 到 nonoke/omn + 触 HF Rebuild
@@ -26,12 +37,21 @@
 ### 待办清单
 - [ ] cg52 等 commit 令后提交本批 (Dockerfile ARG + 注释 + DECISIONS + STATUS 四件)
 - [ ] cg52 push 到 main → sync-space-nonoke.yml 自动同步 dev nonoke/omn + 触 Rebuild
-- [ ] 圣上 nonoke/omn 补设 R2_BUCKET=omn-data (旧账并行)
-- [ ] dev 验收四点 (FROM 行版本 + real_context/gate 413/25-key 探活+snapshot) + fetch-nonoke-logs 抓帧留证
-- [ ] dev 24h 全绿观察 → 判 dev 通过
-- [ ] 圣上 workflow_dispatch sync-space-nomke.yml 显令切 prod + boot 三硬标验 (版本/bucket/snapshot) + prod 侧 compaction/AccessDenied 监控见一即停
+- [x] cg52 commit `68ee550` + push `747356b..68ee550 main -> main` (Dockerfile ARG + 注释 + DECISIONS + STATUS 四件定点替换/纯增)
+- [x] sync-space-nonoke.yml auto-trigger run `30233008154` conclusion=success → 同步 dev nonoke/omn + 触 HF Rebuild
+- [x] 圣上 nonoke/omn 补设 R2_BUCKET=omn-data (旧账落地, boot log bucket=omn-data 验)
+- [x] dev 验收四点之 ① 版本=3.8.48 (三铁证) + ② real_context=200000 (override 6 applied) + ④ 25-key 探活 7 alive/7 registered/0 failed + Resilience 读回一致 + init rc=0 + snapshot 首帧 (HF Dataset uploaded)
+- [x] 移迁链动态印证: 113-122 九件迁移全跑无中断 + 117 破坏式自带回填无报错 (静态核吻合)
+- [ ] **剩两笔 (24h 钟正式走前置)**:
+  - [ ] gate 1.5MB 413 实测 (圣上 dev env urllib 建 >1.5MB body 打 gate 期返 413, + 刚低于阈值放行确认堤只挡该挡, prod 血统最后防线须实测不只理论正交)
+  - [ ] litestream snapshot 持续性核 (boot 后 snapshot 正常持续出产, 不只首帧, fetch-nonoke-logs 抓帧留证)
+- [ ] **24h 钟正式走 (上两笔绿后)**: 02:48Z boot + 24h = 2026-07-28 02:48Z 验收窗满
+- [ ] **prod 切前 checklist (圣上下令切 prod 时三笔)**:
+  - [ ] nomke/omn 此刻仍 3.8.43 且未 rebuild (dev/prod 隔离真实成立经验证据, 顺手验版本行即可)
+  - [ ] nonoke/omn 死配置 BASE_IMAGE Variable 了断 (删或注明 ARG 默认值为唯一权威开关, 别留到 prod 切时误导操作)
+  - [ ] nomke/omn 切前补设 EXPECTED_VERSION=3.8.48 (版本断言升硬门, 不符直接 boot 失败)
+- [ ] 圣上 workflow_dispatch sync-space-nomke.yml 显令切 prod + 盯 R2 restore 拉 omniroute-data 真库 (restore 失败即停 数据丢失风险) + boot 三硬标验 (版本/bucket/snapshot) + prod 侧 compaction/AccessDenied 监控见一即停
 - [ ] 回滚底牌预备: 切换前 litestream 快照锚记 (回滚连 DB 一起恢复)
-- [ ] dev 验收后处理 nonoke/omn 死配置 BASE_IMAGE Variable (删或注 ARG 默认值才是权威开关, 二选一)
 
 ## 2026-07-27 · 3.8.49 升级 Step -1 静态核毕 (互斥表已核正交 + 3 卡口锁径) — 裁决权归圣上, 未预设
 

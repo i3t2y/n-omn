@@ -15,6 +15,12 @@
 - **④ 25-key 探活+snapshot 基础全绿** ✓: probe `alive=7 dead=0` + `Keys: 7 registered, 0 skipped, 0 failed` + Resilience 读回 `RPM=245/244/21/300000` 全字段一致 + `HF Dataset uploaded.` + `[entrypoint] NIM init 已退出 rc=0`
 - **移迁链动态印证**: 113-122 九件迁移 boot 时全跑 (`113_provider_node_icon_url` ... `122_free_proxy_sync_errors` 全 `Applied`, 含 `117_proxy_pool_rotation` 破坏式 + `119_model_capability_overrides` 新表) + `118 migration(s) applied successfully` 无中断 — 静态核"117 破坏式自带回填+我侧未用 proxy_assignments + 119 累加 CREATE TABLE"判与 dev 实态完全吻合
 - **dev 侧 restore 空库启动 (非阻塞, prod 侧须验 R2)**: `[entrypoint] ⚠ restore 失败 rc=1 (空库启动)` + `database not found in config` — dev nonoke/omn R2 omn-data 无 3.8.48 历史 snapshot (新 bucket 首 boot), litestream restore 空走空库 + migration 重建表。dev 无持久数据须保正常, **prod 切前须盯 R2 restore 拉 omniroute-data 真库 — restore 失败即停 (数据丢失风险)**
+- **K3 审计裁决入账 (2026-07-27, 04:55 boot 完整 log 复核)**: K3 (审计员 Kimi-K3) 复核圣上贴 04:55:18Z 完整 boot log 裁决:
+  - **ERROR 定性修正 (原"litestream 启动竞态"措辞作废)**: ERROR = entrypoint 空库恢复分支**设计行为**, 非 litestream 故障 — litestream 04:55:46 初始化晚于 ERROR 04:55:40 整 6 秒, litestream 未在场无竞态可能。时序铁证推翻旧稿措辞。audit `2026-07-27-3.8.48-dev-snapshot-multiframe-landed.md §3` 已修正。
+  - **04:55 boot snapshot 全链铁证追加**: txid 0x01→0x03→0x15→0x19→0x1a→0x1b 跨 ≥27 代 monotonic 递增, size 105383→182563 (+77180B 真 WAL), compaction L0/L1/L2 多级活动正常。audit §2.1 已落。
+  - **异常 1 (05:01 时段 "真id" 测试流量混入, 排除验收外)**: 有客户端发送字面量"真id"作 model 名 → `Unable to determine provider for model '真id'` + HTTP400。非 3.8.48 回归, 标注为无效样本, **不纳入 24h 窗验收标准**, 防未来检索误判。
+  - **异常 2 (05:07-05:08 opencode.ai Cloudflare Error 1010 触发 CB)**: 与 3.8.48 无关 (上游 provider 访问控制非本仓代码), 上游限制非本次升级回归。导致闸③ combo 池降级, combo 30min CB lockout 30min 设计容灾正常。
+  - **24h 窗状态锁**: 起算冻 2026-07-27T05:31:55Z (笔2 绿末, txid 0x0f) / 出门 2026-07-28T05:31:55Z / 窗内监控标准 = 每 30min 验 evidence 新帧 txid 递增 + 零**新增** ERROR (§3 entrypoint 空库恢复分支 ERROR 不算阻, 仅"新增"≠恢复分支的 ERROR 才算阻)
 
 ### 版本断言软观察口子 (dev 阶段够, prod 切前补硬门)
 dev boot 版本行括号 `版本=3.8.48 (期望未设置, 跳过比对)` — entrypoint 有版本比对机制但未武装 (EXPECTED_VERSION 未设), 版本被**观察**非被**断言**。dev 阶段人眼核够, prod 切换时补 `EXPECTED_VERSION=3.8.48` 变量让版本不符直接 boot 失败, 把"boot 三硬标"里的版本标从人眼核升级机器拦截。此列入 prod 切换前变量清单, 与 prod 侧其他设置一起下。

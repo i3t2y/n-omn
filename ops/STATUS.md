@@ -2,7 +2,7 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
-## 2026-07-27 · 3.8.48 整体切换 (径 C 裁决) — ARG 改动已 push+sync+dev boot 实证三绿 (02:48Z), 待 gate 413 + snapshot 两笔补 → 24h 窗正式启
+## 2026-07-27 · 3.8.48 整体切换 (径 C 裁决) — ARG 改动已 push+sync+dev boot 三绿 (02:48Z) + ARG→Space 路径 runbook 入册, 待 gate 413 三防伪 + snapshot 多帧两笔补 → 24h 窗正式启 (起算两笔绿末时间戳)
 圣上 2026-07-27 裁决走径 C: 整体切 3.8.48 base (上游真 release), 不构建新镜像 (GHCR 预构建已就绪), 仅改 BASE_IMAGE 切换。不翻 CLAUDE.md:23 (3.8.49 分支仍定点移植源池, 本次切 3.8.48 非 fork)。不用上游官方镜像三理由: 无 litestream / Hub 速率限制 / digest 钉锚统一 GHCR (入 DECISIONS). step -1 兼容性静态核毕 → 3.8.48 vs 3.8.43 互斥铁证表 (modelCapabilities 81 行含三新机制, modelContextOverrides/contextWindowResolver 0 行零改, modelSpecs 102 行含 GLM-5.2 authoritative 表) + 我侧 real_context=200000 消费链 getModelContextLimit 3.8.48:513-526 与 3.8.43:436-449 字节级一致 (Feature 5004 persisted override wins) + 新增迁移 9 件全清单 (113-122, 117_proxy_pool_rotation 破坏式但自带回填+我侧血统未用 proxy_assignments 表, 余 8 件累加无损). 出处: audit/2026-07-27-3.8.48-compat-static-audit.md.
 
 ### 切换机制实证修正 (2026-07-27 首演现形 + dev boot 反证成立定稿)
@@ -27,8 +27,17 @@ dev boot 版本行括号 `版本=3.8.48 (期望未设置, 跳过比对)` — ent
 ### 切换执行序四步 (机制修正后)
 1. **cg52 push** (等圣上 commit 令): Dockerfile 行 8 ARG 默认值 `:stable` → `ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f` + 行 1-3 注释修正 + DECISIONS + STATUS 同批
 2. **dev 自动切**: push 到 main → sync-space-nonoke.yml 自动同步 dev nonoke/omn + 触 HF Rebuild (Factory rebuild); 圣上 nonoke/omn 补设 `R2_BUCKET=omn-data` (旧账并行, 与本次独立)
-3. **dev 验收四点** (dev side): ① build log FROM 行 = `:3.8.48@sha256:da99fac1...f408f` (机制修正生效铁证) + 版本=3.8.48 ② real_context 读回=200000 ③ gate 1.5MB 拦 (413 实测) ④ 25-key 探活全绿 + litestream snapshot 持续; fetch-nonoke-logs 抓帧留证
-4. **dev 24h 全绿 → 圣上 workflow_dispatch sync-space-nomke.yml** (prod 显令点火): 同步 prod nomke/omn + 触 Rebuild; boot 三硬标 — 版本=3.8.48 / bucket=omniroute-data 不变 / snapshot complete; prod 侧 compaction/AccessDenied **无白名单, 见一即停**
+3. **dev 验收四点** (dev side): ① build log FROM 行 = `:3.8.48@sha256:da99fac1...f408f` (机制修正生效铁证) + 版本=3.8.48 ② real_context 读回=200000 ③ gate 1.5MB 413 实测 (三道防伪见 §剩两笔) ④ 25-key 探活全绿 + litestream snapshot 多帧持续; fetch-nonoke-logs 抓帧留证
+4. **dev 24h 全绿 → 圣上 workflow_dispatch sync-space-nomke.yml** (prod 显令点火): 同步 prod nomke/omn (走 Space git remote 直推径, 见 §ARG→Space 路径 runbook) + 触 Rebuild; boot 三硬标 — 版本=3.8.48 (EXPECTED_VERSION=3.8.48 硬断言) / bucket=omniroute-data 不变 / snapshot complete; prod 侧 compaction/AccessDenied **无白名单, 见一即停**
+
+### ARG→Space 路径 runbook (sync workflow 唯一径, prod 切换执行单)
+ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 commit 可查守 §3 SSOT 不悬空):
+- **机制**: sync-space-*.yml workflow 跑时 `git init /tmp/hf-sync` → `cp Dockerfile bootstrap.sh README.md .gitattributes` (白名单四件) → `git commit -qm "sync: n-omn@<SHA>"` → `git remote add hf https://oauth2:${HF_TOKEN}@huggingface.co/spaces/<owner>/<space>` → `git push --force hf main`。Space git remote 直推带 commit 标签 `sync: n-omn@<sha>` 可回溯血统。
+- **dev**: sync-space-nonoke.yml `push: paths:[Dockerfile]` auto-trigger → 走上径推 nonoke/omn (run `30233008154` 已证 success)
+- **prod**: sync-space-nomke.yml `workflow_dispatch` (圣上显令点火) → 走同径推 nomke/omn (同血统, commit 可查)
+- **两校验 (圣上切 nomke 前手核)**:
+  - ① Space 侧 Dockerfile 与 git 仓根 ARG 行字字比对 (防 repo 与 Space 拷贝漂移): 圣上 HF Space nomke/omn → Files → Dockerfile ARG 行 vs git 仓根 `git show nomn/main:Dockerfile` ARG 行逐字对比, 应 `ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f`
+  - ② web UI 手改禁用 — 切换必走 Space git remote 直推 (sync workflow), 不走 HF web UI 手改 (web 无 commit 破 §3 SSOT 悬空账)。dev 本次已实证走 sync workflow 非 web, prod 沿用
 
 ### 回滚底牌 (升级版)
 - `git revert` 改 ARG 的 commit + push 到 main → sync-space-nonoke.yml 自动同步 dev 回 9c9aecfd; prod 须圣上再 workflow_dispatch sync-space-nomke.yml 显令回滚
@@ -43,13 +52,26 @@ dev boot 版本行括号 `版本=3.8.48 (期望未设置, 跳过比对)` — ent
 - [x] dev 验收四点之 ① 版本=3.8.48 (三铁证) + ② real_context=200000 (override 6 applied) + ④ 25-key 探活 7 alive/7 registered/0 failed + Resilience 读回一致 + init rc=0 + snapshot 首帧 (HF Dataset uploaded)
 - [x] 移迁链动态印证: 113-122 九件迁移全跑无中断 + 117 破坏式自带回填无报错 (静态核吻合)
 - [ ] **剩两笔 (24h 钟正式走前置)**:
-  - [ ] gate 1.5MB 413 实测 (圣上 dev env urllib 建 >1.5MB body 打 gate 期返 413, + 刚低于阈值放行确认堤只挡该挡, prod 血统最后防线须实测不只理论正交)
-  - [ ] litestream snapshot 持续性核 (boot 后 snapshot 正常持续出产, 不只首帧, fetch-nonoke-logs 抓帧留证)
-- [ ] **24h 钟正式走 (上两笔绿后)**: 02:48Z boot + 24h = 2026-07-28 02:48Z 验收窗满
+  - [ ] **笔1 gate 1.5MB 413 实测 (三道防伪闸全过才算绿)**:
+    - 闸1 body 线上实超 1.5MB: JSON 封装有开销, 填充放 1.6+MB (单一 message content 塞重复字符), 别临界构造自以为超了其实没超
+    - 闸2 413 必归属 gate: 看响应体错误格式/签名, 确认是 gate.js CTX_GUARD 发的 413 (含 `type:"context_length_exceeded"` 等签名), 非上游 provider 400/413 张冠李戴 (假象要防的)
+    - 闸3 低于阈值放行是完整端到端回归: body 刚低于 1.5MB 的请求返正常上游响应 (证堤坝既没溃也没误伤), 两结果缺一不算绿
+    - 路径: dev env 直通 (记忆 `dev env 直通闭环` ~/.omn-env-dev source 后 urllib POST)
+  - [ ] **笔2 litestream snapshot 持续性核 (多帧语义)**:
+    - 验收: boot 后至少两个不同时间戳的 snapshot 代数递增 + 日志零 litestream ERROR (单帧只证"能拍", 多帧才证"持续在拍")
+    - 语义认清: 现产出迁移后快照, dev 无所谓; nomke 切换时回滚锚点 = 切换前**最后一帧快照** (113-122 一旦在 prod 跑过, 回滚须连 DB 一起还原)
+    - 笔2 证快照链可信 → prod 切换前锚记动作才有意义
+    - 路径: fetch-nonoke-logs.yml workflow 抓 boot 后多帧 (不只首帧)
+- [ ] **24h 钟正式走 (上两笔最后证据时间戳起算)**: 起算钉两笔全绿末时间戳 (非 02:48Z boot), 两笔拖久窗顺延防观察期缩水; + 24h = 验收窗满
+- [ ] **24h 出门标准 (钉死防窗满扯皮)**:
+  - 验收四点全绿且证据入档 (含 413 三道防伪双铁证 + snapshot 多帧)
+  - 日志面窗内零 ERROR、零 crash loop / 非预期重启
+  - 25-key 周期探活持续全绿 (不只 boot 首探)
+  - litestream snapshot 节奏正常、无断档
 - [ ] **prod 切前 checklist (圣上下令切 prod 时三笔)**:
   - [ ] nomke/omn 此刻仍 3.8.43 且未 rebuild (dev/prod 隔离真实成立经验证据, 顺手验版本行即可)
   - [ ] nonoke/omn 死配置 BASE_IMAGE Variable 了断 (删或注明 ARG 默认值为唯一权威开关, 别留到 prod 切时误导操作)
-  - [ ] nomke/omn 切前补设 EXPECTED_VERSION=3.8.48 (版本断言升硬门, 不符直接 boot 失败)
+  - [ ] nomke/omn 切前补设 EXPECTED_VERSION=3.8.48 (版本断言升硬门, 不符直接 boot 失败, prod 不留"期望未设置跳过比对"口子)
 - [ ] 圣上 workflow_dispatch sync-space-nomke.yml 显令切 prod + 盯 R2 restore 拉 omniroute-data 真库 (restore 失败即停 数据丢失风险) + boot 三硬标验 (版本/bucket/snapshot) + prod 侧 compaction/AccessDenied 监控见一即停
 - [ ] 回滚底牌预备: 切换前 litestream 快照锚记 (回滚连 DB 一起恢复)
 

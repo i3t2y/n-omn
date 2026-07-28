@@ -3,6 +3,21 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-28 · litestream 版本驱逐 ARG+ENV (圣上令行34改) + 三件全维度源码级查证定永不再改 — 改名后唯一残留版本耦合驱逐
+
+圣上 2026-07-28 令 "改 (行34驱逐) 并全维度源码级查证 HF/omniroute 等网站定三件优化余地"。改名毕后核 start.sh 行34 litestream v0.5.9 URL 钉版 = 三件 (Dockerfile/start.sh/README) 唯一残留版本耦合点, 圣上令驱逐。
+- **litestream 版本驱逐 (Dockerfile ARG+ENV 双轨 + start.sh 读 env)**: Dockerfile 加 `ARG LITESTREAM_VERSION=0.5.9` (FROM 后重声明顺作用域铁律, /home/laisi/omn-merge/Dockerfile:48) + `ENV LITESTREAM_VERSION=${LITESTREAM_VERSION}` (ENV 转存 runtime, 行49) — start.sh 行34 镜像 A 补全分支 `_ls_v="${LITESTREAM_VERSION:-0.5.9}"` 读 env 回退兜底。升 litestream 改 ARG 默认值 + GHCR base (~/omn-ops/ghcr/Dockerfile:50 本地 tar COPY 同名资产) 同步 + push Rebuild, 或 HF Variable "LITESTREAM_VERSION" buildtime 覆盖 (官方义 build-arg 透传) 即零改件。
+- **arch 映射回归正 (修 WebFetch 误导)**: 资产名 `litestream-{ver}-linux-{arch}.tar.gz`, GitHub API 实证 v0.5.9/v0.5.15 主二进制资产用 **x86_64** (HTTP 302 通) 非 amd64 (HTTP 404), amd64 仅 VFS 扩展件名。`uname -m` 输出 x86_64 直拼 URL 无须映, 仅 `aarch64→arm64` 映 (原行33 正确, 港 GHCR base Dockerfile:50 `linux-x86_64.tar.gz` 正)。旧 docs/audit 注释 "amd64 资产为 linux-x86_64" 措辞歧义已修正为 "主资产即 x86_64 名"。
+- **全维度源码级查证结论 (三件永不再改定态)**:
+  - **README.md** 🟢 纯 HF frontmatter (sdk:docker/app_port:7860), 与 OmniRoute 版本零耦合, 职责单一, 零优化余地。
+  - **Dockerfile** 🟢 版本无关: ARG BASE_IMAGE=:stable 浮动占位 + ARG LITESTREAM_VERSION 驱逐, 无硬编码版本。EXPOSE 7860 (= HF app_port 固定) / USER root (永久需求, bootstrap 自愈需写权, 有意背离 HF 官方劝 UID 1000) / HEALTHCHECK --start-period=180s (bootstrap 长 boot 链合理, 上游 15s 不适) 全稳定不改。
+  - **start.sh** 🟢 版本号驱逐毕: litestream v0.5.9→env, huggingface_hub `>=1.0,<2.0` 是 PyPI 语义版本区间 pin (有意的破坏升级防线, 非 hardcoded 版本, 2.x 未发前永成立), LOGIC_BUCKET_REPO env contract 不改, `_dl()` 竞速根治 HEAD commit_id 锁已成熟。
+- **上游契约跨版本实证稳定 (docs/三文件永久免改.md 行30 + 本轮 WebFetch)**: DATA_DIR=/app-data / PORT=20128 / HOSTNAME=0.0.0.0 / USER node (UID1000) / ENTRYPOINT [/tmp/check-permissions.sh] / CMD [node dev/run-standalone.mjs] / base node:24-trixie-slim / 仅预装 libsecret+ca-certificates (无 python3/curl/jq/litestream) — 3.8.43/3.8.49 main 两版一致 (docs/三文件永久免改.md 行30 第三方对照 4 月前 3.3.2 inspect 同契约), 跨 5 小版本未变, 上游刻意维持稳定接口非巧合。
+- **HEALTHCHECK CMD 探 /healthz 非上游 /api/monitoring/health**: 现仓 gate.js (dev/logic/gate.js 资源) 供 /healthz, 三件外逻辑层契约。/healthz 路径若逻辑层改则 HEALTHCHECK CMD 须同步 — 非三件内耦合但属跨件契约, gate.js 改路径即改三件 (单点)。此是唯一潜在永不再改破口, 但 /healthz 稳定不改。
+- **check-permissions.sh ENTRYPOINT 上游保护**: 上游 ENTRYPOINT 验 /app/data 属主 (UID 1000 read), 现仓 ENTRYPOINT /start.sh 覆盖此 (单值 ENTRYPOINT 后写盖前), 现 USER root 不须此验。未来若降回 USER node 须复此保护 — 非 three 件永不再改破口 (现 root 定态)。
+- **HF 官方义 (huggingface.co/docs/hub/spaces-sdks-docker Variables §Buildtime)**: "Variables are passed as build-args when building your Docker Space" — ARG 名与 Variable 名字字一致即透 build-arg。2026-07-27 首演 "Variable 未透" 病根两假说 (Rebuild 缓存命中 / 改 Variable 值未真 Rebuild) 仍待下次升级真验, 官方语义非假。/data volume runtime-only (build 期不可用) — 确证 §12 Bucket 挂 /data RW 必要 (运行态持久件层, build 期不涉)。
+- **出处**: 本条 + Dockerfile 行 48-49 (ARG+ENV LITESTREAM) + start.sh 行 31-40 (镜像 A 补全 env 读) + docs/三文件永久免改.md fenced 同步 + GitHub API v0.5.9/v0.5.15 资产实测 (x86_64 302/amd64 404) + pypi huggingface-hub 1.25.1 无 2.x + huggingface.co/docs/hub/spaces-sdks-docker + huggingface.co/docs/hub/spaces-storage。
+
 ## 2026-07-28 · 根件改名 bootstrap.sh → start.sh (圣上显令, 件名去 bootstrap 谐音歧义)
 
 圣上 2026-07-28 明令 "令改名为 start.sh"。三件永久免改稿 (docs/三文件永久免改.md) 主问"三件永不再改须补改+哪些测试"先于改名令, 现役根件名 bootstrap.sh → start.sh 同步:

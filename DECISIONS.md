@@ -3,6 +3,21 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-28 · 根件改名 bootstrap.sh → start.sh (圣上显令, 件名去 bootstrap 谐音歧义)
+
+圣上 2026-07-28 明令 "令改名为 start.sh"。三件永久免改稿 (docs/三文件永久免改.md) 主问"三件永不再改须补改+哪些测试"先于改名令, 现役根件名 bootstrap.sh → start.sh 同步:
+- **git mv**: `bootstrap.sh` → `start.sh` (git history 保留 rename)。
+- **Dockerfile 同步**: 行 44 `COPY --chmod=755 start.sh /start.sh` + 行 53 `ENTRYPOINT ["/start.sh"]` + 注释行 30/37/38 `bootstrap` 词 → `start`。
+- **workflow 同步**: sync-space-nonoke.yml (行 27 paths + 行 44 白名单) + sync-space-nomke.yml (行 32 白名单) `bootstrap.sh` → `start.sh`; sync-logic-nonoke.yml (行 8) + sync-logic-nomke.yml (行 12) 注释 `bootstrap 契约` → `start 契约`。
+- **start.sh echo 签名统一**: 13 处 `[bootstrap]` → `[start]` (boot log 排障签名同步, 历史 audit/incidents `[bootstrap]` 取证锁不改) + 行 9 注释 `bootstrap 跑老镜像层` → `start 跑老镜像层`。
+- **STATUS.md 行 15 同步**: `bootstrap.sh 排障接口` → `start.sh 排障接口` + `[bootstrap]` 签名 → `[start]`。
+- **docs/三文件永久免改.md 全量同步**: fenced Dockerfile/bootstrap.sh 模板 + 标题"最终版 bootstrap.sh v3.0" → "start.sh" + 散落 `bootstrap` 词 → `start`, fenced `[bootstrap]` 签名 → `[start]`。
+- **§3 只增不改律**: 旧条 (2026-07-26 "bootstrap.sh 硬化案" 行 73/74 + 2026-07-28 ARG 双轨 行 20/24 含 `bootstrap.sh` 消费点描述) 留历史不删 — 描述时间点 (改名前) 属实; 本条新追加记录改名生效点。旧条引用 `bootstrap.sh:39` 行号/`bootstrap.sh 唯一真消费项` 即改名前快照, 现役件名 start.sh 对应行号需重对 (改名后 start.sh 行号同 bootstrap.sh, 行号不变仅件名变)。
+- **历史 audit/incidents/archive 锁不改**: audit/k3-review-r2-v30.md / ops/incidents/2026-07-25-* / archive/* / docs/OmniRoute 永续节点方案 v1/v2 内 `bootstrap.sh` 字面 + `[bootstrap]` 签名 = 已发生 boot 日志取证 + 规划历史冻结, 不改 (历史事实)。
+- **24h 窗监控影响核查**: 笔1 cron 探针 grep evidence txid 递增 + ERROR 零新增, 不 grep `[bootstrap]` 签名 → 改名无阻; 改名首 boot 日志出新签名 `[start]` 入档即可。
+- **永不再改核验待做**: ARG 双轨病根假说 (Rebuild 缓存命中 / 改 Variable 值未真 Rebuild) 真验 / ENV 转存 `[start] 基础镜像` echo 实测 / HEALTHCHECK 契约验证 — 须 dev boot 真跑确认三件最终态永不再改。
+- 出处: 本条 + start.sh + Dockerfile 行 26/39/40/44/53 + 两 sync-space workflow + 两 sync-logic workflow + ops/STATUS.md 行 15 + docs/三文件永久免改.md。
+
 ## 2026-07-28 · ARG 双轨机制回归 + 作用域铁律补强 + Variable 透传官方义回归 — 回应首演实证与官方文档义冲突
 
 圣上 2026-07-28 裁, 回应底层实证 (2026-07-27 径 C 首演) 与 HF 官方文档义 (https://huggingface.co/docs/hub/spaces-sdks-docker Variables §Buildtime) 之矛盾:

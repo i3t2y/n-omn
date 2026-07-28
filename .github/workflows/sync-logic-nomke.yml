@@ -9,7 +9,7 @@ name: Sync prod logic to HF Dataset (nomke)
 #      生产逻辑层同步须圣上显令手动 dispatch (点火权属圣上, 防漂移)
 #
 # 源: dev/logic/** (五件 init/entry/gate/litestream/package — 血统源统一, prod/dev 同源拉)
-# 目标: Dataset nomke/omn-logic 仓内平铺 (与 dev 版 Dataset 同布局, bootstrap 契约同)
+# 目标: Dataset nomke/omn-logic 仓内平铺 (与 dev 版 Dataset 同布局, start 契约同)
 #
 # 逐字节血缘: hf upload 后立即 hf_hub_download 读回 + sha256 cmp,
 #   不过 CI 直接红 (prod 侧血缘断裂 = 停链级)。

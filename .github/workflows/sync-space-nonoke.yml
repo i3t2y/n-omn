@@ -24,7 +24,7 @@ on:
     branches: [main]
     paths:
       - 'Dockerfile'
-      - 'bootstrap.sh'
+      - 'start.sh'
       - 'README.md'          # 根 README 须保留 HF frontmatter (sdk: docker, app_port: 7860)
       - '.gitattributes'
       - '.github/workflows/sync-space-nonoke.yml'
@@ -41,7 +41,7 @@ jobs:
         run: |
           mkdir -p /tmp/hf-sync
           # 白名单: 仅 HF Space 骨架四件, 零业务件泄漏 (三层解耦后业务件不进 Space git 仓)
-          for f in Dockerfile bootstrap.sh README.md .gitattributes; do
+          for f in Dockerfile start.sh README.md .gitattributes; do
             cp "$f" /tmp/hf-sync/
           done
           echo "---- files to sync to nonoke/omn ----"

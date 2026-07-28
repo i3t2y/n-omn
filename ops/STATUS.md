@@ -12,7 +12,7 @@
 2026-07-27 首演实证 "Variable 未透 build-arg" 与 HF 官方文档义 (Variables §Buildtime "passed as build-args") 冲突。圣上 2026-07-28 裁不一锤定音判 Variable 路径伪 — 改采**双轨机制** (病根待下次升级真验: Rebuild 缓存命中 / 改值未真 Rebuild 两假说未验, 非官方义为假):
 - **ARG BASE_IMAGE = `:stable` 占位符 + 兜底**: Dockerfile 行 26 `ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable` (回退 digest 钉死, 非钉; HF 不注入 Variable 退回 :stable 仍构建不崩)
 - **作用域铁律补强** (docs.docker.com/reference/dockerfile/#scope): FROM 后指令须重声明 ARG 才可见。Dockerfile 行 39 `ARG BASE_IMAGE` (FROM 后重声明) + 行 40 `ENV BASE_IMAGE=${BASE_IMAGE}` (转存 runtime env) — 顺铁律
-- **bootstrap.sh 排障接口**: 启动 echo 后 `echo "[bootstrap] 基础镜像: ${BASE_IMAGE:-(未注入 ENV, 历史镜像层)}"` — runtime env 入 boot log, dev/prod 鉴别+排障
+- **start.sh 排障接口**: 启动 echo 后 `echo "[start] 基础镜像: ${BASE_IMAGE:-(未注入 ENV, 历史镜像层)}"` — runtime env 入 boot log, dev/prod 鉴别+排障
 - **日常升级路径 A (推荐)**: GHCR 推新版镜像到 `:stable` → dev/prod Space Rebuild 即拉新版, ARG/Variable 不动零 git 变更
 - **钉 digest 路径 B (备选, 即径 C 首演径)**: 改 ARG 默认值钉 digest → git commit+push → sync-space-nonoke auto → 24h 绿 → workflow_dispatch sync-space-nomke。回滚: A `:stable` 重推旧 digest; B `git revert`+push+Rebuild
 - 现 dev nonoke/omn 跑径 C 首演结果 (ARG 钉 3.8.48 digest, commit 68ee550 已 boot 三绿入 24h 窗) — 本批改 ARG 回 :stable + 作用域补强 + ENV 转存 (待圣上累积多条一并 push 后真生效)。

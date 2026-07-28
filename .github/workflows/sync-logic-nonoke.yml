@@ -5,7 +5,7 @@ name: Sync dev logic to HF Dataset (nonoke)
 #   prod 版同案 (件名见 DECISIONS "workflow 六件命名规约" 条), 仅手动 dispatch (无 push 触发), 生产专 token。
 # 源: dev/logic/** (五件 init/entry/gate/litestream/package)
 # 目标: Dataset nonoke/omn-logic 仓内平铺 (entrypoint.sh / gate.js / ... 根目录)
-#   ─ bootstrap 与逻辑层唯一契约: "Dataset 根目录存在 entrypoint.sh"
+#   ─ start 与逻辑层唯一契约: "Dataset 根目录存在 entrypoint.sh"
 #   ─ 故 CI 做 dev/logic/$f → Dataset/$f 平铺映射, Dataset 侧布局一字不动
 #
 # 逐字节血缘: hf upload 后立即 hf_hub_download 读回 + sha256 cmp,

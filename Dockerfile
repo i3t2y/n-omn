@@ -27,21 +27,21 @@ ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable
 FROM ${BASE_IMAGE}
 
 # root 是永久需求而非过渡：上游 runner 永远 USER node 且永远缺工具，
-# bootstrap 的运行时自愈需要写权限。同时保证 BASE_IMAGE 可直接指向上游
+# start 的运行时自愈需要写权限。同时保证 BASE_IMAGE 可直接指向上游
 # 官方标签（diegosouzapw/omniroute:X.Y.Z）也能起——不依赖自建镜像。
 USER root
 
 # 作用域硬规则 (2026-07-28 首席架构师裁 + 官方文档 docs.docker.com/reference/dockerfile/#scope):
 #   全局 ARG (FROM 前) 仅 FROM 可读, FROM 后指令须重声明 ARG 才可见。
 #   重声明不带值 = 自动继承全局同名 ARG 当前值 (build-arg 覆盖 默认值-兜底 :stable 三层优先级)。
-#   ENV 转存 = build 期 ${BASE_IMAGE} 展开入 runtime env, bootstrap.sh 可 `echo $BASE_IMAGE`
-#   打印当前运行镜像版本 (dev/prod 鉴别+排障), 防御性编程不动 bootstrap 现行逻辑亦可用。
+#   ENV 转存 = build 期 ${BASE_IMAGE} 展开入 runtime env, start.sh 可 `echo $BASE_IMAGE`
+#   打印当前运行镜像版本 (dev/prod 鉴别+排障), 防御性编程不动 start 现行逻辑亦可用。
 ARG BASE_IMAGE
 ENV BASE_IMAGE=${BASE_IMAGE}
 
 # --chmod=755 属 buildkit 标准能力（HF 文档的 build secrets 同为 buildkit 语法，
 # 可证构建器支持），替代 RUN chmod，消灭对文件属主的前提假设。
-COPY --chmod=755 bootstrap.sh /bootstrap.sh
+COPY --chmod=755 start.sh /start.sh
 
 EXPOSE 7860
 
@@ -50,4 +50,4 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:7860/healthz',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))" || exit 1
 
-ENTRYPOINT ["/bootstrap.sh"]
+ENTRYPOINT ["/start.sh"]

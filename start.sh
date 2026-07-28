@@ -3,16 +3,16 @@
 # 与逻辑层的唯一契约：Dataset 根目录必须存在 entrypoint.sh。
 # 其余一切文件名、目录结构均由逻辑层自定义，本脚本不感知。
 set -e
-echo "[bootstrap] >>> 启动 $(date '+%F %T') <<<"
+echo "[start] >>> 启动 $(date '+%F %T') <<<"
 # ENV BASE_IMAGE 由 Dockerfile ARG 重声明后 ENV 转存 (docs.docker.com/reference/dockerfile/#scope),
 # dev/prod 鉴别 + 排障接口: 此值随 ARG SPACE Variable 覆盖/build-arg/默认值 :stable 三层优先级而定。
-# 空值若现 = bootstrap 跑老镜像层无 ENV 转存 (历史镜像), 非阻断信号。
-echo "[bootstrap] 基础镜像: ${BASE_IMAGE:-(未注入 ENV, 历史镜像层)}"
+# 空值若现 = start 跑老镜像层无 ENV 转存 (历史镜像), 非阻断信号。
+echo "[start] 基础镜像: ${BASE_IMAGE:-(未注入 ENV, 历史镜像层)}"
 
 # ── 1. 环境自愈（永久机制：上游 runner 镜像刻意不装工具链） ──
 _need_install=0
 for t in python3 curl pip3; do
-  command -v "$t" >/dev/null 2>&1 || { echo "[bootstrap] 缺失基础工具: $t"; _need_install=1; break; }
+  command -v "$t" >/dev/null 2>&1 || { echo "[start] 缺失基础工具: $t"; _need_install=1; break; }
 done
 command -v litestream >/dev/null 2>&1 || _need_install=1
 { command -v hf >/dev/null 2>&1 || command -v huggingface-cli >/dev/null 2>&1; } || _need_install=1
@@ -21,8 +21,8 @@ if [ "$_need_install" = "1" ]; then
   # 防线：自愈能力绑定 Debian 系。上游自 v2.x 起一直是 node:*-trixie-slim，
   # 若未来改发行版，明确报错优于静默跑偏。
   command -v apt-get >/dev/null 2>&1 || {
-    echo "[bootstrap] FATAL: 非 Debian 系镜像且工具缺失，无法自愈"; exit 1; }
-  echo "[bootstrap] 镜像 A 模式：正在补全环境（约 60s）..."
+    echo "[start] FATAL: 非 Debian 系镜像且工具缺失，无法自愈"; exit 1; }
+  echo "[start] 镜像 A 模式：正在补全环境（约 60s）..."
   apt-get update && apt-get install -y --no-install-recommends \
     curl jq python3 python3-pip sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
   # 区间钉版：容忍 1.x 全部补丁，拒绝未来的 2.x 破坏性升级。
@@ -34,14 +34,14 @@ if [ "$_need_install" = "1" ]; then
     curl -fsSL "https://github.com/benbjohnson/litestream/releases/download/v0.5.9/litestream-0.5.9-linux-${_a}.tar.gz" \
       | tar -xz -C /usr/local/bin litestream && chmod +x /usr/local/bin/litestream
   fi
-  echo "[bootstrap] 环境补全完成"
+  echo "[start] 环境补全完成"
 else
-  echo "[bootstrap] 镜像 B 模式：工具链已就绪"
+  echo "[start] 镜像 B 模式：工具链已就绪"
 fi
 
 # ── 2. 变量校验（HF_TOKEN 可选：公共 Dataset 无需令牌） ──
 [ -n "$LOGIC_BUCKET_REPO" ] || {
-  echo "[bootstrap] FATAL: 缺 LOGIC_BUCKET_REPO"; exit 1; }
+  echo "[start] FATAL: 缺 LOGIC_BUCKET_REPO"; exit 1; }
 
 # ── 3. 拉取逻辑层（stderr 落盘回放脱敏，保留真实退出码） ──
 #     竞速根治(2026-07-26 K3 硬化案): hf download 默认按 main HEAD resolve,
@@ -49,7 +49,7 @@ fi
 #     boot#4 15:30Z 拉出 8 员旧池(sync 15:48Z 迟 18min 抢跑旧 HEAD)即此病.
 #     治法: 拉前先取 Dataset HEAD commit_id, 按 commit id 拉取 = 锁定 atomic 同 commit
 #     全件, 竞速根除. fetch HEAD 失败 fail-open 回退空 (走 main HEAD) 不阻塞 boot.
-echo "[bootstrap] 同步 Dataset: $LOGIC_BUCKET_REPO"
+echo "[start] 同步 Dataset: $LOGIC_BUCKET_REPO"
 mkdir -p /tmp/logic
 
 # 3.1 取 Dataset HEAD commit_id (HF_HOME token 自动, 值零落会话)
@@ -66,8 +66,8 @@ try:
 except Exception as e:
     pass  # fail-open 静默, 走 main HEAD
 ' 2>"$_rev_err") || true
-  [ -n "$_rev" ] && echo "[bootstrap] Dataset HEAD 锁定 revision=$(printf %.12s "$_rev") (竞速根治: atomic 同点拉取)" \
-                || { echo "[bootstrap] WARN: 取 HEAD commit_id 失败, 回退 main HEAD (竞速面未根治)"; [ -s "$_rev_err" ] && { [ -n "$HF_TOKEN" ] && sed "s/$HF_TOKEN/[REDACTED]/g" "$_rev_err" >&2 || cat "$_rev_err" >&2; }; }
+  [ -n "$_rev" ] && echo "[start] Dataset HEAD 锁定 revision=$(printf %.12s "$_rev") (竞速根治: atomic 同点拉取)" \
+                || { echo "[start] WARN: 取 HEAD commit_id 失败, 回退 main HEAD (竞速面未根治)"; [ -s "$_rev_err" ] && { [ -n "$HF_TOKEN" ] && sed "s/$HF_TOKEN/[REDACTED]/g" "$_rev_err" >&2 || cat "$_rev_err" >&2; }; }
 fi
 
 _dl() {
@@ -91,11 +91,11 @@ if _dl; then
   mkdir -p /logic
   cp -a /tmp/logic/. /logic/
   chmod +x /logic/*.sh 2>/dev/null || true
-  echo "[bootstrap] 逻辑注入完成"
+  echo "[start] 逻辑注入完成"
 else
-  echo "[bootstrap] FATAL: Dataset 拉取失败"; exit 1
+  echo "[start] FATAL: Dataset 拉取失败"; exit 1
 fi
 
 rm -rf /tmp/logic
-echo "[bootstrap] 移交控制权给逻辑层"
+echo "[start] 移交控制权给逻辑层"
 exec /logic/entrypoint.sh

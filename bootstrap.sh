@@ -4,6 +4,10 @@
 # 其余一切文件名、目录结构均由逻辑层自定义，本脚本不感知。
 set -e
 echo "[bootstrap] >>> 启动 $(date '+%F %T') <<<"
+# ENV BASE_IMAGE 由 Dockerfile ARG 重声明后 ENV 转存 (docs.docker.com/reference/dockerfile/#scope),
+# dev/prod 鉴别 + 排障接口: 此值随 ARG SPACE Variable 覆盖/build-arg/默认值 :stable 三层优先级而定。
+# 空值若现 = bootstrap 跑老镜像层无 ENV 转存 (历史镜像), 非阻断信号。
+echo "[bootstrap] 基础镜像: ${BASE_IMAGE:-(未注入 ENV, 历史镜像层)}"
 
 # ── 1. 环境自愈（永久机制：上游 runner 镜像刻意不装工具链） ──
 _need_install=0

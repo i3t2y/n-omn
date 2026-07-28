@@ -3,6 +3,26 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-28 · ARG 双轨机制回归 + 作用域铁律补强 + Variable 透传官方义回归 — 回应首演实证与官方文档义冲突
+
+圣上 2026-07-28 裁, 回应底层实证 (2026-07-27 径 C 首演) 与 HF 官方文档义 (https://huggingface.co/docs/hub/spaces-sdks-docker Variables §Buildtime) 之矛盾:
+- **HF 官方文档义**: "Variables are passed as `build-arg`s when building your Docker Space." 即 Space 设置 Variable 名与 ARG 名字字一致即可透 build-arg 覆盖 ARG 默认值。前首演实证 (2026-07-27) "Variable 未透" 与此义冲突, 病根待重验 (或 Rebuild 缓存命中, 或改 Variable 值未真 Rebuild — 两假说未验, 非官方义为假)。
+- **裁决**: 不一锤定音判 Variable 路径伪。改采**双轨机制** (ARG 默认值回退 :stable + GHCR :stable 浮动覆盖日常, ARG 占位符兜底防崩), 待下次升级真验 Variable 路径透传性后定实情。
+
+### 双轨定义 (2026-07-28 新定)
+- **ARG BASE_IMAGE = 文档占位符 + 兜底默认值**: Dockerfile `ARG BASE_IMAGE= ghcr.io/i3t2y/omniroute-base:stable` (:stable 浮动, 非钉 digest)。HF 不注入 Variable 时退回 :stable 仍能构建不崩 (官方义承诺安全兜底)。
+- **日常升级路径 (路径 A, 推荐)**: GHCR 侧推新版镜像到 `:stable` tag → dev/prod Space Rebuild 即拉新版, **ARG 默认值不动 / Space Variable 不动 (零 git 变更)**。此即"版本无关设计"真义。
+- **钉 digest 路径 (路径 B, 备选)**: 改 ARG 默认值钉 `<新标签>@sha256:<digest>` → git commit + push → sync-space-nonoke.yml auto-trigger dev → 24h 绿 → 圣上 workflow_dispatch 触 sync-space-nomke.yml 同步 prod。即前首演径 C 的 git 权威开关。
+- **回滚**: 路径 A `:stable` 重推旧 digest 即回; 路径 B `git revert` + push + Rebuild。
+
+### Docker 作用域铁律补强 (docs.docker.com/reference/dockerfile/#scope)
+- 全局 ARG (FROM 前声明) **仅** FROM 指令可读; FROM 之后任何 RUN/COPY/ENV 须重声明 `ARG <name>` (不带值, 自动继承全局同名 ARG 当前值) 才可用。
+- 本仓 Dockerfile `ARG BASE_IMAGE` (FROM 前) + `FROM ${BASE_IMAGE}` + `USER root` + `ARG BASE_IMAGE` (FROM 后重声明) + `ENV BASE_IMAGE=${BASE_IMAGE}` (转存 runtime env) — 顺铁律。ENV 转存让 bootstrap.sh 可 `echo $BASE_IMAGE` 打印运行镜像版本 (dev/prod 鉴别+排障接口)。
+
+### 与前条关系 (§3 只增不改律)
+- 2026-07-27 "切换机制实证修正" 条留 SSOT 历史不删不改 (实证病根结论待重验, 非判最终定论); 本条加新证据 (官方文档义) 与双轨裁决。两并存: 待下次升级真验 Variable 路径透传性, 病根假说 (缓存命中 / 改值未真 Rebuild) 任一坐实则回 2026-07-27 结论; Variable 真透则官方义坐实, 路径 A (Variable 覆盖 :stable) 与空间设置层结合亦是日常径之一。
+- 出处: Dockerfile 行 26 (ARG :stable) + 行 39 (ARG 重声明) + 行 40 (ENV 转存) + bootstrap.sh ENV echo + 本条。
+
 ## 2026-07-27 · 切换机制实证修正: HF Space Variable 不透 build-arg, 切换权威开关转 ARG 默认值 (git 管理) — 首演反证成立定稿
 径 C 切换首演实证 (圣上 nonoke/omn Rebuild 后 build log 仍 `FROM ghcr.io/i3t2y/omniroute-base:stable@sha256:9c9aecfd...`), 旧前提 "改 Space Variable → Rebuild 切换" 被**实证推翻。首演反证成立** (2026-07-27 02:48Z dev nonoke/omn boot 实证, 机制修正定稿):
 - **机制病根**: HF Space Variables/Secrets 仅注入运行时 env, **不透传 docker build --build-arg 通道** (UI/README metadata 无此开关)。Dockerfile 行 8 `ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable` 用默认值 `:stable` 拉镜像, Variable 改值 (`:3.8.48@da99fac1...f408f`) 不进 build 期。build log `FROM :stable@9c9aecfd` 中 `:stable` = ARG 默认值原文铁证 (缓存/笔误/改错 Space 三假设均解释不了"默认值原文现于解析结果", 唯机制不透传可解)。

@@ -8,6 +8,16 @@
 ### 切换机制实证修正 (2026-07-27 首演现形 + dev boot 反证成立定稿)
 径 C 切换首演实证推翻旧前提 "改 Space Variable → Rebuild 切换": HF Space Variables 只注 runtime env, **不透 docker build --build-arg 通道**。圣上 nonoke/omn Rebuild 后 build log 仍 `FROM ghcr.io/i3t2y/omniroute-base:stable@sha256:9c9aecfd...` — `:stable` = Dockerfile 行 8 ARG 默认值原文 (非圣上改的 Variable 值 `:3.8.48@da99fac1...f408f`), Variable 未进 build 期。**切换权威开关 = Dockerfile ARG 默认值 (git 管理, commit 历史可查), 非 Space Variable**。旧 Variable 成死配置 (build 不读, bootstrap 不读即纯摆设)。径 C 精神不破: 仍不构建新镜像 + 仍 digest 钉锚; 回滚升级 `git revert` 该 commit + push + rebuild 即回 9c9aecfd (原回滚路径自带同 bug 一并修)。详见 DECISIONS "切换机制实证修正" 条 + Dockerfile 行 1-9 注释。
 
+### 切换机制双轨回归 (2026-07-28 圣上裁, 回应实证与官方义冲突)
+2026-07-27 首演实证 "Variable 未透 build-arg" 与 HF 官方文档义 (Variables §Buildtime "passed as build-args") 冲突。圣上 2026-07-28 裁不一锤定音判 Variable 路径伪 — 改采**双轨机制** (病根待下次升级真验: Rebuild 缓存命中 / 改值未真 Rebuild 两假说未验, 非官方义为假):
+- **ARG BASE_IMAGE = `:stable` 占位符 + 兜底**: Dockerfile 行 26 `ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable` (回退 digest 钉死, 非钉; HF 不注入 Variable 退回 :stable 仍构建不崩)
+- **作用域铁律补强** (docs.docker.com/reference/dockerfile/#scope): FROM 后指令须重声明 ARG 才可见。Dockerfile 行 39 `ARG BASE_IMAGE` (FROM 后重声明) + 行 40 `ENV BASE_IMAGE=${BASE_IMAGE}` (转存 runtime env) — 顺铁律
+- **bootstrap.sh 排障接口**: 启动 echo 后 `echo "[bootstrap] 基础镜像: ${BASE_IMAGE:-(未注入 ENV, 历史镜像层)}"` — runtime env 入 boot log, dev/prod 鉴别+排障
+- **日常升级路径 A (推荐)**: GHCR 推新版镜像到 `:stable` → dev/prod Space Rebuild 即拉新版, ARG/Variable 不动零 git 变更
+- **钉 digest 路径 B (备选, 即径 C 首演径)**: 改 ARG 默认值钉 digest → git commit+push → sync-space-nonoke auto → 24h 绿 → workflow_dispatch sync-space-nomke。回滚: A `:stable` 重推旧 digest; B `git revert`+push+Rebuild
+- 现 dev nonoke/omn 跑径 C 首演结果 (ARG 钉 3.8.48 digest, commit 68ee550 已 boot 三绿入 24h 窗) — 本批改 ARG 回 :stable + 作用域补强 + ENV 转存 (待圣上累积多条一并 push 后真生效)。
+- 出处: DECISIONS "ARG 双轨机制回归" 条 (2026-07-28) + Dockerfile 行 26/39/40 + bootstrap.sh echo ENV 段。
+
 ### dev boot 三绿实证 (2026-07-27 02:48Z, 移迁链动态印证 + 病根反证成立)
 圣上手跑 commit `68ee550` (Dockerfile ARG 改) + push `747356b..68ee550 main -> main` → sync-space-nonoke.yml workflow run `30233008154` event=push auto-trigger conclusion=success → 同步 Dockerfile 到 dev nonoke/omn + 触 HF Rebuild → boot 02:48:44Z 全绿:
 - **① 版本=3.8.48** ✓ 三铁证: `[entrypoint] 版本=3.8.48` + `[init] version: 3.8.48` + `[init] Status: healthy / 3.8.48` — 机制修正反证成立 (改 ARG 默认值即切, 病根诊断无悬念, 旧 `no build stage` build error 根除)
@@ -30,8 +40,8 @@ dev boot 版本行括号 `版本=3.8.48 (期望未设置, 跳过比对)` — ent
 - sync-space-nomke.yml (prod): **仅 `workflow_dispatch` (圣上显令点火, 无 push 触发)** — 行 18-19 铁证
 - **判**: push Dockerfile 改 ARG 到 main → 仅 dev nonoke/omn 自动切 3.8.48, prod nomke/omn 仍 9c9aecfd 直到圣上 workflow_dispatch 显令。24h 隔离窗口有效, code-level 隔离非靠人守。prod 侧 rebuild 唯一触发源 = 圣上显令 workflow_dispatch。
 
-### 切换执行序四步 (机制修正后)
-1. **cg52 push** (等圣上 commit 令): Dockerfile 行 8 ARG 默认值 `:stable` → `ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f` + 行 1-3 注释修正 + DECISIONS + STATUS 同批
+### 切换执行序四步 (径 C 路径 B = 钉 digest 备选径, 见上双轨回归段; 日常路径 A 走 GHCR :stable 覆盖无须此序)
+1. **cg52 push** (等圣上 commit 令): Dockerfile ARG 默认值改钉 <新标签>@sha256:<digest> (径 C 路径 B 首演已走此序钉 3.8.48 da99fac1, commit 68ee550) + 行 1-3 注释修正 + DECISIONS + STATUS 同批
 2. **dev 自动切**: push 到 main → sync-space-nonoke.yml 自动同步 dev nonoke/omn + 触 HF Rebuild (Factory rebuild); 圣上 nonoke/omn 补设 `R2_BUCKET=omn-data` (旧账并行, 与本次独立)
 3. **dev 验收四点** (dev side): ① build log FROM 行 = `:3.8.48@sha256:da99fac1...f408f` (机制修正生效铁证) + 版本=3.8.48 ② real_context 读回=200000 ③ gate 1.5MB 413 实测 (三道防伪见 §剩两笔) ④ 25-key 探活全绿 + litestream snapshot 多帧持续; fetch-nonoke-logs 抓帧留证
 4. **dev 24h 全绿 → 圣上 workflow_dispatch sync-space-nomke.yml** (prod 显令点火): 同步 prod nomke/omn (走 Space git remote 直推径, 见 §ARG→Space 路径 runbook) + 触 Rebuild; boot 三硬标 — 版本=3.8.48 (EXPECTED_VERSION=3.8.48 硬断言) / bucket=omniroute-data 不变 / snapshot complete; prod 侧 compaction/AccessDenied **无白名单, 见一即停**

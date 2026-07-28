@@ -1,22 +1,43 @@
 # OmniRoute 永续节点 · 环境层（版本无关设计）
 # ─────────────────────────────────────────────
-# 升级 OmniRoute 的完整流程【改本文件 ARG 默认值】：
-#   1. GHCR 侧以新版本上游镜像构建并推送  i3t2y/omniroute-base:X.Y.Z
-#   2. 改本文件 `ARG BASE_IMAGE=` 默认值为 <新标签>@sha256:<全 64 位 digest>
-#   3. git commit + push 到 main → sync-space-nonoke.yml 自动同步 dev nonoke/omn + 触 Rebuild
-#   4. dev 验收 24h 全绿 → 圣上 workflow_dispatch 触 sync-space-nomke.yml 同步 prod nomke/omn
+# 双轨切换机制 (2026-07-28 圣上调, 回应官方文档语义):
+#   - ARG BASE_IMAGE = 文档占位符 + 默认值兜底 (HF 不注入 Variable 时退回 :stable 也能构建)
+#   - 日常升级走 GHCR `:stable` 浮动标签覆盖: 新 release 推新版镜像到 `:stable` tag,
+#     ARG 不动 prod 自动 rebuild 即拉新版 (版本无关设计真义)
+#   - ARG 变量仅"某次恰须重建时顺手切": 改 ARG 默认值钉 digest 是备选路径 (非日常)
 #
-# 机制修正 (2026-07-27 实证): HF Space Variables 只注入运行时 env, 不透传 docker build --build-arg
-# 通道。旧注释 "改 Variable → Rebuild 切换" 从未被真实演练过, 切换路径首演即现形: ARG 用默认值 :stable
-# 拉镜像, Variable 改值不生效。故切换权威开关 = ARG 默认值 (git 管理, commit 历史可查), 非 Space Variable。
-# dev/prod 隔离靠 sync-space-nomke.yml 仅 workflow_dispatch (圣上显令点火), 非 push 自动触发。
-ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f
+# HF 官方文档语义 (https://huggingface.co/docs/hub/spaces-sdks-docker Variables §Buildtime):
+#   Variables are passed as build-args when building your Docker Space. 故 Space 设置
+#   BASE_IMAGE Variable 可覆盖 ARG 默认值 (要求 Variable 名与 ARG 名字字一致)。前轮
+#   径 C 实证"Variable 未透"的病根 (2026-07-27) 须重新验真: 或是当时 Rebuild 缓存命中,
+#   或是改 Variable 值未真 Rebuild, 非官方语义为假。本双轨方案默认值改回 :stable 占位,
+#   dev/prod 各设 BASE_IMAGE Variable 覆盖 ARG 升级路径 (待圣上手动设置两 Space)。
+#
+# 升级 OmniRoute 的两种路径 (2026-07-28 双轨):
+#   A. 日常路径 (推荐): GHCR 侧推新版镜像到 `:stable` tag → dev/prod Space Rebuild 即拉新版,
+#      ARG 默认值不动, Dashboard 看 Space Variable 也不动 (零 git 变更)
+#   B. 钉 digest 路径 (备选): 改 ARG 默认值钉 <新标签>@sha256:<digest> → git commit + push
+#      → sync-space-nonoke.yml 自动同步 dev + 触 Rebuild → dev 24h 绿 → 圣上 workflow_dispatch
+#      触 sync-space-nomke.yml 同步 prod
+#   回滚: 路径 A `:stable` 重推旧 digest 即回; 路径 B `git revert` + push + Rebuild
+#
+# dev/prod 隔离: sync-space-nonoke.yml (dev) push paths[Dockerfile] 自动触;
+#   sync-space-nomke.yml (prod) 仅 workflow_dispatch (圣上显令点火) 非 push 自动触发。
+ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable
 FROM ${BASE_IMAGE}
 
 # root 是永久需求而非过渡：上游 runner 永远 USER node 且永远缺工具，
 # bootstrap 的运行时自愈需要写权限。同时保证 BASE_IMAGE 可直接指向上游
 # 官方标签（diegosouzapw/omniroute:X.Y.Z）也能起——不依赖自建镜像。
 USER root
+
+# 作用域硬规则 (2026-07-28 首席架构师裁 + 官方文档 docs.docker.com/reference/dockerfile/#scope):
+#   全局 ARG (FROM 前) 仅 FROM 可读, FROM 后指令须重声明 ARG 才可见。
+#   重声明不带值 = 自动继承全局同名 ARG 当前值 (build-arg 覆盖 默认值-兜底 :stable 三层优先级)。
+#   ENV 转存 = build 期 ${BASE_IMAGE} 展开入 runtime env, bootstrap.sh 可 `echo $BASE_IMAGE`
+#   打印当前运行镜像版本 (dev/prod 鉴别+排障), 防御性编程不动 bootstrap 现行逻辑亦可用。
+ARG BASE_IMAGE
+ENV BASE_IMAGE=${BASE_IMAGE}
 
 # --chmod=755 属 buildkit 标准能力（HF 文档的 build secrets 同为 buildkit 语法，
 # 可证构建器支持），替代 RUN chmod，消灭对文件属主的前提假设。

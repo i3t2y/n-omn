@@ -179,6 +179,92 @@ sync-space-nonoke.yml/sync-space-nomke.yml 工作流重构 (Dataset push 触 Reb
 - 轴5 workflow 改造: sync-logic-nonoke.yml:40-45 5件upload + :52-67 sha256 readback;
   sync-logic-nomke.yml:38-43,19 同构仅 dispatch; sync-space-nonoke.yml push paths:[Dockerfile] 触 Rebuild
 
-关联: [[dev-3-8-48-24h-window-armed]] [[hf-free-docker-build-blocked]]
-      [[r2-token-权限-classa-100万限-余量60]] [[omn-three-layer-c-step-landed]]
-      [[omniroute-upstream-entrypoint-drift-v3.8.48]]
+关联: [[dev-3-8-48-24h-window-armed]] [[storage-bucket-dataset-结合堪察]]
+      [[hf-free-docker-build-blocked]] [[r2-token-权限-classa-100万限-余量60]]
+      [[omn-three-layer-c-step-landed]] [[omniroute-upstream-entrypoint-drift-v3.8.48]]
+
+---
+
+## §12 单择定局 — Dataset vs Bucket 永续架构 (2026-07-28 圣上已准方向)
+
+圣上三连问后定新向"r2负责备份,dataset和bucket挑一个作为普通存储", 纠偏 omni不存 skills/插件后
+定真问"dataset和bucket哪个更适合omniroute永续架构". 三 agent 并行深扫 (中立八维度/Bucket专攻/
+Dataset专攻) + 自查官方域 + 圣上前次 docs/OmniRoute永续节点方案v2.0.md §5第4步已框此形.
+
+### 一句话裁决: R2 不动 / Dataset 留逻辑层五件 / Bucket 挂 `/data` RW 作运行态持久件层
+
+非二选一取代, 乃各司其职三轴分层. 圣上前次 v2.0 §5第4步已规划 Bucket 挂 `/data` RW 但未实施
+(现役 /data 仍 ephemeral→litestream R2 仅 storage.sqlite 部分兜底). 本轮深查补全官方铁证落定.
+
+### 三轴分层定局
+
+| 轴 | 介质 | 用途 | RO/RW | 持久性 | 裁决 |
+|---|---|---|---|---|---|
+| 备份层 | R2 (`*.r2.cloudflarestorage.com`) | litestream target WAL/snapshot | RW(litestream写) | 跨云容灾 | 不动 (§1+旧裁双重锁) |
+| 逻辑层五件 | Dataset `hf://datasets/` | init/entry/gate/litestream.yml/package源 | **RO** | git仓独立 | 保留 (版本化+PR+血缘+K3 commit_id锁点四件武器现役已用,迁Bucket全废) |
+| 运行态RW件 | **Storage Bucket挂`/data`RW** | or-api-key/init-done/log/state | **RW** | longer than Space | 本轮核心补全 (官方唯一RW持久通道) |
+
+### omniroute真痛点实证 (现役代码 ephemeral 锁)
+
+现役 `/data`=ephemeral (官方铁义 spaces-storage: "lost if Space restarts or is stopped").
+运行态写件四枚现役丢/重生成崩溃链:
+- `OR_API_KEY_FILE=/data/.or-api-key` (init-nim-keys.sh:45,557,571) — gate.js:52 读此,无env时FATAL崩;
+  重生成新key与基座combo key不符链崩
+- `INIT_MARKER=/data/.init-done` (init-nim-keys.sh:44,1064) — 丢=增量门fail→重跑全量注册NIM combo触409
+- `LOG_DIR=/data/omn-data/log` (init-nim-keys.sh:21) — 历史日志丢
+- `_DB_PATH=/data/storage.sqlite` — litestream→R2部分兜底,首启须restore延迟
+
+→ 运行态RW持久件层**只能Bucket** (manage-spaces铁锁: "Only storage buckets support read-write mounts",
+  Dataset/Model/Space都RO). 非取向,是RW需求官方唯一通道.
+
+### 与§11结合形关系
+
+§11部分可行(热件双路Bucket+Dataset底牌)针对**逻辑层五件**高频热改 (init/gate改动须Restart);
+§12单择定局针对**运行态RW持久件层** (/data子集) — 两问正交不冲突,介质职责分层即统一:
+- 逻辑层五件=Dataset (Agent#1/#3裁勿迁,版本化四件武器价值刚性)
+- 运行态RW件=Bucket挂`/data` (Agent#2裁条件可行,解ephemeral真痛点)
+- 备份层=R2 (全保全不动)
+
+§11热件双路方案仍留作未来若需"逻辑层init/gate秒级生效"时备选 (audit §11改造面草图),
+但本轮§12裁决**不动逻辑层五件路径** (现Dataset满足+四件武器保留).
+
+### 牺牲面 (须Supreme知的代价)
+
+| 代价 | 缓解 |
+|---|---|
+| Bucket非版本化(删即永久丢,无git revert) | 运行态件本就低版本化需求(marker/动态secret非源码);源码留Dataset保底 |
+| 无PR审阅 | 运行态件非协作件 |
+| Bucket→Repo回写未支持(roadmap未现) | 源在Dataset,Bucket是派生挂载,rollback重挂Dataset不须回写 |
+| Class A PUT硬数docs未钉(storage-limits页无文字) | 运行态件低频写(boot几次)远低阈,须上线后监控 |
+| hf-mount NFS首读延迟 | 须boot探活路径实测 |
+
+### §1铁律全保全三铁证
+
+1. R2不动 — litestream.yml一行不改,仍写`*.r2.cloudflarestorage.com`
+2. §1"R2 bucket永不双写"锁R2端点litestream写面,不锁HF Bucket挂载;两S3端点独立正交
+   (R2=cloudflarestorage.com域 / HF Bucket=s3.hf.co域,token独立,写者独立)
+3. 旧裁"R2迁Bucket永久拒"(audit/2026-07-19-script-factcheck.md:126括号注"litestream R2跨云容灾红线")
+   锁作用面=R2位置迁,本轮Bucket挂`/data`不碰R2 target,正交不波及
+
+### 实施路径 (待Supreme显令另会话启动)
+
+1. Space UI建Private Bucket (`nonoke/omn-runtime` dev + `nomke/omn-runtime` prod,dev/prod隔离守§1)
+2. Space UI挂Bucket→`/data` RW (manage-spaces Volume API或Settings页)
+3. Dockerfile/bootstrap/init路径适 (`/data`由ephemeral→Bucket mount,路径不变零改业务逻辑)
+4. litestream.yml不动 (仍写R2)
+5. dev先验(nonoke/omn),24h绿后prod晋级(nomke/omn)守§1 dev→prod晋级律
+
+### 三agent报出典锚
+
+- 官方域: huggingface.co/docs/hub/spaces-storage (ephemeral+"Buckets are recommended way to persist")
+  / storage-buckets (Buckets vs Repositories原表+"only buckets RW")
+  / manage-spaces (Volume mount+"Only storage buckets support RW mounts"+set_space_volumes替换式)
+  / storage-limits (Free 100GB Private适用所有repo types含buckets,Repo limitations不适用Buckets)
+  / storage-buckets-s3 (s3.hf.co端点single-region+302 Limitations)
+- 本仓: docs/OmniRoute永续节点方案v2.0.md §5第4步 (圣上前次规划Bucket挂`/data`RW推荐)
+  / dev/logic/init-nim-keys.sh:44-45,557,571 / gate.js:52 / litestream.yml:5-15
+  / audit本件§11 (结合使用形态已锁)
+
+**圣上已准(2026-07-28本会令"准")§0一句话裁决方向. 真迁实施须Supreme另会话显令**
+**(CLAUDE.md §0翻案须明令+§1拓扑改须批). 本轮勘探裁决闭环, 非实施.**
+**3 commit (3e36a07/cd09d6c/369ab61) 本地锁待圣上手动push (圣上明令"先保存待积累后我手动push").**

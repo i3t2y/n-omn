@@ -226,3 +226,25 @@ init 三改 (real_context 32768→200000 / body raw 1→4 / echo 同步) 推 73e
 
 ## 2026-07-23 · saga 双期闭环: express fix(supervisor crashloop 源) + rar2 init 副崩 403 fail-open
 两 crashloop 全根除: (1) gate push 后 bootstrap 三层解耦不跑 npm install 致 /logic 无 node_modules 撞 require('express') → entrypoint 加预装段; (2) init upload_folder 403 (token 账户级读非写) 致 set -e 杀 init → python upload 包 try/except 降 WARN + hf_snapshot||true。五件远端终态: init 21cc7cdb/entry 4803e290/gate 616047c6/litestream 1563c08d/package 5ed9981b 全 == 本地。出处: audit/2026-07-23-crashloop-saga-landed.md。
+
+---
+
+## 2026-07-28 · 三件永不再改全维度闭环: 改名 start.sh + litestream/HF_HUB_RANGE 版本驱逐 ARG+ENV + 五待测项 boot 真验全绿 + ARG 双轨官方义证伪前轮病根
+**改名** (commit 29be9da): bootstrap.sh → start.sh (git mv 保留 rename 76% 历史) + Dockerfile COPY/ENTRYPOINT + 注释行30/37/38 + 两 sync-space/两 sync-logic workflow + start.sh echo 签名 13 处 `[bootstrap]→[start]` + ops/STATUS.md 行15 + docs/三文件永久免改.md fenced 模板全同步. 历史 audit/incidents/archive/v1v2 `bootstrap` 字面+签名 = 已发生 boot 取证+规划历史冻结不改. 根件三闸全过 (sh -n / dash expansion / bash-ism grep). 仅 commit 不 push (本轮已累积 push 闭环).
+**litestream 版本驱逐** (commit 1c8cd3e): Dockerfile `ARG LITESTREAM_VERSION=0.5.9` (FROM 后重声明顺作用域铁律 docs.docker.com/reference/dockerfile/#scope) + `ENV LITESTREAM_VERSION` 转存; start.sh 行34 镜像 A 补全分支 `_ls_v="${LITESTREAM_VERSION:-0.5.9}"` 读 env. 升 litestream 改 ARG/HF Variable buildtime 即零改件. arch 映射回归正: GitHub API 实证 v0.5.9/v0.5.15 主二进制资产用 x86_64 (HTTP 302) 非 amd64 (HTTP 404, amd64 仅 VFS 扩展件). uname -m 输出 x86_64 直拼 URL 仅 aarch64→arm64 映.
+**huggingface_hub 区间驱逐** (commit 2bebf6b): 圣上问可加变量. Dockerfile `ARG HF_HUB_RANGE=>=1.0,<2.0` + ENV 转存; start.sh 行29 读 `${HF_HUB_RANGE:->=1.0,<2.0}`. 防线转化品质不损: 默认值守 <2.0 (拒 2.x 破式升, 容 1.x 全补丁). shell 注入防护: 区间串含 `>,<` 重定向字符, 双引号包变量展开安全 (dash 实测).
+**法规 push 落地** (圣上显令): 9 commits 累积 push nomn main (a58d306..f28f39e fast-forward), 远端 nomn/main == f28f39e 反向键证全等 sha. 9 笔: 3e36a07/cd09d6c/369ab61/fe42c9b/29be9da/1c8cd3e/2bebf6b/b96cfb8/f28f39e.
+**港 omn-ops/ghcr/Dockerfile 注释同步** (非 git 仓, 纯工作目录): 7 处 bootstrap→start 注释对齐 (行2/4/13/14/32/40/62/66/67). 港 Dockerfile 不 COPY 实件 (本镜像无 start.sh 物件, 走逻辑层 HF repo build 时 COPY), 纯注释口径对齐 omn-merge 改名. §1 omn-ops 独立根非自动触.
+**五待测项 boot 真验全绿** (dev Space 09:28:32Z Rebuild boot):
+1. 改名生效: `[start] >>> 启动` 签名现, 零 `[bootstrap]` 残. 🟢
+2. **ARG 双轨病根假说真证 + 前轮"Variable 未透"病根证伪**: boot 现 `基础镜像: ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1...` — 非 Dockerfile ARG 默认值 `:stable`, 证 HF Space Variable `BASE_IMAGE` buildtime 真透 build-arg cover ARG 默认. 2026-07-27 径 C "Variable 未透"病根实为 Rebuild 缓存命中或改值未真 Rebuild, **非官方义假**. 官方义 build-arg 透传闭环. 🟢
+3. ENV 转存 echo 实测: start.sh 行10 真现港 GHCR 3.8.48 digest (da99fac1). 🟢
+4. HEALTHCHECK 契约: gate listening 0.0.0.0:7860 → /healthz 200 探活前, 跨改名不漂 (gate 逻辑层件解耦). 🟢
+5. litestream/HF_HUB_RANGE ENV 透传: `litestream version=0.5.9` 真拉 (镜像 A 自愈分支内 runtime curl 无 CDN 死锁) + `huggingface_hub-1.25.1` (<2.0 防线版, PyPI 现 1.25.1, 1.x 最新补丁) 双引号包区间串真透 pip. 🟢
+**副真证惊喜**:
+- 镜像 A 路径触发 (缺 python3 → 自愈装五件套 curl/jq/python3/python3-pip/sqlite3/ca-certificates + hf_hub 1.25.1 + litestream v0.5.9): 证 start.sh 自愈分支非过渡, 港 GHCR base 3.8.48 上未预装 python3. 三件包缺口查证"永久必需"非理论, 真落 boot 实证.
+- Dataset 竞速根治真: `revision=c9a3afacf6c3 (竞速根治: atomic 同点拉取)` start.sh 行3 取 HEAD commit_id 锁 atomic 真透, 非 8 员旧池病再现.
+- R2 恢复真: `✓ 已从 R2 恢复 (原子 mv .../.storage.sqlite.restore.1)` + `detected database behind replica db_txid=0000...0000 replica_txid=0000...0051` litestream 真拉 R2 restore 非空库.
+- Resilience 真读回: RPM=245/minMs=244/concurrent=21/maxWaitMs=300000 全字段一致.
+- NIM 账平: 7 registered 0 skipped 0 failed (probe 7 alive / 0 dead).
+**三件永不再改真义闭环**: 五待测项全绿, 改名+版本驱逐双轨机制真透 boot 链. 三件 (Dockerfile/start.sh/README) 版本无关真落地, 未来 OmniRoute 升级仅动 GHCR 镜像 + Space Variable, 三件原封不动. 出处: docs/三文件永久免改.md + 内存 three-files-never-change-landed. 关联 [[storage-bucket-dataset-结合堪察]].

@@ -49,6 +49,14 @@ ENV BASE_IMAGE=${BASE_IMAGE}
 ARG LITESTREAM_VERSION=0.5.9
 ENV LITESTREAM_VERSION=${LITESTREAM_VERSION}
 
+# huggingface_hub 区间驱逐 (2026-07-28 圣上令, 区间 pin 与 litestream 同模式驱逐):
+#   默认值 ">=1.0,<2.0" = 有意破坏升级防线 (拒未来 2.x 破式升级, 容忍 1.x 全补丁)。
+#   惰性每个键区间内的版本号驱逐自 ENV (升 2.x 须显改 ARG 评估兼容性 + Rebuild),
+#   防线品质不损 (默认值守 <2.0), start.sh 真 "零硬版本残"。
+#   升 2.x: 改 ARG 默认值 / HF Variable "HF_HUB_RANGE" buildtime 覆盖 + push Rebuild。
+ARG HF_HUB_RANGE=>=1.0,<2.0
+ENV HF_HUB_RANGE=${HF_HUB_RANGE}
+
 # --chmod=755 属 buildkit 标准能力（HF 文档的 build secrets 同为 buildkit 语法，
 # 可证构建器支持），替代 RUN chmod，消灭对文件属主的前提假设。
 COPY --chmod=755 start.sh /start.sh

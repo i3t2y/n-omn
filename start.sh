@@ -25,9 +25,11 @@ if [ "$_need_install" = "1" ]; then
   echo "[start] 镜像 A 模式：正在补全环境（约 60s）..."
   apt-get update && apt-get install -y --no-install-recommends \
     curl jq python3 python3-pip sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
-  # 区间钉版：容忍 1.x 全部补丁，拒绝未来的 2.x 破坏性升级。
-  # （[cli] extra 自 1.x 起不存在，CLI 已内建于主包。）
-  pip3 install --no-cache-dir --break-system-packages "huggingface_hub>=1.0,<2.0"
+  # huggingface_hub 区间驱逐自 ENV (Dockerfile ARG HF_HUB_RANGE + ENV 转存, 与 litestream 同模式):
+  #   默认 >=1.0,<2.0 守 "拒 2.x 破式升, 容 1.x 全补丁" 防线; 升 2.x 改 ARG 默认值/HF Variable
+  #   buildtime 覆盖即零改件。双引号包区间串防 shell 重定向注入 (dash 实测安全)。
+  # [cli] extra 自 1.x 起不存在, CLI 内建主包。
+  pip3 install --no-cache-dir --break-system-packages "huggingface_hub${HF_HUB_RANGE:->=1.0,<2.0}"
   if ! command -v litestream >/dev/null 2>&1; then
     # 镜像 A 路径补全 (BASE_IMAGE 直指裸上游 diegosouzapw/omniroute 无 litestream 时触发)。
     # 日常路径走 GHCR base (本地 tar COPY 预装) 不触发此分支。

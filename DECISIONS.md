@@ -3,6 +3,15 @@
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Supreme 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
 
+## 2026-07-28 · huggingface_hub 区间驱逐 ARG+ENV (圣上问可加变量) — start.sh 真"零硬版本残", 防线品质不损
+
+圣上 2026-07-28 问 "huggingface_hub 版本是否可加变量"。技术可行 + 防线品质不损 + 收益纯 (start.sh 真"零硬版本残")。
+- **区间驱逐 (Dockerfile ARG+ENV + start.sh 读 env)**: Dockerfile 加 `ARG HF_HUB_RANGE=>=1.0,<2.0` (/home/laisi/omn-merge/Dockerfile:57) + `ENV HF_HUB_RANGE=${HF_HUB_RANGE}` (行58) — start.sh 行29 `pip3 install ... "huggingface_hub${HF_HUB_RANGE:->=1.0,<2.0}"` 读 env 回退。与 litestream 同模式自洽。
+- **防线转化 (品质不损)**: 原区间 pin `>=1.0,<2.0` 移至 ARG 默认值, 仍守 "拒 2.x 破式升容 1.x 全补丁" 防线。升 2.x 须显改 ARG 默认值 (评估兼容性后) + push Rebuild, 或 HF Variable "HF_HUB_RANGE" buildtime 覆盖 — 非自动触发 pip 装 2.x。防线品质 = 改前 (默认值守 <2.0)。
+- **shell 注入防护 (dash 实证)**: 区间串 `>=1.0,<2.0` 含 `>,<` 字符与 shell 重定向冲突。start.sh 行29 双引号包变量展开 `"huggingface_hub${HF_HUB_RANGE:-...}"` 在双引号内不触重定向 — dash 实跑 `echo "huggingface_hub${HF_HUB_RANGE}"` 输出正 `huggingface_hub>=1.0,<2.0` 无注入, 回退段 `${VAR:-default}` 同样正。三闸全过 (sh -n / dash expansion / bash-ism grep 无命中)。
+- **与 litestream 驱逐对比**: litestream 真硬钉版 (URL 字面 v0.5.9) 驱逐纯收益; huggingface_hub 区间 pin 是有意防线 — 驱逐转化防线位 ARG 默认值而非废防线。两驱逐后 start.sh 零硬版本字面残, 三件永不再改真义更纯 (升 litestream / 升 huggingface_hub 2.x 均改 ARG 一处零改件)。
+- **出处**: 本条 + Dockerfile 行 57-58 (ARG+ENV HF_HUB_RANGE) + start.sh 行 28-32 (区间读 env) + docs/三文件永久免改.md fenced 同步 + pypi huggingface-hub 1.25.1 (2026-07-27 最新无 2.x 确证 <2.0 防线当前未触) + dash 实测区间串展开。
+
 ## 2026-07-28 · litestream 版本驱逐 ARG+ENV (圣上令行34改) + 三件全维度源码级查证定永不再改 — 改名后唯一残留版本耦合驱逐
 
 圣上 2026-07-28 令 "改 (行34驱逐) 并全维度源码级查证 HF/omniroute 等网站定三件优化余地"。改名毕后核 start.sh 行34 litestream v0.5.9 URL 钉版 = 三件 (Dockerfile/start.sh/README) 唯一残留版本耦合点, 圣上令驱逐。

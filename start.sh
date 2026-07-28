@@ -29,9 +29,16 @@ if [ "$_need_install" = "1" ]; then
   # （[cli] extra 自 1.x 起不存在，CLI 已内建于主包。）
   pip3 install --no-cache-dir --break-system-packages "huggingface_hub>=1.0,<2.0"
   if ! command -v litestream >/dev/null 2>&1; then
-    # 资产命名经实证：v0.5.9 的 amd64 资产为 linux-x86_64，arm64 资产为 linux-arm64。
+    # 镜像 A 路径补全 (BASE_IMAGE 直指裸上游 diegosouzapw/omniroute 无 litestream 时触发)。
+    # 日常路径走 GHCR base (本地 tar COPY 预装) 不触发此分支。
+    # 版本号驱逐自 ENV (Dockerfile ARG LITESTREAM_VERSION + ENV 转存, 永不再改三件):
+    #   升 litestream 改 Dockerfile ARG 默认值 / HF Variable buildtime 覆盖, 此处零改。
+    # 资产命名 v0.5.x 全程稳定 (GitHub API 实证 v0.5.9/v0.5.15 一致):
+    #   litestream-{ver}-linux-{arch}.tar.gz, x86_64 直用 (官方主资产即此名, amd64 仅 VFS 扩展件),
+    #   aarch64 归一 arm64。uname -m 直拼 URL (x86_64 无须映)。
     _a=$(uname -m | sed 's/aarch64/arm64/')
-    curl -fsSL "https://github.com/benbjohnson/litestream/releases/download/v0.5.9/litestream-0.5.9-linux-${_a}.tar.gz" \
+    _ls_v="${LITESTREAM_VERSION:-0.5.9}"
+    curl -fsSL "https://github.com/benbjohnson/litestream/releases/download/v${_ls_v}/litestream-${_ls_v}-linux-${_a}.tar.gz" \
       | tar -xz -C /usr/local/bin litestream && chmod +x /usr/local/bin/litestream
   fi
   echo "[start] 环境补全完成"

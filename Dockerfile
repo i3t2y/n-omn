@@ -39,6 +39,16 @@ USER root
 ARG BASE_IMAGE
 ENV BASE_IMAGE=${BASE_IMAGE}
 
+# litestream 版本驱逐 (2026-07-28 圣上令, 版本号不残留三件内):
+#   ARG LITESTREAM_VERSION = build 期值 + ENV 转存 runtime; start.sh 镜像 A 路径补全
+#   分支 (BASE_IMAGE 直指裸上游 diegosouzapw/omniroute 无 litestream 时触发) 读此 env
+#   curl 拉取。日常路径走 GHCR base (本地 tar COPY 预装) 不触发此分支。
+#   升 litestream: 改此 ARG 默认值 + GHCR base (omn-ops/ghcr/Dockerfile:43) 同步 + push
+#   Rebuild, 或 HF Variable "LITESTREAM_VERSION" buildtime 覆盖 (官方义 build-arg 透传)。
+#   资产命名 litestream-{ver}-linux-{arch}.tar.gz v0.5.x 全程稳定 (v0.5.7→v0.5.15 实证)。
+ARG LITESTREAM_VERSION=0.5.9
+ENV LITESTREAM_VERSION=${LITESTREAM_VERSION}
+
 # --chmod=755 属 buildkit 标准能力（HF 文档的 build secrets 同为 buildkit 语法，
 # 可证构建器支持），替代 RUN chmod，消灭对文件属主的前提假设。
 COPY --chmod=755 start.sh /start.sh

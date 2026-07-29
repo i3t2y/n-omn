@@ -1,0 +1,1146 @@
+data: {"data":"===== Application Startup at 2026-07-29 11:50:54 =====\n","timestamp":"2026-07-29T11:50:54Z"}
+
+data: {"data":"[start] >>> 启动 2026-07-29 11:51:09 <<<","timestamp":"2026-07-29T11:51:09.016Z"}
+
+data: {"data":"[start] 基础镜像: ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f","timestamp":"2026-07-29T11:51:09.016Z"}
+
+data: {"data":"[start] 缺失基础工具: python3","timestamp":"2026-07-29T11:51:09.016Z"}
+
+data: {"data":"[start] 镜像 A 模式：正在补全环境（约 60s）...","timestamp":"2026-07-29T11:51:09.016Z"}
+
+data: {"data":"Get:1 http://deb.debian.org/debian trixie InRelease [140 kB]","timestamp":"2026-07-29T11:51:09.136Z"}
+
+data: {"data":"Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]","timestamp":"2026-07-29T11:51:09.149Z"}
+
+data: {"data":"Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]","timestamp":"2026-07-29T11:51:09.149Z"}
+
+data: {"data":"Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9673 kB]","timestamp":"2026-07-29T11:51:09.179Z"}
+
+data: {"data":"Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [4412 B]","timestamp":"2026-07-29T11:51:09.225Z"}
+
+data: {"data":"Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [228 kB]","timestamp":"2026-07-29T11:51:09.226Z"}
+
+data: {"data":"Fetched 10.1 MB in 1s (11.8 MB/s)","timestamp":"2026-07-29T11:51:10.007Z"}
+
+data: {"data":"Reading package lists...","timestamp":"2026-07-29T11:51:10.657Z"}
+
+data: {"data":"Reading package lists...","timestamp":"2026-07-29T11:51:11.336Z"}
+
+data: {"data":"Building dependency tree...","timestamp":"2026-07-29T11:51:11.522Z"}
+
+data: {"data":"Reading state information...","timestamp":"2026-07-29T11:51:11.522Z"}
+
+data: {"data":"ca-certificates is already the newest version (20250419).","timestamp":"2026-07-29T11:51:11.784Z"}
+
+data: {"data":"The following additional packages will be installed:","timestamp":"2026-07-29T11:51:11.784Z"}
+
+data: {"data":"  libbrotli1 libcom-err2 libcurl4t64 libexpat1 libgnutls30t64 libgssapi-krb5-2","timestamp":"2026-07-29T11:51:11.785Z"}
+
+data: {"data":"  libidn2-0 libjq1 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0","timestamp":"2026-07-29T11:51:11.785Z"}
+
+data: {"data":"  libldap2 libncursesw6 libnghttp2-14 libnghttp3-9 libonig5 libp11-kit0","timestamp":"2026-07-29T11:51:11.785Z"}
+
+data: {"data":"  libpsl5t64 libpython3-stdlib libpython3.13-minimal libpython3.13-stdlib","timestamp":"2026-07-29T11:51:11.785Z"}
+
+data: {"data":"  libreadline8t64 librtmp1 libsasl2-2 libsasl2-modules-db libssh2-1t64","timestamp":"2026-07-29T11:51:11.785Z"}
+
+data: {"data":"  libtasn1-6 libunistring5 media-types netbase python3-minimal","timestamp":"2026-07-29T11:51:11.786Z"}
+
+data: {"data":"  python3-packaging python3-wheel python3.13 python3.13-minimal","timestamp":"2026-07-29T11:51:11.786Z"}
+
+data: {"data":"  readline-common","timestamp":"2026-07-29T11:51:11.786Z"}
+
+data: {"data":"Suggested packages:","timestamp":"2026-07-29T11:51:11.787Z"}
+
+data: {"data":"  gnutls-bin krb5-doc krb5-user python3-doc python3-tk python3-venv","timestamp":"2026-07-29T11:51:11.787Z"}
+
+data: {"data":"  python3-setuptools python3.13-venv python3.13-doc binutils binfmt-support","timestamp":"2026-07-29T11:51:11.787Z"}
+
+data: {"data":"  readline-doc sqlite3-doc","timestamp":"2026-07-29T11:51:11.787Z"}
+
+data: {"data":"Recommended packages:","timestamp":"2026-07-29T11:51:11.787Z"}
+
+data: {"data":"  bash-completion krb5-locales libldap-common libgpm2 publicsuffix","timestamp":"2026-07-29T11:51:11.787Z"}
+
+data: {"data":"  libsasl2-modules build-essential python3-dev libjs-sphinxdoc","timestamp":"2026-07-29T11:51:11.787Z"}
+
+data: {"data":"The following NEW packages will be installed:","timestamp":"2026-07-29T11:51:12.078Z"}
+
+data: {"data":"  curl jq libbrotli1 libcom-err2 libcurl4t64 libexpat1 libgnutls30t64","timestamp":"2026-07-29T11:51:12.078Z"}
+
+data: {"data":"  libgssapi-krb5-2 libidn2-0 libjq1 libk5crypto3 libkeyutils1 libkrb5-3","timestamp":"2026-07-29T11:51:12.078Z"}
+
+data: {"data":"  libkrb5support0 libldap2 libncursesw6 libnghttp2-14 libnghttp3-9 libonig5","timestamp":"2026-07-29T11:51:12.078Z"}
+
+data: {"data":"  libp11-kit0 libpsl5t64 libpython3-stdlib libpython3.13-minimal","timestamp":"2026-07-29T11:51:12.078Z"}
+
+data: {"data":"  libpython3.13-stdlib libreadline8t64 librtmp1 libsasl2-2 libsasl2-modules-db","timestamp":"2026-07-29T11:51:12.079Z"}
+
+data: {"data":"  libssh2-1t64 libtasn1-6 libunistring5 media-types netbase python3","timestamp":"2026-07-29T11:51:12.079Z"}
+
+data: {"data":"  python3-minimal python3-packaging python3-pip python3-wheel python3.13","timestamp":"2026-07-29T11:51:12.079Z"}
+
+data: {"data":"  python3.13-minimal readline-common sqlite3","timestamp":"2026-07-29T11:51:12.079Z"}
+
+data: {"data":"0 upgraded, 42 newly installed, 0 to remove and 2 not upgraded.","timestamp":"2026-07-29T11:51:12.110Z"}
+
+data: {"data":"Need to get 13.6 MB of archives.","timestamp":"2026-07-29T11:51:12.110Z"}
+
+data: {"data":"After this operation, 51.6 MB of additional disk space will be used.","timestamp":"2026-07-29T11:51:12.110Z"}
+
+data: {"data":"Get:1 http://deb.debian.org/debian trixie/main amd64 libexpat1 amd64 2.7.1-2 [108 kB]","timestamp":"2026-07-29T11:51:12.110Z"}
+
+data: {"data":"Get:2 http://deb.debian.org/debian trixie-updates/main amd64 libpython3.13-minimal amd64 3.13.5-2+deb13u4 [863 kB]","timestamp":"2026-07-29T11:51:12.113Z"}
+
+data: {"data":"Get:3 http://deb.debian.org/debian trixie-updates/main amd64 python3.13-minimal amd64 3.13.5-2+deb13u4 [2217 kB]","timestamp":"2026-07-29T11:51:12.117Z"}
+
+data: {"data":"Get:4 http://deb.debian.org/debian trixie/main amd64 python3-minimal amd64 3.13.5-1 [27.2 kB]","timestamp":"2026-07-29T11:51:12.122Z"}
+
+data: {"data":"Get:5 http://deb.debian.org/debian trixie/main amd64 media-types all 13.0.0 [29.3 kB]","timestamp":"2026-07-29T11:51:12.122Z"}
+
+data: {"data":"Get:6 http://deb.debian.org/debian trixie/main amd64 netbase all 6.5 [12.4 kB]","timestamp":"2026-07-29T11:51:12.122Z"}
+
+data: {"data":"Get:7 http://deb.debian.org/debian trixie/main amd64 libncursesw6 amd64 6.5+20250216-2 [135 kB]","timestamp":"2026-07-29T11:51:12.123Z"}
+
+data: {"data":"Get:8 http://deb.debian.org/debian trixie/main amd64 readline-common all 8.2-6 [69.4 kB]","timestamp":"2026-07-29T11:51:12.125Z"}
+
+data: {"data":"Get:9 http://deb.debian.org/debian trixie/main amd64 libreadline8t64 amd64 8.2-6 [169 kB]","timestamp":"2026-07-29T11:51:12.127Z"}
+
+data: {"data":"Get:10 http://deb.debian.org/debian trixie-updates/main amd64 libpython3.13-stdlib amd64 3.13.5-2+deb13u4 [1957 kB]","timestamp":"2026-07-29T11:51:12.128Z"}
+
+data: {"data":"Get:11 http://deb.debian.org/debian trixie-updates/main amd64 python3.13 amd64 3.13.5-2+deb13u4 [757 kB]","timestamp":"2026-07-29T11:51:12.132Z"}
+
+data: {"data":"Get:12 http://deb.debian.org/debian trixie/main amd64 libpython3-stdlib amd64 3.13.5-1 [10.2 kB]","timestamp":"2026-07-29T11:51:12.134Z"}
+
+data: {"data":"Get:13 http://deb.debian.org/debian trixie/main amd64 python3 amd64 3.13.5-1 [28.2 kB]","timestamp":"2026-07-29T11:51:12.134Z"}
+
+data: {"data":"Get:14 http://deb.debian.org/debian trixie/main amd64 libbrotli1 amd64 1.1.0-2+b7 [307 kB]","timestamp":"2026-07-29T11:51:12.134Z"}
+
+data: {"data":"Get:15 http://deb.debian.org/debian trixie/main amd64 libkrb5support0 amd64 1.21.3-5+deb13u1 [33.1 kB]","timestamp":"2026-07-29T11:51:12.135Z"}
+
+data: {"data":"Get:16 http://deb.debian.org/debian trixie/main amd64 libcom-err2 amd64 1.47.2-3+b11 [25.0 kB]","timestamp":"2026-07-29T11:51:12.136Z"}
+
+data: {"data":"Get:17 http://deb.debian.org/debian trixie/main amd64 libk5crypto3 amd64 1.21.3-5+deb13u1 [81.2 kB]","timestamp":"2026-07-29T11:51:12.137Z"}
+
+data: {"data":"Get:18 http://deb.debian.org/debian trixie/main amd64 libkeyutils1 amd64 1.6.3-6 [9456 B]","timestamp":"2026-07-29T11:51:12.139Z"}
+
+data: {"data":"Get:19 http://deb.debian.org/debian trixie/main amd64 libkrb5-3 amd64 1.21.3-5+deb13u1 [326 kB]","timestamp":"2026-07-29T11:51:12.140Z"}
+
+data: {"data":"Get:20 http://deb.debian.org/debian trixie/main amd64 libgssapi-krb5-2 amd64 1.21.3-5+deb13u1 [138 kB]","timestamp":"2026-07-29T11:51:12.142Z"}
+
+data: {"data":"Get:21 http://deb.debian.org/debian trixie/main amd64 libunistring5 amd64 1.3-2 [477 kB]","timestamp":"2026-07-29T11:51:12.144Z"}
+
+data: {"data":"Get:22 http://deb.debian.org/debian trixie/main amd64 libidn2-0 amd64 2.3.8-2 [109 kB]","timestamp":"2026-07-29T11:51:12.145Z"}
+
+data: {"data":"Get:23 http://deb.debian.org/debian trixie/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg1-9 [19.8 kB]","timestamp":"2026-07-29T11:51:12.147Z"}
+
+data: {"data":"Get:24 http://deb.debian.org/debian trixie/main amd64 libsasl2-2 amd64 2.1.28+dfsg1-9 [57.5 kB]","timestamp":"2026-07-29T11:51:12.148Z"}
+
+data: {"data":"Get:25 http://deb.debian.org/debian trixie/main amd64 libldap2 amd64 2.6.10+dfsg-1 [194 kB]","timestamp":"2026-07-29T11:51:12.149Z"}
+
+data: {"data":"Get:26 http://deb.debian.org/debian trixie/main amd64 libnghttp2-14 amd64 1.64.0-1.1+deb13u1 [76.2 kB]","timestamp":"2026-07-29T11:51:12.151Z"}
+
+data: {"data":"Get:27 http://deb.debian.org/debian trixie/main amd64 libnghttp3-9 amd64 1.8.0-1 [67.7 kB]","timestamp":"2026-07-29T11:51:12.152Z"}
+
+data: {"data":"Get:28 http://deb.debian.org/debian trixie/main amd64 libpsl5t64 amd64 0.21.2-1.1+b1 [57.2 kB]","timestamp":"2026-07-29T11:51:12.153Z"}
+
+data: {"data":"Get:29 http://deb.debian.org/debian trixie/main amd64 libp11-kit0 amd64 0.25.5-3 [425 kB]","timestamp":"2026-07-29T11:51:12.155Z"}
+
+data: {"data":"Get:30 http://deb.debian.org/debian trixie/main amd64 libtasn1-6 amd64 4.20.0-2+deb13u1 [50.1 kB]","timestamp":"2026-07-29T11:51:12.158Z"}
+
+data: {"data":"Get:31 http://deb.debian.org/debian trixie/main amd64 libgnutls30t64 amd64 3.8.9-3+deb13u4 [1469 kB]","timestamp":"2026-07-29T11:51:12.159Z"}
+
+data: {"data":"Get:32 http://deb.debian.org/debian trixie/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b5 [58.8 kB]","timestamp":"2026-07-29T11:51:12.165Z"}
+
+data: {"data":"Get:33 http://deb.debian.org/debian trixie/main amd64 libssh2-1t64 amd64 1.11.1-1+deb13u1 [245 kB]","timestamp":"2026-07-29T11:51:12.166Z"}
+
+data: {"data":"Get:34 http://deb.debian.org/debian trixie/main amd64 libcurl4t64 amd64 8.14.1-2+deb13u4 [392 kB]","timestamp":"2026-07-29T11:51:12.167Z"}
+
+data: {"data":"Get:35 http://deb.debian.org/debian trixie/main amd64 curl amd64 8.14.1-2+deb13u4 [270 kB]","timestamp":"2026-07-29T11:51:12.168Z"}
+
+data: {"data":"Get:36 http://deb.debian.org/debian trixie/main amd64 libonig5 amd64 6.9.9-1+b1 [189 kB]","timestamp":"2026-07-29T11:51:12.170Z"}
+
+data: {"data":"Get:37 http://deb.debian.org/debian trixie/main amd64 libjq1 amd64 1.7.1-6+deb13u2 [164 kB]","timestamp":"2026-07-29T11:51:12.171Z"}
+
+data: {"data":"Get:38 http://deb.debian.org/debian trixie/main amd64 jq amd64 1.7.1-6+deb13u2 [77.8 kB]","timestamp":"2026-07-29T11:51:12.171Z"}
+
+data: {"data":"Get:39 http://deb.debian.org/debian trixie/main amd64 python3-packaging all 25.0-1 [56.6 kB]","timestamp":"2026-07-29T11:51:12.172Z"}
+
+data: {"data":"Get:40 http://deb.debian.org/debian trixie/main amd64 python3-wheel all 0.46.1-2 [21.7 kB]","timestamp":"2026-07-29T11:51:12.173Z"}
+
+data: {"data":"Get:41 http://deb.debian.org/debian trixie/main amd64 python3-pip all 25.1.1+dfsg-1 [1457 kB]","timestamp":"2026-07-29T11:51:12.174Z"}
+
+data: {"data":"Get:42 http://deb.debian.org/debian trixie/main amd64 sqlite3 amd64 3.46.1-7+deb13u1 [384 kB]","timestamp":"2026-07-29T11:51:12.179Z"}
+
+data: {"data":"debconf: unable to initialize frontend: Dialog","timestamp":"2026-07-29T11:51:12.453Z"}
+
+data: {"data":"debconf: (TERM is not set, so the dialog frontend is not usable.)","timestamp":"2026-07-29T11:51:12.453Z"}
+
+data: {"data":"debconf: falling back to frontend: Readline","timestamp":"2026-07-29T11:51:12.453Z"}
+
+data: {"data":"debconf: unable to initialize frontend: Readline","timestamp":"2026-07-29T11:51:12.454Z"}
+
+data: {"data":"debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 42.)","timestamp":"2026-07-29T11:51:12.454Z"}
+
+data: {"data":"debconf: falling back to frontend: Teletype","timestamp":"2026-07-29T11:51:12.454Z"}
+
+data: {"data":"debconf: unable to initialize frontend: Teletype","timestamp":"2026-07-29T11:51:12.460Z"}
+
+data: {"data":"debconf: (This frontend requires a controlling tty.)","timestamp":"2026-07-29T11:51:12.460Z"}
+
+data: {"data":"debconf: falling back to frontend: Noninteractive","timestamp":"2026-07-29T11:51:12.460Z"}
+
+data: {"data":"Fetched 13.6 MB in 0s (158 MB/s)","timestamp":"2026-07-29T11:51:13.793Z"}
+
+data: {"data":"Selecting previously unselected package libexpat1:amd64.","timestamp":"2026-07-29T11:51:13.833Z"}
+
+data: {"data":"(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 5723 files and directories currently installed.)","timestamp":"2026-07-29T11:51:13.894Z"}
+
+data: {"data":"Preparing to unpack .../libexpat1_2.7.1-2_amd64.deb ...","timestamp":"2026-07-29T11:51:13.895Z"}
+
+data: {"data":"Unpacking libexpat1:amd64 (2.7.1-2) ...","timestamp":"2026-07-29T11:51:13.903Z"}
+
+data: {"data":"Selecting previously unselected package libpython3.13-minimal:amd64.","timestamp":"2026-07-29T11:51:13.943Z"}
+
+data: {"data":"Preparing to unpack .../libpython3.13-minimal_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-29T11:51:13.944Z"}
+
+data: {"data":"Unpacking libpython3.13-minimal:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:13.947Z"}
+
+data: {"data":"Selecting previously unselected package python3.13-minimal.","timestamp":"2026-07-29T11:51:14.033Z"}
+
+data: {"data":"Preparing to unpack .../python3.13-minimal_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-29T11:51:14.035Z"}
+
+data: {"data":"Unpacking python3.13-minimal (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:14.045Z"}
+
+data: {"data":"Setting up libpython3.13-minimal:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:14.184Z"}
+
+data: {"data":"Setting up libexpat1:amd64 (2.7.1-2) ...","timestamp":"2026-07-29T11:51:14.198Z"}
+
+data: {"data":"Setting up python3.13-minimal (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:14.209Z"}
+
+data: {"data":"Selecting previously unselected package python3-minimal.","timestamp":"2026-07-29T11:51:15.101Z"}
+
+data: {"data":"(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 6057 files and directories currently installed.)","timestamp":"2026-07-29T11:51:15.107Z"}
+
+data: {"data":"Preparing to unpack .../0-python3-minimal_3.13.5-1_amd64.deb ...","timestamp":"2026-07-29T11:51:15.108Z"}
+
+data: {"data":"Unpacking python3-minimal (3.13.5-1) ...","timestamp":"2026-07-29T11:51:15.112Z"}
+
+data: {"data":"Selecting previously unselected package media-types.","timestamp":"2026-07-29T11:51:15.145Z"}
+
+data: {"data":"Preparing to unpack .../1-media-types_13.0.0_all.deb ...","timestamp":"2026-07-29T11:51:15.146Z"}
+
+data: {"data":"Unpacking media-types (13.0.0) ...","timestamp":"2026-07-29T11:51:15.151Z"}
+
+data: {"data":"Selecting previously unselected package netbase.","timestamp":"2026-07-29T11:51:15.189Z"}
+
+data: {"data":"Preparing to unpack .../2-netbase_6.5_all.deb ...","timestamp":"2026-07-29T11:51:15.191Z"}
+
+data: {"data":"Unpacking netbase (6.5) ...","timestamp":"2026-07-29T11:51:15.195Z"}
+
+data: {"data":"Selecting previously unselected package libncursesw6:amd64.","timestamp":"2026-07-29T11:51:15.231Z"}
+
+data: {"data":"Preparing to unpack .../3-libncursesw6_6.5+20250216-2_amd64.deb ...","timestamp":"2026-07-29T11:51:15.232Z"}
+
+data: {"data":"Unpacking libncursesw6:amd64 (6.5+20250216-2) ...","timestamp":"2026-07-29T11:51:15.236Z"}
+
+data: {"data":"Selecting previously unselected package readline-common.","timestamp":"2026-07-29T11:51:15.275Z"}
+
+data: {"data":"Preparing to unpack .../4-readline-common_8.2-6_all.deb ...","timestamp":"2026-07-29T11:51:15.276Z"}
+
+data: {"data":"Unpacking readline-common (8.2-6) ...","timestamp":"2026-07-29T11:51:15.279Z"}
+
+data: {"data":"Selecting previously unselected package libreadline8t64:amd64.","timestamp":"2026-07-29T11:51:15.335Z"}
+
+data: {"data":"Preparing to unpack .../5-libreadline8t64_8.2-6_amd64.deb ...","timestamp":"2026-07-29T11:51:15.337Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libhistory.so.8 to /lib/x86_64-linux-gnu/libhistory.so.8.usr-is-merged by libreadline8t64'","timestamp":"2026-07-29T11:51:15.346Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libhistory.so.8.2 to /lib/x86_64-linux-gnu/libhistory.so.8.2.usr-is-merged by libreadline8t64'","timestamp":"2026-07-29T11:51:15.353Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libreadline.so.8 to /lib/x86_64-linux-gnu/libreadline.so.8.usr-is-merged by libreadline8t64'","timestamp":"2026-07-29T11:51:15.358Z"}
+
+data: {"data":"Adding 'diversion of /lib/x86_64-linux-gnu/libreadline.so.8.2 to /lib/x86_64-linux-gnu/libreadline.so.8.2.usr-is-merged by libreadline8t64'","timestamp":"2026-07-29T11:51:15.364Z"}
+
+data: {"data":"Unpacking libreadline8t64:amd64 (8.2-6) ...","timestamp":"2026-07-29T11:51:15.367Z"}
+
+data: {"data":"Selecting previously unselected package libpython3.13-stdlib:amd64.","timestamp":"2026-07-29T11:51:15.404Z"}
+
+data: {"data":"Preparing to unpack .../6-libpython3.13-stdlib_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-29T11:51:15.405Z"}
+
+data: {"data":"Unpacking libpython3.13-stdlib:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:15.409Z"}
+
+data: {"data":"Selecting previously unselected package python3.13.","timestamp":"2026-07-29T11:51:15.545Z"}
+
+data: {"data":"Preparing to unpack .../7-python3.13_3.13.5-2+deb13u4_amd64.deb ...","timestamp":"2026-07-29T11:51:15.546Z"}
+
+data: {"data":"Unpacking python3.13 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:15.550Z"}
+
+data: {"data":"Selecting previously unselected package libpython3-stdlib:amd64.","timestamp":"2026-07-29T11:51:15.583Z"}
+
+data: {"data":"Preparing to unpack .../8-libpython3-stdlib_3.13.5-1_amd64.deb ...","timestamp":"2026-07-29T11:51:15.584Z"}
+
+data: {"data":"Unpacking libpython3-stdlib:amd64 (3.13.5-1) ...","timestamp":"2026-07-29T11:51:15.588Z"}
+
+data: {"data":"Setting up python3-minimal (3.13.5-1) ...","timestamp":"2026-07-29T11:51:15.618Z"}
+
+data: {"data":"Selecting previously unselected package python3.","timestamp":"2026-07-29T11:51:15.787Z"}
+
+data: {"data":"(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 6560 files and directories currently installed.)","timestamp":"2026-07-29T11:51:15.791Z"}
+
+data: {"data":"Preparing to unpack .../00-python3_3.13.5-1_amd64.deb ...","timestamp":"2026-07-29T11:51:15.792Z"}
+
+data: {"data":"Unpacking python3 (3.13.5-1) ...","timestamp":"2026-07-29T11:51:15.801Z"}
+
+data: {"data":"Selecting previously unselected package libbrotli1:amd64.","timestamp":"2026-07-29T11:51:15.842Z"}
+
+data: {"data":"Preparing to unpack .../01-libbrotli1_1.1.0-2+b7_amd64.deb ...","timestamp":"2026-07-29T11:51:15.843Z"}
+
+data: {"data":"Unpacking libbrotli1:amd64 (1.1.0-2+b7) ...","timestamp":"2026-07-29T11:51:15.846Z"}
+
+data: {"data":"Selecting previously unselected package libkrb5support0:amd64.","timestamp":"2026-07-29T11:51:15.893Z"}
+
+data: {"data":"Preparing to unpack .../02-libkrb5support0_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:15.895Z"}
+
+data: {"data":"Unpacking libkrb5support0:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:15.898Z"}
+
+data: {"data":"Selecting previously unselected package libcom-err2:amd64.","timestamp":"2026-07-29T11:51:15.933Z"}
+
+data: {"data":"Preparing to unpack .../03-libcom-err2_1.47.2-3+b11_amd64.deb ...","timestamp":"2026-07-29T11:51:15.934Z"}
+
+data: {"data":"Unpacking libcom-err2:amd64 (1.47.2-3+b11) ...","timestamp":"2026-07-29T11:51:15.938Z"}
+
+data: {"data":"Selecting previously unselected package libk5crypto3:amd64.","timestamp":"2026-07-29T11:51:15.973Z"}
+
+data: {"data":"Preparing to unpack .../04-libk5crypto3_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:15.974Z"}
+
+data: {"data":"Unpacking libk5crypto3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:15.978Z"}
+
+data: {"data":"Selecting previously unselected package libkeyutils1:amd64.","timestamp":"2026-07-29T11:51:16.016Z"}
+
+data: {"data":"Preparing to unpack .../05-libkeyutils1_1.6.3-6_amd64.deb ...","timestamp":"2026-07-29T11:51:16.017Z"}
+
+data: {"data":"Unpacking libkeyutils1:amd64 (1.6.3-6) ...","timestamp":"2026-07-29T11:51:16.021Z"}
+
+data: {"data":"Selecting previously unselected package libkrb5-3:amd64.","timestamp":"2026-07-29T11:51:16.053Z"}
+
+data: {"data":"Preparing to unpack .../06-libkrb5-3_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.054Z"}
+
+data: {"data":"Unpacking libkrb5-3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:16.058Z"}
+
+data: {"data":"Selecting previously unselected package libgssapi-krb5-2:amd64.","timestamp":"2026-07-29T11:51:16.117Z"}
+
+data: {"data":"Preparing to unpack .../07-libgssapi-krb5-2_1.21.3-5+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.118Z"}
+
+data: {"data":"Unpacking libgssapi-krb5-2:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:16.121Z"}
+
+data: {"data":"Selecting previously unselected package libunistring5:amd64.","timestamp":"2026-07-29T11:51:16.162Z"}
+
+data: {"data":"Preparing to unpack .../08-libunistring5_1.3-2_amd64.deb ...","timestamp":"2026-07-29T11:51:16.164Z"}
+
+data: {"data":"Unpacking libunistring5:amd64 (1.3-2) ...","timestamp":"2026-07-29T11:51:16.167Z"}
+
+data: {"data":"Selecting previously unselected package libidn2-0:amd64.","timestamp":"2026-07-29T11:51:16.228Z"}
+
+data: {"data":"Preparing to unpack .../09-libidn2-0_2.3.8-2_amd64.deb ...","timestamp":"2026-07-29T11:51:16.230Z"}
+
+data: {"data":"Unpacking libidn2-0:amd64 (2.3.8-2) ...","timestamp":"2026-07-29T11:51:16.233Z"}
+
+data: {"data":"Selecting previously unselected package libsasl2-modules-db:amd64.","timestamp":"2026-07-29T11:51:16.265Z"}
+
+data: {"data":"Preparing to unpack .../10-libsasl2-modules-db_2.1.28+dfsg1-9_amd64.deb ...","timestamp":"2026-07-29T11:51:16.266Z"}
+
+data: {"data":"Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-29T11:51:16.271Z"}
+
+data: {"data":"Selecting previously unselected package libsasl2-2:amd64.","timestamp":"2026-07-29T11:51:16.312Z"}
+
+data: {"data":"Preparing to unpack .../11-libsasl2-2_2.1.28+dfsg1-9_amd64.deb ...","timestamp":"2026-07-29T11:51:16.313Z"}
+
+data: {"data":"Unpacking libsasl2-2:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-29T11:51:16.317Z"}
+
+data: {"data":"Selecting previously unselected package libldap2:amd64.","timestamp":"2026-07-29T11:51:16.352Z"}
+
+data: {"data":"Preparing to unpack .../12-libldap2_2.6.10+dfsg-1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.353Z"}
+
+data: {"data":"Unpacking libldap2:amd64 (2.6.10+dfsg-1) ...","timestamp":"2026-07-29T11:51:16.356Z"}
+
+data: {"data":"Selecting previously unselected package libnghttp2-14:amd64.","timestamp":"2026-07-29T11:51:16.398Z"}
+
+data: {"data":"Preparing to unpack .../13-libnghttp2-14_1.64.0-1.1+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.399Z"}
+
+data: {"data":"Unpacking libnghttp2-14:amd64 (1.64.0-1.1+deb13u1) ...","timestamp":"2026-07-29T11:51:16.403Z"}
+
+data: {"data":"Selecting previously unselected package libnghttp3-9:amd64.","timestamp":"2026-07-29T11:51:16.439Z"}
+
+data: {"data":"Preparing to unpack .../14-libnghttp3-9_1.8.0-1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.440Z"}
+
+data: {"data":"Unpacking libnghttp3-9:amd64 (1.8.0-1) ...","timestamp":"2026-07-29T11:51:16.444Z"}
+
+data: {"data":"Selecting previously unselected package libpsl5t64:amd64.","timestamp":"2026-07-29T11:51:16.481Z"}
+
+data: {"data":"Preparing to unpack .../15-libpsl5t64_0.21.2-1.1+b1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.482Z"}
+
+data: {"data":"Unpacking libpsl5t64:amd64 (0.21.2-1.1+b1) ...","timestamp":"2026-07-29T11:51:16.486Z"}
+
+data: {"data":"Selecting previously unselected package libp11-kit0:amd64.","timestamp":"2026-07-29T11:51:16.522Z"}
+
+data: {"data":"Preparing to unpack .../16-libp11-kit0_0.25.5-3_amd64.deb ...","timestamp":"2026-07-29T11:51:16.523Z"}
+
+data: {"data":"Unpacking libp11-kit0:amd64 (0.25.5-3) ...","timestamp":"2026-07-29T11:51:16.527Z"}
+
+data: {"data":"Selecting previously unselected package libtasn1-6:amd64.","timestamp":"2026-07-29T11:51:16.576Z"}
+
+data: {"data":"Preparing to unpack .../17-libtasn1-6_4.20.0-2+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.577Z"}
+
+data: {"data":"Unpacking libtasn1-6:amd64 (4.20.0-2+deb13u1) ...","timestamp":"2026-07-29T11:51:16.581Z"}
+
+data: {"data":"Selecting previously unselected package libgnutls30t64:amd64.","timestamp":"2026-07-29T11:51:16.617Z"}
+
+data: {"data":"Preparing to unpack .../18-libgnutls30t64_3.8.9-3+deb13u4_amd64.deb ...","timestamp":"2026-07-29T11:51:16.618Z"}
+
+data: {"data":"Unpacking libgnutls30t64:amd64 (3.8.9-3+deb13u4) ...","timestamp":"2026-07-29T11:51:16.621Z"}
+
+data: {"data":"Selecting previously unselected package librtmp1:amd64.","timestamp":"2026-07-29T11:51:16.697Z"}
+
+data: {"data":"Preparing to unpack .../19-librtmp1_2.4+20151223.gitfa8646d.1-2+b5_amd64.deb ...","timestamp":"2026-07-29T11:51:16.698Z"}
+
+data: {"data":"Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...","timestamp":"2026-07-29T11:51:16.702Z"}
+
+data: {"data":"Selecting previously unselected package libssh2-1t64:amd64.","timestamp":"2026-07-29T11:51:16.739Z"}
+
+data: {"data":"Preparing to unpack .../20-libssh2-1t64_1.11.1-1+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.740Z"}
+
+data: {"data":"Unpacking libssh2-1t64:amd64 (1.11.1-1+deb13u1) ...","timestamp":"2026-07-29T11:51:16.744Z"}
+
+data: {"data":"Selecting previously unselected package libcurl4t64:amd64.","timestamp":"2026-07-29T11:51:16.787Z"}
+
+data: {"data":"Preparing to unpack .../21-libcurl4t64_8.14.1-2+deb13u4_amd64.deb ...","timestamp":"2026-07-29T11:51:16.788Z"}
+
+data: {"data":"Unpacking libcurl4t64:amd64 (8.14.1-2+deb13u4) ...","timestamp":"2026-07-29T11:51:16.792Z"}
+
+data: {"data":"Selecting previously unselected package curl.","timestamp":"2026-07-29T11:51:16.836Z"}
+
+data: {"data":"Preparing to unpack .../22-curl_8.14.1-2+deb13u4_amd64.deb ...","timestamp":"2026-07-29T11:51:16.837Z"}
+
+data: {"data":"Unpacking curl (8.14.1-2+deb13u4) ...","timestamp":"2026-07-29T11:51:16.840Z"}
+
+data: {"data":"Selecting previously unselected package libonig5:amd64.","timestamp":"2026-07-29T11:51:16.883Z"}
+
+data: {"data":"Preparing to unpack .../23-libonig5_6.9.9-1+b1_amd64.deb ...","timestamp":"2026-07-29T11:51:16.884Z"}
+
+data: {"data":"Unpacking libonig5:amd64 (6.9.9-1+b1) ...","timestamp":"2026-07-29T11:51:16.887Z"}
+
+data: {"data":"Selecting previously unselected package libjq1:amd64.","timestamp":"2026-07-29T11:51:16.933Z"}
+
+data: {"data":"Preparing to unpack .../24-libjq1_1.7.1-6+deb13u2_amd64.deb ...","timestamp":"2026-07-29T11:51:16.934Z"}
+
+data: {"data":"Unpacking libjq1:amd64 (1.7.1-6+deb13u2) ...","timestamp":"2026-07-29T11:51:16.937Z"}
+
+data: {"data":"Selecting previously unselected package jq.","timestamp":"2026-07-29T11:51:16.971Z"}
+
+data: {"data":"Preparing to unpack .../25-jq_1.7.1-6+deb13u2_amd64.deb ...","timestamp":"2026-07-29T11:51:16.972Z"}
+
+data: {"data":"Unpacking jq (1.7.1-6+deb13u2) ...","timestamp":"2026-07-29T11:51:16.976Z"}
+
+data: {"data":"Selecting previously unselected package python3-packaging.","timestamp":"2026-07-29T11:51:17.009Z"}
+
+data: {"data":"Preparing to unpack .../26-python3-packaging_25.0-1_all.deb ...","timestamp":"2026-07-29T11:51:17.010Z"}
+
+data: {"data":"Unpacking python3-packaging (25.0-1) ...","timestamp":"2026-07-29T11:51:17.014Z"}
+
+data: {"data":"Selecting previously unselected package python3-wheel.","timestamp":"2026-07-29T11:51:17.058Z"}
+
+data: {"data":"Preparing to unpack .../27-python3-wheel_0.46.1-2_all.deb ...","timestamp":"2026-07-29T11:51:17.059Z"}
+
+data: {"data":"Unpacking python3-wheel (0.46.1-2) ...","timestamp":"2026-07-29T11:51:17.062Z"}
+
+data: {"data":"Selecting previously unselected package python3-pip.","timestamp":"2026-07-29T11:51:17.096Z"}
+
+data: {"data":"Preparing to unpack .../28-python3-pip_25.1.1+dfsg-1_all.deb ...","timestamp":"2026-07-29T11:51:17.097Z"}
+
+data: {"data":"Unpacking python3-pip (25.1.1+dfsg-1) ...","timestamp":"2026-07-29T11:51:17.101Z"}
+
+data: {"data":"Selecting previously unselected package sqlite3.","timestamp":"2026-07-29T11:51:17.211Z"}
+
+data: {"data":"Preparing to unpack .../29-sqlite3_3.46.1-7+deb13u1_amd64.deb ...","timestamp":"2026-07-29T11:51:17.212Z"}
+
+data: {"data":"Unpacking sqlite3 (3.46.1-7+deb13u1) ...","timestamp":"2026-07-29T11:51:17.216Z"}
+
+data: {"data":"Setting up media-types (13.0.0) ...","timestamp":"2026-07-29T11:51:17.259Z"}
+
+data: {"data":"Setting up libkeyutils1:amd64 (1.6.3-6) ...","timestamp":"2026-07-29T11:51:17.275Z"}
+
+data: {"data":"Setting up libbrotli1:amd64 (1.1.0-2+b7) ...","timestamp":"2026-07-29T11:51:17.285Z"}
+
+data: {"data":"Setting up libnghttp2-14:amd64 (1.64.0-1.1+deb13u1) ...","timestamp":"2026-07-29T11:51:17.297Z"}
+
+data: {"data":"Setting up libcom-err2:amd64 (1.47.2-3+b11) ...","timestamp":"2026-07-29T11:51:17.307Z"}
+
+data: {"data":"Setting up libkrb5support0:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:17.317Z"}
+
+data: {"data":"Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-29T11:51:17.328Z"}
+
+data: {"data":"Setting up libp11-kit0:amd64 (0.25.5-3) ...","timestamp":"2026-07-29T11:51:17.338Z"}
+
+data: {"data":"Setting up libunistring5:amd64 (1.3-2) ...","timestamp":"2026-07-29T11:51:17.347Z"}
+
+data: {"data":"Setting up libncursesw6:amd64 (6.5+20250216-2) ...","timestamp":"2026-07-29T11:51:17.357Z"}
+
+data: {"data":"Setting up libk5crypto3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:17.367Z"}
+
+data: {"data":"Setting up libsasl2-2:amd64 (2.1.28+dfsg1-9) ...","timestamp":"2026-07-29T11:51:17.377Z"}
+
+data: {"data":"Setting up libnghttp3-9:amd64 (1.8.0-1) ...","timestamp":"2026-07-29T11:51:17.387Z"}
+
+data: {"data":"Setting up libtasn1-6:amd64 (4.20.0-2+deb13u1) ...","timestamp":"2026-07-29T11:51:17.398Z"}
+
+data: {"data":"Setting up netbase (6.5) ...","timestamp":"2026-07-29T11:51:17.408Z"}
+
+data: {"data":"Setting up libkrb5-3:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:17.434Z"}
+
+data: {"data":"Setting up libssh2-1t64:amd64 (1.11.1-1+deb13u1) ...","timestamp":"2026-07-29T11:51:17.444Z"}
+
+data: {"data":"Setting up readline-common (8.2-6) ...","timestamp":"2026-07-29T11:51:17.454Z"}
+
+data: {"data":"Setting up libldap2:amd64 (2.6.10+dfsg-1) ...","timestamp":"2026-07-29T11:51:17.471Z"}
+
+data: {"data":"Setting up libonig5:amd64 (6.9.9-1+b1) ...","timestamp":"2026-07-29T11:51:17.481Z"}
+
+data: {"data":"Setting up libjq1:amd64 (1.7.1-6+deb13u2) ...","timestamp":"2026-07-29T11:51:17.491Z"}
+
+data: {"data":"Setting up libidn2-0:amd64 (2.3.8-2) ...","timestamp":"2026-07-29T11:51:17.501Z"}
+
+data: {"data":"Setting up libgssapi-krb5-2:amd64 (1.21.3-5+deb13u1) ...","timestamp":"2026-07-29T11:51:17.510Z"}
+
+data: {"data":"Setting up libreadline8t64:amd64 (8.2-6) ...","timestamp":"2026-07-29T11:51:17.522Z"}
+
+data: {"data":"Setting up jq (1.7.1-6+deb13u2) ...","timestamp":"2026-07-29T11:51:17.532Z"}
+
+data: {"data":"Setting up libpython3.13-stdlib:amd64 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:17.542Z"}
+
+data: {"data":"Setting up sqlite3 (3.46.1-7+deb13u1) ...","timestamp":"2026-07-29T11:51:17.552Z"}
+
+data: {"data":"Setting up libpython3-stdlib:amd64 (3.13.5-1) ...","timestamp":"2026-07-29T11:51:17.562Z"}
+
+data: {"data":"Setting up libgnutls30t64:amd64 (3.8.9-3+deb13u4) ...","timestamp":"2026-07-29T11:51:17.572Z"}
+
+data: {"data":"Setting up python3.13 (3.13.5-2+deb13u4) ...","timestamp":"2026-07-29T11:51:17.583Z"}
+
+data: {"data":"Setting up libpsl5t64:amd64 (0.21.2-1.1+b1) ...","timestamp":"2026-07-29T11:51:18.405Z"}
+
+data: {"data":"Setting up python3 (3.13.5-1) ...","timestamp":"2026-07-29T11:51:18.416Z"}
+
+data: {"data":"running python rtupdate hooks for python3.13...","timestamp":"2026-07-29T11:51:18.428Z"}
+
+data: {"data":"running python post-rtupdate hooks for python3.13...","timestamp":"2026-07-29T11:51:18.428Z"}
+
+data: {"data":"Setting up python3-packaging (25.0-1) ...","timestamp":"2026-07-29T11:51:18.511Z"}
+
+data: {"data":"Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...","timestamp":"2026-07-29T11:51:18.641Z"}
+
+data: {"data":"Setting up libcurl4t64:amd64 (8.14.1-2+deb13u4) ...","timestamp":"2026-07-29T11:51:18.652Z"}
+
+data: {"data":"Setting up python3-wheel (0.46.1-2) ...","timestamp":"2026-07-29T11:51:18.662Z"}
+
+data: {"data":"Setting up python3-pip (25.1.1+dfsg-1) ...","timestamp":"2026-07-29T11:51:18.774Z"}
+
+data: {"data":"Setting up curl (8.14.1-2+deb13u4) ...","timestamp":"2026-07-29T11:51:19.847Z"}
+
+data: {"data":"Processing triggers for libc-bin (2.41-12+deb13u3) ...","timestamp":"2026-07-29T11:51:19.858Z"}
+
+data: {"data":"Collecting huggingface_hub<2.0,>=1.0","timestamp":"2026-07-29T11:51:20.355Z"}
+
+data: {"data":"  Downloading huggingface_hub-1.25.1-py3-none-any.whl.metadata (16 kB)","timestamp":"2026-07-29T11:51:20.376Z"}
+
+data: {"data":"Collecting click<9.0.0,>=8.4.2 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.407Z"}
+
+data: {"data":"  Downloading click-8.4.2-py3-none-any.whl.metadata (2.6 kB)","timestamp":"2026-07-29T11:51:20.411Z"}
+
+data: {"data":"Collecting filelock>=3.10.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.433Z"}
+
+data: {"data":"  Downloading filelock-3.32.0-py3-none-any.whl.metadata (2.0 kB)","timestamp":"2026-07-29T11:51:20.436Z"}
+
+data: {"data":"Collecting fsspec>=2023.5.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.454Z"}
+
+data: {"data":"  Downloading fsspec-2026.7.0-py3-none-any.whl.metadata (10 kB)","timestamp":"2026-07-29T11:51:20.458Z"}
+
+data: {"data":"Collecting hf-xet<2.0.0,>=1.5.1 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.518Z"}
+
+data: {"data":"  Downloading hf_xet-1.5.2-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)","timestamp":"2026-07-29T11:51:20.521Z"}
+
+data: {"data":"Collecting httpx<1,>=0.23.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.537Z"}
+
+data: {"data":"  Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)","timestamp":"2026-07-29T11:51:20.540Z"}
+
+data: {"data":"Requirement already satisfied: packaging>=20.9 in /usr/lib/python3/dist-packages (from huggingface_hub<2.0,>=1.0) (25.0)","timestamp":"2026-07-29T11:51:20.543Z"}
+
+data: {"data":"Collecting pyyaml>=5.1 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.574Z"}
+
+data: {"data":"  Downloading pyyaml-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)","timestamp":"2026-07-29T11:51:20.577Z"}
+
+data: {"data":"Collecting tqdm>=4.42.1 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.607Z"}
+
+data: {"data":"  Downloading tqdm-4.70.0-py3-none-any.whl.metadata (57 kB)","timestamp":"2026-07-29T11:51:20.611Z"}
+
+data: {"data":"Collecting typing-extensions>=4.1.0 (from huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.629Z"}
+
+data: {"data":"  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)","timestamp":"2026-07-29T11:51:20.632Z"}
+
+data: {"data":"Collecting anyio (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.648Z"}
+
+data: {"data":"  Downloading anyio-4.14.2-py3-none-any.whl.metadata (4.6 kB)","timestamp":"2026-07-29T11:51:20.651Z"}
+
+data: {"data":"Collecting certifi (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.665Z"}
+
+data: {"data":"  Downloading certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)","timestamp":"2026-07-29T11:51:20.668Z"}
+
+data: {"data":"Collecting httpcore==1.* (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.682Z"}
+
+data: {"data":"  Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)","timestamp":"2026-07-29T11:51:20.686Z"}
+
+data: {"data":"Collecting idna (from httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.698Z"}
+
+data: {"data":"  Downloading idna-3.18-py3-none-any.whl.metadata (6.1 kB)","timestamp":"2026-07-29T11:51:20.701Z"}
+
+data: {"data":"Collecting h11>=0.16 (from httpcore==1.*->httpx<1,>=0.23.0->huggingface_hub<2.0,>=1.0)","timestamp":"2026-07-29T11:51:20.710Z"}
+
+data: {"data":"  Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)","timestamp":"2026-07-29T11:51:20.713Z"}
+
+data: {"data":"Downloading huggingface_hub-1.25.1-py3-none-any.whl (774 kB)","timestamp":"2026-07-29T11:51:20.725Z"}
+
+data: {"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 774.9/774.9 kB 327.2 MB/s eta 0:00:00","timestamp":"2026-07-29T11:51:20.732Z"}
+
+data: {"data":"Downloading click-8.4.2-py3-none-any.whl (119 kB)","timestamp":"2026-07-29T11:51:20.735Z"}
+
+data: {"data":"Downloading hf_xet-1.5.2-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.4 MB)","timestamp":"2026-07-29T11:51:20.739Z"}
+
+data: {"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 453.1 MB/s eta 0:00:00","timestamp":"2026-07-29T11:51:20.750Z"}
+
+data: {"data":"Downloading httpx-0.28.1-py3-none-any.whl (73 kB)","timestamp":"2026-07-29T11:51:20.753Z"}
+
+data: {"data":"Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)","timestamp":"2026-07-29T11:51:20.756Z"}
+
+data: {"data":"Downloading filelock-3.32.0-py3-none-any.whl (97 kB)","timestamp":"2026-07-29T11:51:20.758Z"}
+
+data: {"data":"Downloading fsspec-2026.7.0-py3-none-any.whl (206 kB)","timestamp":"2026-07-29T11:51:20.761Z"}
+
+data: {"data":"Downloading h11-0.16.0-py3-none-any.whl (37 kB)","timestamp":"2026-07-29T11:51:20.764Z"}
+
+data: {"data":"Downloading pyyaml-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (801 kB)","timestamp":"2026-07-29T11:51:20.767Z"}
+
+data: {"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 801.6/801.6 kB 918.8 MB/s eta 0:00:00","timestamp":"2026-07-29T11:51:20.770Z"}
+
+data: {"data":"Downloading tqdm-4.70.0-py3-none-any.whl (80 kB)","timestamp":"2026-07-29T11:51:20.773Z"}
+
+data: {"data":"Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)","timestamp":"2026-07-29T11:51:20.776Z"}
+
+data: {"data":"Downloading anyio-4.14.2-py3-none-any.whl (125 kB)","timestamp":"2026-07-29T11:51:20.779Z"}
+
+data: {"data":"Downloading idna-3.18-py3-none-any.whl (65 kB)","timestamp":"2026-07-29T11:51:20.782Z"}
+
+data: {"data":"Downloading certifi-2026.7.22-py3-none-any.whl (136 kB)","timestamp":"2026-07-29T11:51:20.785Z"}
+
+data: {"data":"Installing collected packages: typing-extensions, tqdm, pyyaml, idna, hf-xet, h11, fsspec, filelock, click, certifi, httpcore, anyio, httpx, huggingface_hub","timestamp":"2026-07-29T11:51:20.840Z"}
+
+data: {"data":"","timestamp":"2026-07-29T11:51:22.294Z"}
+
+data: {"data":"Successfully installed anyio-4.14.2 certifi-2026.7.22 click-8.4.2 filelock-3.32.0 fsspec-2026.7.0 h11-0.16.0 hf-xet-1.5.2 httpcore-1.0.9 httpx-0.28.1 huggingface_hub-1.25.1 idna-3.18 pyyaml-6.0.3 tqdm-4.70.0 typing-extensions-4.16.0","timestamp":"2026-07-29T11:51:22.296Z"}
+
+data: {"data":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.","timestamp":"2026-07-29T11:51:22.297Z"}
+
+data: {"data":"[start] 环境补全完成","timestamp":"2026-07-29T11:51:22.843Z"}
+
+data: {"data":"[start] 同步 Dataset: nonoke/omn-logic","timestamp":"2026-07-29T11:51:22.843Z"}
+
+data: {"data":"[start] Dataset HEAD 锁定 revision=d9e77b07abcc (竞速根治: atomic 同点拉取)","timestamp":"2026-07-29T11:51:23.281Z"}
+
+data: {"data":"/tmp/logic","timestamp":"2026-07-29T11:51:24.120Z"}
+
+data: {"data":"Still waiting to acquire lock on /tmp/logic/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)","timestamp":"2026-07-29T11:51:24.215Z"}
+
+data: {"data":"Still waiting to acquire lock on /tmp/logic/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)","timestamp":"2026-07-29T11:51:24.215Z"}
+
+data: {"data":"[start] 逻辑注入完成","timestamp":"2026-07-29T11:51:24.270Z"}
+
+data: {"data":"[start] 移交控制权给逻辑层","timestamp":"2026-07-29T11:51:24.272Z"}
+
+data: {"data":"[entrypoint] STREAM_READINESS_TIMEOUT_MS=180000 (M7 外科单注, wiki §15 实证)","timestamp":"2026-07-29T11:51:24.280Z"}
+
+data: {"data":"[entrypoint] 上游服务启动 | PORT=20128 EXPOSED=7860 DATA=/app/data (ephemeral, R2 是数据主路径)","timestamp":"2026-07-29T11:51:24.280Z"}
+
+data: {"data":"[entrypoint] lock acquired (flock /app/data/.omniroute.lock, fd 9).","timestamp":"2026-07-29T11:51:24.283Z"}
+
+data: {"data":"[entrypoint] ✓ 已从 R2 恢复 (原子 mv /app/data/.storage.sqlite.restore.1 → /app/data/storage.sqlite)","timestamp":"2026-07-29T11:51:28.346Z"}
+
+data: {"data":"[entrypoint] 上游服务 PID=656 (heap 4096)","timestamp":"2026-07-29T11:51:28.346Z"}
+
+data: {"data":"▲ Next.js 16.2.9","timestamp":"2026-07-29T11:51:28.613Z"}
+
+data: {"data":"- Local:         http://localhost:20128","timestamp":"2026-07-29T11:51:28.613Z"}
+
+data: {"data":"- Network:       http://0.0.0.0:20128","timestamp":"2026-07-29T11:51:28.613Z"}
+
+data: {"data":"✓ Ready in 0ms","timestamp":"2026-07-29T11:51:28.614Z"}
+
+data: {"data":"[CREDENTIALS] No external credentials file found, using defaults.","timestamp":"2026-07-29T11:51:29.053Z"}
+
+data: {"data":"[DB] cache_size already set to 16384KB","timestamp":"2026-07-29T11:51:29.070Z"}
+
+data: {"data":"[DB] SQLite database ready: /app/data/storage.sqlite (DATA_DIR=/app/data, SQLITE_FILE=/app/data/storage.sqlite)","timestamp":"2026-07-29T11:51:29.079Z"}
+
+data: {"data":"[STARTUP] Global fetch proxy patch initialized","timestamp":"2026-07-29T11:51:29.733Z"}
+
+data: {"data":"[STARTUP] JWT_SECRET restored from persistent store","timestamp":"2026-07-29T11:51:29.733Z"}
+
+data: {"data":"[HealthCheck] Starting proactive token health-check (tick every 60s)","timestamp":"2026-07-29T11:51:29.750Z"}
+
+data: {"data":"[Shutdown] Graceful shutdown handlers registered.","timestamp":"2026-07-29T11:51:29.750Z"}
+
+data: {"data":"[STARTUP] Spend batch writer started","timestamp":"2026-07-29T11:51:29.751Z"}
+
+data: {"data":"[STARTUP] Guardrail registry initialized","timestamp":"2026-07-29T11:51:29.751Z"}
+
+data: {"data":"[STARTUP] Builtin skill handlers registered","timestamp":"2026-07-29T11:51:29.751Z"}
+
+data: {"data":"[STARTUP] Quota cache background refresh started","timestamp":"2026-07-29T11:51:29.751Z"}
+
+data: {"data":"[ProviderLimitsSync] Scheduler started — interval: 70m","timestamp":"2026-07-29T11:51:29.751Z"}
+
+data: {"data":"[STARTUP] Provider limits sync scheduler started","timestamp":"2026-07-29T11:51:29.751Z"}
+
+data: {"data":"[ModelSync] Scheduler started — interval: 24h","timestamp":"2026-07-29T11:51:29.762Z"}
+
+data: {"data":"[STARTUP] Cloud/model sync background bootstrap initialized","timestamp":"2026-07-29T11:51:29.762Z"}
+
+data: {"data":"[BATCH] Initializing batch processor polling...","timestamp":"2026-07-29T11:51:29.765Z"}
+
+data: {"data":"[STARTUP] Batch processor started","timestamp":"2026-07-29T11:51:29.765Z"}
+
+data: {"data":"[STARTUP] Runtime settings hydrated: payloadRules, modelAliases, backgroundDegradation, cliCompatProviders, cacheControl, usageTracking, healthCheckLogs, thoughtSignature, modelsDevSync, corsOrigins, ccBridgeTransforms, systemTransforms, authzBypass, bannedSignals","timestamp":"2026-07-29T11:51:29.777Z"}
+
+data: {"data":"[STARTUP] Model alias seed: applied=0, skipped=6, failed=0","timestamp":"2026-07-29T11:51:29.778Z"}
+
+data: {"data":"[HOT_RELOAD] Runtime config hot-reload started (poll=5000ms, fsWatch=on)","timestamp":"2026-07-29T11:51:29.780Z"}
+
+data: {"data":"[COMPLIANCE] Audit log table initialized","timestamp":"2026-07-29T11:51:29.793Z"}
+
+data: {"data":"[STARTUP] Scheduled VACUUM initialized (#4437)","timestamp":"2026-07-29T11:51:29.797Z"}
+
+data: {"data":"[STARTUP] Embedded services bootstrap complete","timestamp":"2026-07-29T11:51:29.798Z"}
+
+data: {"data":"[AutoRefreshDaemon] Started — checking 0 credentials every 900s","timestamp":"2026-07-29T11:51:29.801Z"}
+
+data: {"data":"[ConnectionRecovery] Starting proactive cooldown recovery (tick every 60s)","timestamp":"2026-07-29T11:51:29.802Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Starting periodic sync every 86400s","timestamp":"2026-07-29T11:51:29.803Z"}
+
+data: {"data":"[STARTUP] Arena ELO sync initialized","timestamp":"2026-07-29T11:51:29.836Z"}
+
+data: {"data":"[PRICING_SYNC] Disabled (set PRICING_SYNC_ENABLED=true to enable)","timestamp":"2026-07-29T11:51:29.836Z"}
+
+data: {"data":"[MODELS_DEV] Disabled (enable via Settings > AI)","timestamp":"2026-07-29T11:51:29.837Z"}
+
+data: {"data":"[proxyLogger] Loaded 42 proxy logs from SQLite","timestamp":"2026-07-29T11:51:31.545Z"}
+
+data: {"data":"[REDIS] REDIS_URL is not set in production. Using in-memory rate limiting.","timestamp":"2026-07-29T11:51:31.576Z"}
+
+data: {"data":"[EmbedWsProxy] Listening on 127.0.0.1:20131","timestamp":"2026-07-29T11:51:33.401Z"}
+
+data: {"data":"[LocalHealthCheck] Starting local provider health check (initial delay 15s)","timestamp":"2026-07-29T11:51:33.586Z"}
+
+data: {"data":"[entrypoint] ✓ 就绪","timestamp":"2026-07-29T11:51:33.596Z"}
+
+data: {"data":"[entrypoint] 版本=3.8.43 (期望未设置, 跳过比对)","timestamp":"2026-07-29T11:51:33.622Z"}
+
+data: {"data":"[entrypoint] Init PID=694","timestamp":"2026-07-29T11:51:33.623Z"}
+
+data: {"data":"[entrypoint] Litestream PID=695","timestamp":"2026-07-29T11:51:33.623Z"}
+
+data: {"data":"[entrypoint] 全部就绪：OR=656 Init=694 LS=695 Gate→:7860 (background, entrypoint 持 PID 1 主监)","timestamp":"2026-07-29T11:51:33.623Z"}
+
+data: {"data":"[entrypoint] 预装 gate 依赖 (npm install --omit=dev)...","timestamp":"2026-07-29T11:51:33.623Z"}
+
+data: {"data":"[init] 🛠️ NIM_MODE=DEBUG：日志 tee -> /data/omn-data/log/init_20260729_115133.log（仅容器内，随 Space 日志可见，不入 Dataset）","timestamp":"2026-07-29T11:51:33.629Z"}
+
+data: {"data":"[init] NIM_PROFILE=balanced -> pool 意向 6 个模型","timestamp":"2026-07-29T11:51:33.632Z"}
+
+data: {"data":"[init] 动态限流 RPM=245 concurrent=21 interval=244ms (alive_keys=7, per_key_rpm=35 per_key_conc=3)","timestamp":"2026-07-29T11:51:33.638Z"}
+
+data: {"data":"[init] pool strategy=p2c | codex strategy=priority","timestamp":"2026-07-29T11:51:33.642Z"}
+
+data: {"data":"[init] body limit: raw=4 -> maxBodySizeMb=4","timestamp":"2026-07-29T11:51:33.642Z"}
+
+data: {"data":"[init] Starting NIM OmniRoute initializer v4.3.2 (profile=balanced, mode=DEBUG) on node v24.18.0...","timestamp":"2026-07-29T11:51:33.649Z"}
+
+data: {"data":"[init] BASE_URL=http://127.0.0.1:20128","timestamp":"2026-07-29T11:51:33.649Z"}
+
+data: {"data":"[init] Waiting for OmniRoute...","timestamp":"2026-07-29T11:51:33.649Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=litestream version=0.5.9 level=\"\"","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=\"initialized db\" path=/app/data/storage.sqlite","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=\"replicating to\" type=s3 sync-interval=10s bucket=omn-data path=db/storage.sqlite region=auto endpoint=https://3e0d9623e4c90591ce4d659772593266.r2.cloudflarestorage.com","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=\"starting L0 retention monitor\" interval=5m0s retention=5m0s","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=\"starting compaction monitor\" level=3 interval=1h0m0s","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=\"starting compaction monitor\" level=2 interval=5m0s","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=\"starting compaction monitor\" level=1 interval=30s","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"time=2026-07-29T11:51:33.655Z level=INFO msg=\"starting compaction monitor\" level=9 interval=1h0m0s","timestamp":"2026-07-29T11:51:33.655Z"}
+
+data: {"data":"[init] OmniRoute up (after 0s).","timestamp":"2026-07-29T11:51:33.666Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] synced 150 model intelligence entries from Arena leaderboards","timestamp":"2026-07-29T11:51:33.686Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Initial sync complete: 150 model intelligence entries","timestamp":"2026-07-29T11:51:33.687Z"}
+
+data: {"data":"[init] version: 3.8.43","timestamp":"2026-07-29T11:51:33.687Z"}
+
+data: {"data":"[init] Logging in...","timestamp":"2026-07-29T11:51:33.687Z"}
+
+data: {"data":"[init] Logged in.","timestamp":"2026-07-29T11:51:34.132Z"}
+
+data: {"data":"[init] purge: 注册表无 127.0.0.1:20129。","timestamp":"2026-07-29T11:51:34.161Z"}
+
+data: {"data":"[init] purge: registry=0 assignments=0 proxy_enabled=1剩余=0（期望 0/0/0）。","timestamp":"2026-07-29T11:51:34.193Z"}
+
+data: {"data":"[init] OMNIROUTE_API_KEY env set, skip /api/keys.","timestamp":"2026-07-29T11:51:34.197Z"}
+
+data: {"data":"[init] probe_nim_keys_real: 串行探活 NIM keys via POST /v1/chat/completions (model=z-ai/glm-5.2, timeout=15s/key, 403→dead, 余→alive fail-open)...","timestamp":"2026-07-29T11:51:34.197Z"}
+
+data: {"data":"[ModelSync] No connections with autoSync enabled — skipping cycle","timestamp":"2026-07-29T11:51:34.764Z"}
+
+data: {"data":"time=2026-07-29T11:51:34.765Z level=INFO msg=\"detected database behind replica\" db=storage.sqlite db_txid=0000000000000000 replica_txid=0000000000000091","timestamp":"2026-07-29T11:51:34.765Z"}
+
+data: {"data":"time=2026-07-29T11:51:35.436Z level=INFO msg=\"fetched latest L0 file from replica\" db=storage.sqlite min_txid=0000000000000091 max_txid=0000000000000091","timestamp":"2026-07-29T11:51:35.436Z"}
+
+data: {"data":"[init] probe key#1: HTTP 200 → alive","timestamp":"2026-07-29T11:51:35.521Z"}
+
+data: {"data":"[entrypoint] gate 依赖就绪","timestamp":"2026-07-29T11:51:36.217Z"}
+
+data: {"data":"[entrypoint] starting gate on port 7860...","timestamp":"2026-07-29T11:51:36.217Z"}
+
+data: {"data":"[entrypoint] helper.sh 装依赖 (boto3 插件包)...","timestamp":"2026-07-29T11:51:36.222Z"}
+
+data: {"data":"time=2026-07-29T11:51:36.932Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=2 max_l1_txid=0000000000000092","timestamp":"2026-07-29T11:51:36.932Z"}
+
+data: {"data":"time=2026-07-29T11:51:36.932Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000092 txid.max=0000000000000092 size=205436","timestamp":"2026-07-29T11:51:36.932Z"}
+
+data: {"data":"[init] probe key#2: HTTP 200 → alive","timestamp":"2026-07-29T11:51:36.942Z"}
+
+data: {"data":"[init] probe key#3: HTTP 200 → alive","timestamp":"2026-07-29T11:51:37.396Z"}
+
+data: {"data":"[init] probe key#4: HTTP 200 → alive","timestamp":"2026-07-29T11:51:38.585Z"}
+
+data: {"data":"[helper] 装 boto3 ✓","timestamp":"2026-07-29T11:51:38.893Z"}
+
+data: {"data":"[helper] 补包完成","timestamp":"2026-07-29T11:51:38.893Z"}
+
+data: {"data":"[entrypoint] gate PID=845, stderr → /app/data/omn-sched/stdout/gate-stderr.log","timestamp":"2026-07-29T11:51:38.893Z"}
+
+data: {"data":"[entrypoint] omn_scheduler PID=846 (永续日志: 明文 stderr → 私有 Dataset)","timestamp":"2026-07-29T11:51:38.893Z"}
+
+data: {"data":"[gate] admin UI: enabled (GATE_ADMIN_ENABLED 开关状态).","timestamp":"2026-07-29T11:51:38.995Z"}
+
+data: {"data":"[gate] listening on 0.0.0.0:7860 -> 127.0.0.1:20128","timestamp":"2026-07-29T11:51:39.005Z"}
+
+data: {"data":"[init] probe key#5: HTTP 200 → alive","timestamp":"2026-07-29T11:51:39.328Z"}
+
+data: {"data":"No files have been modified since last commit. Skipping to prevent empty commit.","timestamp":"2026-07-29T11:51:39.332Z"}
+
+data: {"data":"[init] probe key#6: HTTP 200 → alive","timestamp":"2026-07-29T11:51:39.854Z"}
+
+data: {"data":"[init] probe key#7: HTTP 200 → alive","timestamp":"2026-07-29T11:51:40.475Z"}
+
+data: {"data":"[init] probe 汇总: alive=7 dead=0 (auth_dead 跳 0 个注册, POST z-ai/glm-5.2)","timestamp":"2026-07-29T11:51:40.475Z"}
+
+data: {"data":"[init] probe 后 alive 无变化 (auth_dead=0), 限流维持原值 RPM=245 concurrent=21 interval=244ms","timestamp":"2026-07-29T11:51:40.476Z"}
+
+data: {"data":"[init] Registering NIM keys (auth_dead skip, INDEX 递增编号不塌)...","timestamp":"2026-07-29T11:51:40.476Z"}
+
+data: {"data":"[init] nim-01 OK","timestamp":"2026-07-29T11:51:40.519Z"}
+
+data: {"data":"[init] nim-02 OK","timestamp":"2026-07-29T11:51:40.572Z"}
+
+data: {"data":"[init] nim-03 OK","timestamp":"2026-07-29T11:51:40.626Z"}
+
+data: {"data":"[init] nim-04 OK","timestamp":"2026-07-29T11:51:40.838Z"}
+
+data: {"data":"[init] nim-05 OK","timestamp":"2026-07-29T11:51:41.004Z"}
+
+data: {"data":"[init] nim-06 OK","timestamp":"2026-07-29T11:51:41.072Z"}
+
+data: {"data":"[init] nim-07 OK","timestamp":"2026-07-29T11:51:41.116Z"}
+
+data: {"data":"[init] Keys: 7 registered, 0 skipped, 0 failed. (probe: 7 alive / 0 dead-skipped)","timestamp":"2026-07-29T11:51:41.116Z"}
+
+data: {"data":"[init] gc_stale: 无待删连接 (当前 NIM_KEYS=7, 增量幂等)","timestamp":"2026-07-29T11:51:41.169Z"}
+
+data: {"data":"[init] Fetching provider IDs...","timestamp":"2026-07-29T11:51:41.169Z"}
+
+data: {"data":"[init] Provider IDs: 7","timestamp":"2026-07-29T11:51:41.191Z"}
+
+data: {"data":"[init] purge: 注册表无 127.0.0.1:20129。","timestamp":"2026-07-29T11:51:41.217Z"}
+
+data: {"data":"[init] purge: registry=0 assignments=0 proxy_enabled=1剩余=0（期望 0/0/0）。","timestamp":"2026-07-29T11:51:41.247Z"}
+
+data: {"data":"[init] Resilience (RPM=245, concurrent=21, interval=244ms)...","timestamp":"2026-07-29T11:51:41.247Z"}
+
+data: {"data":"[init] Resilience PATCH body keys=[requestQueue] requestQueue.keys=[concurrentRequests,maxWaitMs,minTimeBetweenRequestsMs,requestsPerMinute] (无顶层 useUpstream429BreakerHints)","timestamp":"2026-07-29T11:51:41.257Z"}
+
+data: {"data":"[init] Resilience PATCH HTTP 200 (dur=24ms)","timestamp":"2026-07-29T11:51:41.286Z"}
+
+data: {"data":"[init] Resilience 读回: RPM=245 minMs=244 concurrent=21 maxWaitMs=300000 (预期 245/244/21/300000)","timestamp":"2026-07-29T11:51:41.315Z"}
+
+data: {"data":"[init] ✓ Resilience 读回全字段一致 (245/21/244/300000 已落定)","timestamp":"2026-07-29T11:51:41.315Z"}
+
+data: {"data":"[init] Routing + maxBodySizeMb=4...","timestamp":"2026-07-29T11:51:41.315Z"}
+
+data: {"data":"[init] Settings HTTP 200","timestamp":"2026-07-29T11:51:41.337Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos HTTP 200 :: combos=[85946d06-a6b1-4cdb-8f68-8c256b5db40f\tnim-pool\tp2c;d6883e6c-431c-4790-83a9-651edb2a52ee\tnim-codex\tpriority;]","timestamp":"2026-07-29T11:51:41.357Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos/auto HTTP 200 :: auto=[\t\t\t0]","timestamp":"2026-07-29T11:51:41.446Z"}
+
+data: {"data":"[init] [readonly] GET /api/providers HTTP 200 :: providers=348a7383-c154-43e9-ac1c-e7f82bc7c96e\tnvidia;3898a3a2-13a2-4e7f-a00c-a3afda2cf212\tnvidia;58464b47-8b5b-4321-8057-69ed2d296d57\tnvidia;63a59e48-bd2f-46ba-8bc8-e7c0596d61bb\tnvidia;8dae40f8-f09b-4d0e-9697-c5ccb19f2507\tnvidia;cdda216f-a48f-4785-a0a0-34358c18b33a\tnvidia;e99c34a0-114a-4c64-aab3-6aba2654be17\tnvidia;","timestamp":"2026-07-29T11:51:41.465Z"}
+
+data: {"data":"[init] [readonly] 三份 GET 完 — Restart B 写跳据此结构 (POST/PUT/PATCH), Restart A 仅读不写.","timestamp":"2026-07-29T11:51:41.465Z"}
+
+data: {"data":"[init] Compression globally disabled (enabled=false; per-combo 启用路径不受影响)...","timestamp":"2026-07-29T11:51:41.465Z"}
+
+data: {"data":"[init] Compression HTTP 200","timestamp":"2026-07-29T11:51:41.483Z"}
+
+data: {"data":"[init] Resetting circuit breakers (first-init clean start)...","timestamp":"2026-07-29T11:51:41.484Z"}
+
+data: {"data":"[init] CB reset HTTP 200","timestamp":"2026-07-29T11:51:41.501Z"}
+
+data: {"data":"[init] per-model 200K override (real_context=200000)...","timestamp":"2026-07-29T11:51:41.502Z"}
+
+data: {"data":"[init] override: 6 applied, 0 failed.","timestamp":"2026-07-29T11:51:41.576Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-07-29T11:51:41.576Z"}
+
+data: {"data":"[init]   PROFILE=balanced MODE=DEBUG KEYS=7 RPM=245 BODY=4 MB","timestamp":"2026-07-29T11:51:41.577Z"}
+
+data: {"data":"[init]   POOL_STRATEGY=p2c REAL_CONTEXT=200000 (per-model override 应用, monitor 自动回写禁用)","timestamp":"2026-07-29T11:51:41.577Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-07-29T11:51:41.577Z"}
+
+data: {"data":"[init] Incremental mode.","timestamp":"2026-07-29T11:51:41.582Z"}
+
+data: {"data":"[init] purge: 注册表无 127.0.0.1:20129。","timestamp":"2026-07-29T11:51:41.603Z"}
+
+data: {"data":"[init] purge: registry=0 assignments=0 proxy_enabled=1剩余=0（期望 0/0/0）。","timestamp":"2026-07-29T11:51:41.637Z"}
+
+data: {"data":"[init] check_nim_model_health...","timestamp":"2026-07-29T11:51:41.641Z"}
+
+data: {"data":"[init]   z-ai/glm-5.2 — available","timestamp":"2026-07-29T11:51:41.682Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-flash — available","timestamp":"2026-07-29T11:51:41.686Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-pro — available","timestamp":"2026-07-29T11:51:41.689Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-super-120b-a12b — available","timestamp":"2026-07-29T11:51:41.693Z"}
+
+data: {"data":"[init]   mistralai/mistral-small-4-119b-2603 — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-07-29T11:51:41.697Z"}
+
+data: {"data":"[init]   google/gemma-4-31b-it — available","timestamp":"2026-07-29T11:51:41.700Z"}
+
+data: {"data":"[init] 1 deprecated / 102 available","timestamp":"2026-07-29T11:51:41.702Z"}
+
+data: {"data":"[init] upsert nim-pool: existed -> PUT combos/85946d06-a6b1-4cdb-8f68-8c256b5db40f HTTP 200","timestamp":"2026-07-29T11:51:41.779Z"}
+
+data: {"data":"[init] upsert nim-codex: existed -> PUT combos/d6883e6c-431c-4790-83a9-651edb2a52ee HTTP 200","timestamp":"2026-07-29T11:51:41.834Z"}
+
+data: {"data":"[init] context_accumulator_update: 增量累积每模型成功/失败口径...","timestamp":"2026-07-29T11:51:41.834Z"}
+
+data: {"data":"[init]   列探测 input=tokens_in output=tokens_out","timestamp":"2026-07-29T11:51:41.852Z"}
+
+data: {"data":"[init]   checkpoint last_ts=2026-07-29T11:34:54.780Z","timestamp":"2026-07-29T11:51:41.859Z"}
+
+data: {"data":"[init]   本轮无新日志（timestamp > checkpoint）。","timestamp":"2026-07-29T11:51:41.866Z"}
+
+data: {"data":"[init] HF Dataset snapshot（配置 + 可选 DEBUG log）...","timestamp":"2026-07-29T11:51:41.866Z"}
+
+data: {"data":"[init] snapshot: init_vars.json written","timestamp":"2026-07-29T11:51:41.933Z"}
+
+data: {"data":"[init] snapshot: DEBUG log 上传已禁用（默认关, NIM_DEBUG_LOG_TO_DATASET=1 开启).","timestamp":"2026-07-29T11:51:41.933Z"}
+
+data: {"data":"[init] HF Dataset uploaded.","timestamp":"2026-07-29T11:51:42.867Z"}
+
+data: {"data":"[init] Done (incremental). v4.3.2","timestamp":"2026-07-29T11:51:42.924Z"}
+
+data: {"data":"[entrypoint] NIM init 已退出 rc=0 (正常完成).","timestamp":"2026-07-29T11:51:42.938Z"}
+
+data: {"data":"time=2026-07-29T11:52:01.941Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000093 txid.max=0000000000000095 size=41695","timestamp":"2026-07-29T11:52:01.941Z"}
+
+data: {"data":"time=2026-07-29T11:55:01.223Z level=INFO msg=\"compaction complete\" level=2 txid.min=0000000000000092 txid.max=0000000000000095 size=209075","timestamp":"2026-07-29T11:55:01.223Z"}
+
+data: {"data":"time=2026-07-29T11:57:00.969Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=4 max_l1_txid=0000000000000097","timestamp":"2026-07-29T11:57:00.969Z"}
+
+data: {"data":"time=2026-07-29T11:57:00.969Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000096 txid.max=0000000000000097 size=209219","timestamp":"2026-07-29T11:57:00.969Z"}
+
+data: {"data":"time=2026-07-29T12:00:01.323Z level=INFO msg=\"snapshot complete\" txid=0000000000000097 size=209219","timestamp":"2026-07-29T12:00:01.323Z"}
+
+data: {"data":"time=2026-07-29T12:00:01.754Z level=INFO msg=\"compaction complete\" level=3 txid.min=0000000000000086 txid.max=0000000000000095 size=209075","timestamp":"2026-07-29T12:00:01.754Z"}
+
+data: {"data":"time=2026-07-29T12:00:01.869Z level=INFO msg=\"compaction complete\" level=2 txid.min=0000000000000096 txid.max=0000000000000097 size=209219","timestamp":"2026-07-29T12:00:01.869Z"}
+
+data: {"data":"time=2026-07-29T12:06:34.052Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=0000000000000097","timestamp":"2026-07-29T12:06:34.052Z"}
+
+data: {"data":"time=2026-07-29T12:11:01.026Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=0000000000000099","timestamp":"2026-07-29T12:11:01.026Z"}
+
+data: {"data":"time=2026-07-29T12:11:01.026Z level=INFO msg=\"compaction complete\" level=1 txid.min=0000000000000098 txid.max=0000000000000099 size=209547","timestamp":"2026-07-29T12:11:01.027Z"}
+
+data: {"data":"time=2026-07-29T12:15:00.949Z level=INFO msg=\"compaction complete\" level=2 txid.min=0000000000000098 txid.max=0000000000000099 size=209547","timestamp":"2026-07-29T12:15:00.949Z"}
+
+data: {"data":"time=2026-07-29T12:16:34.058Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=0000000000000099","timestamp":"2026-07-29T12:16:34.058Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 10ms","timestamp":"2026-07-29T12:55:46.757Z"}
+
+data: {"data":"time=2026-07-29T12:56:01.066Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=000000000000009b","timestamp":"2026-07-29T12:56:01.067Z"}
+
+data: {"data":"time=2026-07-29T12:56:01.067Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000009a txid.max=000000000000009b size=209601","timestamp":"2026-07-29T12:56:01.067Z"}
+
+data: {"data":"time=2026-07-29T13:00:01.071Z level=INFO msg=\"compaction complete\" level=2 txid.min=000000000000009a txid.max=000000000000009b size=209601","timestamp":"2026-07-29T13:00:01.071Z"}
+
+data: {"data":"time=2026-07-29T13:00:01.368Z level=INFO msg=\"snapshot complete\" txid=000000000000009b size=209601","timestamp":"2026-07-29T13:00:01.368Z"}
+
+data: {"data":"time=2026-07-29T13:00:03.532Z level=INFO msg=\"compaction complete\" level=3 txid.min=0000000000000096 txid.max=000000000000009b size=209601","timestamp":"2026-07-29T13:00:03.532Z"}
+
+data: {"data":"time=2026-07-29T13:01:34.076Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=000000000000009b","timestamp":"2026-07-29T13:01:34.076Z"}
+
+data: {"data":"time=2026-07-29T13:12:01.026Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=000000000000009e","timestamp":"2026-07-29T13:12:01.026Z"}
+
+data: {"data":"time=2026-07-29T13:12:01.026Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000009c txid.max=000000000000009e size=209927","timestamp":"2026-07-29T13:12:01.027Z"}
+
+data: {"data":"time=2026-07-29T13:12:31.629Z level=INFO msg=\"compaction complete\" level=1 txid.min=000000000000009f txid.max=000000000000009f size=10570","timestamp":"2026-07-29T13:12:31.629Z"}
+
+data: {"data":"[REDIS] REDIS_URL is not set in production. Using in-memory rate limiting.","timestamp":"2026-07-29T13:13:44Z"}
+
+data: {"data":"[MCP] HTTP transport started (sse)","timestamp":"2026-07-29T13:13:44.350Z"}
+
+data: {"data":"time=2026-07-29T13:14:00.713Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a0 txid.max=00000000000000a1 size=210052","timestamp":"2026-07-29T13:14:00.713Z"}
+
+data: {"data":"time=2026-07-29T13:15:01.566Z level=INFO msg=\"compaction complete\" level=2 txid.min=000000000000009c txid.max=00000000000000a1 size=210052","timestamp":"2026-07-29T13:15:01.568Z"}
+
+data: {"data":"time=2026-07-29T13:21:34.122Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=5 max_l1_txid=00000000000000a1","timestamp":"2026-07-29T13:21:34.122Z"}
+
+data: {"data":"time=2026-07-29T14:00:02.188Z level=INFO msg=\"snapshot complete\" txid=00000000000000a1 size=210052","timestamp":"2026-07-29T14:00:02.188Z"}
+
+data: {"data":"time=2026-07-29T14:00:02.833Z level=INFO msg=\"compaction complete\" level=3 txid.min=000000000000009c txid.max=00000000000000a1 size=210052","timestamp":"2026-07-29T14:00:02.834Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 3ms","timestamp":"2026-07-29T14:05:46.751Z"}
+
+data: {"data":"time=2026-07-29T14:06:01.020Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a3","timestamp":"2026-07-29T14:06:01.020Z"}
+
+data: {"data":"time=2026-07-29T14:06:01.020Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a2 txid.max=00000000000000a3 size=210052","timestamp":"2026-07-29T14:06:01.020Z"}
+
+data: {"data":"time=2026-07-29T14:10:00.939Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000a2 txid.max=00000000000000a3 size=210052","timestamp":"2026-07-29T14:10:00.940Z"}
+
+data: {"data":"time=2026-07-29T14:11:34.019Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a3","timestamp":"2026-07-29T14:11:34.019Z"}
+
+data: {"data":"time=2026-07-29T14:20:31.115Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a5","timestamp":"2026-07-29T14:20:31.116Z"}
+
+data: {"data":"time=2026-07-29T14:20:31.115Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a4 txid.max=00000000000000a5 size=210052","timestamp":"2026-07-29T14:20:31.116Z"}
+
+data: {"data":"time=2026-07-29T14:25:01.054Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000a4 txid.max=00000000000000a5 size=210052","timestamp":"2026-07-29T14:25:01.055Z"}
+
+data: {"data":"time=2026-07-29T14:26:34.225Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a5","timestamp":"2026-07-29T14:26:34.225Z"}
+
+data: {"data":"time=2026-07-29T14:47:00.959Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a7","timestamp":"2026-07-29T14:47:00.959Z"}
+
+data: {"data":"time=2026-07-29T14:47:00.959Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a6 txid.max=00000000000000a7 size=210052","timestamp":"2026-07-29T14:47:00.959Z"}
+
+data: {"data":"time=2026-07-29T14:50:01.054Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000a6 txid.max=00000000000000a7 size=210052","timestamp":"2026-07-29T14:50:01.054Z"}
+
+data: {"data":"time=2026-07-29T14:56:34.047Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a7","timestamp":"2026-07-29T14:56:34.047Z"}
+
+data: {"data":"time=2026-07-29T15:00:02.076Z level=INFO msg=\"snapshot complete\" txid=00000000000000a7 size=210052","timestamp":"2026-07-29T15:00:02.076Z"}
+
+data: {"data":"time=2026-07-29T15:00:02.233Z level=INFO msg=\"compaction complete\" level=3 txid.min=00000000000000a2 txid.max=00000000000000a7 size=210052","timestamp":"2026-07-29T15:00:02.233Z"}
+
+data: {"data":"time=2026-07-29T15:02:31.024Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000a9","timestamp":"2026-07-29T15:02:31.024Z"}
+
+data: {"data":"time=2026-07-29T15:02:31.024Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000a8 txid.max=00000000000000a9 size=210052","timestamp":"2026-07-29T15:02:31.025Z"}
+
+data: {"data":"time=2026-07-29T15:05:01.245Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000a8 txid.max=00000000000000a9 size=210052","timestamp":"2026-07-29T15:05:01.246Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.791Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for serper-search\"}","timestamp":"2026-07-29T15:06:56.988Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for brave-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for perplexity-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for exa-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for tavily-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for google-pse-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for linkup-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for searchapi-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for youcom-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for searxng-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for ollama-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for zai-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.792Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for duckduckgo-free\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.848Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for perplexity\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.848Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for ollama-cloud\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.848Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for zai\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.857Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for firecrawl\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.857Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for jina-reader\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"{\"level\":40,\"time\":\"2026-07-29T15:06:56.858Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"No credentials for tavily-search\"}","timestamp":"2026-07-29T15:06:56.997Z"}
+
+data: {"data":"time=2026-07-29T15:07:01.082Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000aa txid.max=00000000000000ab size=210281","timestamp":"2026-07-29T15:07:01.082Z"}
+
+data: {"data":"time=2026-07-29T15:08:01.001Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=2 max_l1_txid=00000000000000ad","timestamp":"2026-07-29T15:08:01.001Z"}
+
+data: {"data":"time=2026-07-29T15:08:01.001Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000ac txid.max=00000000000000ad size=6682","timestamp":"2026-07-29T15:08:01.001Z"}
+
+data: {"data":"time=2026-07-29T15:10:02.180Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000aa txid.max=00000000000000ad size=210300","timestamp":"2026-07-29T15:10:02.180Z"}
+
+data: {"data":"time=2026-07-29T15:12:31.025Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=2 max_l1_txid=00000000000000af","timestamp":"2026-07-29T15:12:31.025Z"}
+
+data: {"data":"time=2026-07-29T15:12:31.025Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000ae txid.max=00000000000000af size=210300","timestamp":"2026-07-29T15:12:31.025Z"}
+
+data: {"data":"time=2026-07-29T15:15:01.874Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000ae txid.max=00000000000000af size=210300","timestamp":"2026-07-29T15:15:01.874Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 4ms","timestamp":"2026-07-29T15:15:46.750Z"}
+
+data: {"data":"time=2026-07-29T15:16:00.984Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=2 max_l1_txid=00000000000000b1","timestamp":"2026-07-29T15:16:00.984Z"}
+
+data: {"data":"time=2026-07-29T15:16:00.984Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000b0 txid.max=00000000000000b1 size=210300","timestamp":"2026-07-29T15:16:00.984Z"}
+
+data: {"data":"time=2026-07-29T15:20:01.796Z level=INFO msg=\"compaction complete\" level=2 txid.min=00000000000000b0 txid.max=00000000000000b1 size=210300","timestamp":"2026-07-29T15:20:01.796Z"}
+
+data: {"data":"time=2026-07-29T15:21:34.065Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=3 max_l1_txid=00000000000000b1","timestamp":"2026-07-29T15:21:34.065Z"}
+
+data: {"data":"time=2026-07-29T16:00:02.010Z level=INFO msg=\"snapshot complete\" txid=00000000000000b1 size=210300","timestamp":"2026-07-29T16:00:02.010Z"}
+
+data: {"data":"time=2026-07-29T16:00:03.240Z level=INFO msg=\"compaction complete\" level=3 txid.min=00000000000000a8 txid.max=00000000000000b1 size=210300","timestamp":"2026-07-29T16:00:03.240Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 5ms","timestamp":"2026-07-29T16:25:46.752Z"}
+
+data: {"data":"time=2026-07-29T16:26:01.047Z level=INFO msg=\"l0 retention enforced\" db=storage.sqlite deleted_count=1 max_l1_txid=00000000000000b3","timestamp":"2026-07-29T16:26:01.047Z"}
+
+data: {"data":"time=2026-07-29T16:26:01.047Z level=INFO msg=\"compaction complete\" level=1 txid.min=00000000000000b2 txid.max=00000000000000b3 size=210300","timestamp":"2026-07-29T16:26:01.047Z"}
+
+: keep-alive
+

@@ -921,6 +921,10 @@ hf_snapshot() {
   jq '.settings' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
   jq '.combos' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
 
+  # ── DB 表快照 (链②) 已删 (2026-07-29 圣上裁砍七成): litestream 已复制整个 storage.sqlite ──
+  #   scheduler/init 重复表 JSON = 企业级排场. 真 db 仅 litestream R2 一路 (恢复即全表).
+  #   留此注释标撤销点, 将来多人/需直读 db 表 JSON 再启.
+
   # ── 【⑥+ 】init_vars.json：把脚本运行时变量（profile/TIER/RPM/策略/口径）随快照上传 ──
   #   目的：HF Dataset 侧可回溯本空间的真实初始化参数，无需翻容器日志。
   _arr_json() { # bash 数组 -> JSON 字符串数组（jq 正规转义，防 \"/\\ 破坏 JSON）
@@ -1008,6 +1012,16 @@ except Exception as e:
     if isinstance(e, HfHubHTTPError) and "403" in msg:
         print("[init] snapshot: WARN 403 Forbidden — HF_TOKEN 缺 write 权限, 检查 Space Secret E 项 HF_TOKEN scope (需 dataset-write)")
 PYEOF
+
+  # ── omniroute 插件静态包推公开 Bucket (圣上令扩三链 ③) ──
+  #   OMN_BUCKET_SYNC=1 触发 omn_bucket_sync.py 一次性 walk 插件包推公开 S3 Bucket.
+  #   init-nim-keys.sh 调用方已 set -e, 故 bucket-sync 失败须降级 skip 不阻主 init.
+  if [ "${OMN_BUCKET_SYNC:-0}" = "1" ] && [ -x /logic/omn_bucket_sync.py ]; then
+    echo "[init] omniroute 插件包推公开 Bucket (OMN_BUCKET_SYNC=1)..."
+    python3 /logic/omn_bucket_sync.py >/dev/null 2>&1 \
+      && echo "[init] 插件包 Bucket 同步完成" \
+      || echo "[init] snapshot: WARN 插件包 Bucket 同步失败 (降级 skip, 主 init 不阻)"
+  fi
 }
 
 # ── 增量模式（⑧ 增量门放宽：任一 nim-* combo 或 INIT_MARKER 存在）──

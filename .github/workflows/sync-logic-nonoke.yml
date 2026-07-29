@@ -37,13 +37,14 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN_NONOKE }}
         run: |
           pip install -q "huggingface_hub>=1.0,<2.0"
-          for f in entrypoint.sh gate.js init-nim-keys.sh litestream.yml package.json; do
+          for f in entrypoint.sh gate.js init-nim-keys.sh litestream.yml package.json \
+                   helper.sh omn_redact.py omn_encrypt.py omn_scheduler.py omn_bucket_sync.py; do
             hf upload nonoke/omn-logic "dev/logic/$f" "$f" \
               --repo-type dataset --token "$HF_TOKEN" \
               --commit-message "sync(logic): n-omn@${GITHUB_SHA::7} $f" || {
                 echo "[FATAL] upload failed for $f"; exit 1; }
           done
-          echo "---- upload 5 files done ----"
+          echo "---- upload 10 files done ----"
 
       - name: Verify sha256 readback (逐字节血缘验证)
         env:
@@ -52,7 +53,8 @@ jobs:
           python3 - <<'EOF'
           import hashlib, os
           from huggingface_hub import hf_hub_download
-          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json"]
+          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
+                   "helper.sh","omn_redact.py","omn_encrypt.py","omn_scheduler.py","omn_bucket_sync.py"]
           bad = 0
           for f in files:
               local = hashlib.sha256(open(f"dev/logic/{f}","rb").read()).hexdigest()

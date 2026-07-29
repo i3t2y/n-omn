@@ -35,3 +35,7 @@ audit-report.md
 .claude/hooks/*.pyc
 .claude/_backup-*/
 out/
+
+# Python 字节码缓存 (运行时产物不入库)
+__pycache__/
+*.pyc

@@ -248,3 +248,96 @@ init 三改 (real_context 32768→200000 / body raw 1→4 / echo 同步) 推 73e
 - Resilience 真读回: RPM=245/minMs=244/concurrent=21/maxWaitMs=300000 全字段一致.
 - NIM 账平: 7 registered 0 skipped 0 failed (probe 7 alive / 0 dead).
 **三件永不再改真义闭环**: 五待测项全绿, 改名+版本驱逐双轨机制真透 boot 链. 三件 (Dockerfile/start.sh/README) 版本无关真落地, 未来 OmniRoute 升级仅动 GHCR 镜像 + Space Variable, 三件原封不动. 出处: docs/三文件永久免改.md + 内存 three-files-never-change-landed. 关联 [[storage-bucket-dataset-结合堪察]].
+
+## 2026-07-29 · 永续日志架构自动化一条龙落地 (E 双路并存, 三件定态红线零触)
+
+圣上令 2026-07-28/29: omn 现役只存活 30min 即丢的运行态日志自动推 HF Dataset 公开存储 (永续), 方案 E 双路并存落地.
+
+**触发真痛点**: HF 免费 Space 无持久日志层 — boot 段 + 在线 30min 内日志随 ephemeral 盘丢, 且 48h 休眠自醒冷启更深丢. 战后查证只能靠 30min 内手动抓, 不可观测性 = 真痛点.
+
+**架构 (E 双路并存)**:
+- **路 1 (明文脱敏直读 JSONL, 可观测主路)**: `entrypoint` `gate stderr` `2>>` `$DATA_DIR/omn-staging/gate-stderr.log` → `omn_scheduler.py` `daemon` 周期 `capture_stdout` `grep` `component`=`gate` → `omn_redact.redact_text` (6 正则 Authorization Bearer/NIM_KEY=/nvapi-/Cookie/Set-Cookie/Bearer/PSK) → `stdout staging *.jsonl` → `CommitScheduler` `every=5min` `squash_history=True` → 公开 Dataset `omn_data/logs/stdout` (直读调试)
+- **路 2 (加密全信息保真 tar.gz, 兜底)**: `capture_stdout` 拷路 1 `staging` → `ENC_SRC` → `EncryptedScheduler` (子类重写 `push_to_hub`) → `omn_encrypt.encrypt_folder` (`Fernet` AES-128-CBC+HMAC-SHA256 整体字节级加密 tar.gz) → `upload_file` 单 `.tar.gz` → Dataset `omn_data/logs/encrypted`. `ENCRYPTION_KEY` Space Secret 圣上自持 (与 `INTERNAL_PSK` 同级, 零入值零知值), 缺 `key` → `EncryptionKeyMissing` `catch` `skip` 路 2 不崩主链
+- **db 表快照 (业务元数据)**: `capture_db` `sqlite3` 出全表 → `provider_connections` 行 `del credentials` (secret 纪律) → `omn_redact` → `db staging *.json` → Dataset `omn_data/db`
+- **插件静态包保真 (战时复原)**: `omn_bucket_sync.py` `walk` `DATA_DIR/services`/{9router,cliproxy,mux,bifrost}/`node_modules` + `bin`/`cliproxyapi-*` → `boto3` `upload_file` 公开 S3 Bucket 增量跳已存. 解"插件 10-100MB/件 重启重装崩链"真痛点 (源 `agent` B 实证: services/+bin/ 不在 `litestream` 复制范围)
+
+**8 任务落地**:
+| # | 件 | 改 |
+|---|---|---|
+| #44 | `helper.sh` | 补包统一入口 (cryptography/boto3), 区间串双引号包, 已装校验跳 |
+| #45 | `omn_redact.py` | 脱敏引擎 6 正则, `REDACT_PATTERNS` `ENV` 可覆, `re.sub`→`<REDACTED>` |
+| #46 | `omn_encrypt.py` | `Fernet` tar.gz 整体加密 `lib` + `decrypt_file` 双向验证, `EncryptionKeyMissing` |
+| #47 | `omn_scheduler.py` | 3 `CommitScheduler` 长驻 (路1/路2/db) + `EncryptedScheduler` 子类重写 `push_to_hub`, `_ensure_dirs` 延迟 `mkdir` `import` 无副作用, `SIGTERM`→三 `__exit__` |
+| #48 | `omn_bucket_sync.py` | 插件包推公开 Bucket, `ENV` 缺/`ImportError` 缺→`rc=0` `skip`, 他错计 `failed` 不阻 |
+| #49 | `init-nim-keys.sh` | 链② db 表快照入 `BACKUP_DIR` + 链③ `OMN_BUCKET_SYNC=1` 触发 `omn_bucket_sync.py` (链①经核设计冗余撤销) |
+| #50 | `entrypoint.sh` | `SCHED_PID` 5 处 (`_forward_signal`/`_shutdown`/列表) + `gate stderr` `2>>` 重定向 + `helper.sh` 调 + `omn_scheduler.py &` 启动 + 监督 `WARN` (非 `exit`, `daemon` 挂不阻对外服务) |
+| #51 | `sync-logic-nonoke.yml` | 5 件→10 件白名单 (`for f` 列 + `files` 验证列双同步, `helper.sh` + 四 py 下划线名) |
+| #52 | `docs/HF永续架构模板.md` | 永续架构提炼通用模板 (12 节 + 附录, 供其他 HF 项目共用, 单 `.md` 自包含) |
+
+**链①设计经核撤销**: 原"init 末 `OMN_STDOUT_SNAPSHOT=1` 抓 `gate stderr` 一次快照"经核冗余 — `omn_scheduler` `daemon` 长驻读 `GATE_STDERR` 文件从 `gate` 出第一行起全揽 (读整个文件 `splitlines`), `init` 末再抓=多余. `init` 自身 `stderr` 非业务主轴且 `NIM` `key` 探测噪音重脱敏负担大, 不推公开为佳.
+
+**关键工程坑 + 解**:
+- **Python 连字符文件名不可 `import`** (严重): `omn-redact.py` 无法 `import omn_redact` → 全新件须下划线 (`omn_redact.py`), `sync` 白名单同步列下划线名
+- **`CommitScheduler` 参数名**: `every=` (分钟) 非 `every_minutes=`; `squash_history=True` 默认 False 须显式
+- **`ZipScheduler` 子类模式**: 列源→处理→`upload_file`→`unlink`; 空 `src` → `return None` 早退防空 `tar` + 防 `squash` 空 `commit` 腐坏 `repo`
+- **import 副作用**: 顶层 `mkdir` 致 `/data` 无本地权限 `PermissionError` `import` 崩 → 延迟入 `_ensure_dirs()` 函数, `import` 纯净
+- **测试合成串**: `nvapi-xxxx...` 撞 `secret-scan.py` `nvapi` 正则被拦 → 测试用 `chr` 拼接合成串 (§2 纪律)
+- **`gate stderr` 重定向**: `2>>` 追加不破坏 `gate` JSON `stderr` 格式 (`component`:`gate` 内建), `scheduler` 读全量不漏 boot 段早期行
+
+**三件定态红线零触 (核验)**: 五件全在 `dev/logic/` (`sync-logic` paths = Dataset 推不触 Rebuild), `entrypoint`/`helper`/`init` 读 Space Secrets `ENV` (`HF_TOKEN`/`ENCRYPTION_KEY`/`OMN_BUCKET_*`), `Dockerfile`/`start.sh`/`README.md` 一字未动. 版本升级走 `GHCR`+`ARG`+`ENV` 既定三轨, 永续日志架构与之正交.
+
+**依赖链**: `huggingface_hub` (start.sh:32 自愈装, 区间 `>=1.0,<2.0`) / `cryptography` (helper.sh 装, 缺→路2 `skip`) / `boto3` (helper.sh 装, 缺→`ImportError` 插件包 `skip`) / `sqlite3` (stdlib, 镜像预装).
+
+**ENV 占位清单 (圣上 Space Secrets 自建自持, 我零入值零知值)**:
+- `ENCRYPTION_KEY` (路2 `Fernet`, 缺→路2 `skip` 不崩主链)
+- `OMN_DATASET_REPO` (`scheduler` 推目标 Dataset `repo`, 现役 `OMN_DATASET_REPO` 复用同名)
+- `HF_TOKEN` (`scheduler` 推 `token`, 须 `dataset-write` `scope`)
+- `OMN_SCHED_EVERY` (调度间隔分钟, 默认 5)
+- `OMN_CAPTURE_INTERVAL` (捕获间隔秒, 默认 60)
+- `OMN_BUCKET_*` (5 件: `ENDPOINT`/`ACCESS_KEY_ID`/`SECRET_ACCESS_KEY`/`NAME`/`PREFIX`, 缺→插件包 `skip`)
+- `OMN_BUCKET_SYNC=1` (`init` 末触发插件包同步开关)
+- `GATE_STDERR` (`scheduler` 读 `gate stderr` `log` 路径, `entrypoint` `export OMN_GATE_STDERR`)
+
+**当前态 (2026-07-29)**: 8 件全本地落地 + 全 `AST`/`bash -n`/`yaml` 语法绿. 未 `commit` 待圣上 (护栏 §5 `git add`/`commit` 一律 `ask`). 推路径 = `sync-space` 不触 (五件在 `dev/logic` 不在三件 `sync` paths) + `sync-logic-nonoke` 自触发 (`dev/logic`/** push) → Dataset 第十件平铺 → 圣上手动 `Restart` 生效 (零 Rebuild).
+
+**架构提炼模板**: `docs/HF永续架构模板.md` (任务 #52) 把 `omn` 现役血统提炼为通用永续架构模板 — 三层解耦 + 三件定态 + secret 纪律 + `workflow` 分流 + `entrypoint daemon` + `gate` 契约 + `litestream` R2 + 内嵌可复制骨架代码块 + `omn` 现役 `file:line` 引用, 供其他 HF 项目共用永续架构.
+
+出处: `dev/logic/{helper,omn_redact,omn_encrypt,omn_scheduler,omn_bucket_sync}` + `dev/logic/{entrypoint,init-nim-keys}` 改 + `.github/workflows/sync-logic-nonoke.yml` + `docs/HF永续架构模板.md`. 关联 [[three-files-never-change-landed]] [[omniroute-gateway-goal-and-risks]] [[hf-free-space-cpu-basic-spec]].
+
+## 2026-07-29 · 永续日志架构砍七成降级 (个人最小方案, 真=路1明文 + 插件包两件)
+
+圣上 2026-07-29 复盘: 个人用这套砍七成都够 — 真痛点只两件 (插件包崩链 + 关键日志留底), 其余 (脱敏层/加密层/db快照/三路管道/模板) = 企业级排场.
+
+**斩件**:
+- **omn_redact.py (脱敏6正则)**: archive 不删, 不调 — 私有 Dataset 只有圣上读 = 脱敏 redundant; gate logGate (gate.js:84-107) 早把 PSK/key/body 剥在源头, stderr 零 secret 值入流 (只 requestId/method/path/httpStatus/errorCode/msg)
+- **omn_encrypt.py + 路2 EncryptedScheduler**: archive 不删, 不实例化 — 不脱敏就无须加密兜底; ENCRYPTION_KEY Space Secret 删 (ENV 8→3~4)
+- **db 表快照 (init 链② + scheduler capture_db)**: 删 — litestream 已复制整个 storage.sqlite, scheduler/init 重复表 JSON
+- **docs/HF永续架构模板.md**: 圣上无"其他项目共用"需求, 留 archive 不主推 (个人无模板化场景)
+- **helper.sh cryptography 包**: 删 — 路2 降级不依赖; omn_encrypt import 尝试失败但 _try_import except -> OMN_ENCRYPT=None 无害
+
+**留下全链 (三件两个 Secret)**:
+```
+entrypoint: gate stderr 2>> ${DATA_DIR}/omn-sched/stdout/gate-stderr.log (gate 直写 scheduler working tree)
+omn_scheduler: 单 CommitScheduler(folder_path=STDOUT_STAGING, path_in_repo=omn_data/logs/stdout, every=SCHED_EVERY) 长驻 — 内置线程读 folder 变化自 upload 私有 Dataset 明文原样, 无 capture/redact 线程
+init 末: OMN_BUCKET_SYNC=1 → omn_bucket_sync.py 推插件包公开 Bucket
+```
+
+**死代码留档不删 (圣上"已写好不删, 将来多人/需要再开")**:
+- omn_scheduler.py: capture_stdout/capture_db/_capture_loop/EncryptedScheduler 留函数留类, main 不调 — 将来开路2/db 改 main `_capture_loop` 一行+`_start_schedulers` 加 s2/s3 即可
+- omn_redact.py/omn_encrypt.py: 文件留, sync 仍推到 Dataset (whitelist 不动), scheduler _try_import 尝试 import (redact 仅 stdlib 成功/encrypt 缺 cryptography 失败 except None)
+- 删点轻: _start_schedulers 删 s2/s3 实例化段 + main 删 capture daemon 线程 + capture_stdout 不调 + init 链② 段换注释
+
+**ENV 清单缩 (8 → 3~4)**:
+- 必需: HF_TOKEN (dataset-write scope) + OMN_DATASET_REPO (复用现役同名)
+- 插件包 (若要): OMN_BUCKET_* 5 件 (ENDPOINT/ACCESS_KEY_ID/SECRET_ACCESS_KEY/NAME/PREFIX) + OMN_BUCKET_SYNC=1
+- 可选 (默认兜底不配): OMN_SCHED_EVERY=5 / OMN_CAPTURE_INTERVAL=60
+- 自动 (entrypoint export 自管不圣上配): OMN_GATE_STDERR
+- **删**: ENCRYPTION_KEY (路2 降级)
+
+**降级后 ARCHITECTURE** (圣上确认链):
+- gate stderr → scheduler working tree (单文件 gate-stderr.log 追加) → CommitScheduler 周期 upload 整目录 → 私有 Dataset 单件增长 (append snapshot)
+- 零 capture 线程 / 零 redact / 零加密 / 零 db 快照
+
+**当前态**: 三件改完 (omn_scheduler _start_schedulers/main 删实例+线程, init 删链②, entrypoint 路径指 STDOUT_STAGING, helper 删 cryptography) + 全 AST/bash-n 绿. sync 白名单仍 10 件 (archive 文件留推). 未 commit 待圣上.
+
+出处: `dev/logic/{omn_scheduler,init-nim-keys,entrypoint,helper}` 改 + `dev/logic/{omn_redact,omn_encrypt,omn_bucket_sync}` archive 不删. 关联上文 "2026-07-29 永续日志架构" 条 + [[three-files-never-change-landed]].

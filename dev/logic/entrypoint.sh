@@ -34,7 +34,7 @@ STREAM_READINESS_TIMEOUT_MS="${STREAM_READINESS_TIMEOUT_MS:-180000}"
 export STREAM_READINESS_TIMEOUT_MS
 echo "[entrypoint] STREAM_READINESS_TIMEOUT_MS=$STREAM_READINESS_TIMEOUT_MS (M7 外科单注, wiki §15 实证)"
 
-OR_PID=""; INIT_PID=""; LS_PID=""; GATE_PID=""
+OR_PID=""; INIT_PID=""; LS_PID=""; GATE_PID=""; SCHED_PID=""
 
 echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PORT DATA=$DATA_DIR (ephemeral, R2 是数据主路径)"
 
@@ -44,7 +44,7 @@ echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PO
 cleanup_done=0
 _forward_signal() {
   local sig="$1"
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
     [ -z "$pid" ] && continue
     kill -0 "$pid" 2>/dev/null && kill -"$sig" "$pid" 2>/dev/null || true
   done
@@ -57,7 +57,7 @@ _shutdown() {
   local g=0 alive
   while [ "$g" -lt 50 ]; do
     alive=0
-    for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID"; do
+    for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
       [ -z "$pid" ] && continue
       kill -0 "$pid" 2>/dev/null && alive=1
     done
@@ -67,7 +67,7 @@ _shutdown() {
   done
   echo "[entrypoint] shutdown: force-kill 残留..."
   _forward_signal KILL
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
     [ -z "$pid" ] && continue
     wait "$pid" 2>/dev/null || true
   done
@@ -256,9 +256,29 @@ else
 fi
 
 echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
-node /logic/gate.js &
+# ── 9. 永续日志 (个人最小方案 2026-07-29): gate stderr → scheduler working tree ──
+# gate stderr 直写 omn_scheduler.py STDOUT_STAGING 目录 (其 CommitScheduler folder_path),
+# scheduler 内置线程读 folder 变化自 upload 私有 Dataset (明文原样, 无须 capture/redact).
+# 圣上裁砍七成: 私有库只有圣上读 = 脱敏+加密 redundant; gate logGate 早剥 PSK/key/body 在源头.
+GATE_STDERR_LOG="${DATA_DIR}/omn-sched/stdout/gate-stderr.log"
+mkdir -p "$(dirname "$GATE_STDERR_LOG")" 2>/dev/null || true
+# helper.sh 装插件包依赖 (boto3); logging 路仅 huggingface_hub (start.sh 已装) 无须额外包
+if [ -f /logic/helper.sh ]; then
+  echo "[entrypoint] helper.sh 装依赖 (boto3 插件包)..."
+  bash /logic/helper.sh 2>/dev/null || echo "[entrypoint] WARN: helper.sh 失败, 插件包同步自动降级"
+fi
+# gate stderr → scheduler working tree (后台运行, 追加模式 >> )
+node /logic/gate.js 2>>"$GATE_STDERR_LOG" &
 GATE_PID=$!
-echo "[entrypoint] gate PID=$GATE_PID"
+echo "[entrypoint] gate PID=$GATE_PID, stderr → ${GATE_STDERR_LOG}"
+export OMN_GATE_STDERR="$GATE_STDERR_LOG"
+
+# omn_scheduler.py: 单 CommitScheduler 长驻 (路1 明文 stdout 私有 Dataset 原样推).
+# 缺 HF_TOKEN/OMN_DATASET_REPO -> _start_schedulers skip 空跑待 env, 不死不崩.
+# SIGTERM 经 _forward_signal 转发 -> _on_signal 安全 __exit__ scheduler (最后 upload).
+python3 /logic/omn_scheduler.py &
+SCHED_PID=$!
+echo "[entrypoint] omn_scheduler PID=$SCHED_PID (永续日志: 明文 stderr → 私有 Dataset)"
 
 # ── 7. 监督循环: 任一关键进程退出 → 停其余 ──
 # gate 为对外服务 = 退出停一切; 上游服务为必需 = 退出停一切;
@@ -273,6 +293,10 @@ while true; do
   fi
   if [ -n "$INIT_PID" ] && ! kill -0 "$INIT_PID" 2>/dev/null; then
     [ "$_init_logged" = 1 ] || { wait "$INIT_PID" 2>/dev/null; _init_rc=$?; if [ "$_init_rc" -ne 0 ]; then echo "[entrypoint] ✗ NIM init 已退出 rc=$_init_rc (fail-closed 触发或异常)."; else echo "[entrypoint] NIM init 已退出 rc=0 (正常完成)."; fi; _init_logged=1; }
+  fi
+  if [ -n "$SCHED_PID" ] && ! kill -0 "$SCHED_PID" 2>/dev/null; then
+    echo "[entrypoint] WARN: omn_scheduler 已退出 (永续日志 daemon 挂). 业务不受影响, 在线 30min 内可手动抓. PID 置空."
+    SCHED_PID=""
   fi
   if [ -n "$LS_PID" ] && ! kill -0 "$LS_PID" 2>/dev/null; then
     if [ "${LITESTREAM_STRICT:-0}" = 1 ]; then

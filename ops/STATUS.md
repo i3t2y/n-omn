@@ -304,3 +304,10 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
 - [x] R2 鉴别器 Space 侧三子读锁案分道 ✅ (圣上 7-26 定谳三答归一): dbs.path 漂移假说推翻 (路径铁证全同) + compaction txid gap 真根 = **昨晚 cg52 首测裸删 R2 备份留疤** (0x10+0x2c 两代残件断档 28 txid) — 非故障自愈中 (08:00:01 snapshot 0x32 重建链 + retention 到期清旧残件 + 切桶零迁移), 不阻切流. cg52 四铁证独立对账: 行1121 snapshot 0x32 size=267503 + 57 次 compaction ERROR 一字未差 + 时序 57×30s=28.5min 数学对齐
 - [x] Phase 2 冻结令解 ✅ — compaction 疡定谳不阻切流 (圣上 7-26 令), 切流链即刻启: ① HF_TOKEN → ② BASE_IMAGE 锚定 → ③ Dispatch Skeleton → ④ Rebuild → ⑤ 变量切换 (bucket omn-data → omniroute-data) → ⑥ Restart. 切流后验证: matrix (单 space 写模式) + 盯新桶 snapshot 持续生成 + 确认新桶 compaction 报错零出现
 - [ ] DECISIONS 护栏条入册: 删 R2 备份 = 断代级破坏操作 (禁裸删 litestream 路径, 仅 test 前缀 或 删前书面确认本地库可弃) — 本批同 commit 入
+- [x] 永续日志架构自动化一条龙落地 (E 双路并存, 圣上令 2026-07-28/29) ✅ — 8 任务 #44-#52 全本地落地 + AST/bash-n/yaml 语法全绿:
+    · 五新 lib: helper.sh (补包 cryptography/boto3) + omn_redact.py (6 正则脱敏) + omn_encrypt.py (Fernet tar.gz 加密路2) + omn_scheduler.py (3 CommitScheduler 长驻 路1明文/路2加密/db + EncryptedScheduler 子类重写 push_to_hub) + omn_bucket_sync.py (插件包推公开 Bucket)
+    · 两改: entrypoint.sh (SCHED_PID 5处 + gate stderr 2>> 重定向 + helper.sh 调 + scheduler 启动 + 监督 WARN 非 exit) + init-nim-keys.sh (链② db 表快照 + 链③ OMN_BUCKET_SYNC=1 触发)
+    · sync-logic-nonoke.yml (5→10 件白名单双同步) + docs/HF永续架构模板.md (通用模板提炼)
+    · 三件定态红线零触 (五件全 dev/logic/ sync-logic paths 不触 Rebuild, entrypoint/helper/init 读 ENV 不改三件), 链①设计经核冗余撤销 (scheduler 全掖 gate stderr 文件不漏 boot 段早期行)
+    详 DECISIONS "2026-07-29 永续日志架构" 条. 未 commit 待圣上.
+- [ ] 永续日志批后续 (个人最小方案降级后, 圣上 2026-07-29 裁砍七成): ① 圣上 Space Secrets 配 3~4 ENV (HF_TOKEN dataset-write + OMN_DATASET_REPO 复用 + 插件包套 OMN_BUCKET_* 5件+OMN_BUCKET_SYNC=1 若需; OMN_SCHED_EVERY/OMN_CAPTURE_INTERVAL 默认值兜底不配; ENCRYPTION_KEY 已删路2降级) ② 圣上 commit + push 触 sync-logic-nonoke 自派 → Dataset 第十件平铺 ③ 圣上手动 Restart (零 Rebuild) ④ boot 真验: scheduler PID 现 + helper.sh 装 boto3 绿 + gate-stderr.log 有内容 + Dataset repo omn_data/logs/stdout 落地单件

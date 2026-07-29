@@ -86,7 +86,7 @@ function logGate(req, fields) {
     const v = (n) => (typeof n === 'number' || typeof n === 'string') ? n : null;
     const line = JSON.stringify({
       ts: Date.now(),
-      level: 'error',
+      level: fields.level || 'error',
       component: 'gate',
       stage: 'upstream_proxy',
       requestId: req?._gateReqId || null,
@@ -240,7 +240,15 @@ function proxyV1(req, res) {
         res.once('drain', () => upstreamRes.resume());
       }
     });
-    upstreamRes.on('end', () => { if (!res.writableEnded) res.end(); });
+    upstreamRes.on('end', () => {
+      if (!res.writableEnded) res.end();
+      // 正常成功/非 aborted 完成路径 logGate (此前只记 error/timeout 分支, 正常 200 不出日志
+      // 致永续日志健康镜态 staging 零内容 — 圣上 2026-07-29 探针验证暴露此漏). 成功也记一行.
+      if (!aborted && res.headersSent) {
+        logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
+          httpStatus: res.statusCode || 200, level: 'info', msg: 'upstream_completed' });
+      }
+    });
     upstreamRes.on('error', (e) => {
       // 上游响应流中途错 (已 head, 非 connect 错): fallback 502 + 结构化日志
       // task#23: 复用 classifyAbortSource (非硬码 'upstream_error'); 流相 elapsedMs 多 >5000 → 落 upstream_error
@@ -365,7 +373,14 @@ function proxyAdmin(req, res) {
         res.once('drain', () => upstreamRes.resume());
       }
     });
-    upstreamRes.on('end', () => { if (!res.writableEnded) res.end(); });
+    upstreamRes.on('end', () => {
+      if (!res.writableEnded) res.end();
+      // 正常成功完成 logGate (同 proxyV1 修, 圣上 2026-07-29 探针验漏补)
+      if (!aborted && res.headersSent) {
+        logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
+          httpStatus: res.statusCode || 200, level: 'info', msg: 'upstream_completed' });
+      }
+    });
     upstreamRes.on('error', (e) => {
       // 上游响应流中途错 (非 connect 错): 已 head, fallback 502 + 结构化日志
       logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 502,

@@ -237,22 +237,35 @@ if [ ! -f /logic/gate.js ]; then
   echo "[entrypoint] FATAL: gate.js 不存在"; _shutdown; exit 1
 fi
 
-# ── 5.5 预装 gate 依赖 (三层解耦: /logic 逐 boot 重建 = ephemeral, 每次 boot 装一次) ──
-# gate.js = express 版 (require('express')), bootstrap 仅拉 Dataset 文件不跑 npm install,
-# /logic/node_modules 缺 → require 崩 crashloop。此处 boot 时补装 express(非 dev)。
-if [ -f /logic/package.json ]; then
-  if [ ! -d /logic/node_modules/express ]; then
-    echo "[entrypoint] 预装 gate 依赖 (npm install --omit=dev)..."
-    if (cd /logic && npm install --omit=dev --silent --no-audit --no-fund 2>&1); then
+# ── 5.5 预装 gate 依赖 (三层解耦: /logic 逐 boot 重建 = ephemeral) ──
+# gate.js require('express'). AB 双轨自动判 (圣上原设计: 用官方镜像该装, 用全包镜像跳):
+#   node module resolution 自动查 本地 /logic/node_modules → 全局 NODE_PATH (express 入 GHCR base).
+#   镜像自带 ENV NODE_PATH (B 全包) → 命中跳; 裸上游 (A) 无 express 无 NODE_PATH → require fail → 装兜底.
+#   单判据 requireResolve = 与 gate.js 实跑同判据, 不两处分叉(免脚本以后再改).
+# 兜底 fail-closed 双锁: npm 装后二次 require 真验 (npm rc=0 ≠ require 通), 仍 fail 早死避 crashloop.
+if [ ! -f /logic/package.json ]; then
+  echo "[entrypoint] FATAL: /logic/package.json 不存在, 无法预装 gate 依赖"; _shutdown; exit 1
+fi
+# probe 失败保留 stderr (非 >/dev/null 全吞) — AB 排障看 A 镜像 require 真因 (无全局/无 NODE_PATH/package 表达)
+_ProbeErr=$(mktemp)
+if node -e "require('express')" >"$_ProbeErr" 2>&1; then
+  rm -f "$_ProbeErr"
+  echo "[entrypoint] gate 依赖已就绪 (require('express') 命中, 跳 npm install)"
+else
+  rm -f "$_ProbeErr"
+  echo "[entrypoint] 预装 gate 依赖 (npm install --omit=dev)..."
+  if (cd /logic && npm install --omit=dev --silent --no-audit --no-fund 2>&1); then
+    # 兜底装后二次真验 require (npm rc=0 ≠ require resolve 必成功:
+    #   package.json 缺 express 依赖名/版本区间拉空/edge install 病, 皆 npm 不报而 require 仍 fail).
+    # 与实跑同判据探, 闭环 fail-closed (装完仍 require 不通 = gate 必崩, 早死优于 crashloop).
+    if (cd /logic && node -e "require('express')" >/dev/null 2>&1); then
       echo "[entrypoint] gate 依赖就绪"
     else
-      echo "[entrypoint] FATAL: npm install 失败, gate require express 必崩"; _shutdown; exit 1
+      echo "[entrypoint] FATAL: npm install 成功但 require('express') 仍 fail, gate 必崩"; _shutdown; exit 1
     fi
   else
-    echo "[entrypoint] gate 依赖已就绪 (node_modules/express 存在, 跳过 npm install)"
+    echo "[entrypoint] FATAL: npm install 失败, gate require express 必崩"; _shutdown; exit 1
   fi
-else
-  echo "[entrypoint] FATAL: /logic/package.json 不存在, 无法预装 gate 依赖"; _shutdown; exit 1
 fi
 
 echo "[entrypoint] starting gate on port $EXPOSED_PORT..."

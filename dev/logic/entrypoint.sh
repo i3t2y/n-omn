@@ -177,12 +177,14 @@ else
   fi
 fi
 
-# ── 1.5 FlareTunnel 本地桥 (2026-07-30, 档位A: 单桥 :8080 round-robin 8 Worker) ──
+# ── 1.5 FlareTunnel 本地桥 (2026-07-30, 档位A: 单桥 :8080 round-robin N Worker) ──
 # 拓扑: OmniRoute undici → HTTP CONNECT 127.0.0.1:8080 → 桥 MITM → CF Worker 池 → NIM.
 #   目的 = 换 NIM 出口 IP (CF 172.64.0.0/13 出口段动态轮换), 与旧 relay 三故障不同代码路径.
+#   拓扑关键: OmniRoute 只见 1 条桥代理 (flaretunnel-8080 → provider scope), Worker 池是
+#   桥内部实现细节 — 桥 round-robin 轮分 N Worker 出口, OmniRoute 不感知 N (设计如此).
 # 开关: FLARETUNNEL_ENABLED=1 (Space Variable) 才启; 未设/0 = 全段零副作用
 #   (AB 双轨同哲学: 默认路径行为不变, 启用路径自举, 回滚 = 删 Variable + Restart).
-# 资产: /logic/flaretunnel (静态二进制) + /logic/flaretunnel_endpoints.json (8 zflare 池),
+# 资产: /logic/flaretunnel (静态二进制) + /logic/flaretunnel_endpoints.json (Worker 池, 数由 jp 真读),
 #   皆走 Dataset 同步, Restart 即效零 Rebuild.
 # 次序红线 (NODE_EXTRA_CA_CERTS 两前提, 2026-07-30 双核+docker 实证):
 #   ① 桥先起 → CA 自签落 $FT_CA_DIR (源码实证 generateCACert: crt+key 存在即 early-return
@@ -213,7 +215,8 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
         --ca-dir "$FT_CA_DIR" >>"$FT_LOG" 2>&1 &
       FT_PID=$!
       export FT_PID   # 须 export: init-nim-keys.sh 起 bash 子进程, 不 export 则 FT_PID 不传子进程致 init 跳过 FT 代理注册
-      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, 8 Worker round-robin, log→$FT_LOG)"
+      _ft_n=$(jq 'if type=="array" then length elif .endpoints then (.endpoints|length) elif .workers then (.workers|length) else 0 end' /logic/flaretunnel_endpoints.json 2>/dev/null || echo 8)
+      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, ${_ft_n} Worker round-robin, log→$FT_LOG)"
     }
     _ft_start
     # CA 等生 (红线②): 桥首启自签 CA 落盘后才可 export; 上限 10s, 桥早夭即弃

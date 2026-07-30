@@ -293,56 +293,11 @@ _ft_register_proxy() {
     409)     echo "[init] FT proxy: 跳过 (已存在 409, 幂等保健康)" ;;
     *)       echo "[init] FT proxy: WARN 注册 HTTP $_HTTP ($(head -c 200 "$_RESP" 2>/dev/null)"; return 0 ;;
   esac
-  # 官方 register-and-go 哲学: 不探活, 交 runtime isProxyReachable/validateProxyPool 自理
-  _ft_workers_health   # 注册后逐 Worker 探活打表 (后台 1 桥代理不见 16, 此表补可见/可测纬度)
-}
-
-# 逐 Worker 探活: 不经桥 (桥 round-robin 不暴露单 Worker), 直连各 Worker URL + X-Relay-Auth
-#   测 NIM GET /v1/models (无鉴权轻目录, 不耗真配额; Worker 改写转 NIM)。
-#   并行全发 (16 Worker), 单 timeout 8s, 总上限 ~8s。
-#   401=RELAY_AUTH 坏/不匹配 (圣上须查); 200=alive; 5xx/network=Worker 死或 CF 挂。
-_ft_workers_health() {
-  [ "${FLARETUNNEL_ENABLED:-0}" != "1" ] && return 0
-  [ -z "${RELAY_AUTH:-}" ] && { echo "[init] FT workers health: skip (RELAY_AUTH 缺)."; return 0; }
-  local _ep=/logic/flaretunnel_endpoints.json
-  [ -f "$_ep" ] || { echo "[init] FT workers health: skip (无 $_ep)."; return 0; }
-  # 抽 Worker 列表 (支持 array 或 {endpoints:[...]} / {workers:[...]} 三态)
-  local _names _urls
-  _names=$(jq -r 'if type=="array" then .[].name elif .endpoints then .endpoints[].name elif .workers then .workers[].name else empty end' "$_ep" 2>/dev/null)
-  _urls=$(jq -r 'if type=="array" then .[].url elif .endpoints then .endpoints[].url elif .workers then .workers[].url else empty end' "$_ep" 2>/dev/null)
-  local _n; _n=$(printf '%s\n' "$_names" | grep -c .)
-  [ "$_n" -eq 0 ] && { echo "[init] FT workers health: skip (0 Worker in $_ep)."; return 0; }
-  echo "[init] FT workers health: 逐 Worker 探活 (n=$_n, 并行, timeout=8s, 直连 NIM /v1/models)..."
-  local _tmpd; _tmpd=$(mktemp -d)
-  # 并行发: 每行 "name<TAB>url" 喂 worker, 结果写 _tmpd/<i>.out
-  paste <(printf '%s\n' "$_names") <(printf '%s\n' "$_urls") | nl -ba | while IFS=$'\t' read -r _idx _wname _wurl; do
-    [ -z "$_wurl" ] && continue
-    (
-      _code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 8 \
-        -H "X-Relay-Auth: $RELAY_AUTH" \
-        -G --data-urlencode "url=https://integrate.api.nvidia.com/v1/models" \
-        "$_wurl" 2>/dev/null || echo "000")
-      printf '%s\t%s\n' "$_wname" "$_code" > "$_tmpd/$_idx.out"
-    ) &
-  done
-  wait
-  # 汇总打表
-  local _alive=0 _unauth=0 _dead=0 _line _name _code
-  printf '[init] %-20s %s\n' "Worker" "状态"
-  printf '[init] %s\n' "─────────────────────────────────────"
-  for _f in "$_tmpd"/*.out; do
-    [ -f "$_f" ] || continue
-    _line=$(cat "$_f"); _name="${_line%%$'\t'*}"; _code="${_line#*$'\t'}"
-    case "$_code" in
-      200)        printf '[init] %-20s ✓ alive (HTTP %s)\n' "$_name" "$_code"; _alive=$((_alive+1)) ;;
-      401)        printf '[init] %-20s ✗ UNAUTHORIZED (HTTP %s) ← RELAY_AUTH 坏/不匹配\n' "$_name" "$_code"; _unauth=$((_unauth+1)) ;;
-      000)        printf '[init] %-20s ✗ DEAD (无响应/超时)\n' "$_name"; _dead=$((_dead+1)) ;;
-      *)          printf '[init] %-20s ? HTTP %s\n' "$_name" "$_code"; _dead=$((_dead+1)) ;;
-    esac
-  done
-  rm -rf "$_tmpd" 2>/dev/null
-  echo "[init] FT workers 汇总: alive=$_alive unauthorized=$_unauth dead/other=$_dead (总 $_n)"
-  [ "$_unauth" -gt 0 ] && echo "[init] ⚠ FT workers unauthorized>0: RELAY_AUTH 须圣上核 (Worker 端 AUTH_KEY 与 Space Secret RELAY_AUTH 须一致), 见 [[flaretunnel-impl-built-verified]] 第0步前置"
+  # 官方 register-and-go 哲学: 不探活, 交 runtime isProxyReachable/validateProxyPool 自理.
+  # _ft_workers_health (82a93d4 WIP) 已撤: 它 paste|nl|while 并行 16 curl@HF sandbox 网络层
+  #   + set -eo pipefail 致 init 卡死静默退 (三轮 boot 无 331/Resilience/Done 实证). 档位A
+  #   体检表需圣上定方案 (serialization/timeout 硬护栏/桥侧 metrics 端点 任一) 后重装, 见
+  #   [[ft-workers-health-diffa-wip]] 习: 进程活/鉴权/穿透三层非出口IP.
 }
 
 check_nim_model_health() {

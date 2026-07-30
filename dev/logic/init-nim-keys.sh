@@ -242,9 +242,6 @@ fi
 [ "$_REQUEST_BODY_LIMIT_MB" -gt 500 ] 2>/dev/null && _REQUEST_BODY_LIMIT_MB=500
 echo "[init] body limit: raw=$_RAW_BODY_LIMIT -> maxBodySizeMb=$_REQUEST_BODY_LIMIT_MB"
 
-_PURGE_PROXY=${NIM_PURGE_PROXY:-1}
-_PROXY_RELAY_HOST=${NIM_PROXY_RELAY_HOST:-127.0.0.1}
-_PROXY_RELAY_PORT=${NIM_PROXY_RELAY_PORT:-20129}
 _DB_PATH="${DATA_DIR:-/data}/storage.sqlite"
 sql_escape() { printf '%s' "$1" | sed "s/'/''/g"; }
 
@@ -258,46 +255,42 @@ _res_validate_int() {
   return 0
 }
 
-purge_proxy_db() {
-  [ "$_PURGE_PROXY" != "1" ] && { echo "[init] purge_proxy_db: skipped."; return 0; }
-  # 2026-07-30 FlareTunnel Diff 2: FT 启用时全函数封印 (此一行封 登录后/providerID后/增量模式/snapshot后 四调用点).
-  #   根因: 下方 SQL 段 UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia'
-  #   每 boot 必触 (_PURGE_PROXY 默 1 + 四点直调无再闸) → FT 代理经 UI 注册由 R2 持久后,
-  #   下个 boot (含增量模式) 必被反噬关回 0, 注册白做. 封印副作用: 旧 relay 20129 registry GC
-  #   同停 — 无害 (旧 relay 已退役; FT 8080 本不在 DELETE 射程, 射程仅 _PROXY_RELAY_PORT=20129).
-  [ "${FLARETUNNEL_ENABLED:-0}" = "1" ] && { echo "[init] purge_proxy_db: skipped (FLARETUNNEL_ENABLED=1, FT 代理注册跨 boot 保留)."; return 0; }
-  local LIST_JSON
-  LIST_JSON=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/v1/management/proxies" 2>/dev/null || echo "")
-  if [ -n "$LIST_JSON" ] && printf '%s' "$LIST_JSON" | jq -e . >/dev/null 2>&1; then
-    local BAD_IDS
-    BAD_IDS=$(printf '%s' "$LIST_JSON" | jq -r --arg h "$_PROXY_RELAY_HOST" --argjson p "$_PROXY_RELAY_PORT" \
-      '(.proxies // .data // .) | (if type=="array" then . else [] end)
-       | .[] | select((.host==$h) and ((.port|tonumber?)==$p)) | .id' 2>/dev/null)
-    if [ -n "$BAD_IDS" ]; then
-      local _id _c
-      while IFS= read -r _id; do
-        [ -z "$_id" ] && continue
-        _c=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
-          -X DELETE "$BASE_URL/api/v1/management/proxies?id=${_id}&force=1" 2>/dev/null || echo "000")
-        echo "[init] purge: API force-delete $_id -> HTTP $_c"
-      done <<< "$BAD_IDS"
-    else
-      echo "[init] purge: 注册表无 ${_PROXY_RELAY_HOST}:${_PROXY_RELAY_PORT}。"
-    fi
-  else
-    echo "[init] purge: 管理 API 暂不可用，走 SQL 兜底。"
-  fi
-  if [ -f "$_DB_PATH" ]; then
-    sqlite3 "$_DB_PATH" "DELETE FROM proxy_assignments WHERE proxy_id IN
-      (SELECT id FROM proxy_registry WHERE host='$(sql_escape "$_PROXY_RELAY_HOST")' AND port=$_PROXY_RELAY_PORT);" 2>/dev/null || true
-    sqlite3 "$_DB_PATH" "UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia';" 2>/dev/null || true
-    sqlite3 "$_DB_PATH" "DELETE FROM proxy_registry WHERE host='$(sql_escape "$_PROXY_RELAY_HOST")' AND port=$_PROXY_RELAY_PORT;" 2>/dev/null || true
-    local _reg _asg _proxy_on
-    _reg=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM proxy_registry;" 2>/dev/null || echo "?")
-    _asg=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM proxy_assignments;" 2>/dev/null || echo "?")
-    _proxy_on=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM provider_connections WHERE provider='nvidia' AND proxy_enabled=1;" 2>/dev/null || echo "?")
-    echo "[init] purge: registry=$_reg assignments=$_asg proxy_enabled=1剩余=$_proxy_on（期望 0/0/0）。"
-  fi
+# FlareTunnel 档位A: 一本地桥(127.0.0.1:8080) + N Worker round-robin 出口.
+#   OmniRoute 表中只须注册一行代理(host=127.0.0.1 port=8080), 全 nvidia provider 走桥 → 桥内轮换 8 Worker.
+#   指派 scope='provider' scopeId=<任一 nvidia PROVIDER_ID> (upstream resolveProxyForConnection 按 scope 解析,
+#   nvidia 全 provider 连接共享一行代理 = 全瑾 Worker 轮换; 非 32 桥×N 方案需 32 行注册).
+# 测活时序决策(2026-07-30 查证官方): 注册时 NOT 探活, status='active' 默认, 交上游 runtime 接管:
+#   ① isProxyReachable (lib/proxyHealth.ts) 用前 TCP <2s fast-fail + 30s/2s in-mem cache
+#   ② validateProxyPool (lib/proxyEgress.ts) 探真出口 IP 标 status=active|error → DB 持久
+#   ③ PROXY_ALIVE_PREDICATE (lib/db/proxies.ts:507) resolution SQL 自动跳 status=error/inactive/dead/down
+#   → 桥死即时跳轮(无影响 init 绕, 运行时自愈, 本函数无需重造探活).
+# 幂等: POST /api/v1/management/proxies 返回 409/exists → skip, 注册满 HTTP 200/201 → 建.
+_ft_register_proxy() {
+  [ "${FLARETUNNEL_ENABLED:-0}" != "1" ] && return 0
+  # 桥未启(entrypoint §1.5 fail-open 降级) → 不注册, 免 nvidia 指死桥反停业务
+  [ -z "${FT_PID:-}" ] && { echo "[init] FT proxy: skip (FT 桥未启/降级, 不注册死代理)."; return 0; }
+  # nvidia provider ID 须取到 (指派 scopeId 必需)
+  local _pid="${PROVIDER_IDS:-}"
+  # PROVIDER_IDS 是数组; 取首元素 (nvidia 同 provider 全共享一行 proxy)
+  local _first_pid=""
+  while IFS= read -r _first_pid; do [ -n "$_first_pid" ] && break; done <<< "$(printf '%s\n' "${PROVIDER_IDS[@]}")" 2>/dev/null
+  [ -z "$_first_pid" ] && { echo "[init] FT proxy: skip (无 nvidia PROVIDER_ID, 无法指派)."; return 0; }
+  local _HOST="${FT_PROXY_HOST:-127.0.0.1}" _PORT="${FT_PROXY_PORT:-8080}"
+  local _BODY
+  _BODY=$(jq -n --arg h "$_HOST" --argjson p "$_PORT" --arg sid "$_first_pid" \
+    '{name:"flaretunnel-8080", type:"http", host:$h, port:$p,
+      assignment:{scope:"provider", scopeId:$sid}}')
+  local _HTTP _RESP
+  _RESP=$(_resp ft_proxy_register.json)
+  _HTTP=$(curl -s -o "$_RESP" -w "%{http_code}" -b "$COOKIE_FILE" \
+    -X POST "$BASE_URL/api/v1/management/proxies" \
+    -H "Content-Type: application/json" -d "$_BODY" 2>/dev/null || echo "000")
+  case "$_HTTP" in
+    200|201) echo "[init] FT proxy: 注册 ✓ (host=${_HOST}:${_PORT} → nvidia provider $_first_pid, HTTP $_HTTP)" ;;
+    409)     echo "[init] FT proxy: 跳过 (已存在 409, 幂等保健康)" ;;
+    *)       echo "[init] FT proxy: WARN 注册 HTTP $_HTTP ($(head -c 200 "$_RESP" 2>/dev/null)"; return 0 ;;
+  esac
+  # 官方 register-and-go 哲学: 不探活, 交 runtime isProxyReachable/validateProxyPool 自理
 }
 
 check_nim_model_health() {
@@ -551,8 +544,6 @@ LOGIN_HTTP=$(curl -s -o "$LOGIN_RESP_FILE" -w "%{http_code}" -c "$COOKIE_FILE" \
 grep -q "auth_token" "$COOKIE_FILE" 2>/dev/null || { echo "[init] ERROR no auth_token"; exit 1; }
 echo "[init] Logged in."
 
-purge_proxy_db
-
 resolve_or_key() {
   printf '%s' "${OMNIROUTE_API_KEY:-$(cat "$OR_API_KEY_FILE" 2>/dev/null)}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
 }
@@ -737,7 +728,7 @@ if [ "$PROVIDERS_HTTP" = "200" ]; then
 fi
 echo "[init] Provider IDs: ${#PROVIDER_IDS[@]}"
 
-purge_proxy_db
+_ft_register_proxy
 
 echo "[init] Resilience (RPM=$_RPM, concurrent=$_CONCURRENT, interval=${_MIN_INTERVAL_MS}ms)..."
 
@@ -1035,7 +1026,6 @@ if [ -f "$_DB_PATH" ]; then
   COMBO_COUNT=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM combos WHERE name IN ('nim-pool','nim-codex');" 2>/dev/null || echo 0)
   if [ "${COMBO_COUNT:-0}" -gt 0 ] || [ -f "$INIT_MARKER" ]; then
     echo "[init] Incremental mode."
-    purge_proxy_db
     # ⑤ 只清"已过期"熔断，保留仍在冷却窗内的历史信号
     sqlite3 "$_DB_PATH" "DELETE FROM domain_circuit_breakers WHERE cooldown_until < datetime('now');" 2>/dev/null || true
     check_nim_model_health
@@ -1079,7 +1069,6 @@ context_accumulator_update
 #   此处 ||true 兜底函数级 (curl/jq 等非 python 段若异常), 防 set -e 触发 init 整进程 exit 1 致 Space crashloop。
 #   snapshot 仅冗余备份, R2 是数据主路径, 失败不致命。
 hf_snapshot || true
-purge_proxy_db
 
 touch "$INIT_MARKER"
 echo "[init] Final health check..."

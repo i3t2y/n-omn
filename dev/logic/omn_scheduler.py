@@ -1,23 +1,25 @@
-"""omn_scheduler · 路1明文 / 路2加密 / db 三 CommitScheduler 长驻守护
+"""omn_scheduler · 全源日志永续守护 (capture daemon + CommitScheduler)
 
-圣上令 2026-07-28: stdout 推公开存储自动化一条龙.
-  路1 (明文脱敏直读 JSONL): capture_stdout 抓 gate stderr → grep component=gate →
-                           omn_redact.redact_text → 写 staging/*.jsonl, CommitScheduler 读 staging upload.
-  路2 (加密全信息保真 tar.gz): stage_for_encrypted 拷路1 staging + raw stderr → enc src →
-                            EncryptedScheduler 重写 push_to_hub Fernet 整体加密 tar.gz upload.
-                            ENCRYPTION_KEY Space Secret 圣上自持 (零入值零知值), 缺 key -> skip 路2 不崩主链.
-  db   (DB 表快照 JSON): capture_db sqlite3 .mode json .dump 出 T0+T1 quota 表 +
-                         provider_connections del(.credentials) → omn_redact → staging → upload.
+圣上令 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
+  全源架构: gate/ft/app/init 四源 raw 落 _raw 临时区 → capture daemon 尾追增量 →
+    omn_redact.redact_text 脱敏 (默6正则盖类A/B/C 真 secret 形态) → 写 staging 出件 →
+    CommitScheduler 内置线程读 folder 变化自动 upload 私有 Dataset save/ (给 AI 分析).
+  私库只圣读为何仍脱敏: 圣旨改派"日志最终给 AI 分析", 须脱敏防 secret 进 AI 上下文流.
 
-三件红线: 本脚本读 Space Secrets ENV, 不改 Dockerfile/start.sh/init. 最小打扰.
+三件红线: 本脚本读 Space Secrets ENV, 不改 Dockerfile/start.sh. 最小打扰.
+  D 总闸 OMN_LOG_TO_DATASET (默1=积累期推; =0=稳定后全数据收集层停让性能, 桥/gate/init/上游零感知).
 
 拉起: entrypoint.sh `python3 /logic/omn_scheduler.py &` (复用现役 daemon 模式).
-停: SIGTERM/SIGINT -> 三 scheduler.__exit__ (trigger 最后 upload + stop), 主进程干净退.
+停: SIGTERM/SIGINT -> scheduler.__exit__ (trigger 最后 upload + stop), capture daemon daemon 自然随主退.
+
+保留未启用链 (圣上裁砍七成, 留代码将来多人启):
+  路2加密 (EncryptedScheduler): 私库只圣读 = 加密 redundant; ENCRYPTION_KEY 缺即 skip.
+  db 快照 (capture_db): litestream 已复制整个 storage.sqlite, scheduler 重复.
 
 依赖:
   - huggingface_hub (start.sh:32 自愈装, 区间 >=1.0,<2.0)
   - cryptography    (helper.sh ensure_pip 装, 缺 -> 路2 自动 skip, ImportError catch)
-  - omn_redact      (同目录 omn_redact.py, PYTHONPATH=/logic)
+  - omn_redact      (同目录 omn_redact.py, PYTHONPATH=/logic; 默6正则可 ENV REDACT_PATTERNS 覆盖动态调)
   - omn_encrypt     (同目录 omn_encrypt.py, 缺 cryptography 时 import 失败 -> 路2 skip)
 """
 import os
@@ -42,18 +44,25 @@ CAPTURE_INTERVAL = int(os.environ.get("OMN_CAPTURE_INTERVAL", "60"))
 OMN_DATASET_REPO = os.environ.get("OMN_DATASET_REPO", "").strip()
 HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 
+# ── 总闸 (圣旨 D): 默1 推 save; =0 关全数据收集层让性能 (桥/gate/init/上游业务零感知) ──
+LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
+
 # ── 路径 (staging 付给 scheduler 的 working tree) ──
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 STAGING = DATA_DIR / "omn-sched"
-STDOUT_STAGING = STAGING / "stdout"   # 路1 明文 JSONL staging
-ENC_SRC = STAGING / "enc-src"         # 路2 加密源 (redact 后拷入)
-ENC_STAGING = STAGING / "enc-out"     # EncryptedScheduler working tree (放 .tar.gz)
-DB_STAGING = STAGING / "db"           # db JSON staging
-GATE_STDERR = Path(os.environ.get("OMN_GATE_STDERR", str(DATA_DIR / "omn-staging" / "gate-stderr.log")))
+STDOUT_STAGING = STAGING               # 路1 明文 JSONL staging (摊平, .log 直放 omn-sched 根, Dataset 侧 path_in_repo=save)
+# RAW_DIR 须在 STAGING 外! CommitScheduler folder_path=STDOUT_STAGING=STAGING 整目录 upload,
+#   _raw 若在其下 → 明文 raw (gate/ft/app/init 未脱敏) 混入 save = 圣旨脱敏漏泄.
+#   故 raw 区独立分目录, scheduler 上传不触及, capture_loop 读 raw → omn_redact → 写 STDOUT_STAGING.
+RAW_DIR = DATA_DIR / "omn-raw"          # 四源 raw 临时区: 明文原态, capture_loop 尾追脱敏后写 STDOUT_STAGING (不进 save)
+ENC_SRC = STAGING / "enc-src"         # 路2 加密源 (redact 后拷入) [未实例化]
+ENC_STAGING = STAGING / "enc-out"     # EncryptedScheduler working tree (放 .tar.gz) [未实例化]
+DB_STAGING = STAGING / "db"           # db JSON staging [未调]
+GATE_STDERR = Path(os.environ.get("OMN_GATE_STDERR", str(RAW_DIR / "gate-stderr.log")))
 
 # mkdir 延迟到 main/capture 调用时 (import 无副作用, 本地无 /data 权限不崩)
 def _ensure_dirs():
-    for d in (STDOUT_STAGING, ENC_SRC, ENC_STAGING, DB_STAGING):
+    for d in (STDOUT_STAGING, RAW_DIR, ENC_SRC, ENC_STAGING, DB_STAGING):
         try:
             d.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -138,35 +147,64 @@ class EncryptedScheduler(CommitScheduler):
 # ═══════════════════════════════════════════════════════════════════════
 # 捕获函数 (独立 daemon 线程调, 写 staging 供 scheduler 读)
 # ═══════════════════════════════════════════════════════════════════════
-def capture_stdout():
-    """抓 gate stderr → grep component=gate 行 → redact → 追写路1 staging JSONL."""
-    if not GATE_STDERR.exists():
-        return
-    try:
-        # 读尾段 (不阻塞, 文件可能正被 gate 追写; 读已有行)
-        text = GATE_STDERR.read_text(errors="replace")
-    except Exception:
-        return
+# E 复活: capture_stdout 泛化多源 (gate/ft/app/init 三源) 尾追增量.
+#   entrypoint 三源 raw 落 RAW_DIR/*.{log}, 本函数每轮按 offset 只读新段 → omn_redact → 追写出件进 STDOUT_STAGING.
+#   解决旧版两病: ① 硬编单源 gate ② 每轮全读重写=同 gate 行重复推 N 次 (squash 爆 + Dataset 垃圾).
+# _CAP_OFFSETS: {raw_path: 已读字节}, 进程级; 轮转源 (app.log 上游已轮转会换 inode) 用 path 末查 size 重置.
+_CAPTURE_OFFSETS = {}
+
+
+def _capture_one(raw_path, out_prefix):
+    """单源尾追: 按 offset 读新段 → redact → 写出件; 返回是否写出."""
+    if not raw_path.exists():
+        return False
     if OMN_REDACT is None:
-        return  # redact 缺 -> 不写明文 (保 secret 纪律), skip
+        return False  # redact 缺 -> 不写明文 (保 secret 纪律), skip
+    try:
+        cur_size = raw_path.stat().st_size
+    except Exception:
+        return False
+    prev = _CAPTURE_OFFSETS.get(str(raw_path), 0)
+    # 轮转/截断: 文件变小 -> 重置 offset 从头 (上游 logRotation.ts 后新流)
+    if cur_size < prev:
+        prev = 0
+    if cur_size == prev:
+        return False  # 无新增
+    try:
+        with open(raw_path, "r", errors="replace") as f:
+            f.seek(prev)
+            chunk = f.read(cur_size - prev)
+    except Exception:
+        return False
+    _CAPTURE_OFFSETS[str(raw_path)] = cur_size
+    if not chunk.strip():
+        return False
     ts = int(time.time())
-    out_lines = []
-    for line in text.splitlines():
-        if '"component":"gate"' in line or '"component": "gate"' in line:
-            red = OMN_REDACT.redact_text(line)
-            out_lines.append(red)
-    if out_lines:
-        out_file = STDOUT_STAGING / f"gate_{ts}.jsonl"
-        out_file.write_text("\n".join(out_lines) + "\n")
-    # stage_for_encrypted: 拷路1 staging 入 ENC_SRC (路2 加密源)
-    if out_lines and OMN_ENCRYPT is not None:
-        for src in STDOUT_STAGING.glob("gate_*.jsonl"):
-            dst = ENC_SRC / src.name
-            if not dst.exists():
-                try:
-                    dst.write_bytes(src.read_bytes())
-                except Exception:
-                    pass
+    red = OMN_REDACT.redact_text(chunk)
+    if not red.strip():
+        return False
+    out_file = STDOUT_STAGING / f"{out_prefix}_{ts}.log"
+    out_file.write_text(red)
+    return True
+
+
+def capture_stdout():
+    """三源 (gate/ft/app) raw 尾追 → redact → 写 staging 出件 (推 save).init.log 由 capture_init 单独接 (类 C)."""
+    # gate stderr (logGate JSON) · ft (Go 半结构) · app (上游 structured JSONL) 三源均落 RAW_DIR
+    _capture_one(RAW_DIR / "gate-stderr.log", "gate")
+    _capture_one(RAW_DIR / "flaretunnel.log", "ft")
+    _capture_one(RAW_DIR / "app.log", "app")
+
+
+def capture_init():
+    """init.log (类 C bash 全文) 尾追 → redact → 写 staging.
+
+    init.log tee 原件现不过任何脱敏 = 圣旨真漏口; 此函数占接此路补脱敏.
+    init 自 sed 5 链 (hf_snapshot 上传副本) 保留双路并行不冲突.
+    init.log 滚动带戳 (init_<dt>.log), glob 多件各独立尾追 (_CAPTURE_OFFSETS 按 path 存).
+    """
+    for p in sorted(RAW_DIR.glob("init_*.log")):
+        _capture_one(p, "init")
 
 
 def capture_db():
@@ -209,35 +247,44 @@ def capture_db():
 # 调度初始化 + 主循环
 # ═══════════════════════════════════════════════════════════════════════
 def _start_schedulers():
-    """起 CommitScheduler (个人最小方案: 仅路1 明文 stdout 私有 Dataset 原样推).
+    """起 CommitScheduler (路1: staging folder → 私有 Dataset save/ 推).
 
-    圣上 2026-07-29 裁砍七成: 真痛点只两件 (插件包崩链 + 日志留底). 企业级排场删:
-      路2加密/脱敏层: 私有库只有圣上读 = 脱敏+加密 redundant; gate logGate 早把
-        PSK/key/body 剥在源头, stderr 零 secret 值入流 (gate.js:84-107 只写 requestId/path/httpStatus).
-      db快照: litestream 已复制整个 storage.sqlite, scheduler/init 重复.
-    路2 (EncryptedScheduler) + db (s3) 两个 CommitScheduler 不实例化, 留代码将来多人再开.
+    圣上 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
+      全源架构 (E 脱敏层复活): gate/ft/app/init 四源 raw 落 _raw, capture daemon 尾追+omn_redact
+        脱敏后写本 staging folder, scheduler 内置线程读 folder 自动 upload (私库给 AI 分析须脱敏).
+      D 总闸 OMN_LOG_TO_DATASET: 默1 推 (积累期); =0 全数据收集层停让性能 (桥/gate/init/上游零感知).
+      路2加密 (EncryptedScheduler) + db (capture_db) 两链不实例化 (圣上裁砍七成: 私库 dbContext litestream
+        已复制; 加密私库只圣读 redundant), 留代码将来多人再启.
     """
+    # D 总闸: 稳定后圣上配 OMN_LOG_TO_DATASET=0 → 全数据收集层停让性能 (不起 scheduler 不起 capture)
+    if not LOG_TO_DATASET:
+        return
     _ensure_dirs()
     if not OMN_DATASET_REPO or not HF_TOKEN:
         # 缺 repo/token -> skip (不死, daemon 空跑待 env 补)
         return
-    # 路1 stdout 明文 (私有 Dataset 原样推, 不脱敏不加密)
+    # 路1: staging folder (capture daemon 写已脱敏出件) → 私有 Dataset save/ 推 (squash_history 防 history 爆)
     s1 = CommitScheduler(
         repo_id=OMN_DATASET_REPO, repo_type="dataset",
         folder_path=str(STDOUT_STAGING),
-        path_in_repo="omn_data/logs/stdout",
+        path_in_repo="save",  # 摊平, .log/.json 直放 save/根 (Dataset nonoke/omn-logic/save)
         every=SCHED_EVERY, token=HF_TOKEN, squash_history=True,
     )
     _SCHEDULERS.extend([s1])
 
 
 def _capture_loop():
-    """独立 daemon 线程: 周期 capture 写 staging (scheduler 内置线程读 staging upload)."""
+    """独立 daemon 线程: 周期 capture 写 staging (scheduler 内置线程读 staging upload).
+
+    D 总闸: OMN_LOG_TO_DATASET=0 时线程启动即早退, 不抢资源 (主链零感知).
+    """
+    if not LOG_TO_DATASET:
+        return
     _ensure_dirs()
     while True:
         try:
             capture_stdout()
-            capture_db()
+            capture_init()
         except Exception:
             pass  # 捕获错不阻循环
         time.sleep(CAPTURE_INTERVAL)
@@ -254,13 +301,14 @@ def _on_signal(signum, frame):
 
 
 def main():
-    # 个人最小方案: gate stderr 直写 STDOUT_STAGING (entrypoint GATE_STDERR_LOG 指同目录),
-    # 无须 capture daemon — CommitScheduler 内置线程读 folder_path 变化自 upload.
-    # capture_stdout/_capture_loop/capture_db 留代码不调 (将来多人/需脱敏再启).
+    # E 复活: capture daemon 线程起, 三源 + init 尾追 → redact → 写 staging.
+    # scheduler 内置线程读 folder_path 变化 upload 进 save. D 闸关时两线程均早退.
     _start_schedulers()
+    # capture daemon (D 闸在 _capture_loop 内查, =0 即早退不起循环)
+    threading.Thread(target=_capture_loop, daemon=True).start()
     signal.signal(signal.SIGTERM, _on_signal)
     signal.signal(signal.SIGINT, _on_signal)
-    # 主线程挂住 (scheduler 内置 thread 跑 capture+upload)
+    # 主线程挂住 (scheduler 内置 thread upload + capture daemon 尾追)
     signal.pause()
 
 

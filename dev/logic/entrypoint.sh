@@ -14,6 +14,7 @@ OMNIROUTE_PORT="${OMNIROUTE_PORT:-20128}"
 EXPOSED_PORT="${EXPOSED_PORT:-7860}"
 # 默认 /app/data = 上游镜像固设 DATA_DIR (3.8.43 基线); env 可改
 DATA_DIR="${DATA_DIR:-/app/data}"
+export DATA_DIR   # 须 export: init/scheduler 子进程须见同值 (_raw 路径两端对齐, 否子进程回默认 /data 歧义)
 DB_PATH="$DATA_DIR/storage.sqlite"
 DB_TMP="$DATA_DIR/.storage.sqlite.restore.$$"   # 临时恢复路径 (原子保护)
 LOCK_FILE="$DATA_DIR/.omniroute.lock"
@@ -205,7 +206,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
     chmod +x /logic/flaretunnel 2>/dev/null || true   # start.sh 仅 chmod /logic/*.sh, 二进制此处自举
     FT_CA_DIR="${FT_CA_DIR:-/tmp/ft-ca}"
     FT_PORT="${FT_PORT:-8080}"                        # 须与 OmniRoute 后台注册代理端口一致 (Step 6)
-    FT_LOG="${DATA_DIR}/omn-sched/stdout/flaretunnel.log"   # 与 gate-stderr 同永续日志 staging, scheduler 自动上 Dataset
+    FT_LOG="${DATA_DIR}/omn-raw/flaretunnel.log"   # 落 omn-raw 临时区 (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
     mkdir -p "$FT_CA_DIR" "$(dirname "$FT_LOG")" 2>/dev/null || true
     # 单点启动函数: 本段首启 + §7 看门狗重启共用同一命令 (不分叉, "改也为以后不改")
     _ft_start() {
@@ -248,6 +249,15 @@ fi
 # (弹H末日: Mark-Compact 1015→1023MB 触顶 → heap out of memory → Space 关机)。
 # 生产 4.2.3 同 #4 链用 4GB 堆扛过 25 次未崩 → 4GB 是该链生产验证过的值, SSOT 优先于推测。
 cd /app
+# ── C/D app.log 补漏进 save (圣旨: 靠积累 log 达优化真痛点=内层因果) ──
+# 上游自带结构化 app.log (logRotation.ts, 默 APP_LOG_TO_FILE!=false 即开),
+# 含路由/quota cache/batch 背压/domain 断路器 trip·recover/queue 深度 — 圣旨"优并发/避雪崩/优模型调用"单请求级证据.
+# 路径改指 scheduler RAW_DIR (_raw 临时区), capture_loop 尾追+omn_redact 后写 staging folder 推 save (E 脱敏层).
+# D 闸: OMN_LOG_TO_DATASET=0 不设 = 上游回默认本机盘 (logs/application/app.log, omn_redact 不 demang 进 folder, 如旧行).
+if [ "${OMN_LOG_TO_DATASET:-1}" = "1" ]; then
+  export APP_LOG_FILE_PATH="${DATA_DIR}/omn-raw/app.log"   # 落 omn-raw (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
+  mkdir -p "$(dirname "$APP_LOG_FILE_PATH")" 2>/dev/null || true
+fi
 NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" node server.js &
 OR_PID=$!
 echo "[entrypoint] 上游服务 PID=$OR_PID (heap ${NODE_OPTIONS:-default})"
@@ -334,11 +344,12 @@ else
 fi
 
 echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
-# ── 9. 永续日志 (个人最小方案 2026-07-29): gate stderr → scheduler working tree ──
-# gate stderr 直写 omn_scheduler.py STDOUT_STAGING 目录 (其 CommitScheduler folder_path),
-# scheduler 内置线程读 folder 变化自 upload 私有 Dataset (明文原样, 无须 capture/redact).
-# 圣上裁砍七成: 私有库只有圣上读 = 脱敏+加密 redundant; gate logGate 早剥 PSK/key/body 在源头.
-GATE_STDERR_LOG="${DATA_DIR}/omn-sched/stdout/gate-stderr.log"
+# ── 9. 永续日志 (2026-07-30 全源架构): 三源 gate/ft/app raw 落 omn-raw, capture_loop 尾追+omn_redact 写 staging ──
+# gate stderr → omn-raw/gate-stderr.log (capture_loop 过 omn_redact 脱敏后写 staging gate_<ts>.log 推 save).
+# omn-raw 须在 scheduler folder 外 (STAGING/omn-sched): CommitScheduler 整目录 upload, _raw 在其下 → 明文混入 save = 脱敏漏泄.
+# 圣旨改派: 私库日志给 AI 分析 → 须脱敏, gate 不直写 staging (旧版明文原样推已废).
+# D 闸关 (OMN_LOG_TO_DATASET=0) 时 scheduler 不起, raw 文件仍写但无人推 save + 不脱敏 (稳定让性能, 如旧行).
+GATE_STDERR_LOG="${DATA_DIR}/omn-raw/gate-stderr.log"
 mkdir -p "$(dirname "$GATE_STDERR_LOG")" 2>/dev/null || true
 # helper.sh 装插件包依赖 (boto3); logging 路仅 huggingface_hub (start.sh 已装) 无须额外包
 if [ -f /logic/helper.sh ]; then

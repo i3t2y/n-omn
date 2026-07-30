@@ -18,12 +18,15 @@ set -eo pipefail
 
 # ══ 单变量调试 + 日志归档（stdout 实时 tee；DEBUG 时另上传 Dataset，见⑨）═══════
 NIM_MODE="${NIM_MODE:-NORMAL}"
-LOG_DIR="/data/omn-data/log"
+# DEBUG init.log → omn-raw 临时区, capture_init 尾追+omn_redact 后写 staging 推 save (类 C 脱敏)
+# omn-raw 须在 scheduler folder 外 (STAGING/omn-sched): CommitScheduler 整目录 upload, _raw 在其下 → 明文混入 save = 脱敏漏泄.
+# (DATA_DIR 由 entrypoint export, 与 scheduler RAW_DIR 对齐; 缺省回 /data 兼容)
+LOG_DIR="${DATA_DIR:-/data}/omn-raw"
 if [ "$NIM_MODE" = "DEBUG" ]; then
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   INIT_LOG="$LOG_DIR/init_$(date +%Y%m%d_%H%M%S).log"
   exec > >(tee -a "$INIT_LOG") 2>&1
-  echo "[init] 🛠️ NIM_MODE=DEBUG：日志 tee -> $INIT_LOG（仅容器内，随 Space 日志可见，不入 Dataset）"
+  echo "[init] 🛠️ NIM_MODE=DEBUG：日志 tee -> $INIT_LOG（_raw → capture_init 脱敏推 save）"
   export APP_LOG_TO_FILE=true
   export DISABLE_SQLITE_AUTO_BACKUP=true
 else
@@ -953,6 +956,8 @@ echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT (pe
 echo "[init] ─────────────────────────────────────────────"
 
 hf_snapshot() {
+  # D 总闸: OMN_LOG_TO_DATASET=0 时整段 snapshot 跳过 (稳定后让性能, config+log 皆数据收集层)
+  [ "${OMN_LOG_TO_DATASET:-1}" = "1" ] || { echo "[init] snapshot: OMN_LOG_TO_DATASET=0 跳过 (稳定后让性能)."; return 0; }
   [ -z "$HF_TOKEN" ] || [ -z "$OMN_DATASET_REPO" ] && return 0
   echo "[init] HF Dataset snapshot（配置 + 可选 DEBUG log）..."
   local BACKUP_DIR="/tmp/omn-snapshot"; mkdir -p "$BACKUP_DIR"
@@ -1011,10 +1016,11 @@ hf_snapshot() {
     || echo "[init] snapshot: WARN init_vars.json 写入失败"
 
   # ── 【v4.2.3·⑨ 】DEBUG log 上传到 Dataset（debug_<时间戳>.log）──
-  #   仅 DEBUG 模式 + 显式开启 (NIM_DEBUG_LOG_TO_DATASET=1) + INIT_LOG 存在时; **默认关闭** (v4.3 红线1 动态).
-  #   上传前字段级脱敏: Authorization/NIM_KEY/Cookie/Set-Cookie/Bearer 替换为 <REDACTED>.
-  #   同时本地只保留最近 NIM_DEBUG_LOG_KEEP(默认5) 个。
-  if [ "$NIM_MODE" = "DEBUG" ] && [ "${NIM_DEBUG_LOG_TO_DATASET:-0}" = "1" ] && [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
+  #   仅 DEBUG 模式 + INIT_LOG 存在即启 (D 闸 OMN_LOG_TO_DATASET 已在 hf_snapshot 首统管, 旧 NIM_DEBUG_LOG_TO_DATASET 冗闸已去, 圣旨令2).
+  #   上传前字段级脱敏: Authorization/NIM_KEY/Cookie/Set-Cookie/Bearer 替换为 <REDACTED> (sed 5 = omn_redact 默1-5 同源).
+  #   与 scheduler capture_init 双路并行不冲突: 一次性 upload_folder 真终态兜底 (capture_loop 60s 一轮可能漏 init exit 后尾段).
+  #   本地滚动清理：只保留最近 NIM_DEBUG_LOG_KEEP(默认5) 个。
+  if [ "$NIM_MODE" = "DEBUG" ] && [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
     local _keep=${NIM_DEBUG_LOG_KEEP:-5}
     local _dbg="$BACKUP_DIR/debug_$(basename "$INIT_LOG" | sed 's/^init_//')"
     cp -f "$INIT_LOG" "$_dbg" 2>/dev/null \
@@ -1030,12 +1036,10 @@ hf_snapshot() {
         -e 's/(Bearer )[A-Za-z0-9._\-]+/\1<REDACTED>/g' \
         "$_dbg" 2>/dev/null || true
     fi
-    # 本地滚动清理：只保留最近 _keep 个 init_*.log
+    # 本地滚动清理：只保留最近 _keep 个 init_*.log (LOG_DIR=_raw, capture_init 读完不再清, 故此清防 _raw 爆)
     if [ -d "$LOG_DIR" ]; then
       ls -1t "$LOG_DIR"/init_*.log 2>/dev/null | tail -n +$(( _keep + 1 )) | xargs -r rm -f 2>/dev/null || true
     fi
-  else
-    [ "$NIM_MODE" = "DEBUG" ] && echo "[init] snapshot: DEBUG log 上传已禁用（默认关, NIM_DEBUG_LOG_TO_DATASET=1 开启)."
   fi
 
   python3 - <<'PYEOF'
@@ -1045,9 +1049,9 @@ from huggingface_hub import HfApi
 from huggingface_hub.utils import HfHubHTTPError
 try:
     api = HfApi(token=os.environ["HF_TOKEN"])
-    api.upload_folder(folder_path="/tmp/omn-snapshot", path_in_repo="omn_data",
+    api.upload_folder(folder_path="/tmp/omn-snapshot", path_in_repo="save",
         repo_id=os.environ["OMN_DATASET_REPO"], repo_type="dataset",
-        commit_message=f"Sync omn_data - {datetime.now(timezone.utc).isoformat()}")
+        commit_message=f"Sync save - {datetime.now(timezone.utc).isoformat()}")
     print("[init] HF Dataset uploaded.")
 except Exception as e:
     # C2 fail-open: HF_TOKEN 权限不足(403/Write 权限缺)或网络异常 → 不让 init 整进程 exit 1

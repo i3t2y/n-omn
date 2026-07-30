@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath" // Patch D-1: Start() 用 filepath.Join(ps.CADir, ...) 拼 CA 路径 (替代硬编码当前目录)
 	"regexp"
+	"sort" // 路3: HandleMetrics 按 Worker 名排序保证 metrics 输出确定性
 	"strconv"
 	"strings"
 	"sync"
@@ -195,6 +196,18 @@ type Worker struct {
 	ID                string `json:"id"`
 	AccountID         string `json:"account_id"`
 	ConfigAccountName string `json:"config_account_name,omitempty"`
+}
+
+// WorkerStat 是单 Worker 的实时体检计数 (路3: 体检表下沉桥自报, 永续累加真流量成败).
+// 圣上 2026-07-31 旨: init 一次性探活快照哲学无效 (代理出口IP动态瞬时), 改桥运行时 self-report real-time.
+type WorkerStat struct {
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	Requests  int    `json:"requests"`
+	Successes int    `json:"successes"`
+	Failures  int    `json:"failures"`
+	LastStatus int   `json:"last_status"` // 0 = 从未成功请求过 (失败也算记 status; err 无码记0)
+	LastUsed  int64  `json:"last_used"`   // unix 秒
 }
 
 // Analytics represents worker analytics data
@@ -1253,6 +1266,7 @@ type ProxyServer struct {
 	// 真必建仅两字段:
 	RelayAuth            string // 必建: 注入 Worker 的鉴权头 (透传 X-Relay-Auth 给 Bridge → Worker, 堵裸奔开放代理洞)
 	CADir                string // 必建: CA 证书目录 (/tmp/ft-ca, 每 boot 自签重生; Start() 用它拼 CACertPath/CAKeyPath)
+	WorkerStats          map[string]*WorkerStat // 路3: per-Worker 实时体检计数 (key=worker.Name), 复用 ps.mutex 保
 	mutex                sync.Mutex
 	certCache            map[string]*tls.Certificate
 	certMutex            sync.RWMutex
@@ -1264,6 +1278,7 @@ func NewProxyServer(host string, port int) *ProxyServer {
 		Port:              port,
 		RotationMode:      "round-robin",
 		BlacklistStats:    make(map[string]int),
+		WorkerStats:       make(map[string]*WorkerStat),
 		certCache:         make(map[string]*tls.Certificate),
 	}
 }
@@ -1291,6 +1306,12 @@ func (ps *ProxyServer) LoadWorkers(endpointsFile string, workerIndices []int) er
 		ps.Workers = allWorkers
 	}
 
+	// 路3: Workers 填完重建 stat map (覆盖旧调 LoadWorkers 的残留; key=worker.Name, 零值 stat).
+	// 置于 mutex 外安全: load 在 boot 启动单线程, HandleHTTP/CONNECT 调用 GetWorkerURL 在 Start() 后.
+	ps.WorkerStats = make(map[string]*WorkerStat, len(ps.Workers))
+	for _, w := range ps.Workers {
+		ps.WorkerStats[w.Name] = &WorkerStat{Name: w.Name, URL: w.URL}
+	}
 	return nil
 }
 
@@ -1330,23 +1351,47 @@ func (ps *ProxyServer) LoadBlacklist(blacklistFile string) error {
 	return nil
 }
 
-func (ps *ProxyServer) GetWorkerURL() string {
+// recordWorker 累加单 Worker 实时体检计数 (路3). 调用点 HandleHTTP/CONNECT 收 client.Do 响应处.
+// 短临界区加 ps.mutex: 计数更新原子, 与 GetWorkerURL 推游标互不腐. 统计目标为成功(success http<400).
+func (ps *ProxyServer) recordWorker(name string, statusCode int, ok bool) {
+	ps.mutex.Lock()
+	defer ps.mutex.Unlock()
+	stat, exists := ps.WorkerStats[name]
+	if !exists {
+		// 防御: Worker 动态增 stat 缺 (正常 LoadWorkers 已建); 建零值兜底免 nil map 写 panic.
+		stat = &WorkerStat{Name: name}
+		ps.WorkerStats[name] = stat
+	}
+	stat.Requests++
+	if ok {
+		stat.Successes++
+	} else {
+		stat.Failures++
+	}
+	stat.LastStatus = statusCode
+	stat.LastUsed = time.Now().Unix()
+}
+
+// GetWorkerURL 改返 (*Worker, string) (路3): 调用点用 worker.Name 喂 recordWorker 做 per-Worker 计数.
+// 返回 (nil, "") = 无可用 Worker (调用点各自判空).
+func (ps *ProxyServer) GetWorkerURL() (*Worker, string) {
 	if len(ps.Workers) == 0 {
-		return ""
+		return nil, ""
 	}
 
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 
 	if ps.RotationMode == "random" {
-		return ps.Workers[time.Now().UnixNano()%int64(len(ps.Workers))].URL
+		w := ps.Workers[time.Now().UnixNano()%int64(len(ps.Workers))]
+		return w, w.URL
 	} else if ps.RotationMode == "round-robin" {
 		worker := ps.Workers[ps.CurrentWorkerIndex]
 		ps.CurrentWorkerIndex = (ps.CurrentWorkerIndex + 1) % len(ps.Workers)
-		return worker.URL
+		return worker, worker.URL
 	}
 
-	return ps.Workers[0].URL
+	return ps.Workers[0], ps.Workers[0].URL
 }
 
 func (ps *ProxyServer) IsBlacklisted(targetURL string) bool {
@@ -1405,7 +1450,7 @@ func (ps *ProxyServer) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workerURL := ps.GetWorkerURL()
+	worker, workerURL := ps.GetWorkerURL()
 	if workerURL == "" {
 		http.Error(w, "No workers available", http.StatusServiceUnavailable)
 		return
@@ -1460,10 +1505,16 @@ func (ps *ProxyServer) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.Do(proxyReq)
 	if err != nil {
+		if worker != nil {
+			ps.recordWorker(worker.Name, 0, false) // 路3: err 无码记0 failure
+		}
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
+	if worker != nil {
+		ps.recordWorker(worker.Name, resp.StatusCode, resp.StatusCode < 400)
+	}
 
 	// Copy response headers
 	for k, v := range resp.Header {
@@ -1561,7 +1612,7 @@ func (ps *ProxyServer) HandleCONNECT(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workerURL := ps.GetWorkerURL()
+	worker, workerURL := ps.GetWorkerURL()
 	if workerURL == "" {
 		return
 	}
@@ -1613,9 +1664,15 @@ func (ps *ProxyServer) HandleCONNECT(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.Do(proxyReq)
 	if err != nil {
+		if worker != nil {
+			ps.recordWorker(worker.Name, 0, false) // 路3: err 无码记0 failure
+		}
 		return
 	}
 	defer resp.Body.Close()
+	if worker != nil {
+		ps.recordWorker(worker.Name, resp.StatusCode, resp.StatusCode < 400)
+	}
 
 	// Write response
 	tlsConn.Write([]byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n", resp.StatusCode, resp.Status)))
@@ -1636,6 +1693,92 @@ func (ps *ProxyServer) HandleCONNECT(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Printf("      ↑ %s %d\n", status, resp.StatusCode)
 	}
+}
+
+// HandleHealthz 返桥实时体检 JSON (路3): Worker 总数/round-robin 游标/RotationMode/黑名单 pattern 数/per-Worker 计数.
+// 不含 RELAY_AUTH/endpoints token (仅 Worker.URL 含 workers.dev 域名非 key; 圣上 §2 secret 红线).
+func (ps *ProxyServer) HandleHealthz(w http.ResponseWriter, r *http.Request) {
+	ps.mutex.Lock()
+	workers := len(ps.Workers)
+	index := ps.CurrentWorkerIndex
+	mode := ps.RotationMode
+	blacklist := len(ps.BlacklistStats)
+	stats := make(map[string]*WorkerStat, len(ps.WorkerStats))
+	for k, v := range ps.WorkerStats {
+		cp := *v
+		stats[k] = &cp
+	}
+	ps.mutex.Unlock()
+
+	resp := map[string]any{
+		"status":           "ok",
+		"workers":          workers,
+		"worker_stats":     len(stats),
+		"current_index":     index,
+		"rotation_mode":     mode,
+		"blacklist_patterns": blacklist,
+		"stats":             stats,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+}
+
+// HandleMetrics 返 Prometheus text exposition (路3): per-Worker counters + rotation_index + blacklist_hits.
+// text/prometheus 零新依赖 (net/http 标准库). 计数器 _total 为 monotonically increasing.
+func (ps *ProxyServer) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+	ps.mutex.Lock()
+	index := ps.CurrentWorkerIndex
+	mode := ps.RotationMode
+	blacklistStats := make(map[string]int, len(ps.BlacklistStats))
+	for k, v := range ps.BlacklistStats {
+		blacklistStats[k] = v
+	}
+	stats := make(map[string]*WorkerStat, len(ps.WorkerStats))
+	for k, v := range ps.WorkerStats {
+		cp := *v
+		stats[k] = &cp
+	}
+	ps.mutex.Unlock()
+
+	var b strings.Builder
+	b.WriteString("# HELP flaretunnel_worker_requests_total Total proxy requests routed to this worker.\n")
+	b.WriteString("# TYPE flaretunnel_worker_requests_total counter\n")
+	b.WriteString("# HELP flaretunnel_worker_successes_total Successful proxy requests (http status < 400).\n")
+	b.WriteString("# TYPE flaretunnel_worker_successes_total counter\n")
+	b.WriteString("# HELP flaretunnel_worker_failures_total Failed proxy requests (err or http >= 400).\n")
+	b.WriteString("# TYPE flaretunnel_worker_failures_total counter\n")
+	// dict 遍历序不稳 → 按 Worker 名排序保证 metrics 输出确定 (查 healthz echo 行序对齐).
+	names := make([]string, 0, len(stats))
+	for n := range stats {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		s := stats[n]
+		lbl := fmt.Sprintf(`{name=%q}`, n)
+		b.WriteString(fmt.Sprintf("flaretunnel_worker_requests_total%s %d\n", lbl, s.Requests))
+		b.WriteString(fmt.Sprintf("flaretunnel_worker_successes_total%s %d\n", lbl, s.Successes))
+		b.WriteString(fmt.Sprintf("flaretunnel_worker_failures_total%s %d\n", lbl, s.Failures))
+	}
+	b.WriteString("# HELP flaretunnel_worker_last_status Last HTTP status returned by worker (0 = never succeeded/err).\n")
+	b.WriteString("# TYPE flaretunnel_worker_last_status gauge\n")
+	for _, n := range names {
+		s := stats[n]
+		b.WriteString(fmt.Sprintf("flaretunnel_worker_last_status{name=%q} %d\n", n, s.LastStatus))
+	}
+	b.WriteString("# HELP flaretunnel_rotation_index Current round-robin worker cursor.\n")
+	b.WriteString("# TYPE flaretunnel_rotation_index gauge\n")
+	b.WriteString(fmt.Sprintf("flaretunnel_rotation_index %d\n", index))
+	b.WriteString(fmt.Sprintf("flaretunnel_rotation_mode{mode=%q} 1\n", mode))
+	b.WriteString("# HELP flaretunnel_blacklist_hits Number of requests blocked by this blacklist pattern.\n")
+	b.WriteString("# TYPE flaretunnel_blacklist_hits counter\n")
+	for pat, hits := range blacklistStats {
+		b.WriteString(fmt.Sprintf("flaretunnel_blacklist_hits{pattern=%q} %d\n", pat, hits))
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(b.String()))
 }
 
 func (ps *ProxyServer) Start(blacklistFile string) error {
@@ -1740,9 +1883,21 @@ func (ps *ProxyServer) Start(blacklistFile string) error {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect {
 			ps.HandleCONNECT(w, r)
-		} else {
-			ps.HandleHTTP(w, r)
+			return
 		}
+		// 路3 体检端口: 本地 GET + Host=桥监听地址 → /healthz 或 /metrics (本地直读不走 Worker 不经 sandbox).
+		// Host 守卫: 代理请求的 Host 是目标域 (非 127.0.0.1:port) → 不命中 → 落 HandleHTTP 透传, 防体检端点被代理请求误命中.
+		if r.Method == http.MethodGet && r.Host == fmt.Sprintf("%s:%d", ps.Host, ps.Port) {
+			switch r.URL.Path {
+			case "/healthz":
+				ps.HandleHealthz(w, r)
+				return
+			case "/metrics":
+				ps.HandleMetrics(w, r)
+				return
+			}
+		}
+		ps.HandleHTTP(w, r)
 	})
 
 	server := &http.Server{

@@ -298,6 +298,13 @@ _ft_register_proxy() {
   #   + set -eo pipefail 致 init 卡死静默退 (三轮 boot 无 331/Resilience/Done 实证). 档位A
   #   体检表需圣上定方案 (serialization/timeout 硬护栏/桥侧 metrics 端点 任一) 后重装, 见
   #   [[ft-workers-health-diffa-wip]] 习: 进程活/鉴权/穿透三层非出口IP.
+  #
+  # 路3 轻 local 体检 (2026-07-31 圣准): 读桥自报 /healthz 替叛 WIP 函数.
+  #   本地 127.0.0.1 HTTP <50ms 不经 Worker 不经 sandbox, 3s timeout 硬断, set -e 兜底 `|| echo {}` fail-open 不阻 init.
+  #   JSON 含 Workers 数/round-robin 游标/per-Worker 计数 (boot 瞬 0, 跑业务后累加), 给圣上日后读 save 反推健康无卡死.
+  local _sh
+  _sh=$(curl -s -m 3 "http://${_HOST}:${_PORT}/healthz" 2>/dev/null || echo '{}')
+  echo "[init] FT bridge healthz: $_sh"
 }
 
 check_nim_model_health() {

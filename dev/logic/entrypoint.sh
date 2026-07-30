@@ -212,6 +212,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
         --relay-auth "$RELAY_AUTH" \
         --ca-dir "$FT_CA_DIR" >>"$FT_LOG" 2>&1 &
       FT_PID=$!
+      export FT_PID   # 须 export: init-nim-keys.sh 起 bash 子进程, 不 export 则 FT_PID 不传子进程致 init 跳过 FT 代理注册
       echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, 8 Worker round-robin, log→$FT_LOG)"
     }
     _ft_start
@@ -231,6 +232,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
       echo "[entrypoint] FT WARN: CA 10s 未就绪, 桥降级关闭 (nvidia 若已注册代理将停, 请修资产或关 FT 开关)"
       kill "$FT_PID" 2>/dev/null || true; wait "$FT_PID" 2>/dev/null || true
       FT_PID=""
+      export FT_PID   # 降级也须 export 空, 同步给 init 子进程见空跳注册 (防误注册死桥)
     fi
   fi
 else

@@ -260,6 +260,12 @@ _res_validate_int() {
 
 purge_proxy_db() {
   [ "$_PURGE_PROXY" != "1" ] && { echo "[init] purge_proxy_db: skipped."; return 0; }
+  # 2026-07-30 FlareTunnel Diff 2: FT 启用时全函数封印 (此一行封 登录后/providerID后/增量模式/snapshot后 四调用点).
+  #   根因: 下方 SQL 段 UPDATE provider_connections SET proxy_enabled=0 WHERE provider='nvidia'
+  #   每 boot 必触 (_PURGE_PROXY 默 1 + 四点直调无再闸) → FT 代理经 UI 注册由 R2 持久后,
+  #   下个 boot (含增量模式) 必被反噬关回 0, 注册白做. 封印副作用: 旧 relay 20129 registry GC
+  #   同停 — 无害 (旧 relay 已退役; FT 8080 本不在 DELETE 射程, 射程仅 _PROXY_RELAY_PORT=20129).
+  [ "${FLARETUNNEL_ENABLED:-0}" = "1" ] && { echo "[init] purge_proxy_db: skipped (FLARETUNNEL_ENABLED=1, FT 代理注册跨 boot 保留)."; return 0; }
   local LIST_JSON
   LIST_JSON=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/v1/management/proxies" 2>/dev/null || echo "")
   if [ -n "$LIST_JSON" ] && printf '%s' "$LIST_JSON" | jq -e . >/dev/null 2>&1; then

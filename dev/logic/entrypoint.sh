@@ -34,7 +34,7 @@ STREAM_READINESS_TIMEOUT_MS="${STREAM_READINESS_TIMEOUT_MS:-180000}"
 export STREAM_READINESS_TIMEOUT_MS
 echo "[entrypoint] STREAM_READINESS_TIMEOUT_MS=$STREAM_READINESS_TIMEOUT_MS (M7 外科单注, wiki §15 实证)"
 
-OR_PID=""; INIT_PID=""; LS_PID=""; GATE_PID=""; SCHED_PID=""
+OR_PID=""; INIT_PID=""; LS_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
 
 echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PORT DATA=$DATA_DIR (ephemeral, R2 是数据主路径)"
 
@@ -44,7 +44,7 @@ echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PO
 cleanup_done=0
 _forward_signal() {
   local sig="$1"
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID" "$FT_PID"; do
     [ -z "$pid" ] && continue
     kill -0 "$pid" 2>/dev/null && kill -"$sig" "$pid" 2>/dev/null || true
   done
@@ -57,7 +57,7 @@ _shutdown() {
   local g=0 alive
   while [ "$g" -lt 50 ]; do
     alive=0
-    for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
+    for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID" "$FT_PID"; do
       [ -z "$pid" ] && continue
       kill -0 "$pid" 2>/dev/null && alive=1
     done
@@ -67,7 +67,7 @@ _shutdown() {
   done
   echo "[entrypoint] shutdown: force-kill 残留..."
   _forward_signal KILL
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID" "$FT_PID"; do
     [ -z "$pid" ] && continue
     wait "$pid" 2>/dev/null || true
   done
@@ -175,6 +175,66 @@ else
       echo "[entrypoint] ✓ 已从 R2 恢复 (直接 $DB_PATH, 文件非空)"
     fi
   fi
+fi
+
+# ── 1.5 FlareTunnel 本地桥 (2026-07-30, 档位A: 单桥 :8080 round-robin 8 Worker) ──
+# 拓扑: OmniRoute undici → HTTP CONNECT 127.0.0.1:8080 → 桥 MITM → CF Worker 池 → NIM.
+#   目的 = 换 NIM 出口 IP (CF 172.64.0.0/13 出口段动态轮换), 与旧 relay 三故障不同代码路径.
+# 开关: FLARETUNNEL_ENABLED=1 (Space Variable) 才启; 未设/0 = 全段零副作用
+#   (AB 双轨同哲学: 默认路径行为不变, 启用路径自举, 回滚 = 删 Variable + Restart).
+# 资产: /logic/flaretunnel (静态二进制) + /logic/flaretunnel_endpoints.json (8 zflare 池),
+#   皆走 Dataset 同步, Restart 即效零 Rebuild.
+# 次序红线 (NODE_EXTRA_CA_CERTS 两前提, 2026-07-30 双核+docker 实证):
+#   ① 桥先起 → CA 自签落 $FT_CA_DIR (源码实证 generateCACert: crt+key 存在即 early-return
+#     复用不重签 → §7 看门狗重启桥不换 CA, 上游已载证书不失效, 无须连带重启);
+#   ② export NODE_EXTRA_CA_CERTS 须在 §2 上游 node server.js 启动前 (Node 仅启动时读,
+#     运行中 process.env 设无效; 文件缺则 Node 警告忽略 = CA 未载 = nvidia TLS 必崩);
+#   ③ OmniRoute undici 源码实证 buildConnector 不注 ca → 默认根 CA 自动含 extra, 无须改上游.
+# fail-open: FT 是增强层非地基 — 资产缺/桥起不来 → WARN 跳过全段, 不 FATAL 不 brick Space.
+#   (注意降级语义: 若 proxy_enabled 已注册为 1 而桥缺, nvidia 路径停, 日志明示, 人工修资产
+#    或关 FLARETUNNEL_ENABLED 后 Restart.)
+if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
+  echo "[entrypoint] FT: FLARETUNNEL_ENABLED=1, 启动 FlareTunnel 本地桥 (档位A)..."
+  _ft_ok=1
+  [ -f /logic/flaretunnel ] || { echo "[entrypoint] FT WARN: /logic/flaretunnel 二进制缺 (Dataset 资产未推?), 跳过 FT"; _ft_ok=0; }
+  [ -f /logic/flaretunnel_endpoints.json ] || { echo "[entrypoint] FT WARN: /logic/flaretunnel_endpoints.json 缺, 跳过 FT"; _ft_ok=0; }
+  [ -n "${RELAY_AUTH:-}" ] || { echo "[entrypoint] FT WARN: RELAY_AUTH Secret 未设, 跳过 FT (Worker 鉴权必拒)"; _ft_ok=0; }
+  if [ "$_ft_ok" = 1 ]; then
+    chmod +x /logic/flaretunnel 2>/dev/null || true   # start.sh 仅 chmod /logic/*.sh, 二进制此处自举
+    FT_CA_DIR="${FT_CA_DIR:-/tmp/ft-ca}"
+    FT_PORT="${FT_PORT:-8080}"                        # 须与 OmniRoute 后台注册代理端口一致 (Step 6)
+    FT_LOG="${DATA_DIR}/omn-sched/stdout/flaretunnel.log"   # 与 gate-stderr 同永续日志 staging, scheduler 自动上 Dataset
+    mkdir -p "$FT_CA_DIR" "$(dirname "$FT_LOG")" 2>/dev/null || true
+    # 单点启动函数: 本段首启 + §7 看门狗重启共用同一命令 (不分叉, "改也为以后不改")
+    _ft_start() {
+      /logic/flaretunnel tunnel --host 127.0.0.1 --port "$FT_PORT" \
+        --endpoints /logic/flaretunnel_endpoints.json \
+        --relay-auth "$RELAY_AUTH" \
+        --ca-dir "$FT_CA_DIR" >>"$FT_LOG" 2>&1 &
+      FT_PID=$!
+      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, 8 Worker round-robin, log→$FT_LOG)"
+    }
+    _ft_start
+    # CA 等生 (红线②): 桥首启自签 CA 落盘后才可 export; 上限 10s, 桥早夭即弃
+    _ft_ca="$FT_CA_DIR/flaretunnel_ca.crt"; _ft_wait=0
+    while [ "$_ft_wait" -lt 20 ]; do
+      if [ -s "$_ft_ca" ]; then break; fi
+      if ! kill -0 "$FT_PID" 2>/dev/null; then
+        echo "[entrypoint] FT WARN: 桥 CA 等生期间退出 (详见 $FT_LOG), 跳过 FT"; break
+      fi
+      sleep 0.5; _ft_wait=$((_ft_wait+1))
+    done
+    if [ -s "$_ft_ca" ] && kill -0 "$FT_PID" 2>/dev/null; then
+      export NODE_EXTRA_CA_CERTS="$_ft_ca"
+      echo "[entrypoint] FT: CA 就绪, NODE_EXTRA_CA_CERTS=$_ft_ca 已 export (先于 §2 上游启动, 红线②满足)"
+    else
+      echo "[entrypoint] FT WARN: CA 10s 未就绪, 桥降级关闭 (nvidia 若已注册代理将停, 请修资产或关 FT 开关)"
+      kill "$FT_PID" 2>/dev/null || true; wait "$FT_PID" 2>/dev/null || true
+      FT_PID=""
+    fi
+  fi
+else
+  echo "[entrypoint] FT: FLARETUNNEL_ENABLED 未启用, 跳过 (默认直连路径零变更)"
 fi
 
 # ── 2. 启动上游服务 ──
@@ -317,6 +377,21 @@ while true; do
     else
       echo "[entrypoint] WARN: Litestream replicate exited (非致命). DB 不再备份 (LITESTREAM_STRICT=0)."
       LS_PID=""
+    fi
+  fi
+  # ── FT 看门狗: 桥非致命, 死则重启 (上限 5 次后弃守降级) ──
+  # 重启安全 (2026-07-30 源码实证 generateCACert 复用语义): 桥重启不换 CA,
+  #   上游已载 NODE_EXTRA_CA_CERTS 不失效, 无须连带重启上游 — 与 litestream 非致命同级.
+  # 弃守语义: 5 次连死 = 资产/配置级病非抖动, WARN 弃守, FT_PID 置空停止循环判;
+  #   nvidia 若已注册代理即降级 (指向死桥调用必败), 人工修资产/关开关后 Restart.
+  if [ -n "$FT_PID" ] && ! kill -0 "$FT_PID" 2>/dev/null; then
+    _ft_restarts=$(( ${_ft_restarts:-0} + 1 ))
+    if [ "$_ft_restarts" -le 5 ]; then
+      echo "[entrypoint] FT 看门狗: 桥退出, 第 $_ft_restarts/5 次重启 (CA 复用不换, 上游无感)..."
+      _ft_start
+    else
+      echo "[entrypoint] FT 看门狗: 桥 5 次连死, 弃守降级 (WARN: proxy_enabled=1 指向死桥, nvidia 路径停; 修资产或关 FLARETUNNEL_ENABLED 后 Restart)"
+      FT_PID=""
     fi
   fi
   sleep 1

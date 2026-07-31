@@ -1726,7 +1726,9 @@ func (ps *ProxyServer) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 
 // HandleMetrics 返 Prometheus text exposition (路3): per-Worker counters + rotation_index + blacklist_hits.
 // text/prometheus 零新依赖 (net/http 标准库). 计数器 _total 为 monotonically increasing.
-func (ps *ProxyServer) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+// dumpMetricsText 锁内读全 per-Worker 统计 → 返回 prometheus 文本格式.
+// 复用点: HTTP /metrics 端点 + verbose 周期 dump goroutine (路3慢病证根, 仅 ps.Verbose 时起).
+func (ps *ProxyServer) dumpMetricsText() string {
 	ps.mutex.Lock()
 	index := ps.CurrentWorkerIndex
 	mode := ps.RotationMode
@@ -1776,9 +1778,13 @@ func (ps *ProxyServer) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	for pat, hits := range blacklistStats {
 		b.WriteString(fmt.Sprintf("flaretunnel_blacklist_hits{pattern=%q} %d\n", pat, hits))
 	}
+	return b.String()
+}
+
+func (ps *ProxyServer) HandleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(b.String()))
+	w.Write([]byte(ps.dumpMetricsText()))
 }
 
 func (ps *ProxyServer) Start(blacklistFile string) error {
@@ -1903,6 +1909,21 @@ func (ps *ProxyServer) Start(blacklistFile string) error {
 	server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", ps.Host, ps.Port),
 		Handler: handler,
+	}
+
+	// 路3慢病证根: 仅 verbose 开时起周期 dump goroutine, 每 5min 打 per-Worker metrics 快照入 stdout.
+	// stdout 经 entrypoint >>$FT_LOG → capture_loop 尾追 → omn_redact → save Dataset.
+	// verbose 关则零 dump 回 A 路 (圣裁: dump 与 --verbose 绑定, debug 关零侵入).
+	if ps.Verbose {
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			fmt.Printf("📊 [metrics-dump] verbose 周期自报启用 (5min/段 → stdout → flaretunnel.log)\n")
+			fmt.Print("\n=== FT METRICS DUMP ===\n" + ps.dumpMetricsText() + "=== END DUMP ===\n")
+			for range ticker.C {
+				fmt.Print("\n=== FT METRICS DUMP ===\n" + ps.dumpMetricsText() + "=== END DUMP ===\n")
+			}
+		}()
 	}
 
 	return server.ListenAndServe()

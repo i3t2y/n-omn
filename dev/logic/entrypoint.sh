@@ -210,14 +210,17 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
     mkdir -p "$FT_CA_DIR" "$(dirname "$FT_LOG")" 2>/dev/null || true
     # 单点启动函数: 本段首启 + §7 看门狗重启共用同一命令 (不分叉, "改也为以后不改")
     _ft_start() {
+      # FT_VERBOSE=1 启 --verbose: 开则桥每请求 fmt 入 log + 5min goroutine dump metrics 周期段入 log (路3慢病证根). 默0关闭零dump回A.
+      _ft_verbose=""
+      [ "${FT_VERBOSE:-0}" = "1" ] && _ft_verbose="--verbose"
       /logic/flaretunnel tunnel --host 127.0.0.1 --port "$FT_PORT" \
         --endpoints /logic/flaretunnel_endpoints.json \
         --relay-auth "$RELAY_AUTH" \
-        --ca-dir "$FT_CA_DIR" >>"$FT_LOG" 2>&1 &
+        --ca-dir "$FT_CA_DIR" $_ft_verbose >>"$FT_LOG" 2>&1 &
       FT_PID=$!
       export FT_PID   # 须 export: init-nim-keys.sh 起 bash 子进程, 不 export 则 FT_PID 不传子进程致 init 跳过 FT 代理注册
       _ft_n=$(jq 'if type=="array" then length elif .endpoints then (.endpoints|length) elif .workers then (.workers|length) else 0 end' /logic/flaretunnel_endpoints.json 2>/dev/null || echo 8)
-      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, ${_ft_n} Worker round-robin, log→$FT_LOG)"
+      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, ${_ft_n} Worker round-robin, log→$FT_LOG${_ft_verbose:+ verbose metrics-dump ON})"
     }
     _ft_start
     # CA 等生 (红线②): 桥首启自签 CA 落盘后才可 export; 上限 10s, 桥早夭即弃

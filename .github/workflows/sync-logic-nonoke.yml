@@ -3,10 +3,10 @@ name: Sync dev logic to HF Dataset (nonoke)
 # 三层解耦 · 逻辑层同步 (低风险: 推 Dataset 不触 Rebuild, 圣上手动 Restart 才生效)
 # 2026-07-26 六件制改名: sync-logic-dev.yml → sync-logic-nonoke.yml (dev 专投 nonoke/omn-logic)。
 #   prod 版同案 (件名见 DECISIONS "workflow 六件命名规约" 条), 仅手动 dispatch (无 push 触发), 生产专 token。
-# 源: dev/logic/** (五件 init/entry/gate/litestream/package)
+# 源: dev/logic/** (八件: init/entry/gate/litestream/package + helper/redact/scheduler)
+#   2026-07-31 移出 omn_encrypt.py(路2死代码)+omn_bucket_sync.py(插件包可选件) 两件,
+#   清单从10件→8件 + 加 Dataset 根两件 delete_file 步清洗已推死件残留.
 # 目标: Dataset nonoke/omn-logic 仓内平铺 (entrypoint.sh / gate.js / ... 根目录)
-#   ─ start 与逻辑层唯一契约: "Dataset 根目录存在 entrypoint.sh"
-#   ─ 故 CI 做 dev/logic/$f → Dataset/$f 平铺映射, Dataset 侧布局一字不动
 #
 # 逐字节血缘: hf upload 后立即 hf_hub_download 读回 + sha256 cmp,
 #   不过 CI 直接红 (Dataset↔git 血缘一致性不再人盯)。
@@ -32,19 +32,40 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Upload logic files to Dataset (5 files, flat layout)
+      - name: Upload logic files to Dataset (8 files, flat layout)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_NONOKE }}
         run: |
           pip install -q "huggingface_hub>=1.0,<2.0"
           for f in entrypoint.sh gate.js init-nim-keys.sh litestream.yml package.json \
-                   helper.sh omn_redact.py omn_encrypt.py omn_scheduler.py omn_bucket_sync.py; do
+                   helper.sh omn_redact.py omn_scheduler.py; do
             hf upload nonoke/omn-logic "dev/logic/$f" "$f" \
               --repo-type dataset --token "$HF_TOKEN" \
               --commit-message "sync(logic): n-omn@${GITHUB_SHA::7} $f" || {
                 echo "[FATAL] upload failed for $f"; exit 1; }
           done
-          echo "---- upload 10 files done ----"
+          echo "---- upload 8 files done ----"
+
+      - name: Delete removed files from Dataset root (清洗移出死件残留)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_NONOKE }}
+        run: |
+          python3 - <<'EOF'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          repo = "nonoke/omn-logic"
+          # 2026-07-31 移出件: 源不在 dev/logic 但 Dataset 根旧推版残留, 须 delete_file 清洗
+          for f in ("omn_encrypt.py", "omn_bucket_sync.py"):
+              try:
+                  api.delete_file(path_in_repo=f, repo_id=repo, repo_type="dataset",
+                                  token=os.environ["HF_TOKEN"],
+                                  commit_message=f"chore: remove moved-out {f} (n-omn@{os.environ['GITHUB_SHA'][:7]})")
+                  print(f"[delete] {f} removed from Dataset root")
+              except Exception as e:
+                  # 件已不在 (404) = 正常无需删; 其他错 fail-open 告警不阻 CI (上传已成功)
+                  print(f"[delete] {f}: skip ({type(e).__name__})")
+          EOF
 
       - name: Verify sha256 readback (逐字节血缘验证)
         env:
@@ -54,7 +75,7 @@ jobs:
           import hashlib, os
           from huggingface_hub import hf_hub_download
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
-                   "helper.sh","omn_redact.py","omn_encrypt.py","omn_scheduler.py","omn_bucket_sync.py"]
+                   "helper.sh","omn_redact.py","omn_scheduler.py"]
           bad = 0
           for f in files:
               local = hashlib.sha256(open(f"dev/logic/{f}","rb").read()).hexdigest()

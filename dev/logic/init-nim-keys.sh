@@ -1122,15 +1122,9 @@ except Exception as e:
         print("[init] snapshot: WARN 403 Forbidden — HF_TOKEN 缺 write 权限, 检查 Space Secret E 项 HF_TOKEN scope (需 dataset-write)")
 PYEOF
 
-  # ── omniroute 插件静态包推公开 Bucket (圣上令扩三链 ③) ──
-  #   OMN_BUCKET_SYNC=1 触发 omn_bucket_sync.py 一次性 walk 插件包推公开 S3 Bucket.
-  #   init-nim-keys.sh 调用方已 set -e, 故 bucket-sync 失败须降级 skip 不阻主 init.
-  if [ "${OMN_BUCKET_SYNC:-0}" = "1" ] && [ -x /logic/omn_bucket_sync.py ]; then
-    echo "[init] omniroute 插件包推公开 Bucket (OMN_BUCKET_SYNC=1)..."
-    python3 /logic/omn_bucket_sync.py >/dev/null 2>&1 \
-      && echo "[init] 插件包 Bucket 同步完成" \
-      || echo "[init] snapshot: WARN 插件包 Bucket 同步失败 (降级 skip, 主 init 不阻)"
-  fi
+  # ── omniroute 插件静态包推公开 Bucket (路③可选件) 已移出 ──
+  #   omn_bucket_sync.py + 本调用段 2026-07-31 移除 (圣上裁插件包可选件状态, 非现役链).
+  #   恢复路径: git 历史检出 + Dataset 根回推. 见 ops/DECISIONS.md 2026-07-31 移除决策条.
 }
 
 # ── 增量模式（⑧ 增量门放宽：任一 nim-* combo 或 INIT_MARKER 存在）──

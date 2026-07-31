@@ -2,6 +2,73 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-07-31 · omn-logic 用不着件移出 (dev/logic 层) — 本地改完待 commit+push (圣上裁决)
+
+圣上 2026-07-31 令 "omn-logic 中的脚本文件整理下, 用不着的移出, 并在文档中说明"。范围 (圣上 AskUserQuestion 答准): **仅扫 Dataset 根多余资产** + **omn_bucket_sync 插件包可选件** + **omn_encrypt 路2 死代码** 三类。helper.sh runtime 退场段未选保留。
+
+### 移出件 (2 件 + 引用段清理)
+- **`dev/logic/omn_bucket_sync.py` 移出** (插件静态包推公开 S3 Bucket, `OMN_BUCKET_SYNC` 默0不触): 圣上裁插件包可选件状态, 非现役链。`init-nim-keys.sh` L1125-1133 调用段 (注释+`if [ "${OMN_BUCKET_SYNC:-0}" = "1" ] && [ -x /logic/omn_bucket_sync.py ]` 块) 同删, 留移出挂记注释 + 恢复路径 (git 历史检出)。
+- **`dev/logic/omn_encrypt.py` 移出** (路2 Fernet tar.gz 整体字节级加密): 圣上 2026-07-29 裁个人最小方案降级砍七成, `ENCRYPTION_KEY` 已删路2 降级, `EncryptedScheduler` 从未实例化 = 死代码。`omn_scheduler.py` 同步清理:
+  - `_try_import` 删 omn_encrypt import block (except 兜底已就绪 fail-open, 但件不在更净) → `OMN_REDACT = _try_import()` (单返)
+  - `EncryptedScheduler` 死类整删 (L99-144 全段) → 留移出挂记注释
+  - `ENC_SRC`/`ENC_STAGING` 死路径定义 + `_ensure_dirs` 引用同删
+  - 顶部依赖注释 + L35 PYTHONPATH 注释 + main docstring 同步更新路2 已移除
+
+### 不变量
+- §1 拓扑: 三件定态 (space 根 Dockerfile/README/start.sh) 零触。改 `dev/logic/init-nim-keys.sh` + `dev/logic/omn_scheduler.py` 两件 + `git rm` 两 deadcode 件, 走 dev/logic Dataset sync (非 Dockerfile path, 不触 Rebuild)。
+- 主链 fail-open 保证: scheduler `_try_import` 删 omn_encrypt block 后 main 链路1 (CommitScheduler STDOUT staging → save) 不依赖 `OMN_ENCRYPT`, 删间件零运行态调用 (EncryptedScheduler 未实例化)。init OMN_BUCKET_SYNC 段删后 `OMN_BUCKET_SYNC` 阈若圣上仍设 =1 也无件可触 (`[ -x /logic/omn_bucket_sync.py ]` false 短路)。零回归。
+- §2 secrets: 移出件无 secret 入档 (omn_bucket_sync 用 boto3 读 `~/.omn-secrets`, omn_encrypt Fernet 读 ENV `ENCRYPTION_KEY`, 均运行时绑定不留值)。
+- Dataset 根资产侧零动作: 扫 Dataset 13 根件全真实资产 (10 git 跟踪件 + flaretunnel 二进制 + flaretunnel_endpoints.json 配件 + .gitattributes), 无多余隐藏件; `save/` 子目 = 永续日志不算资产。圣上裁"仅扫" = 零多余不动。
+
+### 前置验全绿
+- `bash -n dev/logic/init-nim-keys.sh` SYNTAX OK
+- `python3 -c "import ast; ast.parse(open('dev/logic/omn_scheduler.py').read())"` AST OK
+- `python3 .claude/hooks/secret-scan.py` exit 0 无命中
+
+### 待办
+- [ ] 本地改完 (2 git rm + 2 Edit); 待 §5 圣上裁决 commit + push nomn main → sync-logic-nonoke CI 推 Dataset + HfApi 删 Dataset 根两件 (用 `~/.omn-secrets` HF_TOKEN_DATASET_WRITE, source 不打印值)
+- [ ] boot 真验 (Restart dev 零 Rebuild): 主链 init rc=0 + scheduler 起 + save 推正常 + 无 omn_encrypt/omn_bucket_sync ImportError / 无 `[ -x /logic/omn_bucket_sync.py ]` 残留回显
+
+## 2026-07-31 · probe 慢启治法 + subshell exit1 崩根闭环 (dev/logic 层) — commit 16c70dc/e935ec2/ef16b46 push 通 nomn, boot PROBE=1 真路透 rc=0
+
+圣上 2026-07-31 令治 "上轮慢有办法修正" (probe 串行拖慢起 5 分)。boot 日志实证慢根颠覆: 7key probe **首发全 HTTP 000** 触 30s 宽超时重试 4 分 34 秒全耗等待 (非 HF egress 非 NIM 限速是 probe 串行 + 000 重试架构慢, NVCF 首请求冷启热身/排队瞬态非 key 死)。
+
+### 治法四件 (X2+X2.1+X4+脱敏) 落地链
+- **X2 probe 并发3分批** (`NIM_PROBE_CONCURRENCY` 默3封顶): keys 入数组 + `mktemp -d` 隔离每key结果文件免并发竞写 + 后台子shell `( _probe_one ) &` + `wait` 收批. 32key最坏11批×30s≈5.5分 (vs串行16分)。commit `16c70dc` (+126/-55)。
+- **X2.1 重试闸** (`NIM_PROBE_RETRY_ENABLED` 默0整跳重试): 首发000直接 fail-open alive, runtime LocalHealthCheck 60s tick 兜底真死key。slogan 印 `重试关(000→alive)`。commit `e935ec2`。
+- **verbose 脱敏** (sed `gi`): verbose 模 `curl -v 2>&1` 明文回显 `Authorization: Bearer <key>` → sed `s/(Authorization:\s*Bearer\s+)[A-Za-z0-9._\-]+/\1<REDACTED>/gi` (`gi` 捕大小写双变体)。§2 明文根除。commit `e935ec2`。
+- **X4 ENV 闸** (`NIM_PROBE_ENABLED` 默1): =1 跑 X2 并发 probe; =0 整跳 register-and-go (死key入池 runtime LocalHealthCheck 60s tick + PROXY_ALIVE_PREDICATE 兜底标死 p2c 轮换)。省首boot后 Restart 0秒起轨。
+
+### 真·崩根定谳 (非 HF supervisor 臆测, 是 set-e + 子shell exit1 代码 bug) — commit ef16b46
+`_probe_one` 子shell **最后一条** L675 `[ "$_pverbose" = "1" ] && [...] && printf ... | sed ... > file` 在非 verbose 模 (`_pverbose=0`, boot 默认) 首项 test `[ "0" = "1" ]` 返 **exit 1** → `&&` 链短路 exit 1 → **子shell 退出码 = 1**。主循环 L692 裸 `wait "$_p"` 收 1 → **`set -eo pipefail` (init 行 2) 杀主进程 init** → container exit 1, 两 boot 崩 (05:24/05:25, 日志断 probe 起行无收判无 rc=0)。
+
+诊断弯路: 我首推 "HF Space supervisor 健康 probe 静默期杀 container" (外因臆测) → 圣上驳回 "不是被杀就是代码有问题" → 退回查源本地复现坐实: `bash -c 'set -eo pipefail; _pverbose=0; p(){ [ "$_pverbose" = "1" ] && echo x; }; (p)& w=$!; wait $w; echo OK'` → EXIT 1 无 OK, 精确复现崩。
+
+**治本**: L675 末补 `|| true` (commit `ef16b46`, +4/-1): =0 test fail → `|| true` 强制 exit 0; =1 printf 写满 exit 0 覆盖 `|| true` 不损功能. 子shell 退出码恒 0 → `wait` 收 0 → `set -e` 不杀 → init 透。前置验全绿 (bash -n + secret-scan + 两态隔离测)。
+
+### 三轮 boot 对照定谳 (真根闭环)
+
+| boot | ENV PROBE | ENV VERBOSE | L675 态 | 结局 |
+|---|---|---|---|---|
+| 02:50 | =1 跑 | =1 开 | 旧无 `\|\| true` | 透 rc=0 (printf exit0 覆盖) 但 3 分 40 秒慢 + §2 明文 key 泄露 |
+| 05:24/05:25 | =1 跑 | 未开 | 旧无 `\|\| true` | **崩 exit 1** (子shell exit1 → wait1 → set-e 杀) |
+| 05:47 | =0 跳 | 未开 | 旧无 `\|\| true` | 透 rc=0 (ENV 绕治标, 未触子 shell, 非真治) |
+| 06:14 | =1 跑 | 未开 | **修 `\|\| true`** | **透 rc=0 + 40 秒** (真根根除铁证) |
+
+05:25 崩 ↔ 06:14 透 唯一变量 = L675 `|| true`。程 7 key 全 HTTP **200 → alive** (NVCF 已暖证实瞬态非 key 死) + `Done (first-init) v4.3.2` rc=0 06:15:31, 全 boot 78 秒 (probe ~40 秒 3 批并发3)。
+
+### 不变量
+- §1 拓扑: 单改 `dev/logic/init-nim-keys.sh` 一件, 三件定态 (space 根 Dockerfile/README/start.sh) 零触。走 dev/logic Dataset sync (非 Dockerfile path, 不触 sync-space-nonoke Rebuild)。
+- §2 secrets: verbose 脱敏治本; 历史 02:50 boot 明文 key 已推 Dataset 须圣上判清理 (仅记位置零值入档 — 见 ops/incidents/2026-07-31-probe-subshell-exit1-crash.md §2 泄露挂账段)。
+- §5 git: 单 commit push 三批 (16c70dc / e935ec2 / ef16b46) 避逐文件 push 触 HF build 冻。
+- 教训入册: 排障先穷尽代码 bug 再归外因 (我前臆测 HF supervisor 杀错, 圣上驳回退查源坐实); `set -e` + 子shell + `wait` 三元组是隐藏地雷, `wait` 收子 shell 非零退出杀主进程, 治 = `|| true` 兜恒 exit 0。同源病族 (C2 pipefail 2026-07-25) 第三轮复发。
+
+### 待办
+- [x] commit `ef16b46` 修 L675 `|| true` 兜 → push `e935ec2..ef16b46` nomn 通
+- [x] 06:14 boot `NIM_PROBE_ENABLED=1` 真路验真根根除 (rc=0 + 40 秒)
+- [ ] §2 历史泄露清理 (圣上侧): HF Space `NIM_PROBE_VERBOSE` ENV 若仍开则关 + Dataset `nonoke/omn-logic` 历史 init_*.log/debug_*.log 含明文 key 件圣上判删/重写剥明文版重推
+- [ ] 真业务 chat 流量验证 (经网关 /v1/chat/completions 带真 NIM 键走桥 200 + healthz Worker 计数增) — 圣上若发一发贴回核
+
 ## 2026-07-27 · 3.8.48 整体切换 (径 C 裁决) — ARG 改动已 push+sync+dev boot 三绿 (02:48Z) + ARG→Space 路径 runbook 入册, 待 gate 413 三防伪 + snapshot 多帧两笔补 → 24h 窗正式启 (起算两笔绿末时间戳)
 圣上 2026-07-27 裁决走径 C: 整体切 3.8.48 base (上游真 release), 不构建新镜像 (GHCR 预构建已就绪), 仅改 BASE_IMAGE 切换。不翻 CLAUDE.md:23 (3.8.49 分支仍定点移植源池, 本次切 3.8.48 非 fork)。不用上游官方镜像三理由: 无 litestream / Hub 速率限制 / digest 钉锚统一 GHCR (入 DECISIONS). step -1 兼容性静态核毕 → 3.8.48 vs 3.8.43 互斥铁证表 (modelCapabilities 81 行含三新机制, modelContextOverrides/contextWindowResolver 0 行零改, modelSpecs 102 行含 GLM-5.2 authoritative 表) + 我侧 real_context=200000 消费链 getModelContextLimit 3.8.48:513-526 与 3.8.43:436-449 字节级一致 (Feature 5004 persisted override wins) + 新增迁移 9 件全清单 (113-122, 117_proxy_pool_rotation 破坏式但自带回填+我侧血统未用 proxy_assignments 表, 余 8 件累加无损). 出处: audit/2026-07-27-3.8.48-compat-static-audit.md.
 

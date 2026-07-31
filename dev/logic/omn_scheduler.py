@@ -13,14 +13,12 @@
 停: SIGTERM/SIGINT -> scheduler.__exit__ (trigger 最后 upload + stop), capture daemon daemon 自然随主退.
 
 保留未启用链 (圣上裁砍七成, 留代码将来多人启):
-  路2加密 (EncryptedScheduler): 私库只圣读 = 加密 redundant; ENCRYPTION_KEY 缺即 skip.
   db 快照 (capture_db): litestream 已复制整个 storage.sqlite, scheduler 重复.
+  路2加密 (EncryptedScheduler): 2026-07-31 移除 (圣上裁路2 降级死代码, omn_encrypt.py 整件移出).
 
 依赖:
   - huggingface_hub (start.sh:32 自愈装, 区间 >=1.0,<2.0)
-  - cryptography    (helper.sh ensure_pip 装, 缺 -> 路2 自动 skip, ImportError catch)
   - omn_redact      (同目录 omn_redact.py, PYTHONPATH=/logic; 默6正则可 ENV REDACT_PATTERNS 覆盖动态调)
-  - omn_encrypt     (同目录 omn_encrypt.py, 缺 cryptography 时 import 失败 -> 路2 skip)
 """
 import os
 import sys
@@ -32,7 +30,7 @@ import threading
 import subprocess
 from pathlib import Path
 
-# PYTHONPATH 含本目录能 import omn_redact/omn_encrypt
+# PYTHONPATH 含本目录能 import omn_redact
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # ── ENV 占位 (圣上 Space Secrets 自建自持, 我零入值) ──
@@ -55,14 +53,12 @@ STDOUT_STAGING = STAGING               # 路1 明文 JSONL staging (摊平, .log
 #   _raw 若在其下 → 明文 raw (gate/ft/app/init 未脱敏) 混入 save = 圣旨脱敏漏泄.
 #   故 raw 区独立分目录, scheduler 上传不触及, capture_loop 读 raw → omn_redact → 写 STDOUT_STAGING.
 RAW_DIR = DATA_DIR / "omn-raw"          # 四源 raw 临时区: 明文原态, capture_loop 尾追脱敏后写 STDOUT_STAGING (不进 save)
-ENC_SRC = STAGING / "enc-src"         # 路2 加密源 (redact 后拷入) [未实例化]
-ENC_STAGING = STAGING / "enc-out"     # EncryptedScheduler working tree (放 .tar.gz) [未实例化]
 DB_STAGING = STAGING / "db"           # db JSON staging [未调]
 GATE_STDERR = Path(os.environ.get("OMN_GATE_STDERR", str(RAW_DIR / "gate-stderr.log")))
 
 # mkdir 延迟到 main/capture 调用时 (import 无副作用, 本地无 /data 权限不崩)
 def _ensure_dirs():
-    for d in (STDOUT_STAGING, RAW_DIR, ENC_SRC, ENC_STAGING, DB_STAGING):
+    for d in (STDOUT_STAGING, RAW_DIR, DB_STAGING):
         try:
             d.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -80,68 +76,20 @@ def _try_import():
         redact = omn_redact
     except Exception:
         pass
-    try:
-        import omn_encrypt
-        encrypt = omn_encrypt
-    except Exception:
-        pass
-    return redact, encrypt
+    return redact
 
-OMN_REDACT, OMN_ENCRYPT = _try_import()
+
+OMN_REDACT = _try_import()
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# EncryptedScheduler · 路2 加密子类 (重写 push_to_hub)
+# 路2 加密 (EncryptedScheduler) 已移除 (2026-07-31 圣上裁路2 降级死代码)
 # ═══════════════════════════════════════════════════════════════════════
-# 官档 ZipScheduler 模式: 1.列文件 2.处理 3.upload_file 4.unlink local.
-# 此处处理 = omn_encrypt.encrypt_folder (tar.gz + Fernet) 替代明文 append.
-# 空 src dir -> return None 早退 (防 upload 空 tar + 防 squash 空 commit 腐坏 repo).
-# ENCRYPTION_KEY 未设 -> EncryptionKeyMissing catch skip 路2 不崩 (主链 1+db 续推).
+# omn_encrypt.py + EncryptedScheduler 死类 + ENC_SRC/ENC_STAGING 路径已整段移出.
+# 路2 砍七成降级后 EncryptedScheduler 从未实例化 (main 内路1+db 主链), 属死代码.
+# 私库只圣读 + litestream 已复制 storage.sqlite = 加密冗余, 圣上 2026-07-29 裁降级砍.
+# 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 ops/DECISIONS.md.
 from huggingface_hub import CommitScheduler
-
-
-class EncryptedScheduler(CommitScheduler):
-    """路2: 周 tar.gz + Fernet 整体字节级加密后 upload 单 .tar.gz.
-
-    folder_path = ENC_STAGING (临时壳, 此层不直读, 列 ENC_SRC 作源).
-    push_to_hub 重写: 列 ENC_SRC → encrypt_folder → ENC_STAGING 放 .tar.gz →
-                     upload_file path_in_repo/<ts>.tar.gz → 删 ENC_SRC 源 (防 re-upload).
-    """
-
-    def push_to_hub(self):
-        # 路2 缺 cryptography 模块 -> 跳过 (helper.sh 未装成功)
-        if OMN_ENCRYPT is None:
-            return None
-        # 1. 列 ENC_SRC 源文件 (空 -> 早退防空 commit, 防 squash 空 repo 腐坏)
-        src_files = [p for p in sorted(ENC_SRC.glob("**/*")) if p.is_file()]
-        if not src_files:
-            return None
-        ts = int(time.time())
-        tar_plain = ENC_STAGING / f"_plain_{ts}.tar.gz"
-        tar_enc = ENC_STAGING / f"{ts}.tar.gz"
-        try:
-            # 2. 加密 (encrypt_folder 内 _get_fernet 抛 EncryptionKeyMissing 缺 key)
-            OMN_ENCRYPT.encrypt_folder(str(ENC_SRC), str(tar_plain), str(tar_enc))
-            # 3. upload_file 单加密 tar.gz (path_in_repo 拼前缀)
-            prefix = f"{self.path_in_repo.strip('/')}/" if self.path_in_repo else ""
-            self.api.upload_file(
-                path_or_fileobj=str(tar_enc),
-                path_in_repo=f"{prefix}{ts}.tar.gz",
-                repo_id=self.repo_id,
-                repo_type=self.repo_type,
-                token=self.token,
-            )
-            # 4. 清源 (防重传), 临时件在 finally 清
-            for p in src_files:
-                p.unlink(missing_ok=True)
-            return None  # upload_file 自管 commit, squash_history 空 repo 无害 idempotent
-        except Exception:
-            # EncryptionKeyMissing (缺 key) / 他错 (网络/api/磁盘) -> 路2 skip 不崩主链
-            # 路1+db 续推, 下轮 retry, 不阻 scheduler 线程
-            return None
-        finally:
-            tar_plain.unlink(missing_ok=True)
-            tar_enc.unlink(missing_ok=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -253,8 +201,8 @@ def _start_schedulers():
       全源架构 (E 脱敏层复活): gate/ft/app/init 四源 raw 落 _raw, capture daemon 尾追+omn_redact
         脱敏后写本 staging folder, scheduler 内置线程读 folder 自动 upload (私库给 AI 分析须脱敏).
       D 总闸 OMN_LOG_TO_DATASET: 默1 推 (积累期); =0 全数据收集层停让性能 (桥/gate/init/上游零感知).
-      路2加密 (EncryptedScheduler) + db (capture_db) 两链不实例化 (圣上裁砍七成: 私库 dbContext litestream
-        已复制; 加密私库只圣读 redundant), 留代码将来多人再启.
+      路2加密 (EncryptedScheduler) 2026-07-31 移除 (圣上裁路2 降级死代码, omn_encrypt.py 整件移出);
+      db (capture_db) 不实例化 (圣上裁砍七成: 私库 dbContext litestream 已复制 redundant), 留代码将来多人再启.
     """
     # D 总闸: 稳定后圣上配 OMN_LOG_TO_DATASET=0 → 全数据收集层停让性能 (不起 scheduler 不起 capture)
     if not LOG_TO_DATASET:

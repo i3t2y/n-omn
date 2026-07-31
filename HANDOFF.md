@@ -71,3 +71,4 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 - init upload_folder 403 crashloop → C1 token 加 write 权 + C2 upload try/except 闭环 (audit saga)
 - `jq: Cannot index array` → C1 jq 归一化闭环 (task5)
 - `7 registered` 静默终断 → C2 pipefail 闭环 (ops/incidents/2026-07-25-c2-pipefail-init-silent-death.md)
+- probe subshell exit1 经裸 wait 触 set-e 杀 init (2026-07-31, 同源病族第三轮) → `_probe_one` 子shell最后语句非verbose模test返exit1→裸`wait`收1→`set-e`杀init→container exit1, 两boot崩05:24/05:25。治法L675末`||true`兜恒exit0 (commit `ef16b46`)。诊断弯路教训: 我前臆测"HF supervisor杀"被圣上驳回退查源坐实代码bug, 排障先穷尽代码退出码传播链再归外因。06:14 boot PROBE=1真路透rc0+40秒三轮对照定谳。(ops/incidents/2026-07-31-probe-subshell-exit1-crash.md)

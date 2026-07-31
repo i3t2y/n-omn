@@ -629,10 +629,19 @@ probe_nim_keys_real() {
     [ -z "$_rkey" ] && continue
     _idx=$((_idx+1))
     # 串行单发: 速率准则并发≤2-3, 串行天然满足. -X POST 打推理端测鉴权链(stratacthing → trailback)
-    _body=$(curl -s -m "$_PROBE_TIMEOUT" -w $'\n%{http_code}' -X POST \
-      "$NVIDIA_BASE_URL/v1/chat/completions" \
-      -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
-      -d "$_probe_body" 2>/dev/null || printf '\n000')
+    # F 路证根 (2026-07-31): NIM_PROBE_VERBOSE=1 时首 curl 加 -v + 留 stderr 入 init log (并行 stderr 不混 stdout; boot 看 * Trying/TLS/Connected 定 000 真因). 默0 时 stderr 仍弃, 行为零变.
+    if [ "${NIM_PROBE_VERBOSE:-0}" = "1" ]; then
+      echo "[init] probe key#${_idx} VERBOSE 诊断 (-v, stderr 入此 log): " >&2
+      _body=$(curl -s -v -m "$_PROBE_TIMEOUT" -w $'\n%{http_code}' -X POST \
+        "$NVIDIA_BASE_URL/v1/chat/completions" \
+        -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
+        -d "$_probe_body" 2>&1 || printf '\n000')
+    else
+      _body=$(curl -s -m "$_PROBE_TIMEOUT" -w $'\n%{http_code}' -X POST \
+        "$NVIDIA_BASE_URL/v1/chat/completions" \
+        -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
+        -d "$_probe_body" 2>/dev/null || printf '\n000')
+    fi
     _http=$(printf '%s' "$_body" | tail -n1)
     [ -z "$_http" ] && _http="000"
     case "$_http" in

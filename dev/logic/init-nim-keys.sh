@@ -619,71 +619,142 @@ _is_auth_dead() {
 }
 probe_nim_keys_real() {
   local _probe_model="${NIM_PROBE_MODEL:-z-ai/glm-5.2}"
-  echo "[init] probe_nim_keys_real: 串行探活 NIM keys via POST /v1/chat/completions (model=$_probe_model, timeout=${_PROBE_TIMEOUT}s/key, 403→dead, 余→alive fail-open)..."
-  local _idx=0 _http _t_total=0 _body
+  # X2 (2026-07-31): 并发探活. 串行 7key×30s 重试慢启 5 分钟; 改并发 ≤3 分批 (速率准则 §5,防风控).
+  #   32 key 最坏 (全 000 重试 30s) = 11 批 × 30s ≈ 5.5 分钟 (vs 串行 16 分钟). 活 key 200 则主动秒返不占满超时.
+  #   临时结果经隔离文件传 idx+http+verbose 段, 主循环串行收判 case (避并发竞写 AUTH_DEAD_KEYS 数组).
+  local _probe_concurrency="${NIM_PROBE_CONCURRENCY:-3}"
+  [ "$_probe_concurrency" -lt 1 ] 2>/dev/null && _probe_concurrency=1
+  [ "$_probe_concurrency" -gt 3 ] 2>/dev/null && _probe_concurrency=3
+  echo "[init] probe_nim_keys_real: 并发$_probe_concurrency 探活 NIM keys via POST /v1/chat/completions (model=$_probe_model, timeout=${_PROBE_TIMEOUT}s/key, 403→dead, 余→alive fail-open, 000→30s 重试)..."
   # POST 探活体 (max_tokens=1 最小推理, jq 安全拼参防注入): 2026-07-21 事件签名 = POST 推理 403, 故必须打推理端.
   local _probe_body
   _probe_body=$(jq -nc --arg m "$_probe_model" '{model:$m, messages:[{role:"user", content:"hi"}], max_tokens:1}')
+  # keys 入数组 (去空行), 分批并发:
+  local _keys=() _rkey
   while IFS= read -r _rkey; do
     _rkey=$(printf '%s' "$_rkey" | tr -d '' | xargs)
     [ -z "$_rkey" ] && continue
-    _idx=$((_idx+1))
-    # 串行单发: 速率准则并发≤2-3, 串行天然满足. -X POST 打推理端测鉴权链(stratacthing → trailback)
-    # F 路证根 (2026-07-31): NIM_PROBE_VERBOSE=1 时首 curl 加 -v + 留 stderr 入 init log (并行 stderr 不混 stdout; boot 看 * Trying/TLS/Connected 定 000 真因). 默0 时 stderr 仍弃, 行为零变.
-    if [ "${NIM_PROBE_VERBOSE:-0}" = "1" ]; then
-      echo "[init] probe key#${_idx} VERBOSE 诊断 (-v, stderr 入此 log): " >&2
-      _body=$(curl -s -v -m "$_PROBE_TIMEOUT" -w $'\n%{http_code}' -X POST \
-        "$NVIDIA_BASE_URL/v1/chat/completions" \
-        -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
-        -d "$_probe_body" 2>&1 || printf '\n000')
-    else
-      _body=$(curl -s -m "$_PROBE_TIMEOUT" -w $'\n%{http_code}' -X POST \
-        "$NVIDIA_BASE_URL/v1/chat/completions" \
-        -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
-        -d "$_probe_body" 2>/dev/null || printf '\n000')
-    fi
-    _http=$(printf '%s' "$_body" | tail -n1)
-    [ -z "$_http" ] && _http="000"
-    case "$_http" in
-      403)
-        echo "[init] probe key#${_idx}: HTTP 403 → AUTH_DEAD (账户级死亡, 入 auth_dead 跳注册)"
-        AUTH_DEAD_KEYS+=("$_rkey"); _PROBE_DEAD=$((_PROBE_DEAD+1))
-        ;;
-      429)
-        echo "[init] probe key#${_idx}: HTTP 429 → alive (速率顶格, 鉴权链通)"
-        _PROBE_ALIVE=$((_PROBE_ALIVE+1))
-        ;;
-      200|201|202)
-        echo "[init] probe key#${_idx}: HTTP $_http → alive"
-        _PROBE_ALIVE=$((_PROBE_ALIVE+1))
-        ;;
-      000)
-        # 000 = transport error/超时/HF ingress 冷启抖. 单次易误判, 补一次 30s 宽超时重试 (K3 2026-07-25 ②钉点2):
-        #   二次 403 → 真 AUTH_DEAD; 二次 200/429/4xx5xx → fail-open alive; 二次仍 000 → fail-open alive (boot 抖动不放大全停).
-        #   限 000 一类 (403/429/2xx 已是有效响应, 不重试). 25 key 期 000 抖动不污染验收.
-        echo "[init] probe key#${_idx}: HTTP 000 → 重试 (30s 宽超时)"
-        _rb=$(curl -s -m 30 -w $'\n%{http_code}' -X POST \
-          "$NVIDIA_BASE_URL/v1/chat/completions" \
-          -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
-          -d "$_probe_body" 2>/dev/null || printf '\n000')
-        _rh=$(printf '%s' "$_rb" | tail -n1); [ -z "$_rh" ] && _rh="000"
-        case "$_rh" in
-          403) echo "[init] probe key#${_idx}: 重试 HTTP 403 → AUTH_DEAD (账户级死, 入 auth_dead)"; AUTH_DEAD_KEYS+=("$_rkey"); _PROBE_DEAD=$((_PROBE_DEAD+1)) ;;
-          000) echo "[init] probe key#${_idx}: 重试仍 000 → alive (fail-open, 瞬态抖动不放大)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
-          *) echo "[init] probe key#${_idx}: 重试 HTTP $_rh → alive (fail-open, 非账户级死)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
-        esac
-        ;;
-      *)
-        # 4xx(非403)/5xx/超时 → fail-open 判活 (boot 抖动不放大全停; 瞬态故障运行时熔断兜底)
-        echo "[init] probe key#${_idx}: HTTP $_http → alive (fail-open, 非账户级死)"
-        _PROBE_ALIVE=$((_PROBE_ALIVE+1))
-        ;;
-    esac
+    _keys+=("$_rkey")
   done <<< "$NIM_KEYS"
+  local _total=${#_keys[@]}
+  [ "$_total" -eq 0 ] && { echo "[init] probe: 无 keys, skip"; _PROBE_DONE=1; return 0; }
+  # 临时结果目录 (隔离每 key, 避并发竞写; mktemp -d 自动清由 trap)
+  local _pr_dir
+  _pr_dir=$(mktemp -d -t omn-probe.XXXXXX) || { echo "[init] probe: mktemp fail, 降级串行"; }
+  local _use_parallel=1
+  [ -z "$_pr_dir" ] && _use_parallel=0
+  # F 路证根 (2026-07-31): NIM_PROBE_VERBOSE=1 时 verbose 段写入 _pr_dir/<idx>.verbose (子shell 2>&1 隔离, 主循环串行 cat 入此 log, 保 * Trying/TLS/Connected 定 000 真因).
+  local _verbose_mode=0; [ "${NIM_PROBE_VERBOSE:-0}" = "1" ] && _verbose_mode=1
+  # 内联单 key 探活子函数 (并发子 shell 调): 结果写 _pr_dir/<idx>.result (单行 http 码) + <idx>.verbose
+  _probe_one() {
+    local _pidx="$1" _pkey="$2" _pbody="$3" _ptmo="$4" _pverbose="$5" _pdir="$6" _purl="$7"
+    local _pb _ph _pv_out=""
+    if [ "$_pverbose" = "1" ]; then
+      _pb=$(curl -s -v -m "$_ptmo" -w $'\n%{http_code}' -X POST \
+        "$_purl/v1/chat/completions" \
+        -H "Authorization: Bearer $_pkey" -H 'Content-Type: application/json' \
+        -d "$_pbody" 2>&1 || printf '\n000')
+      _pv_out=$_pb   # verbose 模 2>&1 已并入 stderr
+      _ph=$(printf '%s' "$_pb" | tail -n1)
+    else
+      _pb=$(curl -s -m "$_ptmo" -w $'\n%{http_code}' -X POST \
+        "$_purl/v1/chat/completions" \
+        -H "Authorization: Bearer $_pkey" -H 'Content-Type: application/json' \
+        -d "$_pbody" 2>/dev/null || printf '\n000')
+      _ph=$(printf '%s' "$_pb" | tail -n1)
+    fi
+    [ -z "$_ph" ] && _ph="000"
+    printf '%s' "$_ph" > "$_pdir/${_pidx}.result"
+    [ "$_pverbose" = "1" ] && [ -n "$_pv_out" ] && printf '%s' "$_pv_out" > "$_pdir/${_pidx}.verbose"
+  }
+  # 分批并发:
+  local _i=0
+  while [ "$_i" -lt "$_total" ]; do
+    local _batch_pids=() _j
+    for _j in $(seq 0 $((_probe_concurrency - 1))); do
+      local _bi=$((_i + _j))
+      [ "$_bi" -ge "$_total" ] && break
+      local _bk="${_keys[$_bi]}"
+      if [ "$_use_parallel" = "1" ]; then
+        ( _probe_one "$((_bi+1))" "$_bk" "$_probe_body" "$_PROBE_TIMEOUT" "$_verbose_mode" "$_pr_dir" "$NVIDIA_BASE_URL" ) &
+        _batch_pids+=($!)
+      else
+        _probe_one "$((_bi+1))" "$_bk" "$_probe_body" "$_PROBE_TIMEOUT" "$_verbose_mode" "$_pr_dir" "$NVIDIA_BASE_URL"
+      fi
+    done
+    [ "$_use_parallel" = "1" ] && [ "${#_batch_pids[@]}" -gt 0 ] && { for _p in "${_batch_pids[@]}"; do wait "$_p"; done; }
+    # 串行收判本批结果 (重遍历 _bi 范围, 兼串行/并行两路):
+    local _ci _idx
+    for _ci in $(seq $_i $((_i + _probe_concurrency - 1))); do
+      [ "$_ci" -ge "$_total" ] && break
+      _idx=$((_ci+1))
+      _rkey="${_keys[$_ci]}"
+      local _http_file="$_pr_dir/${_idx}.result" _http="000"
+      [ -f "$_http_file" ] && _http=$(printf '%s' "$(<"$_http_file")" | tail -n1)
+      [ -z "$_http" ] && _http="000"
+      [ "$_verbose_mode" = "1" ] && [ -f "$_pr_dir/${_idx}.verbose" ] && { echo "[init] probe key#${_idx} VERBOSE 诊断 (-v, stderr 入此 log): " >&2; cat "$_pr_dir/${_idx}.verbose" >&2; }
+      case "$_http" in
+        403)
+          echo "[init] probe key#${_idx}: HTTP 403 → AUTH_DEAD (账户级死亡, 入 auth_dead 跳注册)"
+          AUTH_DEAD_KEYS+=("$_rkey"); _PROBE_DEAD=$((_PROBE_DEAD+1))
+          ;;
+        429)
+          echo "[init] probe key#${_idx}: HTTP 429 → alive (速率顶格, 鉴权链通)"
+          _PROBE_ALIVE=$((_PROBE_ALIVE+1))
+          ;;
+        200|201|202)
+          echo "[init] probe key#${_idx}: HTTP $_http → alive"
+          _PROBE_ALIVE=$((_PROBE_ALIVE+1))
+          ;;
+        000)
+          # 000 = transport error/超时/HF ingress 冷启抖. 单次易误判, 补一次 30s 宽超时重试 (K3 2026-07-25 ②钉点2):
+          #   二次 403 → 真 AUTH_DEAD; 二次 200/429/4xx5xx → fail-open alive; 二次仍 000 → fail-open alive (boot 抖动不放大全停).
+          #   限 000 一类 (403/429/2xx 已是有效响应, 不重试). 重试亦并发挂本批最后槽 (占用已空槽, 不增总并发).
+          echo "[init] probe key#${_idx}: HTTP 000 → 重试 (30s 宽超时)"
+          local _rb _rh
+          if [ "$_verbose_mode" = "1" ]; then
+            _rb=$(curl -s -v -m 30 -w $'\n%{http_code}' -X POST \
+              "$NVIDIA_BASE_URL/v1/chat/completions" \
+              -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
+              -d "$_probe_body" 2>&1 || printf '\n000')
+            echo "[init] probe key#${_idx} 重试 VERBOSE: " >&2; printf '%s' "$_rb" >&2
+          else
+            _rb=$(curl -s -m 30 -w $'\n%{http_code}' -X POST \
+              "$NVIDIA_BASE_URL/v1/chat/completions" \
+              -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
+              -d "$_probe_body" 2>/dev/null || printf '\n000')
+          fi
+          _rh=$(printf '%s' "$_rb" | tail -n1); [ -z "$_rh" ] && _rh="000"
+          case "$_rh" in
+            403) echo "[init] probe key#${_idx}: 重试 HTTP 403 → AUTH_DEAD (账户级死, 入 auth_dead)"; AUTH_DEAD_KEYS+=("$_rkey"); _PROBE_DEAD=$((_PROBE_DEAD+1)) ;;
+            000) echo "[init] probe key#${_idx}: 重试仍 000 → alive (fail-open, 瞬态抖动不放大)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
+            *) echo "[init] probe key#${_idx}: 重试 HTTP $_rh → alive (fail-open, 非账户级死)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
+          esac
+          ;;
+        *)
+          # 4xx(非403)/5xx/超时 → fail-open 判活 (boot 抖动不放大全停; 瞬态故障运行时熔断兜底)
+          echo "[init] probe key#${_idx}: HTTP $_http → alive (fail-open, 非账户级死)"
+          _PROBE_ALIVE=$((_PROBE_ALIVE+1))
+          ;;
+      esac
+    done
+    _i=$((_i + _probe_concurrency))
+  done
+  [ -n "$_pr_dir" ] && [ "$_pr_dir" != "/" ] && rm -f "$_pr_dir"/*.result "$_pr_dir"/*.verbose 2>/dev/null; rmdir "$_pr_dir" 2>/dev/null || true
   _PROBE_DONE=1
-  echo "[init] probe 汇总: alive=$_PROBE_ALIVE dead=$_PROBE_DEAD (auth_dead 跳 ${#AUTH_DEAD_KEYS[@]} 个注册, POST $_probe_model)"
+  echo "[init] probe 汇总: alive=$_PROBE_ALIVE dead=$_PROBE_DEAD (auth_dead 跳 ${#AUTH_DEAD_KEYS[@]} 个注册, POST $_probe_model, 并发$_probe_concurrency)"
 }
-probe_nim_keys_real
+
+# X4 (2026-07-31): NIM_PROBE_ENABLED 总闸. 默1=跑 probe 并发探活 (X2); =0=整跳 (register-and-go 哲学,
+#   同 FT 代理 Diff4 register-and-go; 死 key 入池, runtime LocalHealthCheck 60s tick + PROXY_ALIVE_PREDICATE
+#   兜底标死 p2c 轮换). 省 32 key 最坏 5.5 分起轨时间. 圣上首 boot 验活后切 ENV=0 后续 Restart 0 秒起.
+_PROBE_SKIP=0
+if [ "${NIM_PROBE_ENABLED:-1}" != "1" ]; then
+  echo "[init] NIM_PROBE_ENABLED=0 → 跳 probe (register-and-go; runtime LocalHealthCheck 兜底死 key)"
+  _PROBE_SKIP=1
+else
+  probe_nim_keys_real
+fi
 
 # ── v4.3.2 [M3 补丁·硬伤3修正]: probe 后按实际 alive 重算限流三字段 (防 RPM 配额虚高) ──
 # 病灶: M1 公式(行165-171)在 probe(行609)之前跑过, _ALIVE_KEYS 当时=NIM_KEYS 全量(含死 key).

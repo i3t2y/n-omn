@@ -625,7 +625,12 @@ probe_nim_keys_real() {
   local _probe_concurrency="${NIM_PROBE_CONCURRENCY:-3}"
   [ "$_probe_concurrency" -lt 1 ] 2>/dev/null && _probe_concurrency=1
   [ "$_probe_concurrency" -gt 3 ] 2>/dev/null && _probe_concurrency=3
-  echo "[init] probe_nim_keys_real: 并发$_probe_concurrency 探活 NIM keys via POST /v1/chat/completions (model=$_probe_model, timeout=${_PROBE_TIMEOUT}s/key, 403→dead, 余→alive fail-open, 000→30s 重试)..."
+  # X2.1 重试闸 (2026-07-31 boot 真根①): 000 重试主进程串行 30s×N 卡死慢启(~2.5分). 默 0 跳重试
+  #   (首发 000 直接 fail-open alive, NVCF 冷启热身非 key 死, runtime LocalHealthCheck 60s tick 兜底真死 key).
+  #   =1 保留旧重试 (二次 30s 宽超时判 403 真死 / 余 alive, 但 30s×重试数串行慢).
+  local _retry_enabled="${NIM_PROBE_RETRY_ENABLED:-0}"
+  local _retry_tag="重试闸${_retry_enabled}"; [ "$_retry_enabled" = "1" ] && _retry_tag="重试开(000→30s二次)" || _retry_tag="重试关(000→alive)"
+  echo "[init] probe_nim_keys_real: 并发$_probe_concurrency 探活 NIM keys via POST /v1/chat/completions (model=$_probe_model, timeout=${_PROBE_TIMEOUT}s/key, 403→dead, 余→alive fail-open, $_retry_tag)..."
   # POST 探活体 (max_tokens=1 最小推理, jq 安全拼参防注入): 2026-07-21 事件签名 = POST 推理 403, 故必须打推理端.
   local _probe_body
   _probe_body=$(jq -nc --arg m "$_probe_model" '{model:$m, messages:[{role:"user", content:"hi"}], max_tokens:1}')
@@ -665,7 +670,9 @@ probe_nim_keys_real() {
     fi
     [ -z "$_ph" ] && _ph="000"
     printf '%s' "$_ph" > "$_pdir/${_pidx}.result"
-    [ "$_pverbose" = "1" ] && [ -n "$_pv_out" ] && printf '%s' "$_pv_out" > "$_pdir/${_pidx}.verbose"
+    # §2 secrets: verbose 段含 Authorization: Bearer <key> 明文回显 (curl -v 2>&1), 推 Dataset 前剥明文 (boot 02:50 暴露病根②).
+    #   sed 剥全 key → <REDACTED>, 保前缀供排障 (鉴权头存在性可见, 值不可见). 同 omn_redact 类C Bearer 正则.
+    [ "$_pverbose" = "1" ] && [ -n "$_pv_out" ] && printf '%s' "$_pv_out" | sed -E 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._\-]+/\1<REDACTED>/gi' > "$_pdir/${_pidx}.verbose"
   }
   # 分批并发:
   local _i=0
@@ -710,26 +717,33 @@ probe_nim_keys_real() {
           # 000 = transport error/超时/HF ingress 冷启抖. 单次易误判, 补一次 30s 宽超时重试 (K3 2026-07-25 ②钉点2):
           #   二次 403 → 真 AUTH_DEAD; 二次 200/429/4xx5xx → fail-open alive; 二次仍 000 → fail-open alive (boot 抖动不放大全停).
           #   限 000 一类 (403/429/2xx 已是有效响应, 不重试). 重试亦并发挂本批最后槽 (占用已空槽, 不增总并发).
-          echo "[init] probe key#${_idx}: HTTP 000 → 重试 (30s 宽超时)"
-          local _rb _rh
-          if [ "$_verbose_mode" = "1" ]; then
-            _rb=$(curl -s -v -m 30 -w $'\n%{http_code}' -X POST \
-              "$NVIDIA_BASE_URL/v1/chat/completions" \
-              -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
-              -d "$_probe_body" 2>&1 || printf '\n000')
-            echo "[init] probe key#${_idx} 重试 VERBOSE: " >&2; printf '%s' "$_rb" >&2
+          # X2.1 (2026-07-31 boot 真根①): NIM_PROBE_RETRY_ENABLED 默 0 跳重试 — 主进程串行 30s×N 慢启病根根除,
+          #   首发 000 = NVCF 冷启热身非 key 死 (verbose 坐实), fail-open alive 入池, runtime LocalHealthCheck 兜底真死.
+          if [ "$_retry_enabled" = "1" ]; then
+            echo "[init] probe key#${_idx}: HTTP 000 → 重试 (30s 宽超时, NIM_PROBE_RETRY_ENABLED=1)"
+            local _rb _rh
+            if [ "$_verbose_mode" = "1" ]; then
+              _rb=$(curl -s -v -m 30 -w $'\n%{http_code}' -X POST \
+                "$NVIDIA_BASE_URL/v1/chat/completions" \
+                -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
+                -d "$_probe_body" 2>&1 || printf '\n000')
+              echo "[init] probe key#${_idx} 重试 VERBOSE: " >&2; printf '%s' "$_rb" | sed -E 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._\-]+/\1<REDACTED>/gi' >&2
+            else
+              _rb=$(curl -s -m 30 -w $'\n%{http_code}' -X POST \
+                "$NVIDIA_BASE_URL/v1/chat/completions" \
+                -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
+                -d "$_probe_body" 2>/dev/null || printf '\n000')
+            fi
+            _rh=$(printf '%s' "$_rb" | tail -n1); [ -z "$_rh" ] && _rh="000"
+            case "$_rh" in
+              403) echo "[init] probe key#${_idx}: 重试 HTTP 403 → AUTH_DEAD (账户级死, 入 auth_dead)"; AUTH_DEAD_KEYS+=("$_rkey"); _PROBE_DEAD=$((_PROBE_DEAD+1)) ;;
+              000) echo "[init] probe key#${_idx}: 重试仍 000 → alive (fail-open, 瞬态抖动不放大)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
+              *) echo "[init] probe key#${_idx}: 重试 HTTP $_rh → alive (fail-open, 非账户级死)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
+            esac
           else
-            _rb=$(curl -s -m 30 -w $'\n%{http_code}' -X POST \
-              "$NVIDIA_BASE_URL/v1/chat/completions" \
-              -H "Authorization: Bearer $_rkey" -H 'Content-Type: application/json' \
-              -d "$_probe_body" 2>/dev/null || printf '\n000')
+            echo "[init] probe key#${_idx}: HTTP 000 → alive (fail-open, 重试闸关; NVCF 冷启热身非 key 死)"
+            _PROBE_ALIVE=$((_PROBE_ALIVE+1))
           fi
-          _rh=$(printf '%s' "$_rb" | tail -n1); [ -z "$_rh" ] && _rh="000"
-          case "$_rh" in
-            403) echo "[init] probe key#${_idx}: 重试 HTTP 403 → AUTH_DEAD (账户级死, 入 auth_dead)"; AUTH_DEAD_KEYS+=("$_rkey"); _PROBE_DEAD=$((_PROBE_DEAD+1)) ;;
-            000) echo "[init] probe key#${_idx}: 重试仍 000 → alive (fail-open, 瞬态抖动不放大)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
-            *) echo "[init] probe key#${_idx}: 重试 HTTP $_rh → alive (fail-open, 非账户级死)"; _PROBE_ALIVE=$((_PROBE_ALIVE+1)) ;;
-          esac
           ;;
         *)
           # 4xx(非403)/5xx/超时 → fail-open 判活 (boot 抖动不放大全停; 瞬态故障运行时熔断兜底)

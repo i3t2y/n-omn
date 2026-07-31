@@ -672,7 +672,10 @@ probe_nim_keys_real() {
     printf '%s' "$_ph" > "$_pdir/${_pidx}.result"
     # §2 secrets: verbose 段含 Authorization: Bearer <key> 明文回显 (curl -v 2>&1), 推 Dataset 前剥明文 (boot 02:50 暴露病根②).
     #   sed 剥全 key → <REDACTED>, 保前缀供排障 (鉴权头存在性可见, 值不可见). 同 omn_redact 类C Bearer 正则.
-    [ "$_pverbose" = "1" ] && [ -n "$_pv_out" ] && printf '%s' "$_pv_out" | sed -E 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._\-]+/\1<REDACTED>/gi' > "$_pdir/${_pidx}.verbose"
+    # verbose 段写可选; || true 兜子shell最后退出码: _pverbose=0 时 [...] test 返 exit 1 → 子shell退出码 1
+    #   → 主循环 L692 裸 wait "$_p" 收 1 → set -e 杀 init → container exit 1 (boot 05:24/05:25 崩真根).
+    #   || true 强制 exit 0 覆盖 test 失败/printf 满足两态均不阻.
+    [ "$_pverbose" = "1" ] && [ -n "$_pv_out" ] && printf '%s' "$_pv_out" | sed -E 's/(Authorization:[[:space:]]*Bearer[[:space:]]+)[A-Za-z0-9._\-]+/\1<REDACTED>/gi' > "$_pdir/${_pidx}.verbose" || true
   }
   # 分批并发:
   local _i=0

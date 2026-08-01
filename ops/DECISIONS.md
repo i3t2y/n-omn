@@ -71,4 +71,35 @@
 
 **关联**: [[storage-bucket-dataset-结合堪察]] §12 单择 + §11 热件双路 + audit/2026-07-28-storage-bucket-勘察.md。
 
+---
+
+## 2026-08-01 · save 七源分类生效闭环 + 归档机制落地 + R2 endpoint 脱敏扩
+
+**状态**: 全闭环 (本地改完待 push nomn 触 CI 同步 Dataset).
+
+### A. save capture 七源分类生效闭环 (圣上 2026-07-30/08-01 终极旨链)
+继 2026-07-29 路一单件 + 2026-08-01 全析 2289 件 + 删, 发现 capture 漏两源 (entrypoint 本体编排日志旧只入 PID1 stdout 30min 焚; litestream stderr 旧与 entrypoint 混 PID1 stdout)。
+- `entrypoint.sh`: DATA_DIR export 后加 `exec > >(tee -a "$_EP_LOG_RAW") 2>&1` 全进程重定向落 `omn-raw/entrypoint.log` (`:> ` boot 前截断归零免跨 boot 累计); litestream 段加 `_LS_LOG_RAW` 隔离 stderr `>>"$_LS_LOG_RAW" 2>&1 &`.
+- `omn_scheduler.py`: L63 `_ARCHIVE_PREFIXES` 四→六源加 entrypoint+litestream; `capture_stdout()` 五源尾追加两 `_capture_one`.
+- commit 35f08df push nomn `a80d335..35f08df`, CI sync-logic-nonoke 同步 Dataset (HEAD=f3000fb497b8 → 6f08fddd421d).
+
+**2026-08-01 10:29 restart dev 真验全闭环** (圣上准拉现役 save/*.log 167 件析毕 → 远程 DELETE 删):
+- **六源分类生效铁证**: 子目录 4 段件 32 件 (app 7/entrypoint 7/ft 4/gate 5/init 2/litestream 7) 北京时间 `YYYYMMDD_HHMMSS_<epoch>.log` 格式 epoch 递增全活。根平铺 135 件 (3 段 `<prefix>_<epoch>` 旧格式) epoch 17:08~18:29 = 前轮旧代码期残留非本轮新出; 子目录 epoch 18:29:53~18:38:53 = 本轮新代码期。**分水岭**: 根最晚 18:29:02 (boot-40s) → 子最早 18:29:53 (boot+11s), boot 瞬间新代码切换零混入。
+- **boot race 1 次** = 预期非病: `No credentials for nvidia`@10:29:57.560 (probe key#6 窗口期内 providers nim-01 未注册完) → 10:30:27 恢复 `Using nvidia account: 6a7e0997`。同 [[save-log-analysis-2026-08-01]] 钉同链。
+- **真 chat 闭环 6 次**: account p2c 轮换正常 (6a7e0997/160b719d/0f08b327/56844feb/a03b6766/2f562ab8/8fc989e6/aa7a9a8c/f0ca064d) USAGE+STREAM complete 全绿。
+- **唯一 ERROR**: litestream restore rc=1 空库 `database not found in config` = [[omn-v30-logic-litestream-replicate-contract]] v0.5.9 -config 已知既定非新病, fail-open 空库后续 `detected database behind replica` 自愈。
+- **删后残余**:DECISIONS commit c86bf015 (delete_files glob 扫 save/* 与六子目录) 删 save/*.log 190 件 (删除中又新 23), 留 6 json 快照 (combos/init_vars/keys/omni_config/providerConnections/settings).
+
+### B. 日志归档机制 (圣上 2026-08-01 令治私库 100GB 硬限, 已 push a80d335)
+方案 A 保留现架构: 7 天前旧日志按源分四包 tar.gz 推**新账号私库** (replaceable 满换库无所谓), 推成功后才 delete_files 删原库腾空间。
+- `omn_scheduler.py` +5 段 append 0 改现役: 新 ENV 块 5 个 (`OMN_LOG_ARCHIVE` 总闸默 1 / `OMN_LOG_ARCHIVE_REPO` 新私库 / `OMN_LOG_ARCHIVE_TOKEN` 新号独立 token / `OMN_LOG_ARCHIVE_DAYS` 默 7 / `OMN_ARCHIVE_INTERVAL` 默 3600s)。换库只改两 Secret 零代码改。
+- `_archive_loop` daemon 1h 查 + `_do_archive` fail-safe 铁闸 (推成功才删, 幂等去重列归档库查已归档跳推只删原件, 任一步失败 except continue 不删下次重试)。import tarfile+tempfile+shutil 标准库零新依赖。
+- **圣上侧前置 (零代码依赖)**: 新号建 HF 私库 + write token → 入 Space Secrets (OMN_LOG_ARCHIVE_REPO+TOKEN) → restart 真验归档 daemon 启 + 1h 后查远程→save/ 旧件删 + archive/app/tar.gz 出现。
+
+### C. omn_redact 默 6→7 扩 R2 endpoint 脱敏 (本轮 litestream 件隐私面)
+- litestream 件含 `endpoint=https://<32hex>.r2.cloudflarestorage.com` = Cloudflare R2 account-id hash。**非签字凭** (S3 签字用 access-key-id+secret-key 在 Authorization header 非 endpoint; account-id 单独不操作 bucket), 且 repo private 风险本低。但留私库非最佳, 圣上准扩。
+- `omn_redact.py` DEFAULT_PATTERNS 第 7 条 `r'(endpoint=https?://)[A-Za-z0-9._-]+\.r2\.cloudflarestorage\.com'` — 捕前缀 `endpoint=https://` + 替 host 段为 `<REDACTED>`。余 6 不退, ENV 覆盖非追加语义不变。验通 (真测 R2 明文→脱敏 + 大写 STORAGE 不匹正常 + ENV 设仍覆盖非追加)。
+
+**关联**: [[save-log-full-arch-landed]] [[save-log-analysis-2026-08-01]] [[log-archive-to-new-private-repo-landed]] [[omn-永续日志架构-landed]] [[omn-v30-logic-litestream-replicate-contract]]。
+
 <!-- 旧决策回填区 (待圣上令, 散落 audit/ / ops/incidents/ / ops/STATUS.md 段内未迁入) -->

@@ -11,9 +11,12 @@
 import os
 import re
 
-# ── 硬默认六正则 (现役 init:976-980 五条 + secret-scan PSK 头类) ──
-#   捕获组形式: 保留前缀 (Authorization: Bearer / NIM_KEY= 等) + 替后段为 <REDACTED>.
+# ── 硬默认七正则 (现役 init:976-980 五条 + secret-scan PSK 头类 + R2 endpoint) ──
+#   捕获组形式: 保留前缀 (Authorization: Bearer / NIM_KEY= / endpoint= 等) + 替后段为 <REDACTED>.
 #   与 init:975-981 sed -E 's/(前缀)[模式]/\1<REDACTED>/g' 语义对等 (python re.sub \\1 == sed \\1).
+#   第7条 R2 endpoint: litestream日志含 `endpoint=https://<32hex>.r2.cloudflarestorage.com`
+#   = Cloudflare R2 account-id hash (非签字凭, S3签字用access-key-id+secret-key在Authorization
+#   header非endpoint; 但account-id可关联bucket =隐私面, repo虽private仍扫入默). 捕前缀 endpoint= + #替host段.
 DEFAULT_PATTERNS = [
     r'(Authorization:[ \t]*Bearer[ \t]+)[A-Za-z0-9._\-]+',   # init:976
     r'(NIM_KEY=|nvapi-)[A-Za-z0-9._\-]+',                    # init:977
@@ -21,6 +24,7 @@ DEFAULT_PATTERNS = [
     r'(Set-Cookie:[ \t]+)[^ \t]+',                           # init:979
     r'(Bearer )[A-Za-z0-9._\-]+',                           # init:980
     r'(X-Internal-PSK["\']?\s*[:=]\s*["\']?)[A-Za-z0-9_\-]+',  # secret-scan PSK 头类
+    r'(endpoint=https?://)[A-Za-z0-9._-]+\.r2\.cloudflarestorage\.com',  # R2 account-id hash (2026-08-01 litestream件隐私面)
 ]
 REPLACEMENT = r'\1<REDACTED>'
 

@@ -1081,9 +1081,13 @@ hf_snapshot() {
   #   本地滚动清理：只保留最近 NIM_DEBUG_LOG_KEEP(默认5) 个。
   if [ "$NIM_MODE" = "DEBUG" ] && [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
     local _keep=${NIM_DEBUG_LOG_KEEP:-5}
-    local _dbg="$BACKUP_DIR/debug_$(basename "$INIT_LOG" | sed 's/^init_//')"
+    # debug 件入 save/debug/ 子目录 (非根平铺) → upload_folder 摊平保子目录 →
+    #   save/debug/<stamp>.log parts=3 进 omn_scheduler _do_archive 归档流 (圣上 2026-08-01 准 debug 入归档).
+    #   原根平铺 save/debug_*.log parts=2 被归档结构闸跳 = 永不归档; 改子目录后与其他六源同构可归档可删.
+    mkdir -p "$BACKUP_DIR/debug" 2>/dev/null || true
+    local _dbg="$BACKUP_DIR/debug/debug_$(basename "$INIT_LOG" | sed 's/^init_//')"
     cp -f "$INIT_LOG" "$_dbg" 2>/dev/null \
-      && echo "[init] snapshot: 附带 DEBUG log -> debug_$(basename "$INIT_LOG" | sed 's/^init_//')" \
+      && echo "[init] snapshot: 附带 DEBUG log -> debug/debug_$(basename "$INIT_LOG" | sed 's/^init_//')" \
       || echo "[init] snapshot: WARN 复制 DEBUG log 失败，跳过。"
     # 字段级脱敏 (红线1 动态: 不上传凭据明文)
     if [ -f "$_dbg" ]; then

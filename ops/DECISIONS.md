@@ -103,3 +103,33 @@
 **关联**: [[save-log-full-arch-landed]] [[save-log-analysis-2026-08-01]] [[log-archive-to-new-private-repo-landed]] [[omn-永续日志架构-landed]] [[omn-v30-logic-litestream-replicate-contract]]。
 
 <!-- 旧决策回填区 (待圣上令, 散落 audit/ / ops/incidents/ / ops/STATUS.md 段内未迁入) -->
+
+## 2026-08-01 · omn_scheduler.py 归档结构假设错病根 (`parts != 4` 全杀零归档)
+
+**背景**: 圣上侧配齐 `OMN_LOG_ARCHIVE_DAYS=0`+`OMN_ARCHIVE_INTERVAL=60`+三核心 ENV (`OMN_LOG_ARCHIVE_REPO`=`nokebak/log`+`OMN_LOG_ARCHIVE_TOKEN`+`OMN_LOG_ARCHIVE=1`), 4 回重启 (11:41/12:05/...) 后归档库 `nokebak/log` **零压缩包出** + 源库 `nonoke/omn-logic` save/ 当日 217 件 **零删**。圣上直接判"归档删除根本没生效"。
+
+**病根 (本地源库真件实测钉死)**: `omn_scheduler.py` `_do_archive` 原行 hard gate
+```python
+if len(parts) != 4 or parts[0] != "save" or parts[2] not in _ARCHIVE_PREFIXES:
+    continue
+fname = parts[3]
+```
+假设 **四段** `save/<prefix>/<sub>/<fname>`, 但 capture L155 真出件 **三段** `save/<prefix>/<stamp>_<epoch>.log` (parts=3)。源库 273 件实测: `parts=2` (10 件 json) + `parts=3` (263 件 log), **零件 `parts=4`**。`!= 4` 全杀 → 零件命中 → daemon 空转 → `delete_files([])` noop → 4 回零归档。原 L270 注释自写"非 `save/<prefix>/<fname>` 结构 parts≠4 自动跳"暴露作者脑中误嵌套四段, 实三段。**非 capture 改结构, 是归档代码 from inception 结构假设错, 永未真验** (会落模拟验证只测 cutoff 字符串比较逻辑, 未跑真件 parts 数 → 结构 gate 错直通验前未捕)。
+
+**治法 (commit 待 push)**: dev/logic/omn_scheduler.py L267-273 改
+```python
+if len(parts) != 3 or parts[0] != "save" or parts[1] not in _ARCHIVE_PREFIXES:
+    continue  # 非 save/<prefix>/<fname> 三段结构 (快照 json 根平铺 parts=2, debug 根平铺 parts=2 自动跳)
+fname = parts[2]
+```
+`!= 4`→`!= 3`, prefix 索引 `parts[2]`→`parts[1]`, fname `parts[3]`→`parts[2]`。
+
+**验证 (本地)**: `py_compile` exit 0。模拟真件 DAYS=0 cutoff=今日 → **263 件全命中六 prefix 全覆盖** (app59/entrypoint59/ft36/gate40/init8/litestream61) + 10 件 json 正确结构跳。修前 hit=0 全杀, 修后 hit=263 全活。
+
+**debug 件裁决 (圣上问)**: debug 件 `save/debug_*.log` 根平铺 parts=2 → 结构 gate 跳 → **永不被归档 / 不删 / 不移入归档库**。三段判距 false-safe: debug 件保护性排除, 不入归档流。
+
+**教训红线**: 归档/删除类 silent daemon 代码 "模拟验证" 仅测核心逻辑 (cutoff 字符串比较) 不够 → **必跑真件 + 真 parts 数 + 真删可见** 验结构 gate。静默 daemon 无 print/log 出件, 唯一观测面 = 远程库件数变化 (源库降 + 归档库升), 零变即病。print 加诊断 stub 留下轮观测。
+
+**关联**: [[log-archive-to-new-private-repo-landed]] [[save-log-full-arch-landed]] [[omn-永续日志架构-landed]]。
+
+<!-- 旧决策回填区 (待圣上令, 散落 audit/ / ops/incidents/ / ops/STATUS.md 段内未迁入) -->

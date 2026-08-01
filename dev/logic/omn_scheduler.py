@@ -18,6 +18,7 @@
 """
 import os
 import sys
+import re
 import time
 import json
 import signal
@@ -59,9 +60,10 @@ ARCHIVE_TOKEN = os.environ.get("OMN_LOG_ARCHIVE_TOKEN", "").strip()
 ARCHIVE_DAYS = int(os.environ.get("OMN_LOG_ARCHIVE_DAYS", "7"))
 # 归档线程轮询间隔秒 (独立 daemon, 不挂 capture_loop). 默 3600s (1h).
 ARCHIVE_INTERVAL = int(os.environ.get("OMN_ARCHIVE_INTERVAL", "3600"))
-# 归档源 prefix 固定六源 (与 capture_loop 一致, 不复用 _capture_one 字面量防漂移)
+# 归档源 prefix 固定七源 (与 capture_loop 一致, 不复用 _capture_one 字面量防漂移)
 # (2026-08-01 圣上千补: entrypoint + litestream 两源加入归档扫源, 免7天后仍占私库空间)
-_ARCHIVE_PREFIXES = ("gate", "ft", "app", "init", "entrypoint", "litestream")
+# (2026-08-01 圣上再令: debug 件入 save/debug/ 子目录后同构, 加入归档流可删可移归档库)
+_ARCHIVE_PREFIXES = ("gate", "ft", "app", "init", "entrypoint", "litestream", "debug")
 
 # ── 路径 (staging 付给 scheduler 的 working tree) ──
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
@@ -266,15 +268,23 @@ def _do_archive():
     by_prefix_date = {p: {} for p in _ARCHIVE_PREFIXES}
     for rf in all_files:
         parts = rf.split("/")
-        if len(parts) != 4 or parts[0] != "save" or parts[2] not in _ARCHIVE_PREFIXES:
-            continue  # 非 save/<prefix>/<fname> 结构 (快照 json 件 parts 长度≠4, 自动跳)
-        fname = parts[3]
-        if not (len(fname) >= 8 and fname[:8].isdigit() and fname.endswith(".log")):
+        # capture L155 真出件三段: save/<prefix>/<stamp>_<epoch>.log (parts=3).
+        # (原误判四段 len!=4 全杀致零归档, 2026-08-01 圣上 4回重启零删钉病根)
+        if len(parts) != 3 or parts[0] != "save" or parts[1] not in _ARCHIVE_PREFIXES:
+            continue  # 非 save/<prefix>/<fname> 结构 (快照 json 根平铺 parts=2, debug 根平铺 parts=2 自动跳)
+        fname = parts[2]
+        if not fname.endswith(".log"):
             continue  # 非日志件 (快照 .json 不动)
-        date_str = fname[:8]  # YYYYMMDD 北京时间 (capture L134 用 _BJ_TZ 写名)
+        # 日期提取兼容两构: 六源 plain `YYYYMMDD_...` (首8位纯数字) +
+        #   debug `debug_YYYYMMDD_...` (debug_ 前缀, 圣上 2026-08-01 准 debug 入归档).
+        #   原仅 fname[:8].isdigit() 杀 debug 前缀 -> debug 件零归档零删 (复 parts!=4 同源逻辑遗漏).
+        m = re.search(r"(\d{8})_", fname)
+        if not m:
+            continue  # 无 YYYYMMDD_ 段 (非日志名规) 跳
+        date_str = m.group(1)  # YYYYMMDD 北京时间 (capture L134 写名 + init debug_ 前缀同源 _BJ_TZ)
         if date_str > cutoff:
             continue  # 窗内新件不动 (≤ cutoff 才归档)
-        by_prefix_date[parts[2]].setdefault(date_str, []).append(rf)
+        by_prefix_date[parts[1]].setdefault(date_str, []).append(rf)
     # 去重: 一次性列归档库全件 (省 API), 查已归档日期集
     try:
         archived = set(dst_api.list_repo_files(ARCHIVE_REPO, repo_type="dataset", token=ARCHIVE_TOKEN))
@@ -316,9 +326,12 @@ def _do_archive():
                             commit_message=f"archive {prefix} {date_str} ({len(file_paths)} logs)",
                         )
                 # 推成功 (或已归档证 already=True) 后才删原库该日该 prefix 全件 — 铁闸
+                # pattern `*{date_str}_*.log`: `*` 前缀通配兼容两构 —
+                #   六源 plain `20260801_*.log` (*匹空) + debug `debug_20260801_*.log` (*匹 debug_).
+                #   fnmatch `*{date_str}_` 要求紧接日期段, 他日件 (20260802_) 不含本日段不匹, 安全.
                 src_api.delete_files(
                     repo_id=OMN_DATASET_REPO,
-                    delete_patterns=[f"save/{prefix}/{date_str}_*.log"],
+                    delete_patterns=[f"save/{prefix}/{date_str}_*.log", f"save/{prefix}/*{date_str}_*.log"],
                     repo_type="dataset", token=HF_TOKEN,
                     commit_message=f"archive: purge {prefix} {date_str} (archived to {ARCHIVE_REPO})",
                 )

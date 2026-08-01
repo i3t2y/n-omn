@@ -59,8 +59,9 @@ ARCHIVE_TOKEN = os.environ.get("OMN_LOG_ARCHIVE_TOKEN", "").strip()
 ARCHIVE_DAYS = int(os.environ.get("OMN_LOG_ARCHIVE_DAYS", "7"))
 # 归档线程轮询间隔秒 (独立 daemon, 不挂 capture_loop). 默 3600s (1h).
 ARCHIVE_INTERVAL = int(os.environ.get("OMN_ARCHIVE_INTERVAL", "3600"))
-# 归档源 prefix 固定四源 (与 capture_loop 一致, 不复用 _capture_one 字面量防漂移)
-_ARCHIVE_PREFIXES = ("gate", "ft", "app", "init")
+# 归档源 prefix 固定六源 (与 capture_loop 一致, 不复用 _capture_one 字面量防漂移)
+# (2026-08-01 圣上千补: entrypoint + litestream 两源加入归档扫源, 免7天后仍占私库空间)
+_ARCHIVE_PREFIXES = ("gate", "ft", "app", "init", "entrypoint", "litestream")
 
 # ── 路径 (staging 付给 scheduler 的 working tree) ──
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
@@ -157,11 +158,14 @@ def _capture_one(raw_path, out_prefix):
 
 
 def capture_stdout():
-    """三源 (gate/ft/app) raw 尾追 → redact → 写 staging 出件 (推 save).init.log 由 capture_init 单独接 (类 C)."""
+    """五源 (gate/ft/app/entrypoint/litestream) raw 尾追 → redact → 写 staging 出件 (推 save).init.log 由 capture_init 单独接 (类 C)."""
     # gate stderr (logGate JSON) · ft (Go 半结构) · app (上游 structured JSONL) 三源均落 RAW_DIR
     _capture_one(RAW_DIR / "gate-stderr.log", "gate")
     _capture_one(RAW_DIR / "flaretunnel.log", "ft")
     _capture_one(RAW_DIR / "app.log", "app")
+    # (2026-08-01 圣上令补) 第6-7源: entrypoint boot 编排真相 + litestream R2 复制链. 两源 entrypoint.sh tee >>raw + replicate >>raw 落 omn-raw, 经 omn_redact 兜脱敏后入 save.
+    _capture_one(RAW_DIR / "entrypoint.log", "entrypoint")
+    _capture_one(RAW_DIR / "litestream.log", "litestream")
 
 
 def capture_init():

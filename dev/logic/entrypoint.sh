@@ -15,6 +15,16 @@ EXPOSED_PORT="${EXPOSED_PORT:-7860}"
 # 默认 /app/data = 上游镜像固设 DATA_DIR (3.8.43 基线); env 可改
 DATA_DIR="${DATA_DIR:-/app/data}"
 export DATA_DIR   # 须 export: init/scheduler 子进程须见同值 (_raw 路径两端对齐, 否子进程回默认 /data 歧义)
+
+# ── boot 编排日志全段落 raw (2026-08-01 圣上令补: entrypoint 本体 echo 全进 PID1 stdout 今丢, 补) ──
+#   [entrypoint] 编排真相(健康等待/各进程 PID/FATAL/gate依赖装/启动顺序)经 capture_loop 第6源入 save.
+#   omni-raw 须在 scheduler STAGING 外 (防明文混入 save): 同 RAW_DIR, omn_redact 兜脱敏后写 staging 推 save.
+#   tee 双路: 同时留 PID1 stdout 供 HF Space runtime logs 看 (窗外即焚的前置应急).
+_EP_LOG_RAW="${DATA_DIR}/omn-raw/entrypoint.log"
+mkdir -p "$(dirname "$_EP_LOG_RAW")" 2>/dev/null || true
+: > "$_EP_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零, 与 litestream.log 同), capture_loop offset 按 path 重置免跨 boot 重复推
+exec > >(tee -a "$_EP_LOG_RAW") 2>&1
+echo "[entrypoint] boot 编排日志 tee -> $_EP_LOG_RAW (_raw → capture_loop entrypoint 源 → omn_redact → save/entrypoint/)"
 DB_PATH="$DATA_DIR/storage.sqlite"
 DB_TMP="$DATA_DIR/.storage.sqlite.restore.$$"   # 临时恢复路径 (原子保护)
 LOCK_FILE="$DATA_DIR/.omniroute.lock"
@@ -300,8 +310,13 @@ fi
 #   传 $DB_PATH 位置参数会命中 case 1 → "must specify at least one replica URL" 报错.
 #   db 路径已在 /logic/litestream.yml 的 dbs[].path 内定义, 命令行不可再传.
 if [ "$has_r2" = 1 ] && [ -f /logic/litestream.yml ]; then
-  litestream replicate -config /logic/litestream.yml & LS_PID=$!
-  echo "[entrypoint] Litestream PID=$LS_PID"
+  # (2026-08-01 圣上令补) litestream stderr 重定向入 raw → capture_loop 第7源入 save.
+  # R2 复制链故障(compaction txid gap/proxy_breaker/replica断代)判据今丢, 补. 与 entrypoint 源同落 omn-raw.
+  _LS_LOG_RAW="${DATA_DIR}/omn-raw/litestream.log"
+  mkdir -p "$(dirname "$_LS_LOG_RAW")" 2>/dev/null || true
+  : > "$_LS_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零), omn-raw 同名件 capture_loop offset 重置
+  litestream replicate -config /logic/litestream.yml >>"$_LS_LOG_RAW" 2>&1 & LS_PID=$!
+  echo "[entrypoint] Litestream PID=$LS_PID (stderr→$_LS_LOG_RAW, capture_loop litestream 源 → save/litestream/)"
 fi
 
 echo "[entrypoint] 全部就绪：OR=$OR_PID Init=${INIT_PID:-无} LS=${LS_PID:-无} Gate→:$EXPOSED_PORT (background, entrypoint 持 PID 1 主监)"

@@ -12,10 +12,6 @@
 拉起: entrypoint.sh `python3 /logic/omn_scheduler.py &` (复用现役 daemon 模式).
 停: SIGTERM/SIGINT -> scheduler.__exit__ (trigger 最后 upload + stop), capture daemon daemon 自然随主退.
 
-保留未启用链 (圣上裁砍七成, 留代码将来多人启):
-  db 快照 (capture_db): litestream 已复制整个 storage.sqlite, scheduler 重复.
-  路2加密 (EncryptedScheduler): 2026-07-31 移除 (圣上裁路2 降级死代码, omn_encrypt.py 整件移出).
-
 依赖:
   - huggingface_hub (start.sh:32 自愈装, 区间 >=1.0,<2.0)
   - omn_redact      (同目录 omn_redact.py, PYTHONPATH=/logic; 默6正则可 ENV REDACT_PATTERNS 覆盖动态调)
@@ -25,10 +21,17 @@ import sys
 import time
 import json
 import signal
-import sqlite3
 import threading
 import subprocess
+import tarfile
+import tempfile
+import shutil
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
+# 北京时间 (UTC+8) 显式构造, 不靠 TZ env 防漂移 (Space 默认时区不定).
+# save/ 子目录内件名用可读北京时间标 + 尾 epoch 防同秒多件覆盖.
+_BJ_TZ = timezone(timedelta(hours=8))
 
 # PYTHONPATH 含本目录能 import omn_redact
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -45,6 +48,20 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 # ── 总闸 (圣旨 D): 默1 推 save; =0 关全数据收集层让性能 (桥/gate/init/上游业务零感知) ──
 LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
 
+# ── 归档 ENV (圣上令 2026-08-01: 7天前旧日志按源分四包 tar.gz 推新账号私库, 推成功后删原库腾空间) ──
+# 总闸: 默1 启归档线程; =0 关. 挂在 LOG_TO_DATASET 总闸之下 (私库都关了归档无意义, 不抢资源).
+ARCHIVE_ENABLED = os.environ.get("OMN_LOG_ARCHIVE", "1") == "1"
+# 新私库 repo_id (圣上新账号, replaceable 满换库只改此 Secret). 空 -> skip 整归档线程.
+ARCHIVE_REPO = os.environ.get("OMN_LOG_ARCHIVE_REPO", "").strip()
+# 新私库 write token (新账号独立 token, 不复用 HF_TOKEN). 空 -> skip.
+ARCHIVE_TOKEN = os.environ.get("OMN_LOG_ARCHIVE_TOKEN", "").strip()
+# 归档天数窗: 默7 (7天前日志归档). 用 _BJ_TZ 北京时间判 (防 system TZ 漂移).
+ARCHIVE_DAYS = int(os.environ.get("OMN_LOG_ARCHIVE_DAYS", "7"))
+# 归档线程轮询间隔秒 (独立 daemon, 不挂 capture_loop). 默 3600s (1h).
+ARCHIVE_INTERVAL = int(os.environ.get("OMN_ARCHIVE_INTERVAL", "3600"))
+# 归档源 prefix 固定四源 (与 capture_loop 一致, 不复用 _capture_one 字面量防漂移)
+_ARCHIVE_PREFIXES = ("gate", "ft", "app", "init")
+
 # ── 路径 (staging 付给 scheduler 的 working tree) ──
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 STAGING = DATA_DIR / "omn-sched"
@@ -53,12 +70,11 @@ STDOUT_STAGING = STAGING               # 路1 明文 JSONL staging (摊平, .log
 #   _raw 若在其下 → 明文 raw (gate/ft/app/init 未脱敏) 混入 save = 圣旨脱敏漏泄.
 #   故 raw 区独立分目录, scheduler 上传不触及, capture_loop 读 raw → omn_redact → 写 STDOUT_STAGING.
 RAW_DIR = DATA_DIR / "omn-raw"          # 四源 raw 临时区: 明文原态, capture_loop 尾追脱敏后写 STDOUT_STAGING (不进 save)
-DB_STAGING = STAGING / "db"           # db JSON staging [未调]
 GATE_STDERR = Path(os.environ.get("OMN_GATE_STDERR", str(RAW_DIR / "gate-stderr.log")))
 
 # mkdir 延迟到 main/capture 调用时 (import 无副作用, 本地无 /data 权限不崩)
 def _ensure_dirs():
-    for d in (STDOUT_STAGING, RAW_DIR, DB_STAGING):
+    for d in (STDOUT_STAGING, RAW_DIR):
         try:
             d.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -89,7 +105,7 @@ OMN_REDACT = _try_import()
 # 路2 砍七成降级后 EncryptedScheduler 从未实例化 (main 内路1+db 主链), 属死代码.
 # 私库只圣读 + litestream 已复制 storage.sqlite = 加密冗余, 圣上 2026-07-29 裁降级砍.
 # 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 ops/DECISIONS.md.
-from huggingface_hub import CommitScheduler
+from huggingface_hub import CommitScheduler, HfApi, hf_hub_download
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -127,11 +143,15 @@ def _capture_one(raw_path, out_prefix):
     _CAPTURE_OFFSETS[str(raw_path)] = cur_size
     if not chunk.strip():
         return False
-    ts = int(time.time())
+    t_epoch = int(time.time())
     red = OMN_REDACT.redact_text(chunk)
     if not red.strip():
         return False
-    out_file = STDOUT_STAGING / f"{out_prefix}_{ts}.log"
+    # save/<prefix>/北京时间_epoch.log — 分子目录治翻屏 + 可读时标 + epoch 防同秒覆盖
+    _stamp = datetime.fromtimestamp(t_epoch, _BJ_TZ).strftime("%Y%m%d_%H%M%S")
+    sub = STDOUT_STAGING / out_prefix
+    sub.mkdir(parents=True, exist_ok=True)
+    out_file = sub / f"{_stamp}_{t_epoch}.log"
     out_file.write_text(red)
     return True
 
@@ -155,42 +175,6 @@ def capture_init():
         _capture_one(p, "init")
 
 
-def capture_db():
-    """sqlite3 .dump 出 DB 表 → provider_connections del credentials → redact → db staging."""
-    db_path = DATA_DIR / "storage.sqlite"
-    if not db_path.exists():
-        return
-    if OMN_REDACT is None:
-        return
-    try:
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        # 列所有表名 (仅取业务相关 quota/usage 表, 避全库)
-        tables = [r[0] for r in cur.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-        ts = int(time.time())
-        snap = {"ts": ts, "tables": {}}
-        for t in tables:
-            try:
-                rows = cur.execute(f"SELECT * FROM {t}").fetchall()
-                cols = [d[0] for d in cur.description]
-                records = [dict(zip(cols, r)) for r in rows]
-                # provider_connections 表 del credentials 字段
-                if t == "provider_connections":
-                    for rec in records:
-                        rec.pop("credentials", None)
-                snap["tables"][t] = records
-            except Exception:
-                continue
-        conn.close()
-        text = json.dumps(snap, ensure_ascii=False, default=str)
-        text = OMN_REDACT.redact_text(text)
-        (DB_STAGING / f"db_{ts}.json").write_text(text)
-    except Exception:
-        return
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # 调度初始化 + 主循环
 # ═══════════════════════════════════════════════════════════════════════
@@ -201,8 +185,6 @@ def _start_schedulers():
       全源架构 (E 脱敏层复活): gate/ft/app/init 四源 raw 落 _raw, capture daemon 尾追+omn_redact
         脱敏后写本 staging folder, scheduler 内置线程读 folder 自动 upload (私库给 AI 分析须脱敏).
       D 总闸 OMN_LOG_TO_DATASET: 默1 推 (积累期); =0 全数据收集层停让性能 (桥/gate/init/上游零感知).
-      路2加密 (EncryptedScheduler) 2026-07-31 移除 (圣上裁路2 降级死代码, omn_encrypt.py 整件移出);
-      db (capture_db) 不实例化 (圣上裁砍七成: 私库 dbContext litestream 已复制 redundant), 留代码将来多人再启.
     """
     # D 总闸: 稳定后圣上配 OMN_LOG_TO_DATASET=0 → 全数据收集层停让性能 (不起 scheduler 不起 capture)
     if not LOG_TO_DATASET:
@@ -238,6 +220,113 @@ def _capture_loop():
         time.sleep(CAPTURE_INTERVAL)
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# 日志归档 (圣上令 2026-08-01: 7天前旧日志按源分四包推新账号私库, 推成功后删原库腾空间)
+# ═══════════════════════════════════════════════════════════════════════
+# 独立 daemon 线程, 隔离 HfApi 调用 (list/upload/download/delete 全在此线程, 不挂 capture_loop).
+# CommitScheduler 是 append-only 单向上传 (本地 staging 非远程 mirror), 删远程件必走 HfApi
+#   list_repo_files 列远程真态, 不可盲扫本地 staging (盲删会误判孤儿件). 见 ops/DECISIONS.md.
+# fail-safe 核心铁闸: 推归档库成功后才删原库件 (推失败绝删 = 丢归档). 任一步失败本轮跳过下次重试.
+def _archive_loop():
+    """独立 daemon 线程: 周期归档 7天前旧日志 → 打包 tar.gz 推新私库 → 删原库腾空间.
+
+    gate: OMN_LOG_ARCHIVE=1 AND OMN_LOG_TO_DATASET=1 AND ARCHIVE_REPO+ARCHIVE_TOKEN 非空.
+    缺任一 -> early return 不抢资源 (同 _capture_loop gate 模式). 挂 LOG_TO_DATASET 总闸下.
+    """
+    if not (ARCHIVE_ENABLED and LOG_TO_DATASET and ARCHIVE_REPO and ARCHIVE_TOKEN):
+        return
+    while True:
+        try:
+            _do_archive()
+        except Exception:
+            pass  # 归档错不阻循环 (下轮重试, fail-safe 保证不丢归档)
+        time.sleep(ARCHIVE_INTERVAL)
+
+
+def _do_archive():
+    """一轮归档: 列原库 → 按 _BJ_TZ 7天窗+prefix 分组 → 逐日打包推新库 → 推成删原.
+
+    铁闸: 推归档库成功 (或查证已归档) 后才 delete_files 删原库件. 任一步失败 -> 跳过该 prefix 该日不删.
+    幂等: 推前列归档库查 archive/<prefix>/<date>.tar.gz 已存在 -> 跳推只删原件 (已归档证).
+    """
+    src_api = HfApi(token=HF_TOKEN)        # 原库连接 (圣上现役 nonoke/omn-logic)
+    dst_api = HfApi(token=ARCHIVE_TOKEN)   # 新私库连接 (圣上新账号, 独立 token)
+    # 列原库全件 (list_repo_files 返 rfilename 全路径如 save/app/xxx.log); 网络错 -> return 不盲删
+    try:
+        all_files = src_api.list_repo_files(OMN_DATASET_REPO, repo_type="dataset", token=HF_TOKEN)
+    except Exception:
+        return  # 列不出 (网络/权限) -> 下轮再来, 绝不盲删
+    # 7 天窗 (北京时间): cutoff YYYYMMDD 字符串比较 == 日期比较 (同位长, 文件名首8位即北京时间日)
+    cutoff = (datetime.now(_BJ_TZ) - timedelta(days=ARCHIVE_DAYS)).strftime("%Y%m%d")
+    # 分组 {prefix: {date_str: [repo_path, ...]}} 仅取 ≤ cutoff 的归档件
+    by_prefix_date = {p: {} for p in _ARCHIVE_PREFIXES}
+    for rf in all_files:
+        parts = rf.split("/")
+        if len(parts) != 4 or parts[0] != "save" or parts[2] not in _ARCHIVE_PREFIXES:
+            continue  # 非 save/<prefix>/<fname> 结构 (快照 json 件 parts 长度≠4, 自动跳)
+        fname = parts[3]
+        if not (len(fname) >= 8 and fname[:8].isdigit() and fname.endswith(".log")):
+            continue  # 非日志件 (快照 .json 不动)
+        date_str = fname[:8]  # YYYYMMDD 北京时间 (capture L134 用 _BJ_TZ 写名)
+        if date_str > cutoff:
+            continue  # 窗内新件不动 (≤ cutoff 才归档)
+        by_prefix_date[parts[2]].setdefault(date_str, []).append(rf)
+    # 去重: 一次性列归档库全件 (省 API), 查已归档日期集
+    try:
+        archived = set(dst_api.list_repo_files(ARCHIVE_REPO, repo_type="dataset", token=ARCHIVE_TOKEN))
+    except Exception:
+        archived = set()  # 列不出 -> 视为无历史走完整打包推 (幂等覆盖, 安全)
+    # 逐 prefix 逐日归档 (推成功才删)
+    for prefix in _ARCHIVE_PREFIXES:
+        for date_str, file_paths in by_prefix_date[prefix].items():
+            tar_pin = f"archive/{prefix}/{date_str}.tar.gz"
+            already = tar_pin in archived
+            tmp_dir = None
+            try:
+                if not already:
+                    # 3d 逐件下载到临时目录 (hf_hub_download 必落盘, 无纯内存 API)
+                    tmp_dir = tempfile.mkdtemp(prefix=f"omn-arch-{prefix}-{date_str}-")
+                    local_files = []
+                    for rf in file_paths:
+                        try:
+                            lp = hf_hub_download(
+                                repo_id=OMN_DATASET_REPO, filename=rf,
+                                repo_type="dataset", token=HF_TOKEN, local_dir=tmp_dir,
+                            )
+                            local_files.append((rf, lp))
+                        except Exception:
+                            break  # 任一件下载失败 -> abandon 该 prefix 该日, 下轮重试
+                    if len(local_files) != len(file_paths):
+                        continue  # 下载不全绝不推半包 (推成功才删的前提被破坏 -> 跳)
+                    # 打包 tar.gz (arcname 保原 repo 路径, 解出即原 save/<prefix>/ 结构)
+                    tar_path = os.path.join(tmp_dir, f"{date_str}.tar.gz")
+                    with tarfile.open(tar_path, "w:gz") as tf:
+                        for rf, lp in local_files:
+                            tf.add(lp, arcname=rf)
+                    # 推新私库
+                    with open(tar_path, "rb") as f:
+                        dst_api.upload_file(
+                            path_or_fileobj=f, path_in_repo=tar_pin,
+                            repo_id=ARCHIVE_REPO, repo_type="dataset",
+                            token=ARCHIVE_TOKEN,
+                            commit_message=f"archive {prefix} {date_str} ({len(file_paths)} logs)",
+                        )
+                # 推成功 (或已归档证 already=True) 后才删原库该日该 prefix 全件 — 铁闸
+                src_api.delete_files(
+                    repo_id=OMN_DATASET_REPO,
+                    delete_patterns=[f"save/{prefix}/{date_str}_*.log"],
+                    repo_type="dataset", token=HF_TOKEN,
+                    commit_message=f"archive: purge {prefix} {date_str} (archived to {ARCHIVE_REPO})",
+                )
+                archived.add(tar_pin)  # 标本批已归档, 防同轮/future 重复推
+            except Exception:
+                # 任一步失败 -> 本轮跳过该 prefix 该日, 绝不在推成功前删 (避免丢归档)
+                continue
+            finally:
+                if tmp_dir and os.path.exists(tmp_dir):
+                    shutil.rmtree(tmp_dir, ignore_errors=True)  # 清临时, 防爆 /tmp
+
+
 def _on_signal(signum, frame):
     """SIGTERM/SIGINT -> 三 scheduler __exit__ (最后 upload + stop) -> 主退."""
     for s in _SCHEDULERS:
@@ -254,6 +343,8 @@ def main():
     _start_schedulers()
     # capture daemon (D 闸在 _capture_loop 内查, =0 即早退不起循环)
     threading.Thread(target=_capture_loop, daemon=True).start()
+    # 归档 daemon (gate 在 _archive_loop 内查: ARCHIVE_ENABLED+LOG_TO_DATASET+repo/token 非空, 缺任一早退)
+    threading.Thread(target=_archive_loop, daemon=True).start()
     signal.signal(signal.SIGTERM, _on_signal)
     signal.signal(signal.SIGINT, _on_signal)
     # 主线程挂住 (scheduler 内置 thread upload + capture daemon 尾追)

@@ -62,8 +62,10 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 # ══ 模型分档 SSOT（对齐现行 NVIDIA 目录）═══════════════════════
 TIER_FAST=(
   "z-ai/glm-5.2"
+  "moonshotai/kimi-k3"
   "deepseek-ai/deepseek-v4-flash"
   "deepseek-ai/deepseek-v4-pro"
+  "qwen/qwen3.8-max-preview"
   # "meta/llama-3.3-70b-instruct"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-pool 笔2 101s 超时 gpt-oss-120b + llama-3.3-70b 路由慢挂, check_nim_model_health 探 NVIDIA 目录有=available 不标 deprecated, filter_alive 不剔, 每 boot combo PUT 回冲; 落源不落库方能切除). 圣上裁决矛盾二取 ii (主池+codex 同步删 gpt-oss-120b)
 )
 TIER_STABLE=(
@@ -89,15 +91,17 @@ echo "[init] NIM_PROFILE=$_PROFILE -> pool 意向 ${#NIM_POOL_MODELS[@]} 个模�
 
 NIM_CODEX_MODELS=(
   "deepseek-ai/deepseek-v4-pro"
-  # "openai/gpt-oss-120b"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-codex 笔1 priority 命中此模型 101s 超时挂; 与 TIER_STABLE 行68 同步删以复 matrix 双 combo 绿路径). 圣上裁决矛盾二取 ii. strategy维持 priority (codex 2 model priority 可走, 矛盾三维持裁决)
   "z-ai/glm-5.2"
+  "moonshotai/kimi-k3"
+  "qwen/qwen3.8-max-preview"
 )
 NIM_FAST_MODELS=(
   "deepseek-ai/deepseek-v4-flash"
-  # "meta/llama-3.3-70b-instruct"  # 2026-07-25 Task E 漏网补剔 (snapshot 档): NIM_FAST_MODELS 不进 combo (无 upsert 1023/1024 链), 仅入 init_vars.json 快照 (行939 _arr_json fast_models); Task E 主剔三处 (TIER_FAST 行64 / TIER_STABLE 行68 / NIM_CODEX_MODELS 行89) 已落 — 此处漏网致快照说谎, boot 取证读 init_vars 见 llama 在册误导未来判案. 圣上裁"行94 同样注释化"顺势成全闸复验, 一 push 自动再触 sync-logic-dev 充活体探针.
   "google/gemma-4-31b-it"
+  "moonshotai/kimi-k3"
+  "qwen/qwen3.8-max-preview"
 )
-NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" )
+NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" "moonshotai/kimi-k3" "qwen/qwen3.8-max-preview" )
 
 build_all_models() {
   printf '%s

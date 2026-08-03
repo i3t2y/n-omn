@@ -67,6 +67,7 @@ TIER_FAST=(
   "deepseek-ai/deepseek-v4-pro"
   "qwen/qwen3.8-max-preview"
   "nvidia/llama-3.1-nemotron-nano-8b-v1"
+  "nvidia/nemotron-3-nano-30b-a3b"
   # "meta/llama-3.3-70b-instruct"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-pool 笔2 101s 超时 gpt-oss-120b + llama-3.3-70b 路由慢挂, check_nim_model_health 探 NVIDIA 目录有=available 不标 deprecated, filter_alive 不剔, 每 boot combo PUT 回冲; 落源不落库方能切除). 圣上裁决矛盾二取 ii (主池+codex 同步删 gpt-oss-120b)
 )
 TIER_STABLE=(
@@ -96,6 +97,7 @@ NIM_CODEX_MODELS=(
   "moonshotai/kimi-k3"
   "qwen/qwen3.8-max-preview"
   "nvidia/llama-3.1-nemotron-nano-8b-v1"
+  "nvidia/nemotron-3-nano-30b-a3b"
 )
 NIM_FAST_MODELS=(
   "deepseek-ai/deepseek-v4-flash"
@@ -103,8 +105,9 @@ NIM_FAST_MODELS=(
   "moonshotai/kimi-k3"
   "qwen/qwen3.8-max-preview"
   "nvidia/llama-3.1-nemotron-nano-8b-v1"
+  "nvidia/nemotron-3-nano-30b-a3b"
 )
-NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" "moonshotai/kimi-k3" "qwen/qwen3.8-max-preview" "nvidia/llama-3.1-nemotron-nano-8b-v1" )
+NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" "moonshotai/kimi-k3" "qwen/qwen3.8-max-preview" "nvidia/llama-3.1-nemotron-nano-8b-v1" "nvidia/nemotron-3-nano-30b-a3b" )
 
 build_all_models() {
   printf '%s

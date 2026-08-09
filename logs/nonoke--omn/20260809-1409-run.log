@@ -1,0 +1,326 @@
+data: {"data":"===== Application Startup at 2026-08-09 14:07:00 =====\n","timestamp":"2026-08-09T14:07:00Z"}
+
+data: {"data":"[start] >>> 启动 2026-08-09 14:07:20 <<<","timestamp":"2026-08-09T14:07:20.283Z"}
+
+data: {"data":"[start] 基础镜像: ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f","timestamp":"2026-08-09T14:07:20.283Z"}
+
+data: {"data":"[start] 镜像 B 模式：工具链已就绪","timestamp":"2026-08-09T14:07:20.283Z"}
+
+data: {"data":"[start] 同步 Dataset: nonoke/omn-logic","timestamp":"2026-08-09T14:07:20.283Z"}
+
+data: {"data":"[start] Dataset HEAD 锁定 revision=aa6f94083ccc (竞速根治: atomic 同点拉取)","timestamp":"2026-08-09T14:07:20.814Z"}
+
+: keep-alive
+
+data: {"data":"/tmp/logic","timestamp":"2026-08-09T14:09:47.751Z"}
+
+data: {"data":"\u001b[90mHint: A new version of huggingface_hub (1.27.0) is available! You are using version 1.24.0.","timestamp":"2026-08-09T14:09:47.840Z"}
+
+data: {"data":"To update, run: hf update\u001b[0m","timestamp":"2026-08-09T14:09:47.840Z"}
+
+data: {"data":"[start] 逻辑注入完成","timestamp":"2026-08-09T14:09:57.356Z"}
+
+data: {"data":"[start] 移交控制权给逻辑层","timestamp":"2026-08-09T14:09:58.503Z"}
+
+data: {"data":"[entrypoint] boot 编排日志 tee -> /data/omn-raw/entrypoint.log (_raw → capture_loop entrypoint 源 → omn_redact → save/entrypoint/)","timestamp":"2026-08-09T14:09:58.518Z"}
+
+data: {"data":"[entrypoint] STREAM_READINESS_TIMEOUT_MS=180000 (M7 外科单注, wiki §15 实证)","timestamp":"2026-08-09T14:09:58.518Z"}
+
+data: {"data":"[entrypoint] 上游服务启动 | PORT=20128 EXPOSED=7860 DATA=/data (ephemeral, R2 是数据主路径)","timestamp":"2026-08-09T14:09:58.518Z"}
+
+data: {"data":"[entrypoint] lock acquired (flock /data/.omniroute.lock, fd 9).","timestamp":"2026-08-09T14:09:58.519Z"}
+
+data: {"data":"time=2026-08-09T14:09:58.551Z level=ERROR msg=\"failed to run\" error=\"database not found in config: /data/storage.sqlite\"","timestamp":"2026-08-09T14:09:58.551Z"}
+
+data: {"data":"[entrypoint] ⚠ restore 失败 rc=1 (见 /tmp/ls_restore.err; 已脱敏, 不打凭据). 空库启动.","timestamp":"2026-08-09T14:09:58.559Z"}
+
+data: {"data":"[entrypoint] FT: FLARETUNNEL_ENABLED=1, 启动 FlareTunnel 本地桥 (档位A)...","timestamp":"2026-08-09T14:09:58.560Z"}
+
+data: {"data":"[entrypoint] FT: bridge PID=69 (127.0.0.1:8080, 16 Worker round-robin, log→/data/omn-raw/flaretunnel.log verbose metrics-dump ON)","timestamp":"2026-08-09T14:09:58.567Z"}
+
+data: {"data":"[entrypoint] FT: CA 就绪, NODE_EXTRA_CA_CERTS=/tmp/ft-ca/flaretunnel_ca.crt 已 export (先于 §2 上游启动, 红线②满足)","timestamp":"2026-08-09T14:09:59.069Z"}
+
+data: {"data":"[entrypoint] 上游服务 PID=81 (heap 4096)","timestamp":"2026-08-09T14:09:59.072Z"}
+
+data: {"data":"▲ Next.js 16.2.10","timestamp":"2026-08-09T14:09:59.305Z"}
+
+data: {"data":"- Local:         http://localhost:20128","timestamp":"2026-08-09T14:09:59.305Z"}
+
+data: {"data":"- Network:       http://0.0.0.0:20128","timestamp":"2026-08-09T14:09:59.305Z"}
+
+data: {"data":"✓ Ready in 0ms","timestamp":"2026-08-09T14:09:59.306Z"}
+
+data: {"data":"[CREDENTIALS] No external credentials file found, using defaults.","timestamp":"2026-08-09T14:09:59.628Z"}
+
+data: {"data":"[DB] Added usage_history.combo_strategy column","timestamp":"2026-08-09T14:09:59.652Z"}
+
+data: {"data":"[DB] Added call_logs.model_pinned column","timestamp":"2026-08-09T14:09:59.653Z"}
+
+data: {"data":"[Migration] Pre-migration backup created: /data/db_backups/db_2026-08-09T14-09-59-657Z_pre-migration.sqlite","timestamp":"2026-08-09T14:09:59.666Z"}
+
+data: {"data":"[Migration] Applied: 002_mcp_a2a_tables","timestamp":"2026-08-09T14:09:59.667Z"}
+
+data: {"data":"[Migration] Skipped executing 003_provider_node_custom_paths as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.668Z"}
+
+data: {"data":"[Migration] Applied: 003_provider_node_custom_paths","timestamp":"2026-08-09T14:09:59.668Z"}
+
+data: {"data":"[Migration] Applied: 004_proxy_registry","timestamp":"2026-08-09T14:09:59.669Z"}
+
+data: {"data":"[Migration] Applied: 005_combo_agent_fields","timestamp":"2026-08-09T14:09:59.670Z"}
+
+data: {"data":"[Migration] Applied: 006_detailed_request_logs","timestamp":"2026-08-09T14:09:59.671Z"}
+
+data: {"data":"[Migration] Skipped executing 007_search_request_type as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.671Z"}
+
+data: {"data":"[Migration] Applied: 007_search_request_type","timestamp":"2026-08-09T14:09:59.671Z"}
+
+data: {"data":"[Migration] Applied: 008_registered_keys","timestamp":"2026-08-09T14:09:59.672Z"}
+
+data: {"data":"[Migration] Skipped executing 009_requested_model as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.672Z"}
+
+data: {"data":"[Migration] Applied: 009_requested_model","timestamp":"2026-08-09T14:09:59.672Z"}
+
+data: {"data":"[Migration] Applied: 010_model_combo_mappings","timestamp":"2026-08-09T14:09:59.672Z"}
+
+data: {"data":"[Migration] Applied: 011_webhooks","timestamp":"2026-08-09T14:09:59.673Z"}
+
+data: {"data":"[Migration] Applied: 012_fix_token_input_cache_tokens","timestamp":"2026-08-09T14:09:59.673Z"}
+
+data: {"data":"[Migration] Applied: 013_quota_snapshots","timestamp":"2026-08-09T14:09:59.673Z"}
+
+data: {"data":"[Migration] Applied: 014_unified_log_artifacts","timestamp":"2026-08-09T14:09:59.673Z"}
+
+data: {"data":"[Migration] Applied: 015_create_memories","timestamp":"2026-08-09T14:09:59.674Z"}
+
+data: {"data":"[Migration] Applied: 016_create_skills","timestamp":"2026-08-09T14:09:59.674Z"}
+
+data: {"data":"[Migration] Applied: 017_version_manager_upstream_proxy","timestamp":"2026-08-09T14:09:59.675Z"}
+
+data: {"data":"[Migration] Skipped executing 018_call_logs_detailed_tokens as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.675Z"}
+
+data: {"data":"[Migration] Applied: 018_call_logs_detailed_tokens","timestamp":"2026-08-09T14:09:59.675Z"}
+
+data: {"data":"[Migration] Applied: 019_context_handoffs","timestamp":"2026-08-09T14:09:59.676Z"}
+
+data: {"data":"[Migration] Skipped executing 020_combo_sort_order as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.676Z"}
+
+data: {"data":"[Migration] Applied: 020_combo_sort_order","timestamp":"2026-08-09T14:09:59.676Z"}
+
+data: {"data":"[Migration] Skipped executing 021_combo_call_log_targets as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.676Z"}
+
+data: {"data":"[Migration] Applied: 021_combo_call_log_targets","timestamp":"2026-08-09T14:09:59.676Z"}
+
+data: {"data":"[Migration] Applied: 022_add_memory_fts5","timestamp":"2026-08-09T14:09:59.677Z"}
+
+data: {"data":"[Migration] Applied: 023_fix_memory_fts_uuid","timestamp":"2026-08-09T14:09:59.679Z"}
+
+data: {"data":"[Migration] Applied: 024_create_sync_tokens","timestamp":"2026-08-09T14:09:59.679Z"}
+
+data: {"data":"[Migration] Skipped executing 025_call_logs_summary_storage as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.679Z"}
+
+data: {"data":"[Migration] Applied: 025_call_logs_summary_storage","timestamp":"2026-08-09T14:09:59.680Z"}
+
+data: {"data":"[Migration] Applied: 027_skill_mode_and_metadata","timestamp":"2026-08-09T14:09:59.682Z"}
+
+data: {"data":"[Migration] Applied: 028_create_files_and_batches","timestamp":"2026-08-09T14:09:59.683Z"}
+
+data: {"data":"[Migration] Skipped executing 029_provider_connection_max_concurrent as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.683Z"}
+
+data: {"data":"[Migration] Applied: 029_provider_connection_max_concurrent","timestamp":"2026-08-09T14:09:59.683Z"}
+
+data: {"data":"[Migration] Applied: 030_create_eval_runs","timestamp":"2026-08-09T14:09:59.684Z"}
+
+data: {"data":"[Migration] Applied: 031_create_eval_suites","timestamp":"2026-08-09T14:09:59.684Z"}
+
+data: {"data":"[Migration] Applied: 032_apikey_lifecycle","timestamp":"2026-08-09T14:09:59.689Z"}
+
+data: {"data":"[Migration] Applied: 033_create_reasoning_cache","timestamp":"2026-08-09T14:09:59.690Z"}
+
+data: {"data":"[Migration] Applied: 034_compression_settings","timestamp":"2026-08-09T14:09:59.690Z"}
+
+data: {"data":"[Migration] Applied: 035_standard_compression_config","timestamp":"2026-08-09T14:09:59.690Z"}
+
+data: {"data":"[Migration] Applied: 036_aggressive_compression","timestamp":"2026-08-09T14:09:59.690Z"}
+
+data: {"data":"[Migration] Applied: 037_ultra_compression","timestamp":"2026-08-09T14:09:59.690Z"}
+
+data: {"data":"[Migration] Applied: 038_compression_analytics","timestamp":"2026-08-09T14:09:59.690Z"}
+
+data: {"data":"[Migration] Applied: 039_compression_cache_stats","timestamp":"2026-08-09T14:09:59.691Z"}
+
+data: {"data":"[Migration] Applied: 040_oneproxy_proxy_fields","timestamp":"2026-08-09T14:09:59.696Z"}
+
+data: {"data":"[Migration] Applied: 041_compression_receipts","timestamp":"2026-08-09T14:09:59.704Z"}
+
+data: {"data":"[Migration] Applied: 042_compression_combos","timestamp":"2026-08-09T14:09:59.706Z"}
+
+data: {"data":"[Migration] Applied: 043_default_compression_combo_pipeline","timestamp":"2026-08-09T14:09:59.706Z"}
+
+data: {"data":"[Migration] Applied: 044_usage_history_api_key_backfill","timestamp":"2026-08-09T14:09:59.706Z"}
+
+data: {"data":"[Migration] Skipped executing 045_compression_tokens as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.707Z"}
+
+data: {"data":"[Migration] Applied: 045_compression_tokens","timestamp":"2026-08-09T14:09:59.707Z"}
+
+data: {"data":"[Migration] Applied: 046_database_settings","timestamp":"2026-08-09T14:09:59.707Z"}
+
+data: {"data":"[Migration] Applied: 047_aggregation_tables","timestamp":"2026-08-09T14:09:59.707Z"}
+
+data: {"data":"[Migration] Applied: 048_summary_indexes","timestamp":"2026-08-09T14:09:59.708Z"}
+
+data: {"data":"[Migration] Applied: 049_compression_analytics_indexes","timestamp":"2026-08-09T14:09:59.708Z"}
+
+data: {"data":"[Migration] Applied: 050_session_account_affinity","timestamp":"2026-08-09T14:09:59.709Z"}
+
+data: {"data":"[Migration] Applied: 051_hot_path_db_indexes","timestamp":"2026-08-09T14:09:59.709Z"}
+
+data: {"data":"[Migration] Applied: 052_api_key_combo_throttle","timestamp":"2026-08-09T14:09:59.711Z"}
+
+data: {"data":"[Migration] Applied: 053_remove_status_from_files","timestamp":"2026-08-09T14:09:59.715Z"}
+
+data: {"data":"[Migration] Skipped executing 054_usage_history_service_tier as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.715Z"}
+
+data: {"data":"[Migration] Applied: 054_usage_history_service_tier","timestamp":"2026-08-09T14:09:59.715Z"}
+
+data: {"data":"[Migration] Applied: 056_mcp_accessibility_compression","timestamp":"2026-08-09T14:09:59.715Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 057_provider_connection_quota_window_thresholds","timestamp":"2026-08-09T14:09:59.716Z"}
+
+data: {"data":"[Migration] Applied: 058_command_code_auth_sessions","timestamp":"2026-08-09T14:09:59.716Z"}
+
+data: {"data":"[Migration] Applied: 059_manifest_routing","timestamp":"2026-08-09T14:09:59.717Z"}
+
+data: {"data":"[Migration] Applied: 060_create_gamification","timestamp":"2026-08-09T14:09:59.718Z"}
+
+data: {"data":"[Migration] Applied: 061_cloud_agent_credentials","timestamp":"2026-08-09T14:09:59.718Z"}
+
+data: {"data":"[Migration] Skipped executing 062_usage_history_combo_strategy as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.718Z"}
+
+data: {"data":"[Migration] Applied: 062_usage_history_combo_strategy","timestamp":"2026-08-09T14:09:59.718Z"}
+
+data: {"data":"[Migration] Applied: 063_add_last_model_to_handoffs","timestamp":"2026-08-09T14:09:59.720Z"}
+
+data: {"data":"[Migration] Applied: 064_create_session_model_history","timestamp":"2026-08-09T14:09:59.720Z"}
+
+data: {"data":"[Migration] Applied: 065_middleware_hooks","timestamp":"2026-08-09T14:09:59.721Z"}
+
+data: {"data":"[Migration] Applied: 066_api_key_groups","timestamp":"2026-08-09T14:09:59.721Z"}
+
+data: {"data":"[Migration] Applied: 067_relay_proxies","timestamp":"2026-08-09T14:09:59.722Z"}
+
+data: {"data":"[Migration] Applied: 068_free_proxies","timestamp":"2026-08-09T14:09:59.723Z"}
+
+data: {"data":"[Migration] Applied: 069_webhook_deliveries","timestamp":"2026-08-09T14:09:59.723Z"}
+
+data: {"data":"[Migration] Applied: 070_webhooks_kind_metadata","timestamp":"2026-08-09T14:09:59.726Z"}
+
+data: {"data":"[Migration] Applied: 071_services","timestamp":"2026-08-09T14:09:59.729Z"}
+
+data: {"data":"[Migration] Applied: 072_free_proxies_fk","timestamp":"2026-08-09T14:09:59.730Z"}
+
+data: {"data":"[Migration] Applied: 073_per_model_token_limits","timestamp":"2026-08-09T14:09:59.730Z"}
+
+data: {"data":"[Migration] Applied: 074_discovery_results","timestamp":"2026-08-09T14:09:59.731Z"}
+
+data: {"data":"[Migration] Applied: 075_api_key_self_service_usage_scopes","timestamp":"2026-08-09T14:09:59.731Z"}
+
+data: {"data":"[Migration] Applied: 076_create_plugins","timestamp":"2026-08-09T14:09:59.732Z"}
+
+data: {"data":"[Migration] Applied: 077_api_key_stream_default_mode","timestamp":"2026-08-09T14:09:59.733Z"}
+
+data: {"data":"[Migration] Applied: 078_quota_consumption","timestamp":"2026-08-09T14:09:59.733Z"}
+
+data: {"data":"[Migration] Applied: 079_provider_plans","timestamp":"2026-08-09T14:09:59.734Z"}
+
+data: {"data":"[Migration] Applied: 080_agent_bridge","timestamp":"2026-08-09T14:09:59.734Z"}
+
+data: {"data":"[Migration] Applied: 081_inspector_custom_hosts","timestamp":"2026-08-09T14:09:59.735Z"}
+
+data: {"data":"[Migration] Applied: 082_inspector_sessions","timestamp":"2026-08-09T14:09:59.735Z"}
+
+data: {"data":"[Migration] Applied: 083_memory_vec","timestamp":"2026-08-09T14:09:59.737Z"}
+
+data: {"data":"[Migration] Applied: 084_playground_presets","timestamp":"2026-08-09T14:09:59.737Z"}
+
+data: {"data":"[Migration] Applied: 085_quota_pools","timestamp":"2026-08-09T14:09:59.738Z"}
+
+data: {"data":"[Migration] Applied: 086_api_key_allowed_quotas","timestamp":"2026-08-09T14:09:59.740Z"}
+
+data: {"data":"[Migration] Applied: 087_quota_pool_connections","timestamp":"2026-08-09T14:09:59.740Z"}
+
+data: {"data":"[Migration] Applied: 088_quota_groups","timestamp":"2026-08-09T14:09:59.742Z"}
+
+data: {"data":"[Migration] Applied: 089_add_disable_non_public_to_api_keys","timestamp":"2026-08-09T14:09:59.744Z"}
+
+data: {"data":"[Migration] Applied: 090_plugin_metrics","timestamp":"2026-08-09T14:09:59.744Z"}
+
+data: {"data":"[Migration] Applied: 091_plugin_analytics","timestamp":"2026-08-09T14:09:59.745Z"}
+
+data: {"data":"[Migration] Applied: 092_api_key_context_sources","timestamp":"2026-08-09T14:09:59.745Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 093_proxy_enable_toggles","timestamp":"2026-08-09T14:09:59.745Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 094_per_key_proxy_toggles","timestamp":"2026-08-09T14:09:59.746Z"}
+
+data: {"data":"[Migration] Skipped executing 095_provider_node_custom_headers as schema changes are already present (Idempotency check).","timestamp":"2026-08-09T14:09:59.746Z"}
+
+data: {"data":"[Migration] Applied: 095_provider_node_custom_headers","timestamp":"2026-08-09T14:09:59.746Z"}
+
+data: {"data":"[Migration] Applied: 096_sync_context_cache_protection","timestamp":"2026-08-09T14:09:59.746Z"}
+
+data: {"data":"[Migration] Applied: 097_model_intelligence","timestamp":"2026-08-09T14:09:59.746Z"}
+
+data: {"data":"[Migration] Applied: 098_clear_semantic_cache_for_key_isolation","timestamp":"2026-08-09T14:09:59.747Z"}
+
+data: {"data":"[Migration] Applied: 099_proxy_family","timestamp":"2026-08-09T14:09:59.750Z"}
+
+data: {"data":"[Migration] Applied: 100_cli_access_tokens","timestamp":"2026-08-09T14:09:59.750Z"}
+
+data: {"data":"[Migration] Applied: 101_api_key_usage_limits","timestamp":"2026-08-09T14:09:59.755Z"}
+
+data: {"data":"[Migration] Applied: 102_compression_engines_map","timestamp":"2026-08-09T14:09:59.755Z"}
+
+data: {"data":"[Migration] Applied: 103_strip_legacy_combo_config_keys","timestamp":"2026-08-09T14:09:59.755Z"}
+
+data: {"data":"[Migration] Applied: 104_normalize_database_cache_size","timestamp":"2026-08-09T14:09:59.755Z"}
+
+data: {"data":"[Migration] Applied: 105_usage_history_endpoint","timestamp":"2026-08-09T14:09:59.757Z"}
+
+data: {"data":"[Migration] Applied: 106_quota_allocation_model_caps","timestamp":"2026-08-09T14:09:59.757Z"}
+
+data: {"data":"[Migration] Applied: 107_quota_combos_quota_share_strategy","timestamp":"2026-08-09T14:09:59.758Z"}
+
+data: {"data":"[Migration] Applied: 108_provider_quota_reset_events","timestamp":"2026-08-09T14:09:59.758Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 109_call_logs_correlation_id","timestamp":"2026-08-09T14:09:59.759Z"}
+
+data: {"data":"[Migration] Applied: 110_model_context_overrides","timestamp":"2026-08-09T14:09:59.759Z"}
+
+data: {"data":"[Migration] Applied: 111_memory_typed_decay","timestamp":"2026-08-09T14:09:59.762Z"}
+
+data: {"data":"[Migration] Applied: 112_batch_item_checkpoints","timestamp":"2026-08-09T14:09:59.762Z"}
+
+data: {"data":"[Migration] Applied: 113_provider_node_icon_url","timestamp":"2026-08-09T14:09:59.764Z"}
+
+data: {"data":"[Migration] Applied: 114_mux_service_seed","timestamp":"2026-08-09T14:09:59.777Z"}
+
+data: {"data":"[Migration] Applied: 115_bifrost_service","timestamp":"2026-08-09T14:09:59.780Z"}
+
+data: {"data":"[Migration] Applied: 116_call_logs_reasoning_source","timestamp":"2026-08-09T14:09:59.783Z"}
+
+data: {"data":"[Migration] Applied: 117_proxy_pool_rotation","timestamp":"2026-08-09T14:09:59.788Z"}
+
+data: {"data":"[Migration] Applied: 118_provider_param_filters","timestamp":"2026-08-09T14:09:59.788Z"}
+
+data: {"data":"[Migration] Applied: 119_model_capability_overrides","timestamp":"2026-08-09T14:09:59.788Z"}
+
+data: {"data":"[Migration] Applied: 120_interception_rules","timestamp":"2026-08-09T14:09:59.788Z"}
+
+data: {"data":"[Migration] Applied: 122_free_proxy_sync_errors","timestamp":"2026-08-09T14:09:59.789Z"}
+
+data: {"data":"[Migration] 118 migration(s) applied successfully.","timestamp":"2026-08-09T14:09:59.789Z"}
+
+data: {"data":"[DB] cache_size already set to 16384KB","timestamp":"2026-08-09T14:09:59.789Z"}
+
+data: {"data":"[DB] SQLite database ready: /data/storage.sqlite (DATA_DIR=/data, SQLITE_FILE=/data/storage.sqlite)","timestamp":"2026-08-09T14:09:59.792Z"}
+

@@ -8,6 +8,31 @@
 
 ---
 
+## 2026-08-10 · FT_WORKER_COUNT ENV 控桥轮换池规模 (RELAY_AUTH 与 worker 数正交钉死)
+
+**背景**: 圣上原题 "RELAY_AUTH 改 32 worker, 重建还是 16 worker"。直觉误把 `RELAY_AUTH` 当作 worker 池规模控制量。
+
+**病根 (源码实证钉死)**: worker 数物理源 = `flaretunnel_endpoints.json` 写死的 16 条 Worker URL (flaare 1-8 + flbare 1-8 = M=16)。`RELAY_AUTH` = 桥鉴权密钥 (Worker 代码 `AUTH_KEY` 同步), 与 worker 数 **正交** — 改鉴权 token 不动池规模, 重建读同一 endpoints.json 故仍 16。两物无因果, 非故障是设计语义。
+
+**治法 (commit 67b6b8c, dev/logic/entrypoint.sh `_ft_start` L222-248)**: 加 ENV `FT_WORKER_COUNT` 控桥 round-robin 轮换池规模 N。
+- 规则: `实际轮换数 = min(FT_WORKER_COUNT, endpoints.json 物理条数 M)`
+- ENV ≥ M → 全用 M (印提醒 ENV 过头, 不凭空造 Worker; 无新 URL 则物理上限不可越)
+- ENV < M → 取前 N 条子集 (`--workers 0-(N-1)` 索引锁; Go 源 `LoadWorkers` L1297-1307 `parseWorkerIndices` 范围语法实证支持)
+- 未设 / ≤0 → 原行为全用 M (回滚 = 删 Variable + Restart, 零代码改)
+- 日志行改印 `${_ft_n}/${_ft_phys}` 双数 + ENV 子集时加标注
+
+**不改 Go 源** (`--workers` flag 已支持索引子集, 无须重编译二进制)。**不改 endpoints.json 物理池** (URL 源圣上控)。欲真扩池超 M 须圣上先 CF 建新 Worker → 填真实 URL 进 endpoints.json → 推 Dataset → Restart (dev/logic path 零 Rebuild)。ENV 只控轮换池上限不造 URL。
+
+**验证 (本地)**: `bash -n` 语法绿 + secret-scan exit 0 + 五边界自验全对 (ENV 0/4/8/16/32 × 池 16 → 轮换 16/4/8/16/16; flag 空/`0-3`/`0-7`/空/空+提醒)。
+
+**部署链**: dev/logic path → 圣上 push nomn main (commit 67b6b8c) → sync-logic-nonoke CI 推 Dataset nonoke/omn-logic → Restart dev Space (零 Rebuild) → boot 真验看 `[entrypoint] FT:` 行印 `N/M Worker` 双数。push 本会话会 §5 护栏 deny → 圣上以 `!` 前缀亲跑 (已验远端追平 HEAD)。
+
+**教训红线**: ENV 变量语意命名须明示 "控什么"。`FT_WORKER_COUNT` 控的是"轮换池规模上限"非"物理 Worker 数" — 设 32 不会造 Worker, 只在 ENV > 物理池时印提醒用满池。诊断此类 "改 X 不见 Y 变" 病诉, 先查 X 与 Y 是否正交 (鉴权密钥 vs 池规模), 再查 Y 的真物理源 (endpoints.json URL 数非 ENV)。
+
+**关联**: [[flaretunnel-impl-built-verified]] [[ft-worker-count-vs-keys-decoupled]] [[flaretunnel-metrics-endpoint-lu3-landed]]。
+
+---
+
 ## 2026-07-31 · probe 子shell exit1 崩根 `|| true` 兜底红线 (同源病族第三轮复发)
 
 **背景**: 2026-07-25 C2 pipefail 静默杀 init (`jq` + `grep -v '^$'` 空输入 rc1 + pipefail → set-e 杀), 治法 `set +eo pipefail 抬门 + ${_DEL_JSON:-[]} 兜底`。2026-07-31 probe subshell 退出码经裸 `wait` 杀 init 同源病族第三轮复发。

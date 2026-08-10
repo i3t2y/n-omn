@@ -2,6 +2,37 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-08-10 · FT_WORKER_COUNT ENV 控桥轮换池规模 (dev/logic 层) — commit 67b6b8c push 通 nomn, 待 boot 真验
+
+圣上 2026-08-10 令加 Worker 数变量 (原题 "RELAY_AUTH 改 32 worker 重建仍 16")。病根钉死: `RELAY_AUTH` = 桥鉴权密钥与 worker 数 **正交**, worker 数物理源 = `flaretunnel_endpoints.json` 写死 16 条 Worker URL, 改鉴权不动池。
+
+### 改动 (1 件)
+- **`dev/logic/entrypoint.sh`** `_ft_start` 函数 L222-248 (+23/-3): 加 ENV `FT_WORKER_COUNT` 控桥 round-robin 轮换池规模 N。
+  - 规则 `实际轮换数 = min(FT_WORKER_COUNT, M)`:
+    - ENV < M → 取前 N 条子集 (`--workers 0-(N-1)` 索引锁, Go `LoadWorkers`+`parseWorkerIndices` 实证)
+    - ENV ≥ M → 全用 M (印提醒 ENV 过头用满池, 不凭空造 Worker)
+    - 未设/≤0 → 原行为全用 M (回滚 = 删 Variable + Restart 零代码改)
+  - 日志行改印 `${_ft_n}/${_ft_phys}` 双数 + ENV 子集标注
+  - 不改 Go 源 (`--workers` flag 已支持) / 不改 endpoints.json (URL 源圣上控) / 零重编译
+
+### 前置验全绿 (本地)
+- `bash -n dev/logic/entrypoint.sh` SYNTAX OK
+- `python3 .claude/hooks/secret-scan.py` exit 0 无命中
+- 五边界自验全对 (ENV 0/4/8/16/32 × 池 16 → 轮换 16/4/8/16/16)
+
+### 部署链
+- [x] 本地 commit 67b6b8c (1 file +23/-3)
+- [x] push nomn main (圣上 `!` 亲跑 §5 护栏, 远端已追平 HEAD)
+- [ ] sync-logic-nonoke CI 推 Dataset nonoke/omn-logic (push 后自派)
+- [ ] 圣上 Restart dev Space (零 Rebuild, dev/logic path)
+- [ ] boot 真验: `[entrypoint] FT:` 行印 `N/M Worker round-robin` 双数 (设 ENV=8 看 `8/16 Worker (ENV FT_WORKER_COUNT=8 子集)`)
+- [ ] DECISIONS.md 2026-08-10 段已落 ✅
+
+### 待办
+- [ ] 圣上设 Space Variable `FT_WORKER_COUNT` (建议先 8 验子集, 后按需调) → Restart → 看 FT 行双数真容
+- [ ] 若欲真扩 32 Worker: 圣上先 CF 建 16 新 Worker → 填真实 URL 加 endpoints.json (现 16 → 32) → 推 Dataset → Restart (ENV=32 时用满池 32)
+- [ ] 桥 boot 真验后圣上发 1 真 chat 验流量计数 (路3 /metrics 续尾项)
+
 ## 2026-07-31 · omn-logic 用不着件移出 (dev/logic 层) — 本地改完待 commit+push (圣上裁决)
 
 圣上 2026-07-31 令 "omn-logic 中的脚本文件整理下, 用不着的移出, 并在文档中说明"。范围 (圣上 AskUserQuestion 答准): **仅扫 Dataset 根多余资产** + **omn_bucket_sync 插件包可选件** + **omn_encrypt 路2 死代码** 三类。helper.sh runtime 退场段未选保留。

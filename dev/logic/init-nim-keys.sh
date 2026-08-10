@@ -280,41 +280,80 @@ _res_validate_int() {
 # 幂等: POST /api/v1/management/proxies 返回 409/exists → skip, 注册满 HTTP 200/201 → 建.
 _ft_register_proxy() {
   [ "${FLARETUNNEL_ENABLED:-0}" != "1" ] && return 0
-  # 桥未启(entrypoint §1.5 fail-open 降级) → 不注册, 免 nvidia 指死桥反停业务
-  [ -z "${FT_PID:-}" ] && { echo "[init] FT proxy: skip (FT 桥未启/降级, 不注册死代理)."; return 0; }
-  # nvidia provider ID 须取到 (指派 scopeId 必需)
-  local _pid="${PROVIDER_IDS:-}"
-  # PROVIDER_IDS 是数组; 取首元素 (nvidia 同 provider 全共享一行 proxy)
-  local _first_pid=""
-  while IFS= read -r _first_pid; do [ -n "$_first_pid" ] && break; done <<< "$(printf '%s\n' "${PROVIDER_IDS[@]}")" 2>/dev/null
-  [ -z "$_first_pid" ] && { echo "[init] FT proxy: skip (无 nvidia PROVIDER_ID, 无法指派)."; return 0; }
-  local _HOST="${FT_PROXY_HOST:-127.0.0.1}" _PORT="${FT_PROXY_PORT:-8080}"
-  local _BODY
-  _BODY=$(jq -n --arg h "$_HOST" --argjson p "$_PORT" --arg sid "$_first_pid" \
-    '{name:"flaretunnel-8080", type:"http", host:$h, port:$p,
-      assignment:{scope:"provider", scopeId:$sid}}')
-  local _HTTP _RESP
-  _RESP=$(_resp ft_proxy_register.json)
-  _HTTP=$(curl -s -o "$_RESP" -w "%{http_code}" -b "$COOKIE_FILE" \
-    -X POST "$BASE_URL/api/v1/management/proxies" \
-    -H "Content-Type: application/json" -d "$_BODY" 2>/dev/null || echo "000")
-  case "$_HTTP" in
-    200|201) echo "[init] FT proxy: 注册 ✓ (host=${_HOST}:${_PORT} → nvidia provider $_first_pid, HTTP $_HTTP)" ;;
-    409)     echo "[init] FT proxy: 跳过 (已存在 409, 幂等保健康)" ;;
-    *)       echo "[init] FT proxy: WARN 注册 HTTP $_HTTP ($(head -c 200 "$_RESP" 2>/dev/null)"; return 0 ;;
-  esac
-  # 官方 register-and-go 哲学: 不探活, 交 runtime isProxyReachable/validateProxyPool 自理.
-  # _ft_workers_health (82a93d4 WIP) 已撤: 它 paste|nl|while 并行 16 curl@HF sandbox 网络层
-  #   + set -eo pipefail 致 init 卡死静默退 (三轮 boot 无 331/Resilience/Done 实证). 档位A
-  #   体检表需圣上定方案 (serialization/timeout 硬护栏/桥侧 metrics 端点 任一) 后重装, 见
-  #   [[ft-workers-health-diffa-wip]] 习: 进程活/鉴权/穿透三层非出口IP.
-  #
-  # 路3 轻 local 体检 (2026-07-31 圣准): 读桥自报 /healthz 替叛 WIP 函数.
-  #   本地 127.0.0.1 HTTP <50ms 不经 Worker 不经 sandbox, 3s timeout 硬断, set -e 兜底 `|| echo {}` fail-open 不阻 init.
-  #   JSON 含 Workers 数/round-robin 游标/per-Worker 计数 (boot 瞬 0, 跑业务后累加), 给圣上日后读 save 反推健康无卡死.
-  local _sh
-  _sh=$(curl -s -m 3 "http://${_HOST}:${_PORT}/healthz" 2>/dev/null || echo '{}')
-  echo "[init] FT bridge healthz: $_sh"
+  # 桥未启(entrypoint §1.5 fail-open 降级) → 不注册, 免 nvidia 指死桥反停业务.
+  # 单桥判 FT_PID (现役回退); 多桥判 FT_PIDS (entrypoint export).
+  if [ -z "${FT_PID:-}" ] && [ -z "${FT_PIDS:-}" ]; then
+    echo "[init] FT proxy: skip (FT 桥未启/降级, 不注册死代理)."; return 0
+  fi
+  local _HOST="${FT_PROXY_HOST:-127.0.0.1}"
+  local _BRIDGES_JSON="/logic/flaretunnel_bridges.json"
+
+  # 内联: 单桥 proxy 注册 (POST 建 + PUT bulk-assign 绑族).
+  #   $1=proxy 名, $2=port, $3..=family 数组 (provider 家族名常量串, 如 "nvidia"/"github-models").
+  _ft_one() {
+    local _nm="$1" _pt="$2"; shift 2
+    local _fams=("$@")
+    # 无 providers 族: 只建裸 proxy 不绑 (L312 if 守卫跳过 bulk-assign), 留桥待指派.
+    [ "${#_fams[@]}" -eq 0 ] && echo "[init] FT proxy ${_nm}: 提示 无 providers 族, 只建裸 proxy 不绑."
+    local _BODY _RESP _HTTP
+    _BODY=$(jq -n --arg h "$_HOST" --argjson p "$_pt" --arg n "$_nm" \
+      '{name:$n, type:"http", host:$h, port:$p}')
+    _RESP=$(_resp "ft_proxy_${_nm}.json")
+    _HTTP=$(curl -s -o "$_RESP" -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/v1/management/proxies" \
+      -H "Content-Type: application/json" -d "$_BODY" 2>/dev/null || echo "000")
+    case "$_HTTP" in
+      200|201) : ;;
+      409)     echo "[init] FT proxy ${_nm}: WARN HTTP 409 (已存在; POST 无查重, 罕见. 继续试绑). " ;;
+      *)       echo "[init] FT proxy ${_nm}: WARN 注册 HTTP $_HTTP ($(head -c 200 "$_RESP" 2>/dev/null)). 跳此桥."; return 1 ;;
+    esac
+    local _pid=""; _pid=$(jq -r '.id // empty' "$_RESP" 2>/dev/null)
+    [ -z "$_pid" ] && { echo "[init] FT proxy ${_nm}: WARN POST body 无 id 字段, 无法绑族. 跳此桥."; return 1; }
+    echo "[init] FT proxy ${_nm}: 建 ✓ (host=${_HOST}:${_pt} → id=${_pid}, HTTP $_HTTP)"
+    if [ "${#_fams[@]}" -gt 0 ]; then
+      local _ids_json; _ids_json=$(printf '%s\n' "${_fams[@]}" | jq -R . | jq -s .)
+      local _BA _BAR _BAC
+      _BA=$(jq -n --arg s "provider" --argjson ids "$_ids_json" --arg p "$_pid" \
+        '{scope:$s, scopeIds:$ids, proxyId:$p}')
+      _BAR=$(_resp "ft_bulkassign_${_nm}.json")
+      _BAC=$(curl -s -o "$_BAR" -w "%{http_code}" -b "$COOKIE_FILE" \
+        -X PUT "$BASE_URL/api/v1/management/proxies/bulk-assign" \
+        -H "Content-Type: application/json" -d "$_BA" 2>/dev/null || echo "000")
+      local _upd=""
+      _upd=$(jq -r '.updated // "?"' "$_BAR" 2>/dev/null)
+      case "$_BAC" in
+        200|201) echo "[init] FT proxy ${_nm}: 绑族 ✓ (provider scope, scopeIds=[${_fams[*]}], updated=${_upd})" ;;
+        *)       echo "[init] FT proxy ${_nm}: WARN bulk-assign HTTP $_BAC ($(head -c 200 "$_BAR" 2>/dev/null)). 族未绑." ;;
+      esac
+    fi
+  }
+
+  if [ -f "$_BRIDGES_JSON" ] && jq -e '. | type=="array" and length>0 and all(.[]; has("port") and has("workers"))' "$_BRIDGES_JSON" >/dev/null 2>&1; then
+    local _nb
+    _nb=$(jq 'length' "$_BRIDGES_JSON" 2>/dev/null || echo 0)
+    [ "$_nb" -gt 30 ] && _nb=30
+    local _i=0
+    echo "[init] FT proxy: 多桥模式, 读 $_BRIDGES_JSON 绑 $_nb 桥."
+    while [ "$_i" -lt "$_nb" ]; do
+      local _b_name _b_port
+      _b_name=$(jq -r ".[$_i].name // \"bridge-$_i\"" "$_BRIDGES_JSON" 2>/dev/null)
+      _b_port=$(jq -r ".[$_i].port" "$_BRIDGES_JSON" 2>/dev/null)
+      local _fams=()
+      mapfile -t _fams < <(jq -r ".[$_i].providers[]?" "$_BRIDGES_JSON" 2>/dev/null)
+      _ft_one "$_b_name" "$_b_port" "${_fams[@]}" || true
+      _i=$((_i+1))
+    done
+    # 多桥 healthz 读首桥 (entrypoint 首桥代整体).
+    local _p0
+    _p0=$(jq -r '.[0].port' "$_BRIDGES_JSON" 2>/dev/null)
+    [ -n "$_p0" ] && echo "[init] FT bridge healthz: $(curl -s -m 3 "http://${_HOST}:${_p0}/healthz" 2>/dev/null || echo '{}')"
+    return
+  fi
+
+  # 回退单桥 (JSON 缺/空/非法): 现役逻辑. scopeId 修为家族名 "nvidia" (修连接 ID 哑路径 Bug).
+  local _PORT="${FT_PROXY_PORT:-8080}"
+  _ft_one "flaretunnel-8080" "$_PORT" "nvidia" || true
+  echo "[init] FT bridge healthz: $(curl -s -m 3 "http://${_HOST}:${_PORT}/healthz" 2>/dev/null || echo '{}')"
 }
 
 check_nim_model_health() {

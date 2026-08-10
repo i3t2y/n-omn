@@ -46,6 +46,8 @@ export STREAM_READINESS_TIMEOUT_MS
 echo "[entrypoint] STREAM_READINESS_TIMEOUT_MS=$STREAM_READINESS_TIMEOUT_MS (M7 外科单注, wiki §15 实证)"
 
 OR_PID=""; INIT_PID=""; LS_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
+# FT_PIDS = 空格分隔多桥 PID 串 (多桥模式); 单桥回退时仅一元素. trap/看门狗遍历此串.
+FT_PIDS=""
 
 echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PORT DATA=$DATA_DIR (ephemeral, R2 是数据主路径)"
 
@@ -54,11 +56,18 @@ echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PO
 #   否则 exec gate 会让三后台成 gate 兄弟 (孤儿), trap 失效。
 cleanup_done=0
 _forward_signal() {
-  local sig="$1"
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID" "$FT_PID"; do
+  local sig="$1" pid fpid
+  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
     [ -z "$pid" ] && continue
     kill -0 "$pid" 2>/dev/null && kill -"$sig" "$pid" 2>/dev/null || true
   done
+  # 多桥: FT_PIDS 空格分隔, 逐桥发信号 (单桥回退时 FT_PIDS 含一元素, 兼容).
+  for fpid in $FT_PIDS; do
+    [ -z "$fpid" ] && continue
+    kill -0 "$fpid" 2>/dev/null && kill -"$sig" "$fpid" 2>/dev/null || true
+  done
+  # 兼容: 单桥回退路径也设了 FT_PID, 双保险 (FT_PIDS 已含, 此行冗余但零害).
+  [ -n "$FT_PID" ] && kill -0 "$FT_PID" 2>/dev/null && kill -"$sig" "$FT_PID" 2>/dev/null || true
 }
 _shutdown() {
   [ "$cleanup_done" = 1 ] && return
@@ -68,9 +77,13 @@ _shutdown() {
   local g=0 alive
   while [ "$g" -lt 50 ]; do
     alive=0
-    for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID" "$FT_PID"; do
+    for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
       [ -z "$pid" ] && continue
       kill -0 "$pid" 2>/dev/null && alive=1
+    done
+    for fpid in $FT_PIDS; do
+      [ -z "$fpid" ] && continue
+      kill -0 "$fpid" 2>/dev/null && alive=1
     done
     [ "$alive" = 0 ] && break
     sleep 0.1 2>/dev/null || sleep 1
@@ -78,10 +91,15 @@ _shutdown() {
   done
   echo "[entrypoint] shutdown: force-kill 残留..."
   _forward_signal KILL
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID" "$FT_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
     [ -z "$pid" ] && continue
     wait "$pid" 2>/dev/null || true
   done
+  for fpid in $FT_PIDS; do
+    [ -z "$fpid" ] && continue
+    wait "$fpid" 2>/dev/null || true
+  done
+  [ -n "$FT_PID" ] && wait "$FT_PID" 2>/dev/null || true
   echo "[entrypoint] shutdown complete."
 }
 trap '_shutdown' TERM
@@ -219,57 +237,97 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
     FT_LOG="${DATA_DIR}/omn-raw/flaretunnel.log"   # 落 omn-raw 临时区 (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
     mkdir -p "$FT_CA_DIR" "$(dirname "$FT_LOG")" 2>/dev/null || true
     # 单点启动函数: 本段首启 + §7 看门狗重启共用同一命令 (不分叉, "改也为以后不改")
+    # 多桥模式 (2026-08-10 圣上令): 读 /logic/flaretunnel_bridges.json 循环起 N 桥,
+    #   各占独立 127.0.0.1:$port + 各绑 --workers a-b 子段 (多桥共用 endpoints.json 同名单, 各取不重叠段).
+    #   JSON 不存/空/非法 → 回退单桥 (保 FT_WORKER_COUNT ENV 单桥行为不破, 回滚 = 删 JSON + Restart).
+    #   JSON 形: [{"name":"nim","port":8081,"workers":"0-23","providers":["nvidia"]},...]
+    #     providers (opt): 桥绑何 provider 族名数组 (init 读此绑 proxy→族; 缺则裸桥待指派).
+    #       单桥可绑多族共享出口 IP 段池; scopeId 用家族名常量串 "nvidia" 非 row id.
+    #       HTTP 墙: 一族只绑一桥 (replace 语义), 单 proxy 可绑多族 (不同 scope_id 互不 replace).
+    #   30 桥封顶 (圣上限; HF 2vCPU/16GB 资源定, 超此墙见审计).
     _ft_start() {
-      # FT_VERBOSE=1 启 --verbose: 开则桥每请求 fmt 入 log + 5min goroutine dump metrics 周期段入 log (路3慢病证根). 默0关闭零dump回A.
       _ft_verbose=""
       [ "${FT_VERBOSE:-0}" = "1" ] && _ft_verbose="--verbose"
-      # FT_WORKER_COUNT (2026-08-10 圣上令): 控桥 round-robin 轮换池规模 N.
-      #   规则: 实际轮换数 = min(FT_WORKER_COUNT, endpoints.json 物理条数 M).
-      #     ENV≥M → 全用 M (ENV过头取实际池, 不凭空造 Worker, 缺 URL 则用满池);
-      #     ENV<M → 取前 N 条子集 (--workers 0-(N-1) 索引锁前 N, Go 源 LoadWorkers 实证支持);
-      #   未设/≤0 → 全用 M (原行为, 回滚 = 删 Variable + Restart).
-      #   欲真扩池超 M 须圣上先 CF 建新 Worker 填 URL 进 endpoints.json 推 Dataset (ENV 不造 URL).
       _ft_phys=$(jq 'if type=="array" then length elif .endpoints then (.endpoints|length) elif .workers then (.workers|length) else 0 end' /logic/flaretunnel_endpoints.json 2>/dev/null || echo 0)
       _ft_wflag=""
       _ft_use=$_ft_phys
       if [ "${FT_WORKER_COUNT:-0}" -gt 0 ] 2>/dev/null && [ "$_ft_phys" -gt 0 ] 2>/dev/null; then
         if [ "$FT_WORKER_COUNT" -lt "$_ft_phys" ]; then
           _ft_use=$FT_WORKER_COUNT
-          # --workers 锁前 N (0-(N-1)); Go parseWorkerIndices 支 a-b 范围语法.
           _ft_wflag="--workers 0-$((_ft_use-1))"
           _ft_n=$_ft_use
         else
-          # ENV≥M: 印提醒 ENV 过头, 用满池 M 条.
-          [ "$FT_WORKER_COUNT" -gt "$_ft_phys" ] && echo "[entrypoint] FT: FT_WORKER_COUNT=$FT_WORKER_COUNT 超 endpoints.json 实际 $_ft_phys 条, 用满池 ($_ft_phys) 轮换 (欲扩池先 CF 建新 Worker 填 URL)."
+          [ "$FT_WORKER_COUNT" -gt "$_ft_phys" ] && echo "[entrypoint] FT: FT_WORKER_COUNT=$FT_WORKER_COUNT 超 endpoints.json 实际 $_ft_phys 条, 用满池 ($_ft_phys) 轮换."
         fi
       fi
+      # FT_PIDS = 空格分隔 PID 串 (多桥); FT_PORTS = 对应端口串; 兼容单桥时仅一元素.
+      FT_PIDS=""; FT_PORTS=""; FT_NAMES=""; export FT_PIDS FT_PORTS FT_NAMES
+      _ft_multi=0
+      if [ -f /logic/flaretunnel_bridges.json ] && jq -e '. | type=="array" and length>0 and all(.[]; has("port") and has("workers"))' /logic/flaretunnel_bridges.json >/dev/null 2>&1; then
+        _ft_nb=$(jq 'length' /logic/flaretunnel_bridges.json 2>/dev/null || echo 0)
+        if [ "$_ft_nb" -gt 30 ]; then
+          echo "[entrypoint] FT WARN: flaretunnel_bridges.json 桥数 $_ft_nb 超 30 封顶, 只起前 30 (圣上限; 超此资源见审计)."
+          _ft_nb=30
+        fi
+        if [ "$_ft_nb" -gt 0 ] && [ "$_ft_phys" -gt 0 ]; then
+          _ft_multi=1
+          _i=0
+          while [ "$_i" -lt "$_ft_nb" ]; do
+            _b_name=$(jq -r ".[$_i].name // \"bridge-$_i\"" /logic/flaretunnel_bridges.json 2>/dev/null)
+            _b_port=$(jq -r ".[$_i].port" /logic/flaretunnel_bridges.json 2>/dev/null)
+            _b_w=$(jq -r ".[$_i].workers // \"\"" /logic/flaretunnel_bridges.json 2>/dev/null)
+            _b_wflag=""
+            [ -n "$_b_w" ] && _b_wflag="--workers $_b_w"
+            # 段越界校验 (a-b a,b < M): 范围超 phys 则该段 workers flag 仍传, Go LoadWorkers 过滤越界索引段余空池自报.
+            /logic/flaretunnel tunnel --host 127.0.0.1 --port "$_b_port" \
+              --endpoints /logic/flaretunnel_endpoints.json \
+              --relay-auth "$RELAY_AUTH" \
+              --ca-dir "$FT_CA_DIR" $_b_wflag $_ft_verbose >>"${FT_LOG%.log}-$_b_name.log" 2>&1 &
+            _b_pid=$!
+            FT_PIDS="$FT_PIDS $_b_pid"; FT_PORTS="$FT_PORTS $_b_port"; FT_NAMES="$FT_NAMES $_b_name"
+            _i=$((_i+1))
+          done
+          export FT_PIDS FT_PORTS FT_NAMES   # export 同步给 init 子进程见
+          echo "[entrypoint] FT: 多桥模式起 $_ft_nb 桥 (PID=[${FT_PIDS# }], PORT=[${FT_PORTS# }], NAME=[${FT_NAMES# }], endpoints.json 池=$_ft_phys, log→${FT_LOG%.log}-<name>.log)"
+          return
+        fi
+      fi
+      # 回退单桥 (JSON 不存/空/非法或物权为 0): 现役逻辑不动.
       /logic/flaretunnel tunnel --host 127.0.0.1 --port "$FT_PORT" \
         --endpoints /logic/flaretunnel_endpoints.json \
         --relay-auth "$RELAY_AUTH" \
         --ca-dir "$FT_CA_DIR" $_ft_wflag $_ft_verbose >>"$FT_LOG" 2>&1 &
       FT_PID=$!
-      export FT_PID   # 须 export: init-nim-keys.sh 起 bash 子进程, 不 export 则 FT_PID 不传子进程致 init 跳过 FT 代理注册
+      export FT_PID
       : "${_ft_n:=$_ft_phys}"
-      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, ${_ft_n}/${_ft_phys} Worker round-robin${_ft_wflag:+ (ENV FT_WORKER_COUNT=${FT_WORKER_COUNT} 子集)}, log→$FT_LOG${_ft_verbose:+ verbose metrics-dump ON})"
+      echo "[entrypoint] FT: 单桥回退 PID=$FT_PID (127.0.0.1:$FT_PORT, ${_ft_n}/${_ft_phys} Worker round-robin${_ft_wflag:+ (ENV FT_WORKER_COUNT=${FT_WORKER_COUNT} 子集)}, log→$FT_LOG${_ft_verbose:+ verbose metrics-dump ON})"
+      # 兼容 FT_PIDS 旧引用: 单桥也填入.
+      FT_PIDS=" $FT_PID"; FT_PORTS=" $FT_PORT"; FT_NAMES=" single"; export FT_PIDS FT_PORTS FT_NAMES
     }
     _ft_start
-    # CA 等生 (红线②): 桥首启自签 CA 落盘后才可 export; 上限 10s, 桥早夭即弃
+    # CA 等生 (红线②): 桥首启自签 CA 落盘后才可 export; 上限 10s, 桥早夭即弃.
+    #   多桥共用一 ca-dir, 首桥代整体判生死 (多桥首桥死 = 全 FT 资产级病, 弃全桥降级).
     _ft_ca="$FT_CA_DIR/flaretunnel_ca.crt"; _ft_wait=0
+    _ft_alive() { [ -n "$FT_PID" ] && kill -0 "$FT_PID" 2>/dev/null; }
     while [ "$_ft_wait" -lt 20 ]; do
       if [ -s "$_ft_ca" ]; then break; fi
-      if ! kill -0 "$FT_PID" 2>/dev/null; then
+      if ! _ft_alive; then
         echo "[entrypoint] FT WARN: 桥 CA 等生期间退出 (详见 $FT_LOG), 跳过 FT"; break
       fi
       sleep 0.5; _ft_wait=$((_ft_wait+1))
     done
-    if [ -s "$_ft_ca" ] && kill -0 "$FT_PID" 2>/dev/null; then
+    if [ -s "$_ft_ca" ] && _ft_alive; then
       export NODE_EXTRA_CA_CERTS="$_ft_ca"
       echo "[entrypoint] FT: CA 就绪, NODE_EXTRA_CA_CERTS=$_ft_ca 已 export (先于 §2 上游启动, 红线②满足)"
     else
       echo "[entrypoint] FT WARN: CA 10s 未就绪, 桥降级关闭 (nvidia 若已注册代理将停, 请修资产或关 FT 开关)"
-      kill "$FT_PID" 2>/dev/null || true; wait "$FT_PID" 2>/dev/null || true
-      FT_PID=""
-      export FT_PID   # 降级也须 export 空, 同步给 init 子进程见空跳注册 (防误注册死桥)
+      # 杀全桥: 单桥杀 FT_PID, 多桥遍历 FT_PIDS.
+      [ -n "$FT_PID" ] && kill "$FT_PID" 2>/dev/null || true
+      for fpid in $FT_PIDS; do kill "$fpid" 2>/dev/null || true; done
+      [ -n "$FT_PID" ] && wait "$FT_PID" 2>/dev/null || true
+      for fpid in $FT_PIDS; do wait "$fpid" 2>/dev/null || true; done
+      FT_PID=""; FT_PIDS=""
+      export FT_PID FT_PIDS   # 降级也须 export 空, 同步给 init 子进程见空跳注册 (防误注册死桥)
     fi
   fi
 else
@@ -330,13 +388,23 @@ fi
 #   传 $DB_PATH 位置参数会命中 case 1 → "must specify at least one replica URL" 报错.
 #   db 路径已在 /logic/litestream.yml 的 dbs[].path 内定义, 命令行不可再传.
 if [ "$has_r2" = 1 ] && [ -f /logic/litestream.yml ]; then
-  # (2026-08-01 圣上令补) litestream stderr 重定向入 raw → capture_loop 第7源入 save.
-  # R2 复制链故障(compaction txid gap/proxy_breaker/replica断代)判据今丢, 补. 与 entrypoint 源同落 omn-raw.
+  # OMN_PERSIST_WRITE 闸 (2026-08-10 圣上令): 控本次启动后改动是否写回 R2.
+  #   1 (默认/开) = litestream replicate 照跑, 在线改 (后台加 key/改设置) 推 R2 → 持久保存.
+  #   0 (关)      = replicate 不启 → 本次改动不写回 R2 (不保存). OmniRoute 在线读写本地 SQLite 照常(本次 boot 可见).
+  #   语义: 此闸只控"写回 R2"一物, 不删任何东西, 不动 restore 读. 开=保存, 关=不保存. 回滚 = 删 Variable + Restart.
+  #   (restore L136 仍跑不受此闸控 — 关态只阻写回不阻读档.)
   _LS_LOG_RAW="${DATA_DIR}/omn-raw/litestream.log"
   mkdir -p "$(dirname "$_LS_LOG_RAW")" 2>/dev/null || true
   : > "$_LS_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零), omn-raw 同名件 capture_loop offset 重置
-  litestream replicate -config /logic/litestream.yml >>"$_LS_LOG_RAW" 2>&1 & LS_PID=$!
-  echo "[entrypoint] Litestream PID=$LS_PID (stderr→$_LS_LOG_RAW, capture_loop litestream 源 → save/litestream/)"
+  if [ "${OMN_PERSIST_WRITE:-1}" = "1" ]; then
+    # (2026-08-01 圣上令补) litestream stderr 重定向入 raw → capture_loop 第7源入 save.
+    # R2 复制链故障(compaction txid gap/proxy_breaker/replica断代)判据, 与 entrypoint 源同落 omn-raw.
+    litestream replicate -config /logic/litestream.yml >>"$_LS_LOG_RAW" 2>&1 & LS_PID=$!
+    echo "[entrypoint] Litestream PID=$LS_PID (stderr→$_LS_LOG_RAW, capture_loop litestream 源 → save/litestream/)"
+  else
+    echo "[entrypoint] Litestream: OMN_PERSIST_WRITE=0 关态, replicate 不启 → 本次改动不保存 (不写回 R2)."
+    echo "[entrypoint] OMN_PERSIST_WRITE=0: 后台加 key/改设置不保存" > "$_LS_LOG_RAW"
+  fi
 fi
 
 echo "[entrypoint] 全部就绪：OR=$OR_PID Init=${INIT_PID:-无} LS=${LS_PID:-无} Gate→:$EXPOSED_PORT (background, entrypoint 持 PID 1 主监)"
@@ -438,14 +506,62 @@ while true; do
   #   上游已载 NODE_EXTRA_CA_CERTS 不失效, 无须连带重启上游 — 与 litestream 非致命同级.
   # 弃守语义: 5 次连死 = 资产/配置级病非抖动, WARN 弃守, FT_PID 置空停止循环判;
   #   nvidia 若已注册代理即降级 (指向死桥调用必败), 人工修资产/关开关后 Restart.
-  if [ -n "$FT_PID" ] && ! kill -0 "$FT_PID" 2>/dev/null; then
-    _ft_restarts=$(( ${_ft_restarts:-0} + 1 ))
-    if [ "$_ft_restarts" -le 5 ]; then
-      echo "[entrypoint] FT 看门狗: 桥退出, 第 $_ft_restarts/5 次重启 (CA 复用不换, 上游无感)..."
-      _ft_start
-    else
-      echo "[entrypoint] FT 看门狗: 桥 5 次连死, 弃守降级 (WARN: proxy_enabled=1 指向死桥, nvidia 路径停; 修资产或关 FLARETUNNEL_ENABLED 后 Restart)"
-      FT_PID=""
+  # 多桥模式 (2026-08-10): 单桥回退仍走 FT_PID 单判定; 多桥遍历 FT_PIDS 各桥判活,
+  #   死桥单独重启, 重启计数累加共享 5 次封顶 (全桥累计非每桥独立, 避资源耗尽式循环).
+  #   弃守后全桥 PID 置空, 不再循环判.
+  if [ "${_ft_abandoned:-0}" != 1 ]; then
+    if [ -n "$FT_PID" ] && [ -z "$FT_PIDS" -o "$FT_PIDS" = " $FT_PID" ] && ! kill -0 "$FT_PID" 2>/dev/null; then
+      # 单桥回退路径 (FT_PIDS 空 或 仅含 FT_PID 自身): 现役单桥逻辑不动.
+      _ft_restarts=$(( ${_ft_restarts:-0} + 1 ))
+      if [ "$_ft_restarts" -le 5 ]; then
+        echo "[entrypoint] FT 看门狗: 桥退出, 第 $_ft_restarts/5 次重启 (CA 复用不换, 上游无感)..."
+        _ft_start
+      else
+        echo "[entrypoint] FT 看门狗: 桥 5 次连死, 弃守降级 (WARN: proxy_enabled=1 指向死桥, nvidia 路径停; 修资产或关 FLARETUNNEL_ENABLED 后 Restart)"
+        FT_PID=""; FT_PIDS=""; export FT_PID FT_PIDS
+        _ft_abandoned=1
+      fi
+    elif [ -n "$FT_PIDS" ]; then
+      # 多桥路径: 遍历各桥判活, 死桥单独重启 (各桥 PID 孤立 kill -0).
+      _new_pids=""; _new_ports=""; _new_names=""; _any_dead=0
+      _i=0
+      for fpid in $FT_PIDS; do
+        _fport=$(echo "$FT_PORTS" | awk -v i=$((_i)) '{print $(i+1)}')
+        _fname=$(echo "$FT_NAMES" | awk -v i=$((_i)) '{print $(i+1)}')
+        if kill -0 "$fpid" 2>/dev/null; then
+          # 桥活: 保 PID 入新串.
+          _new_pids="$_new_pids $fpid"; _new_ports="$_new_ports $_fport"; _new_names="$_new_names $_fname"
+        else
+          # 桥死: 重启单桥 (保原端口/段), 累加共享计数封顶.
+          _ft_restarts=$(( ${_ft_restarts:-0} + 1 )); _any_dead=1
+          if [ "$_ft_restarts" -le 5 ]; then
+            echo "[entrypoint] FT 看门狗: 桥 $_fname (PID=$fpid, 127.0.0.1:$_fport) 退出, 第 $_ft_restarts/5 次重启..."
+            # 单桥重启: 内联执行 (复用 _ft_start 会重起全桥, 此处只重生死桥).
+            _ft_verbose=""; [ "${FT_VERBOSE:-0}" = "1" ] && _ft_verbose="--verbose"
+            # 从 JSON 取该桥原 workers 段 (按 name 匹配, 缺则空).
+            _b_w=""; [ -f /logic/flaretunnel_bridges.json ] && _b_w=$(jq -r --arg n "$_fname" '.[] | select(.name==$n) | .workers // ""' /logic/flaretunnel_bridges.json 2>/dev/null)
+            _b_wflag=""; [ -n "$_b_w" ] && _b_wflag="--workers $_b_w"
+            /logic/flaretunnel tunnel --host 127.0.0.1 --port "$_fport" \
+              --endpoints /logic/flaretunnel_endpoints.json \
+              --relay-auth "$RELAY_AUTH" \
+              --ca-dir "$FT_CA_DIR" $_b_wflag $_ft_verbose >>"${FT_LOG%.log}-$_fname.log" 2>&1 &
+            _npid=$!
+            _new_pids="$_new_pids $_npid"; _new_ports="$_new_ports $_fport"; _new_names="$_new_names $_fname"
+          else
+            echo "[entrypoint] FT 看门狗: 桥 $_fname 退出, 累计 5 次连死, 弃守降级 (全部桥停, nvidia 路径停; 修资产或关 FLARETUNNEL_ENABLED 后 Restart)"
+            # 杀剩余活桥, 全弃守.
+            for _dpid in $_new_pids $FT_PIDS; do kill "$_dpid" 2>/dev/null || true; done
+            for _dpid in $FT_PIDS; do wait "$_dpid" 2>/dev/null || true; done
+            FT_PID=""; FT_PIDS=""; export FT_PID FT_PIDS
+            _ft_abandoned=1
+            _new_pids=""; break
+          fi
+        fi
+        _i=$((_i+1))
+      done
+      if [ "$_ft_abandoned" != 1 ] && [ -n "$_new_pids" ]; then
+        FT_PIDS="${_new_pids# }"; FT_PORTS="${_new_ports# }"; FT_NAMES="${_new_names# }"; export FT_PIDS FT_PORTS FT_NAMES
+      fi
     fi
   fi
   sleep 1

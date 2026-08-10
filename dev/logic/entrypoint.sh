@@ -223,14 +223,34 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
       # FT_VERBOSE=1 启 --verbose: 开则桥每请求 fmt 入 log + 5min goroutine dump metrics 周期段入 log (路3慢病证根). 默0关闭零dump回A.
       _ft_verbose=""
       [ "${FT_VERBOSE:-0}" = "1" ] && _ft_verbose="--verbose"
+      # FT_WORKER_COUNT (2026-08-10 圣上令): 控桥 round-robin 轮换池规模 N.
+      #   规则: 实际轮换数 = min(FT_WORKER_COUNT, endpoints.json 物理条数 M).
+      #     ENV≥M → 全用 M (ENV过头取实际池, 不凭空造 Worker, 缺 URL 则用满池);
+      #     ENV<M → 取前 N 条子集 (--workers 0-(N-1) 索引锁前 N, Go 源 LoadWorkers 实证支持);
+      #   未设/≤0 → 全用 M (原行为, 回滚 = 删 Variable + Restart).
+      #   欲真扩池超 M 须圣上先 CF 建新 Worker 填 URL 进 endpoints.json 推 Dataset (ENV 不造 URL).
+      _ft_phys=$(jq 'if type=="array" then length elif .endpoints then (.endpoints|length) elif .workers then (.workers|length) else 0 end' /logic/flaretunnel_endpoints.json 2>/dev/null || echo 0)
+      _ft_wflag=""
+      _ft_use=$_ft_phys
+      if [ "${FT_WORKER_COUNT:-0}" -gt 0 ] 2>/dev/null && [ "$_ft_phys" -gt 0 ] 2>/dev/null; then
+        if [ "$FT_WORKER_COUNT" -lt "$_ft_phys" ]; then
+          _ft_use=$FT_WORKER_COUNT
+          # --workers 锁前 N (0-(N-1)); Go parseWorkerIndices 支 a-b 范围语法.
+          _ft_wflag="--workers 0-$((_ft_use-1))"
+          _ft_n=$_ft_use
+        else
+          # ENV≥M: 印提醒 ENV 过头, 用满池 M 条.
+          [ "$FT_WORKER_COUNT" -gt "$_ft_phys" ] && echo "[entrypoint] FT: FT_WORKER_COUNT=$FT_WORKER_COUNT 超 endpoints.json 实际 $_ft_phys 条, 用满池 ($_ft_phys) 轮换 (欲扩池先 CF 建新 Worker 填 URL)."
+        fi
+      fi
       /logic/flaretunnel tunnel --host 127.0.0.1 --port "$FT_PORT" \
         --endpoints /logic/flaretunnel_endpoints.json \
         --relay-auth "$RELAY_AUTH" \
-        --ca-dir "$FT_CA_DIR" $_ft_verbose >>"$FT_LOG" 2>&1 &
+        --ca-dir "$FT_CA_DIR" $_ft_wflag $_ft_verbose >>"$FT_LOG" 2>&1 &
       FT_PID=$!
       export FT_PID   # 须 export: init-nim-keys.sh 起 bash 子进程, 不 export 则 FT_PID 不传子进程致 init 跳过 FT 代理注册
-      _ft_n=$(jq 'if type=="array" then length elif .endpoints then (.endpoints|length) elif .workers then (.workers|length) else 0 end' /logic/flaretunnel_endpoints.json 2>/dev/null || echo 8)
-      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, ${_ft_n} Worker round-robin, log→$FT_LOG${_ft_verbose:+ verbose metrics-dump ON})"
+      : "${_ft_n:=$_ft_phys}"
+      echo "[entrypoint] FT: bridge PID=$FT_PID (127.0.0.1:$FT_PORT, ${_ft_n}/${_ft_phys} Worker round-robin${_ft_wflag:+ (ENV FT_WORKER_COUNT=${FT_WORKER_COUNT} 子集)}, log→$FT_LOG${_ft_verbose:+ verbose metrics-dump ON})"
     }
     _ft_start
     # CA 等生 (红线②): 桥首启自签 CA 落盘后才可 export; 上限 10s, 桥早夭即弃

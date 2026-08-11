@@ -163,7 +163,11 @@ def capture_stdout():
     """五源 (gate/ft/app/entrypoint/litestream) raw 尾追 → redact → 写 staging 出件 (推 save).init.log 由 capture_init 单独接 (类 C)."""
     # gate stderr (logGate JSON) · ft (Go 半结构) · app (上游 structured JSONL) 三源均落 RAW_DIR
     _capture_one(RAW_DIR / "gate-stderr.log", "gate")
-    _capture_one(RAW_DIR / "flaretunnel.log", "ft")
+    # ft 源 glob 撮 flaretunnel*.log: 单桥写 flaretunnel.log (entrypoint.sh:299),
+    # 多桥写 flaretunnel-<name>.log (entrypoint.sh:285) 各实例 — 桥崩/CA 等生期降级原证在这.
+    # 旧写死 _capture_one(flaretunnel.log) 多桥时抓不到桥 log (Save/ft 0 件),根因证据漏.
+    for _ft_raw in sorted(RAW_DIR.glob("flaretunnel*.log")):
+        _capture_one(_ft_raw, "ft")
     _capture_one(RAW_DIR / "app.log", "app")
     # (2026-08-01 圣上令补) 第6-7源: entrypoint boot 编排真相 + litestream R2 复制链. 两源 entrypoint.sh tee >>raw + replicate >>raw 落 omn-raw, 经 omn_redact 兜脱敏后入 save.
     _capture_one(RAW_DIR / "entrypoint.log", "entrypoint")

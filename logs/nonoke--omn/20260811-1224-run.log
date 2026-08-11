@@ -1,0 +1,812 @@
+data: {"data":"===== Application Startup at 2026-08-11 12:21:20 =====\n","timestamp":"2026-08-11T12:21:20Z"}
+
+data: {"data":"[start] >>> 启动 2026-08-11 12:21:53 <<<","timestamp":"2026-08-11T12:21:53.757Z"}
+
+data: {"data":"[start] 基础镜像: ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f","timestamp":"2026-08-11T12:21:53.757Z"}
+
+data: {"data":"[start] 镜像 B 模式：工具链已就绪","timestamp":"2026-08-11T12:21:53.757Z"}
+
+data: {"data":"[start] 同步 Dataset: nonoke/omn-logic","timestamp":"2026-08-11T12:21:53.757Z"}
+
+data: {"data":"[start] Dataset HEAD 锁定 revision=3c3d837b1d92 (竞速根治: atomic 同点拉取)","timestamp":"2026-08-11T12:21:54.387Z"}
+
+data: {"data":"/tmp/logic","timestamp":"2026-08-11T12:24:08.996Z"}
+
+data: {"data":"\u001b[90mHint: A new version of huggingface_hub (1.27.0) is available! You are using version 1.24.0.","timestamp":"2026-08-11T12:24:09.178Z"}
+
+data: {"data":"To update, run: hf update\u001b[0m","timestamp":"2026-08-11T12:24:09.178Z"}
+
+data: {"data":"Still waiting to acquire lock on /tmp/logic/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)","timestamp":"2026-08-11T12:24:09.178Z"}
+
+data: {"data":"Still waiting to acquire lock on /tmp/logic/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)","timestamp":"2026-08-11T12:24:09.178Z"}
+
+data: {"data":"[start] 逻辑注入完成","timestamp":"2026-08-11T12:24:16.667Z"}
+
+data: {"data":"[start] 移交控制权给逻辑层","timestamp":"2026-08-11T12:24:17.897Z"}
+
+data: {"data":"[entrypoint] boot 编排日志 tee -> /data/omn-raw/entrypoint.log (_raw → capture_loop entrypoint 源 → omn_redact → save/entrypoint/)","timestamp":"2026-08-11T12:24:17.916Z"}
+
+data: {"data":"[entrypoint] STREAM_READINESS_TIMEOUT_MS=180000 (M7 外科单注, wiki §15 实证)","timestamp":"2026-08-11T12:24:17.916Z"}
+
+data: {"data":"[entrypoint] 上游服务启动 | PORT=20128 EXPOSED=7860 DATA=/data (ephemeral, R2 是数据主路径)","timestamp":"2026-08-11T12:24:17.916Z"}
+
+data: {"data":"[entrypoint] lock acquired (flock /data/.omniroute.lock, fd 9).","timestamp":"2026-08-11T12:24:17.917Z"}
+
+data: {"data":"time=2026-08-11T12:24:18.076Z level=ERROR msg=\"failed to run\" error=\"database not found in config: /data/storage.sqlite\"","timestamp":"2026-08-11T12:24:18.079Z"}
+
+data: {"data":"[entrypoint] ⚠ restore 失败 rc=1 (见 /tmp/ls_restore.err; 已脱敏, 不打凭据). 空库启动.","timestamp":"2026-08-11T12:24:18.087Z"}
+
+data: {"data":"[entrypoint] FT: FLARETUNNEL_ENABLED 未启用, 跳过 (默认直连路径零变更)","timestamp":"2026-08-11T12:24:18.088Z"}
+
+data: {"data":"[entrypoint] 上游服务 PID=65 (heap 4096)","timestamp":"2026-08-11T12:24:18.091Z"}
+
+data: {"data":"▲ Next.js 16.2.10","timestamp":"2026-08-11T12:24:18.543Z"}
+
+data: {"data":"- Local:         http://localhost:20128","timestamp":"2026-08-11T12:24:18.543Z"}
+
+data: {"data":"- Network:       http://0.0.0.0:20128","timestamp":"2026-08-11T12:24:18.543Z"}
+
+data: {"data":"✓ Ready in 0ms","timestamp":"2026-08-11T12:24:18.544Z"}
+
+data: {"data":"[CREDENTIALS] No external credentials file found, using defaults.","timestamp":"2026-08-11T12:24:18.985Z"}
+
+data: {"data":"[DB] Added usage_history.combo_strategy column","timestamp":"2026-08-11T12:24:19.152Z"}
+
+data: {"data":"[DB] Added call_logs.model_pinned column","timestamp":"2026-08-11T12:24:19.153Z"}
+
+data: {"data":"[Migration] Pre-migration backup created: /data/db_backups/db_2026-08-11T12-24-19-168Z_pre-migration.sqlite","timestamp":"2026-08-11T12:24:19.179Z"}
+
+data: {"data":"[Migration] Applied: 002_mcp_a2a_tables","timestamp":"2026-08-11T12:24:19.181Z"}
+
+data: {"data":"[Migration] Skipped executing 003_provider_node_custom_paths as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.181Z"}
+
+data: {"data":"[Migration] Applied: 003_provider_node_custom_paths","timestamp":"2026-08-11T12:24:19.182Z"}
+
+data: {"data":"[Migration] Applied: 004_proxy_registry","timestamp":"2026-08-11T12:24:19.182Z"}
+
+data: {"data":"[Migration] Applied: 005_combo_agent_fields","timestamp":"2026-08-11T12:24:19.183Z"}
+
+data: {"data":"[Migration] Applied: 006_detailed_request_logs","timestamp":"2026-08-11T12:24:19.184Z"}
+
+data: {"data":"[Migration] Skipped executing 007_search_request_type as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.184Z"}
+
+data: {"data":"[Migration] Applied: 007_search_request_type","timestamp":"2026-08-11T12:24:19.184Z"}
+
+data: {"data":"[Migration] Applied: 008_registered_keys","timestamp":"2026-08-11T12:24:19.185Z"}
+
+data: {"data":"[Migration] Skipped executing 009_requested_model as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.185Z"}
+
+data: {"data":"[Migration] Applied: 009_requested_model","timestamp":"2026-08-11T12:24:19.185Z"}
+
+data: {"data":"[Migration] Applied: 010_model_combo_mappings","timestamp":"2026-08-11T12:24:19.185Z"}
+
+data: {"data":"[Migration] Applied: 011_webhooks","timestamp":"2026-08-11T12:24:19.185Z"}
+
+data: {"data":"[Migration] Applied: 012_fix_token_input_cache_tokens","timestamp":"2026-08-11T12:24:19.186Z"}
+
+data: {"data":"[Migration] Applied: 013_quota_snapshots","timestamp":"2026-08-11T12:24:19.186Z"}
+
+data: {"data":"[Migration] Applied: 014_unified_log_artifacts","timestamp":"2026-08-11T12:24:19.186Z"}
+
+data: {"data":"[Migration] Applied: 015_create_memories","timestamp":"2026-08-11T12:24:19.186Z"}
+
+data: {"data":"[Migration] Applied: 016_create_skills","timestamp":"2026-08-11T12:24:19.187Z"}
+
+data: {"data":"[Migration] Applied: 017_version_manager_upstream_proxy","timestamp":"2026-08-11T12:24:19.187Z"}
+
+data: {"data":"[Migration] Skipped executing 018_call_logs_detailed_tokens as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.187Z"}
+
+data: {"data":"[Migration] Applied: 018_call_logs_detailed_tokens","timestamp":"2026-08-11T12:24:19.187Z"}
+
+data: {"data":"[Migration] Applied: 019_context_handoffs","timestamp":"2026-08-11T12:24:19.188Z"}
+
+data: {"data":"[Migration] Skipped executing 020_combo_sort_order as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.188Z"}
+
+data: {"data":"[Migration] Applied: 020_combo_sort_order","timestamp":"2026-08-11T12:24:19.188Z"}
+
+data: {"data":"[Migration] Skipped executing 021_combo_call_log_targets as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.188Z"}
+
+data: {"data":"[Migration] Applied: 021_combo_call_log_targets","timestamp":"2026-08-11T12:24:19.188Z"}
+
+data: {"data":"[Migration] Applied: 022_add_memory_fts5","timestamp":"2026-08-11T12:24:19.189Z"}
+
+data: {"data":"[Migration] Applied: 023_fix_memory_fts_uuid","timestamp":"2026-08-11T12:24:19.191Z"}
+
+data: {"data":"[Migration] Applied: 024_create_sync_tokens","timestamp":"2026-08-11T12:24:19.191Z"}
+
+data: {"data":"[Migration] Skipped executing 025_call_logs_summary_storage as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.191Z"}
+
+data: {"data":"[Migration] Applied: 025_call_logs_summary_storage","timestamp":"2026-08-11T12:24:19.191Z"}
+
+data: {"data":"[Migration] Applied: 027_skill_mode_and_metadata","timestamp":"2026-08-11T12:24:19.195Z"}
+
+data: {"data":"[Migration] Applied: 028_create_files_and_batches","timestamp":"2026-08-11T12:24:19.196Z"}
+
+data: {"data":"[Migration] Skipped executing 029_provider_connection_max_concurrent as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.196Z"}
+
+data: {"data":"[Migration] Applied: 029_provider_connection_max_concurrent","timestamp":"2026-08-11T12:24:19.196Z"}
+
+data: {"data":"[Migration] Applied: 030_create_eval_runs","timestamp":"2026-08-11T12:24:19.196Z"}
+
+data: {"data":"[Migration] Applied: 031_create_eval_suites","timestamp":"2026-08-11T12:24:19.197Z"}
+
+data: {"data":"[Migration] Applied: 032_apikey_lifecycle","timestamp":"2026-08-11T12:24:19.203Z"}
+
+data: {"data":"[Migration] Applied: 033_create_reasoning_cache","timestamp":"2026-08-11T12:24:19.203Z"}
+
+data: {"data":"[Migration] Applied: 034_compression_settings","timestamp":"2026-08-11T12:24:19.203Z"}
+
+data: {"data":"[Migration] Applied: 035_standard_compression_config","timestamp":"2026-08-11T12:24:19.204Z"}
+
+data: {"data":"[Migration] Applied: 036_aggressive_compression","timestamp":"2026-08-11T12:24:19.204Z"}
+
+data: {"data":"[Migration] Applied: 037_ultra_compression","timestamp":"2026-08-11T12:24:19.204Z"}
+
+data: {"data":"[Migration] Applied: 038_compression_analytics","timestamp":"2026-08-11T12:24:19.204Z"}
+
+data: {"data":"[Migration] Applied: 039_compression_cache_stats","timestamp":"2026-08-11T12:24:19.205Z"}
+
+data: {"data":"[Migration] Applied: 040_oneproxy_proxy_fields","timestamp":"2026-08-11T12:24:19.211Z"}
+
+data: {"data":"[Migration] Applied: 041_compression_receipts","timestamp":"2026-08-11T12:24:19.224Z"}
+
+data: {"data":"[Migration] Applied: 042_compression_combos","timestamp":"2026-08-11T12:24:19.225Z"}
+
+data: {"data":"[Migration] Applied: 043_default_compression_combo_pipeline","timestamp":"2026-08-11T12:24:19.225Z"}
+
+data: {"data":"[Migration] Applied: 044_usage_history_api_key_backfill","timestamp":"2026-08-11T12:24:19.226Z"}
+
+data: {"data":"[Migration] Skipped executing 045_compression_tokens as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.226Z"}
+
+data: {"data":"[Migration] Applied: 045_compression_tokens","timestamp":"2026-08-11T12:24:19.226Z"}
+
+data: {"data":"[Migration] Applied: 046_database_settings","timestamp":"2026-08-11T12:24:19.226Z"}
+
+data: {"data":"[Migration] Applied: 047_aggregation_tables","timestamp":"2026-08-11T12:24:19.227Z"}
+
+data: {"data":"[Migration] Applied: 048_summary_indexes","timestamp":"2026-08-11T12:24:19.227Z"}
+
+data: {"data":"[Migration] Applied: 049_compression_analytics_indexes","timestamp":"2026-08-11T12:24:19.228Z"}
+
+data: {"data":"[Migration] Applied: 050_session_account_affinity","timestamp":"2026-08-11T12:24:19.228Z"}
+
+data: {"data":"[Migration] Applied: 051_hot_path_db_indexes","timestamp":"2026-08-11T12:24:19.228Z"}
+
+data: {"data":"[Migration] Applied: 052_api_key_combo_throttle","timestamp":"2026-08-11T12:24:19.231Z"}
+
+data: {"data":"[Migration] Applied: 053_remove_status_from_files","timestamp":"2026-08-11T12:24:19.236Z"}
+
+data: {"data":"[Migration] Skipped executing 054_usage_history_service_tier as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.236Z"}
+
+data: {"data":"[Migration] Applied: 054_usage_history_service_tier","timestamp":"2026-08-11T12:24:19.236Z"}
+
+data: {"data":"[Migration] Applied: 056_mcp_accessibility_compression","timestamp":"2026-08-11T12:24:19.236Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 057_provider_connection_quota_window_thresholds","timestamp":"2026-08-11T12:24:19.237Z"}
+
+data: {"data":"[Migration] Applied: 058_command_code_auth_sessions","timestamp":"2026-08-11T12:24:19.237Z"}
+
+data: {"data":"[Migration] Applied: 059_manifest_routing","timestamp":"2026-08-11T12:24:19.237Z"}
+
+data: {"data":"[Migration] Applied: 060_create_gamification","timestamp":"2026-08-11T12:24:19.239Z"}
+
+data: {"data":"[Migration] Applied: 061_cloud_agent_credentials","timestamp":"2026-08-11T12:24:19.239Z"}
+
+data: {"data":"[Migration] Skipped executing 062_usage_history_combo_strategy as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.239Z"}
+
+data: {"data":"[Migration] Applied: 062_usage_history_combo_strategy","timestamp":"2026-08-11T12:24:19.239Z"}
+
+data: {"data":"[Migration] Applied: 063_add_last_model_to_handoffs","timestamp":"2026-08-11T12:24:19.241Z"}
+
+data: {"data":"[Migration] Applied: 064_create_session_model_history","timestamp":"2026-08-11T12:24:19.241Z"}
+
+data: {"data":"[Migration] Applied: 065_middleware_hooks","timestamp":"2026-08-11T12:24:19.242Z"}
+
+data: {"data":"[Migration] Applied: 066_api_key_groups","timestamp":"2026-08-11T12:24:19.242Z"}
+
+data: {"data":"[Migration] Applied: 067_relay_proxies","timestamp":"2026-08-11T12:24:19.243Z"}
+
+data: {"data":"[Migration] Applied: 068_free_proxies","timestamp":"2026-08-11T12:24:19.243Z"}
+
+data: {"data":"[Migration] Applied: 069_webhook_deliveries","timestamp":"2026-08-11T12:24:19.244Z"}
+
+data: {"data":"[Migration] Applied: 070_webhooks_kind_metadata","timestamp":"2026-08-11T12:24:19.247Z"}
+
+data: {"data":"[Migration] Applied: 071_services","timestamp":"2026-08-11T12:24:19.251Z"}
+
+data: {"data":"[Migration] Applied: 072_free_proxies_fk","timestamp":"2026-08-11T12:24:19.252Z"}
+
+data: {"data":"[Migration] Applied: 073_per_model_token_limits","timestamp":"2026-08-11T12:24:19.252Z"}
+
+data: {"data":"[Migration] Applied: 074_discovery_results","timestamp":"2026-08-11T12:24:19.253Z"}
+
+data: {"data":"[Migration] Applied: 075_api_key_self_service_usage_scopes","timestamp":"2026-08-11T12:24:19.253Z"}
+
+data: {"data":"[Migration] Applied: 076_create_plugins","timestamp":"2026-08-11T12:24:19.254Z"}
+
+data: {"data":"[Migration] Applied: 077_api_key_stream_default_mode","timestamp":"2026-08-11T12:24:19.256Z"}
+
+data: {"data":"[Migration] Applied: 078_quota_consumption","timestamp":"2026-08-11T12:24:19.256Z"}
+
+data: {"data":"[Migration] Applied: 079_provider_plans","timestamp":"2026-08-11T12:24:19.257Z"}
+
+data: {"data":"[Migration] Applied: 080_agent_bridge","timestamp":"2026-08-11T12:24:19.257Z"}
+
+data: {"data":"[Migration] Applied: 081_inspector_custom_hosts","timestamp":"2026-08-11T12:24:19.258Z"}
+
+data: {"data":"[Migration] Applied: 082_inspector_sessions","timestamp":"2026-08-11T12:24:19.258Z"}
+
+data: {"data":"[Migration] Applied: 083_memory_vec","timestamp":"2026-08-11T12:24:19.260Z"}
+
+data: {"data":"[Migration] Applied: 084_playground_presets","timestamp":"2026-08-11T12:24:19.261Z"}
+
+data: {"data":"[Migration] Applied: 085_quota_pools","timestamp":"2026-08-11T12:24:19.261Z"}
+
+data: {"data":"[Migration] Applied: 086_api_key_allowed_quotas","timestamp":"2026-08-11T12:24:19.263Z"}
+
+data: {"data":"[Migration] Applied: 087_quota_pool_connections","timestamp":"2026-08-11T12:24:19.264Z"}
+
+data: {"data":"[Migration] Applied: 088_quota_groups","timestamp":"2026-08-11T12:24:19.266Z"}
+
+data: {"data":"[Migration] Applied: 089_add_disable_non_public_to_api_keys","timestamp":"2026-08-11T12:24:19.268Z"}
+
+data: {"data":"[Migration] Applied: 090_plugin_metrics","timestamp":"2026-08-11T12:24:19.268Z"}
+
+data: {"data":"[Migration] Applied: 091_plugin_analytics","timestamp":"2026-08-11T12:24:19.269Z"}
+
+data: {"data":"[Migration] Applied: 092_api_key_context_sources","timestamp":"2026-08-11T12:24:19.269Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 093_proxy_enable_toggles","timestamp":"2026-08-11T12:24:19.269Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 094_per_key_proxy_toggles","timestamp":"2026-08-11T12:24:19.270Z"}
+
+data: {"data":"[Migration] Skipped executing 095_provider_node_custom_headers as schema changes are already present (Idempotency check).","timestamp":"2026-08-11T12:24:19.270Z"}
+
+data: {"data":"[Migration] Applied: 095_provider_node_custom_headers","timestamp":"2026-08-11T12:24:19.270Z"}
+
+data: {"data":"[Migration] Applied: 096_sync_context_cache_protection","timestamp":"2026-08-11T12:24:19.270Z"}
+
+data: {"data":"[Migration] Applied: 097_model_intelligence","timestamp":"2026-08-11T12:24:19.270Z"}
+
+data: {"data":"[Migration] Applied: 098_clear_semantic_cache_for_key_isolation","timestamp":"2026-08-11T12:24:19.270Z"}
+
+data: {"data":"[Migration] Applied: 099_proxy_family","timestamp":"2026-08-11T12:24:19.274Z"}
+
+data: {"data":"[Migration] Applied: 100_cli_access_tokens","timestamp":"2026-08-11T12:24:19.275Z"}
+
+data: {"data":"[Migration] Applied: 101_api_key_usage_limits","timestamp":"2026-08-11T12:24:19.280Z"}
+
+data: {"data":"[Migration] Applied: 102_compression_engines_map","timestamp":"2026-08-11T12:24:19.280Z"}
+
+data: {"data":"[Migration] Applied: 103_strip_legacy_combo_config_keys","timestamp":"2026-08-11T12:24:19.280Z"}
+
+data: {"data":"[Migration] Applied: 104_normalize_database_cache_size","timestamp":"2026-08-11T12:24:19.281Z"}
+
+data: {"data":"[Migration] Applied: 105_usage_history_endpoint","timestamp":"2026-08-11T12:24:19.282Z"}
+
+data: {"data":"[Migration] Applied: 106_quota_allocation_model_caps","timestamp":"2026-08-11T12:24:19.283Z"}
+
+data: {"data":"[Migration] Applied: 107_quota_combos_quota_share_strategy","timestamp":"2026-08-11T12:24:19.283Z"}
+
+data: {"data":"[Migration] Applied: 108_provider_quota_reset_events","timestamp":"2026-08-11T12:24:19.283Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 109_call_logs_correlation_id","timestamp":"2026-08-11T12:24:19.284Z"}
+
+data: {"data":"[Migration] Applied: 110_model_context_overrides","timestamp":"2026-08-11T12:24:19.284Z"}
+
+data: {"data":"[Migration] Applied: 111_memory_typed_decay","timestamp":"2026-08-11T12:24:19.287Z"}
+
+data: {"data":"[Migration] Applied: 112_batch_item_checkpoints","timestamp":"2026-08-11T12:24:19.287Z"}
+
+data: {"data":"[Migration] Applied: 113_provider_node_icon_url","timestamp":"2026-08-11T12:24:19.289Z"}
+
+data: {"data":"[Migration] Applied: 114_mux_service_seed","timestamp":"2026-08-11T12:24:19.304Z"}
+
+data: {"data":"[Migration] Applied: 115_bifrost_service","timestamp":"2026-08-11T12:24:19.307Z"}
+
+data: {"data":"[Migration] Applied: 116_call_logs_reasoning_source","timestamp":"2026-08-11T12:24:19.310Z"}
+
+data: {"data":"[Migration] Applied: 117_proxy_pool_rotation","timestamp":"2026-08-11T12:24:19.316Z"}
+
+data: {"data":"[Migration] Applied: 118_provider_param_filters","timestamp":"2026-08-11T12:24:19.316Z"}
+
+data: {"data":"[Migration] Applied: 119_model_capability_overrides","timestamp":"2026-08-11T12:24:19.316Z"}
+
+data: {"data":"[Migration] Applied: 120_interception_rules","timestamp":"2026-08-11T12:24:19.316Z"}
+
+data: {"data":"[Migration] Applied: 122_free_proxy_sync_errors","timestamp":"2026-08-11T12:24:19.316Z"}
+
+data: {"data":"[Migration] 118 migration(s) applied successfully.","timestamp":"2026-08-11T12:24:19.316Z"}
+
+data: {"data":"[DB] cache_size already set to 16384KB","timestamp":"2026-08-11T12:24:19.317Z"}
+
+data: {"data":"[DB] SQLite database ready: /data/storage.sqlite (DATA_DIR=/data, SQLITE_FILE=/data/storage.sqlite)","timestamp":"2026-08-11T12:24:19.320Z"}
+
+data: {"data":"[STARTUP] Global fetch proxy patch initialized","timestamp":"2026-08-11T12:24:20.962Z"}
+
+data: {"data":"[STARTUP] JWT_SECRET auto-generated and persisted (random 64-char secret)","timestamp":"2026-08-11T12:24:20.963Z"}
+
+data: {"data":"[HealthCheck] Starting proactive token health-check (tick every 60s)","timestamp":"2026-08-11T12:24:21.040Z"}
+
+data: {"data":"[Shutdown] Graceful shutdown handlers registered.","timestamp":"2026-08-11T12:24:21.044Z"}
+
+data: {"data":"[STARTUP] Spend batch writer started","timestamp":"2026-08-11T12:24:21.044Z"}
+
+data: {"data":"[STARTUP] Guardrail registry initialized","timestamp":"2026-08-11T12:24:21.044Z"}
+
+data: {"data":"[STARTUP] Builtin skill handlers registered","timestamp":"2026-08-11T12:24:21.044Z"}
+
+data: {"data":"[STARTUP] Quota cache background refresh started","timestamp":"2026-08-11T12:24:21.044Z"}
+
+data: {"data":"[ProviderLimitsSync] Scheduler started — interval: 70m","timestamp":"2026-08-11T12:24:21.045Z"}
+
+data: {"data":"[STARTUP] Provider limits sync scheduler started","timestamp":"2026-08-11T12:24:21.045Z"}
+
+data: {"data":"[ModelSync] Scheduler started — interval: 24h","timestamp":"2026-08-11T12:24:21.055Z"}
+
+data: {"data":"[STARTUP] Cloud/model sync background bootstrap initialized","timestamp":"2026-08-11T12:24:21.057Z"}
+
+data: {"data":"[BATCH] Initializing batch processor polling...","timestamp":"2026-08-11T12:24:21.063Z"}
+
+data: {"data":"[STARTUP] Batch processor started","timestamp":"2026-08-11T12:24:21.063Z"}
+
+data: {"data":"[AUTH] Migrated INITIAL_PASSWORD to bcrypt hash during startup","timestamp":"2026-08-11T12:24:21.442Z"}
+
+data: {"data":"[STARTUP] Runtime settings hydrated: payloadRules, modelAliases, backgroundDegradation, cliCompatProviders, cacheControl, usageTracking, healthCheckLogs, thoughtSignature, modelsDevSync, corsOrigins, ccBridgeTransforms, systemTransforms, authzBypass, bannedSignals","timestamp":"2026-08-11T12:24:21.448Z"}
+
+data: {"data":"[STARTUP] Model alias seed: applied=6, skipped=0, failed=0","timestamp":"2026-08-11T12:24:21.450Z"}
+
+data: {"data":"[STARTUP] Migrated Codex connection defaults for 0 connection(s)","timestamp":"2026-08-11T12:24:21.451Z"}
+
+data: {"data":"[STARTUP] Synced migrated Codex connection defaults to cloud","timestamp":"2026-08-11T12:24:21.459Z"}
+
+data: {"data":"[HOT_RELOAD] Runtime config hot-reload started (poll=5000ms, fsWatch=on)","timestamp":"2026-08-11T12:24:21.460Z"}
+
+data: {"data":"[COMPLIANCE] Audit log table initialized","timestamp":"2026-08-11T12:24:21.463Z"}
+
+data: {"data":"[STARTUP] Scheduled VACUUM initialized (#4437)","timestamp":"2026-08-11T12:24:21.467Z"}
+
+data: {"data":"[STARTUP] Embedded services bootstrap complete","timestamp":"2026-08-11T12:24:21.470Z"}
+
+data: {"data":"[AutoRefreshDaemon] Started — checking 0 credentials every 900s","timestamp":"2026-08-11T12:24:21.475Z"}
+
+data: {"data":"[ConnectionRecovery] Starting proactive cooldown recovery (tick every 60s)","timestamp":"2026-08-11T12:24:21.480Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Starting periodic sync every 86400s","timestamp":"2026-08-11T12:24:21.481Z"}
+
+data: {"data":"[STARTUP] Arena ELO sync initialized","timestamp":"2026-08-11T12:24:21.487Z"}
+
+data: {"data":"[PRICING_SYNC] Disabled (set PRICING_SYNC_ENABLED=true to enable)","timestamp":"2026-08-11T12:24:21.489Z"}
+
+data: {"data":"[MODELS_DEV] Disabled (enable via Settings > AI)","timestamp":"2026-08-11T12:24:21.494Z"}
+
+data: {"data":"[STARTUP] Live dashboard WebSocket daemon bootstrap invoked","timestamp":"2026-08-11T12:24:21.502Z"}
+
+data: {"data":"[LocalHealthCheck] Starting local provider health check (initial delay 15s)","timestamp":"2026-08-11T12:24:22.390Z"}
+
+data: {"data":"[entrypoint] ✓ 就绪","timestamp":"2026-08-11T12:24:22.429Z"}
+
+data: {"data":"[REDIS] REDIS_URL is not set in production. Using in-memory rate limiting.","timestamp":"2026-08-11T12:24:23.081Z"}
+
+data: {"data":"[EmbedWsProxy] Listening on 127.0.0.1:20131","timestamp":"2026-08-11T12:24:26.413Z"}
+
+data: {"data":"[LiveWS] Dashboard WebSocket server listening on 127.0.0.1:20132","timestamp":"2026-08-11T12:24:26.414Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 1ms","timestamp":"2026-08-11T12:24:26.421Z"}
+
+data: {"data":"[ModelSync] No connections with autoSync enabled — skipping cycle","timestamp":"2026-08-11T12:24:26.421Z"}
+
+data: {"data":"[entrypoint] 版本=3.8.48 (期望未设置, 跳过比对)","timestamp":"2026-08-11T12:24:26.445Z"}
+
+data: {"data":"[entrypoint] Init PID=127","timestamp":"2026-08-11T12:24:26.446Z"}
+
+data: {"data":"[entrypoint] Litestream: OMN_PERSIST_WRITE=0 关态, replicate 不启 → 本次改动不保存 (不写回 R2).","timestamp":"2026-08-11T12:24:26.448Z"}
+
+data: {"data":"[entrypoint] 全部就绪：OR=65 Init=127 LS=无 Gate→:7860 (background, entrypoint 持 PID 1 主监)","timestamp":"2026-08-11T12:24:26.448Z"}
+
+data: {"data":"[init] 🛠️ NIM_MODE=DEBUG：日志 tee -> /data/omn-raw/init_20260811_122426.log（_raw → capture_init 脱敏推 save）","timestamp":"2026-08-11T12:24:26.451Z"}
+
+data: {"data":"[init] NIM_PROFILE=balanced -> pool 意向 10 个模型","timestamp":"2026-08-11T12:24:26.455Z"}
+
+data: {"data":"[init] 动态限流 RPM=300 concurrent=75 interval=200ms (alive_keys=25, per_key_rpm=35 per_key_conc=3)","timestamp":"2026-08-11T12:24:26.460Z"}
+
+data: {"data":"[init] pool strategy=p2c | codex strategy=priority","timestamp":"2026-08-11T12:24:26.463Z"}
+
+data: {"data":"[init] body limit: raw=4 -> maxBodySizeMb=4","timestamp":"2026-08-11T12:24:26.464Z"}
+
+data: {"data":"[init] Starting NIM OmniRoute initializer v4.3.2 (profile=balanced, mode=DEBUG) on node v24.18.0...","timestamp":"2026-08-11T12:24:26.471Z"}
+
+data: {"data":"[init] BASE_URL=http://127.0.0.1:20128","timestamp":"2026-08-11T12:24:26.471Z"}
+
+data: {"data":"[init] Waiting for OmniRoute...","timestamp":"2026-08-11T12:24:26.471Z"}
+
+data: {"data":"kill deprecated models complete.","timestamp":"2026-08-11T12:24:26.485Z"}
+
+data: {"data":"[init] OmniRoute up (after 0s).","timestamp":"2026-08-11T12:24:26.501Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] synced 150 model intelligence entries from Arena leaderboards","timestamp":"2026-08-11T12:24:26.505Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Initial sync complete: 150 model intelligence entries","timestamp":"2026-08-11T12:24:26.505Z"}
+
+data: {"data":"[init] version: 3.8.48","timestamp":"2026-08-11T12:24:26.520Z"}
+
+data: {"data":"[init] Logging in...","timestamp":"2026-08-11T12:24:26.520Z"}
+
+data: {"data":"[entrypoint] gate 依赖已就绪 (require('express') 命中, 跳 npm install)","timestamp":"2026-08-11T12:24:26.777Z"}
+
+data: {"data":"[entrypoint] starting gate on port 7860...","timestamp":"2026-08-11T12:24:26.777Z"}
+
+data: {"data":"[entrypoint] helper.sh 装依赖 (boto3 插件包)...","timestamp":"2026-08-11T12:24:26.780Z"}
+
+data: {"data":"[helper] 补包完成 (全件已入 base, helper 留框架)","timestamp":"2026-08-11T12:24:26.782Z"}
+
+data: {"data":"[entrypoint] gate PID=170, stderr → /data/omn-raw/gate-stderr.log","timestamp":"2026-08-11T12:24:26.783Z"}
+
+data: {"data":"[entrypoint] omn_scheduler PID=171 (永续日志: 明文 stderr → 私有 Dataset)","timestamp":"2026-08-11T12:24:26.783Z"}
+
+data: {"data":"[gate] admin UI: enabled (GATE_ADMIN_ENABLED 开关状态).","timestamp":"2026-08-11T12:24:26.912Z"}
+
+data: {"data":"[gate] listening on 0.0.0.0:7860 -> 127.0.0.1:20128","timestamp":"2026-08-11T12:24:26.921Z"}
+
+data: {"data":"[init] Logged in.","timestamp":"2026-08-11T12:24:27.019Z"}
+
+data: {"data":"[init] OMNIROUTE_API_KEY env set, skip /api/keys.","timestamp":"2026-08-11T12:24:27.022Z"}
+
+data: {"data":"[init] probe_nim_keys_real: 并发3 探活 NIM keys via POST /v1/chat/completions (model=z-ai/glm-5.2, timeout=15s/key, 403→dead, 余→alive fail-open, 重试关(000→alive))...","timestamp":"2026-08-11T12:24:27.023Z"}
+
+data: {"data":"[init] probe key#1: HTTP 200 → alive","timestamp":"2026-08-11T12:24:28.950Z"}
+
+data: {"data":"[init] probe key#2: HTTP 200 → alive","timestamp":"2026-08-11T12:24:28.951Z"}
+
+data: {"data":"[init] probe key#3: HTTP 200 → alive","timestamp":"2026-08-11T12:24:28.953Z"}
+
+data: {"data":"[init] probe key#4: HTTP 200 → alive","timestamp":"2026-08-11T12:24:29.776Z"}
+
+data: {"data":"[init] probe key#5: HTTP 200 → alive","timestamp":"2026-08-11T12:24:29.778Z"}
+
+data: {"data":"[init] probe key#6: HTTP 200 → alive","timestamp":"2026-08-11T12:24:29.780Z"}
+
+data: {"data":"[init] probe key#7: HTTP 200 → alive","timestamp":"2026-08-11T12:24:31.170Z"}
+
+data: {"data":"[init] probe key#8: HTTP 200 → alive","timestamp":"2026-08-11T12:24:31.171Z"}
+
+data: {"data":"[init] probe key#9: HTTP 200 → alive","timestamp":"2026-08-11T12:24:31.173Z"}
+
+data: {"data":"[init] probe key#10: HTTP 200 → alive","timestamp":"2026-08-11T12:24:34.656Z"}
+
+data: {"data":"[init] probe key#11: HTTP 200 → alive","timestamp":"2026-08-11T12:24:34.658Z"}
+
+data: {"data":"[init] probe key#12: HTTP 200 → alive","timestamp":"2026-08-11T12:24:34.660Z"}
+
+data: {"data":"[init] probe key#13: HTTP 200 → alive","timestamp":"2026-08-11T12:24:36.171Z"}
+
+data: {"data":"[init] probe key#14: HTTP 200 → alive","timestamp":"2026-08-11T12:24:36.172Z"}
+
+data: {"data":"[init] probe key#15: HTTP 200 → alive","timestamp":"2026-08-11T12:24:36.176Z"}
+
+data: {"data":"[init] probe key#16: HTTP 200 → alive","timestamp":"2026-08-11T12:24:37.425Z"}
+
+data: {"data":"[init] probe key#17: HTTP 200 → alive","timestamp":"2026-08-11T12:24:37.427Z"}
+
+data: {"data":"[init] probe key#18: HTTP 200 → alive","timestamp":"2026-08-11T12:24:37.429Z"}
+
+data: {"data":"[init] probe key#19: HTTP 200 → alive","timestamp":"2026-08-11T12:24:38.890Z"}
+
+data: {"data":"[init] probe key#20: HTTP 200 → alive","timestamp":"2026-08-11T12:24:38.892Z"}
+
+data: {"data":"[init] probe key#21: HTTP 200 → alive","timestamp":"2026-08-11T12:24:38.894Z"}
+
+data: {"data":"[init] probe key#22: HTTP 200 → alive","timestamp":"2026-08-11T12:24:39.714Z"}
+
+data: {"data":"[init] probe key#23: HTTP 200 → alive","timestamp":"2026-08-11T12:24:39.716Z"}
+
+data: {"data":"[init] probe key#24: HTTP 200 → alive","timestamp":"2026-08-11T12:24:39.718Z"}
+
+data: {"data":"[init] probe key#25: HTTP 200 → alive","timestamp":"2026-08-11T12:24:40.382Z"}
+
+data: {"data":"[init] probe 汇总: alive=25 dead=0 (auth_dead 跳 0 个注册, POST z-ai/glm-5.2, 并发3)","timestamp":"2026-08-11T12:24:40.391Z"}
+
+data: {"data":"[init] probe 后 alive 无变化 (auth_dead=0), 限流维持原值 RPM=300 concurrent=75 interval=200ms","timestamp":"2026-08-11T12:24:40.392Z"}
+
+data: {"data":"[init] Registering NIM keys (auth_dead skip, INDEX 递增编号不塌)...","timestamp":"2026-08-11T12:24:40.392Z"}
+
+data: {"data":"[init] nim-01 OK","timestamp":"2026-08-11T12:24:40.607Z"}
+
+data: {"data":"[init] nim-02 OK","timestamp":"2026-08-11T12:24:40.691Z"}
+
+data: {"data":"[init] nim-03 OK","timestamp":"2026-08-11T12:24:40.750Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:40.817Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:40.817Z"}
+
+data: {"data":"[init] nim-04 OK","timestamp":"2026-08-11T12:24:40.870Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:40.894Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:40.894Z"}
+
+data: {"data":"[init] nim-05 OK","timestamp":"2026-08-11T12:24:40.944Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:40.971Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:40.971Z"}
+
+data: {"data":"[init] nim-06 OK","timestamp":"2026-08-11T12:24:41.025Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.058Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.058Z"}
+
+data: {"data":"[init] nim-07 OK","timestamp":"2026-08-11T12:24:41.107Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.141Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.141Z"}
+
+data: {"data":"[init] nim-08 OK","timestamp":"2026-08-11T12:24:41.204Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.232Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.232Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.273Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.273Z"}
+
+data: {"data":"[init] nim-09 OK","timestamp":"2026-08-11T12:24:41.315Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.351Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.351Z"}
+
+data: {"data":"[init] nim-10 OK","timestamp":"2026-08-11T12:24:41.399Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.429Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.429Z"}
+
+data: {"data":"[init] nim-11 OK","timestamp":"2026-08-11T12:24:41.486Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.519Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.519Z"}
+
+data: {"data":"[init] nim-12 OK","timestamp":"2026-08-11T12:24:41.572Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.599Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.599Z"}
+
+data: {"data":"[init] nim-13 OK","timestamp":"2026-08-11T12:24:41.660Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.676Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.676Z"}
+
+data: {"data":"[init] nim-14 OK","timestamp":"2026-08-11T12:24:41.740Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.760Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.760Z"}
+
+data: {"data":"[init] nim-15 OK","timestamp":"2026-08-11T12:24:41.824Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.842Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.842Z"}
+
+data: {"data":"[init] nim-16 OK","timestamp":"2026-08-11T12:24:41.913Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.933Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:41.933Z"}
+
+data: {"data":"[init] nim-17 OK","timestamp":"2026-08-11T12:24:42Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.020Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.020Z"}
+
+data: {"data":"[init] nim-18 OK","timestamp":"2026-08-11T12:24:42.089Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.108Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.108Z"}
+
+data: {"data":"[init] nim-19 OK","timestamp":"2026-08-11T12:24:42.167Z"}
+
+data: {"data":"[init] nim-20 OK","timestamp":"2026-08-11T12:24:42.215Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.222Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.222Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.241Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.241Z"}
+
+data: {"data":"[init] nim-21 OK","timestamp":"2026-08-11T12:24:42.273Z"}
+
+data: {"data":"[init] nim-22 OK","timestamp":"2026-08-11T12:24:42.333Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.341Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.341Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.388Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.388Z"}
+
+data: {"data":"[init] nim-23 OK","timestamp":"2026-08-11T12:24:42.413Z"}
+
+data: {"data":"[init] nim-24 OK","timestamp":"2026-08-11T12:24:42.471Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.490Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.491Z"}
+
+data: {"data":"[init] nim-25 OK","timestamp":"2026-08-11T12:24:42.551Z"}
+
+data: {"data":"[init] Keys: 25 registered, 0 skipped, 0 failed. (probe: 25 alive / 0 dead-skipped)","timestamp":"2026-08-11T12:24:42.552Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.560Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.560Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.616Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.616Z"}
+
+data: {"data":"[init] gc_stale: 无待删连接 (当前 NIM_KEYS=25, 增量幂等)","timestamp":"2026-08-11T12:24:42.618Z"}
+
+data: {"data":"[init] Fetching provider IDs...","timestamp":"2026-08-11T12:24:42.618Z"}
+
+data: {"data":"[init] Provider IDs: 25","timestamp":"2026-08-11T12:24:42.640Z"}
+
+data: {"data":"[init] Resilience (RPM=300, concurrent=75, interval=200ms)...","timestamp":"2026-08-11T12:24:42.640Z"}
+
+data: {"data":"[init] Resilience PATCH body keys=[requestQueue] requestQueue.keys=[concurrentRequests,maxWaitMs,minTimeBetweenRequestsMs,requestsPerMinute] (无顶层 useUpstream429BreakerHints)","timestamp":"2026-08-11T12:24:42.651Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.662Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-11T12:24:42.662Z"}
+
+data: {"data":"[init] Resilience PATCH HTTP 200 (dur=42ms)","timestamp":"2026-08-11T12:24:42.701Z"}
+
+data: {"data":"[init] Resilience 读回: RPM=300 minMs=200 concurrent=75 maxWaitMs=300000 (预期 300/200/75/300000)","timestamp":"2026-08-11T12:24:42.732Z"}
+
+data: {"data":"[init] ✓ Resilience 读回全字段一致 (300/75/200/300000 已落定)","timestamp":"2026-08-11T12:24:42.732Z"}
+
+data: {"data":"[init] Routing + maxBodySizeMb=4...","timestamp":"2026-08-11T12:24:42.732Z"}
+
+data: {"data":"[init] Settings HTTP 200","timestamp":"2026-08-11T12:24:42.769Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos HTTP 200 :: combos=[]","timestamp":"2026-08-11T12:24:42.810Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos/auto HTTP 200 :: auto=[\t\t\t0]","timestamp":"2026-08-11T12:24:43.199Z"}
+
+data: {"data":"[init] [readonly] GET /api/providers HTTP 200 :: providers=209b1b15-b9b2-480c-a2df-c97b9b18da13\tnvidia;2bc53dbb-4d9c-4eb6-8d59-3b0930454d8d\tnvidia;2c998f14-50f7-4b05-a0ff-5d59429279b1\tnvidia;330520f1-8c5f-43b6-9097-1b3a55d0c14e\tnvidia;339ba421-dbd3-49d0-8517-93402ed73b9b\tnvidia;3e9dca1d-101b-4b38-8276-eebaf2319734\tnvidia;45abdceb-a2ff-44b3-9381-2885cc296825\tnvidia;48c6ee59-86c7-4ef2-8311-f51c94fcb664\tnvidia;57bc39c5-f3df-41eb-a10e-3b1b0b4a9672\tnvidia;6278e87c-e24c-4a69-86fb-01018fc72cac\tnvidia;7fe50532-9eb3-415e-88ed-e515d37d80a0\tnvidia;9226c29c-d28f-4827-9bdd-202221ebb50e\tnvidia;95516de7-683d-4c30-9150-c0177c12c5d8\tnvidia;b40b3104-14fc-4ee6-a940-05e83739f17d\tnvidia;b6e361b0-a8f4-45c1-b401-c47a62d92f8f\tnvidia;b78cc988-24df-48db-8be3-c689cc7e28df\tnvidia;c5391438-6dc9-43af-8d86-964577221ffb\tnvidia;ca39580f-7325-4c56-97e2-9bd190e4e7ac\tnvidia;cf66034b-29e5-4df6-a951-2bae4aa47c37\tnvidia;d17d77b1-bd02-4017-9ce2-9113a7dfca61\tnvidia;d648f81d-7e9d-4128-8615-190c57160e90\tnvidia;d7c159a3-5874-4c4d-93cf-709da3214aab\tnvidia;d9e098a4-daaa-41ef-b5c5-19a8793b2c5a\tnvidia;e18209b4-6ec4-43e0-9207-b8dccb292d24\tnvidia;ec44dfc1-54fb-4503-ad17-2b0f8eeaf97d\tnvidia;","timestamp":"2026-08-11T12:24:43.221Z"}
+
+data: {"data":"[init] [readonly] 三份 GET 完 — Restart B 写跳据此结构 (POST/PUT/PATCH), Restart A 仅读不写.","timestamp":"2026-08-11T12:24:43.221Z"}
+
+data: {"data":"[init] Compression globally disabled (enabled=false; per-combo 启用路径不受影响)...","timestamp":"2026-08-11T12:24:43.221Z"}
+
+data: {"data":"[init] Compression HTTP 200","timestamp":"2026-08-11T12:24:43.243Z"}
+
+data: {"data":"[init] Resetting circuit breakers (first-init clean start)...","timestamp":"2026-08-11T12:24:43.243Z"}
+
+data: {"data":"[init] CB reset HTTP 200","timestamp":"2026-08-11T12:24:43.261Z"}
+
+data: {"data":"[init] per-model 200K override (real_context=200000)...","timestamp":"2026-08-11T12:24:43.262Z"}
+
+data: {"data":"[init] override: 10 applied, 0 failed.","timestamp":"2026-08-11T12:24:43.391Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-08-11T12:24:43.391Z"}
+
+data: {"data":"[init]   PROFILE=balanced MODE=DEBUG KEYS=25 RPM=300 BODY=4 MB","timestamp":"2026-08-11T12:24:43.391Z"}
+
+data: {"data":"[init]   POOL_STRATEGY=p2c REAL_CONTEXT=200000 (per-model override 应用, monitor 自动回写禁用)","timestamp":"2026-08-11T12:24:43.391Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-08-11T12:24:43.391Z"}
+
+data: {"data":"[init] check_nim_model_health...","timestamp":"2026-08-11T12:24:43.398Z"}
+
+data: {"data":"[init]   z-ai/glm-5.2 — available","timestamp":"2026-08-11T12:24:43.439Z"}
+
+data: {"data":"[init]   moonshotai/kimi-k3 — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-11T12:24:43.442Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-flash — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-11T12:24:43.447Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-pro — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-11T12:24:43.451Z"}
+
+data: {"data":"[init]   qwen/qwen3.8-max-preview — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-11T12:24:43.454Z"}
+
+data: {"data":"[init]   nvidia/llama-3.1-nemotron-nano-8b-v1 — available","timestamp":"2026-08-11T12:24:43.457Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-nano-30b-a3b — available","timestamp":"2026-08-11T12:24:43.461Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-super-120b-a12b — available","timestamp":"2026-08-11T12:24:43.464Z"}
+
+data: {"data":"[init]   mistralai/mistral-small-4-119b-2603 — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-11T12:24:43.467Z"}
+
+data: {"data":"[init]   google/gemma-4-31b-it — available","timestamp":"2026-08-11T12:24:43.470Z"}
+
+data: {"data":"[init] 5 deprecated / 102 available","timestamp":"2026-08-11T12:24:43.472Z"}
+
+data: {"data":"[init] Registering models...","timestamp":"2026-08-11T12:24:43.472Z"}
+
+data: {"data":"[init] model z-ai/glm-5.2 OK","timestamp":"2026-08-11T12:24:43.502Z"}
+
+data: {"data":"[init] model nvidia/llama-3.1-nemotron-nano-8b-v1 OK","timestamp":"2026-08-11T12:24:43.520Z"}
+
+data: {"data":"[init] model nvidia/nemotron-3-nano-30b-a3b OK","timestamp":"2026-08-11T12:24:43.539Z"}
+
+data: {"data":"[init] model nvidia/nemotron-3-super-120b-a12b OK","timestamp":"2026-08-11T12:24:43.559Z"}
+
+data: {"data":"[init] model google/gemma-4-31b-it OK","timestamp":"2026-08-11T12:24:43.579Z"}
+
+data: {"data":"[init] Model registration done.","timestamp":"2026-08-11T12:24:43.579Z"}
+
+data: {"data":"[init] upsert nim-pool: new -> POST HTTP 201","timestamp":"2026-08-11T12:24:43.660Z"}
+
+data: {"data":"[init] upsert nim-codex: new -> POST HTTP 201","timestamp":"2026-08-11T12:24:43.712Z"}
+
+data: {"data":"[init] context_accumulator_update: 增量累积每模型成功/失败口径...","timestamp":"2026-08-11T12:24:43.712Z"}
+
+data: {"data":"[init]   列探测 input=tokens_in output=tokens_out","timestamp":"2026-08-11T12:24:43.735Z"}
+
+data: {"data":"[init]   checkpoint last_ts=1970-01-01T00:00:00.000Z","timestamp":"2026-08-11T12:24:43.742Z"}
+
+data: {"data":"[init]   本轮无新日志（timestamp > checkpoint）。","timestamp":"2026-08-11T12:24:43.751Z"}
+
+data: {"data":"[init] HF Dataset snapshot（配置 + 可选 DEBUG log）...","timestamp":"2026-08-11T12:24:43.751Z"}
+
+data: {"data":"[DB] Added api_keys.blocked_models column","timestamp":"2026-08-11T12:24:43.804Z"}
+
+data: {"data":"[DB] Added api_keys.allowed_connections column","timestamp":"2026-08-11T12:24:43.806Z"}
+
+data: {"data":"[DB] Added api_keys.auto_resolve column","timestamp":"2026-08-11T12:24:43.809Z"}
+
+data: {"data":"[DB] Added api_keys.is_active column","timestamp":"2026-08-11T12:24:43.811Z"}
+
+data: {"data":"[DB] Added api_keys.access_schedule column","timestamp":"2026-08-11T12:24:43.814Z"}
+
+data: {"data":"[DB] Added api_keys.max_requests_per_day column","timestamp":"2026-08-11T12:24:43.815Z"}
+
+data: {"data":"[DB] Added api_keys.max_requests_per_minute column","timestamp":"2026-08-11T12:24:43.817Z"}
+
+data: {"data":"[DB] Added api_keys.max_sessions column","timestamp":"2026-08-11T12:24:43.819Z"}
+
+data: {"data":"[DB] Added api_keys.rate_limits column","timestamp":"2026-08-11T12:24:43.820Z"}
+
+data: {"data":"[DB] Added api_keys.is_banned column","timestamp":"2026-08-11T12:24:43.822Z"}
+
+data: {"data":"[DB] Added api_keys.key_hash column","timestamp":"2026-08-11T12:24:43.824Z"}
+
+data: {"data":"[DB] Added api_keys.proxy_id column","timestamp":"2026-08-11T12:24:43.826Z"}
+
+data: {"data":"[DB] Added api_keys.allowed_endpoints column","timestamp":"2026-08-11T12:24:43.828Z"}
+
+data: {"data":"[DB] Added api_keys.allow_usage_command column","timestamp":"2026-08-11T12:24:43.830Z"}
+
+data: {"data":"[DB] Added api_keys.chaos_mode_enabled column","timestamp":"2026-08-11T12:24:43.831Z"}
+
+data: {"data":"[init] snapshot: init_vars.json written","timestamp":"2026-08-11T12:24:43.881Z"}
+
+data: {"data":"[init] snapshot: 附带 DEBUG log -> debug/debug_20260811_122426.log","timestamp":"2026-08-11T12:24:43.897Z"}
+
+data: {"data":"[init] HF Dataset uploaded.","timestamp":"2026-08-11T12:24:45.179Z"}
+
+data: {"data":"[init] Final health check...","timestamp":"2026-08-11T12:24:45.262Z"}
+
+data: {"data":"[init]   Status: healthy / 3.8.48","timestamp":"2026-08-11T12:24:45.287Z"}
+
+data: {"data":"[init] Done (first-init). v4.3.2","timestamp":"2026-08-11T12:24:45.287Z"}
+
+data: {"data":"[entrypoint] NIM init 已退出 rc=0 (正常完成).","timestamp":"2026-08-11T12:24:45.813Z"}
+
+: keep-alive
+
+data: {"data":"[ProxyHealth] Starting proxy health scheduler (interval: 600000ms)","timestamp":"2026-08-11T12:25:21.044Z"}
+

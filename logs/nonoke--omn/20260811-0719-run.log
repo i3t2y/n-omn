@@ -1,0 +1,14 @@
+data: {"data":"===== Application Startup at 2026-08-11 07:19:32 =====\n","timestamp":"2026-08-11T07:19:32Z"}
+
+data: {"data":"[start] >>> 启动 2026-08-11 07:19:59 <<<","timestamp":"2026-08-11T07:19:59.476Z"}
+
+data: {"data":"[start] 基础镜像: ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f","timestamp":"2026-08-11T07:19:59.476Z"}
+
+data: {"data":"[start] 镜像 B 模式：工具链已就绪","timestamp":"2026-08-11T07:19:59.476Z"}
+
+data: {"data":"[start] 同步 Dataset: nonoke/omn-logic","timestamp":"2026-08-11T07:19:59.476Z"}
+
+data: {"data":"[start] Dataset HEAD 锁定 revision=091252848039 (竞速根治: atomic 同点拉取)","timestamp":"2026-08-11T07:19:59.917Z"}
+
+: keep-alive
+

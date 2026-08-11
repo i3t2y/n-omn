@@ -1667,6 +1667,9 @@ func (ps *ProxyServer) HandleCONNECT(w http.ResponseWriter, r *http.Request) {
 		if worker != nil {
 			ps.recordWorker(worker.Name, 0, false) // 路3: err 无码记0 failure
 		}
+		if ps.Verbose {
+			fmt.Printf("      ✗ client.Do err: %v\n", err) // 路3-b: err 路径吞 err.Error() 致 EOF 真因盲, 补 verbose 印 (DNS/TLS RST/timeout/出站限速可辨)
+		}
 		return
 	}
 	defer resp.Body.Close()

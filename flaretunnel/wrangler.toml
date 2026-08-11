@@ -1,0 +1,7 @@
+# FlareTunnel 出口换 IP Worker · wrangler 配置 (Workers 非 Pages)
+# 部署: .github/workflows/deploy-ft-workers.yml → wrangler-action `wrangler deploy`
+# secret: RELAY_AUTH 走 wrangler secret put (§2 零入 git), worker.js 读 env.RELAY_AUTH
+name = "flaretunnel"
+main = "worker.js"
+compatibility_date = "2026-04-26"
+workers_dev = true

@@ -8,6 +8,45 @@
 
 ---
 
+## 2026-08-12 · FT Worker GitHub Actions 自控部署 (仿 n-edget 手搓→自动) + worker.js 鉴权 fail-closed 红线
+
+**背景**: 圣上令 "参考 github.com/i3t2y/n-vless、i3t2y/n-edget, 用 GitHub 控制 CF 账号建设 Worker"。落 `ops/DECISIONS.md` 2026-08-10 段 + `docs/flaretunnel.md:39` 自述的运维负债: 现役 = "手工建 Worker → CF Dashboard 全选删除粘贴 worker.js → 部署 → 手填真实 URL 进 `flaretunnel_endpoints.json` 喂本地桥"; `flaretunnel/worker.js:5` `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` 占位圣上手填, 换 AUTH_KEY 钥须逐 Worker 手改 → 密钥漏面大 + 运维负债重。
+
+**治法 (本会话三件, 本地改完待 commit+push 圣上)**: 手搓→GitHub Actions 自控一键全 Worker 一致部署。
+- `flaretunnel/worker.js` (+12/-7): ①fetch 签名 `async fetch(request)` → `async fetch(request, env)` ②硬编占位 `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` → `const AUTH_KEY = env.RELAY_AUTH || null` 读 wrangler secret 注入 ③鉴权段加 **fail-closed 双守** `if (!AUTH_KEY || request.headers.get("x-relay-auth") !== AUTH_KEY)` — `!AUTH_KEY` 短路守 `undefined`/`null`/空串全硬拒 401。
+- `flaretunnel/wrangler.toml` (新建): Workers 非 Pages 最小骨架 `name="flaretunnel"` + `main="worker.js"` + `compatibility_date="2026-04-26"` + `workers_dev=true`。
+- `.github/workflows/deploy-ft-workers.yml` (新建): 仿圣上 `i3t2y/n-edget` `sync-deploy.yml` 机制转 Workers 路径。`cloudflare/wrangler-action@v4` + `secrets:` 输入内建走 `wrangler secret put` (非 n-edget Pages `curl PATCH CF API` 注 `env_vars.secret_text`)。`push` paths 触 (worker.js/wrangler.toml/workflow 自) + `workflow_dispatch` 手动。值来自同 step `env:` 引 GitHub repo Secret (`${{ secrets.RELAY_AUTH }}` 自动打码日志)。
+
+**鉴权 fail-closed 红线 (新增 §2 安全红线宗)**:
+worker.js 原占位逻辑 `if (request.headers.get("x-relay-auth") !== AUTH_KEY)` 存 **fail-open 裸奔洞** — `env.RELAY_AUTH` 缺时 AUTH_KEY=undefined:
+- 请求带真值头 → `string !== undefined` = true → pass (鉴权失效)
+- 请求无头 → `null !== undefined` = true → pass
+- 两者都 pass = 鉴权洞 = **开放代理裸奔** (任意人扫到 Worker URL 即刷圣上 NIM 配额, docs/flaretunnel.md:41 "Worker URL 裸奔开放代理" 警告实证)
+治 = `env.RELAY_AUTH || null` (undefined 归 null) + `!AUTH_KEY` 短路守 (null/空串全先硬拒不查头)。**鉴权钥缺必在 fetch 入口硬拒, 不裸奔开放代理。鉴权比 `!==` 无 fail-closed 守是洞, 须 `|| null` + `!KEY` 双守。** 五态真 fetch 调测铁证 (CASE A env无→401 / B 头=钥→200 / C 头≠钥→401 / D 无头→401 / E 空串→401)。
+
+**n-edget 我仓差异 (机制移植须转路径)**:
+- n-edget 走 **Pages** (`pages deploy .` + PATCH `accounts/.../pages/projects/$PROJ` 注 `env_vars.secret_text` + `wrangler.toml` 用 `pages_build_output_dir` 不写 `main`)
+- 我仓现役 `worker.js` 走 **Workers** (`export default { fetch }` + `wrangler deploy` + `wrangler.toml` `main` 必填 + `wrangler-action` `secrets:` 输入内建走 `wrangler secret put`)
+- 目标件 = `flaretunnel/worker.js` (FT 出口换 IP Worker), 非 worktree `cf-worker/index.js` (gate 网关前置代理 `UPSTREAM_BASE`/`INTERNAL_PSK`/`CLIENT_TOKEN`+KV, 别混两套)
+
+**不变量**:
+- §1 拓扑: 三件定态 (space 根 Dockerfile/README/start.sh) 零触。worker.js + wrangler.toml + deploy workflow 均非三件。不新建 HF Space (CF Worker 非 Space 不触"不新建 Space"铁律)。不翻 `FT_WORKER_COUNT` 控池语义 (2026-08-10 段), 不改 endpoints.json 池结构。
+- §2 secrets: `RELAY_AUTH` 真值零入 git/会话。走 GitHub repo Secret (圣上 `openssl rand -hex 24`) → wrangler-action `secrets:` 输入 → `wrangler secret put` 加密存 CF。worker.js 读 `env.RELAY_AUTH` 运行时绑定不留值。换 GitHub Secret 时同改 HF Space Secret `RELAY_AUTH` 同值 (Worker 鉴权 ↔ 桥 RELAY_AUTH 铁律)。
+- §0 翻案: 本段落 2026-08-10 段 "欲真扩池超 M 须圣上先 CF 建新 Worker" 遗留运维负债 (变 "圣上在 GitHub repo 设 Secret + 跑 Action 推 deploy"), 不翻案不改池语义。
+- §5 护栏: git add/commit 一律 ask 圣上。secret-scan exit=0 五态测全绿。
+
+**待圣上裁决 6 项 (卡矩阵扩 N, 单 Worker 先落)**:
+1. **矩阵规模**: 单 Worker 先落 vs 直接矩阵 16? 真 M=16 池须圣上拉 HF `flaretunnel_endpoints.json` 件裁 (本地零件 git 从未 tracked)
+2. **2池×8 vs 4池×4 矛盾**: `DECISIONS` 2026-08-10 段 (flaare/flbare 1-8) vs `audit/2026-08-01-save-log-full-analysis.md:169-176` prometheus 钉死 (flaare/flbare/flcare/fldare 1-4) 冲突, 须圣上 HF 件终极裁决现役真族结构
+3. **单钥共享 vs 每省各钥**: 全 Worker 同 `RELAY_AUTH`? 还是每 CF 账号各钥? (单钥共享风险面最小, 仿 n-edget `CF_TOKENS` 位序 cut 取是否须复刻留圣上定)
+4. **endpoints.json URL 回流机制**: Worker 建成后 URL 怎回填 `flaretunnel_endpoints.json` (真身在 Dataset nonoke/omn-logic) — n-edget 不涉此我独有项; 手填? Action dump? 待圣上定
+5. **deploy 触发路径**: 仅 `worker.js` 改 push 触发? `workflow_dispatch` 已含, 圣上验后定是否加定时
+6. **wrangler-action 版本**: `@v4` (2026-05-12 主推) vs `@v3.15.0` (固定防移动 tag 劫持, 跟 n-edget `@v3` 一致)
+
+**关联**: [[flaretunnel-impl-built-verified]] [[flaretunnel-metrics-endpoint-lu3-landed]] [[ft-worker-count-env-lu-landed-2026-08-10]] [[ft-worker-count-vs-keys-decoupled]]。
+
+---
+
 ## 2026-08-10 · FT_WORKER_COUNT ENV 控桥轮换池规模 (RELAY_AUTH 与 worker 数正交钉死)
 
 **背景**: 圣上原题 "RELAY_AUTH 改 32 worker, 重建还是 16 worker"。直觉误把 `RELAY_AUTH` 当作 worker 池规模控制量。

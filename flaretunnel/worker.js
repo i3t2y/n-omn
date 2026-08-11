@@ -1,8 +1,10 @@
 // ===== FlareTunnel 改造版 Worker：全量透传 + 鉴权 + 域名收敛 + SSE 友好 =====
-// 部署: CF Dashboard → blue-bird-5cf0 → 编辑代码 → 全选删除 → 粘贴本文件 → 部署
-// AUTH_KEY 须换成新钥 (圣上 `openssl rand -hex 24` 生成); 与 Space Secret RELAY_AUTH 同值
-//   旧钥 OmniRouteFlareTunnelSecret2026 已在对话明文多次出现, 作废必换
-const AUTH_KEY = "PASTE_NEW_RELAY_AUTH_HERE"; // ← 换圣上新钥 (openssl rand -hex 24)
+// 部署: GitHub Actions → .github/workflows/deploy-ft-workers.yml → wrangler-action 一键 deploy.
+//   (旧手搓法: CF Dashboard → 编辑代码 → 全选删除 → 粘贴本文件 → 部署; 已退役自动化取代)
+// AUTH_KEY = env.RELAY_AUTH (wrangler secret put 注入, §2 零入 git/会话);
+//   须与 HF Space Secret RELAY_AUTH 同值 (Worker 鉴权 ↔ 桥 RELAY_AUTH 铁律).
+//   旧钥 OmniRouteFlareTunnelSecret2026 已在对话明文多次出现, 作废必换.
+//   fail-closed: env.RELAY_AUTH 缺 (undefined/null/空串) 必在 fetch 入口硬拒, 不裸奔开放代理.
 const ALLOWED_HOSTS = new Set(["integrate.api.nvidia.com"]); // 只放行 NIM, 防被当开放代理
 
 const DROP_REQ = new Set([
@@ -15,9 +17,12 @@ const DROP_REQ = new Set([
 ]);
 
 export default {
-  async fetch(request) {
-    // 1. 鉴权 (FlareTunnel 本地桥 Patch C 注入此头; 缺/不符 → 401 unauthorized, 堵裸奔开放代理洞)
-    if (request.headers.get("x-relay-auth") !== AUTH_KEY) {
+  async fetch(request, env) {
+    // 1. 鉴权 (FlareTunnel 本地桥 Patch C 注入 x-relay-auth 头; 缺/不符 → 401 unauthorized).
+    //    fail-closed: env.RELAY_AUTH 缺 (undefined/null/空串) → 鉴权钥为空, 任何真值头都不匹配 → 硬拒.
+    //    防 undefined !== 真 string 误 pass 裸奔开放代理洞.
+    const AUTH_KEY = env.RELAY_AUTH || null;
+    if (!AUTH_KEY || request.headers.get("x-relay-auth") !== AUTH_KEY) {
       return new Response(JSON.stringify({ error: "unauthorized" }),
         { status: 401, headers: { "content-type": "application/json" } });
     }

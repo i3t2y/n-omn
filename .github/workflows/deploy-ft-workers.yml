@@ -1,0 +1,47 @@
+name: Deploy FlareTunnel Workers
+
+# 用 GitHub 控制 CF 账号建设 Worker (仿 i3t2y/n-edget sync-deploy.yml 机制).
+# n-edget 走 Pages (pages deploy + PATCH CF API 注 env_vars); 本 workflow 走 Workers
+#   (wrangler deploy + wrangler-action `secrets:` 输入内建走 wrangler secret put).
+# 目标件: flaretunnel/worker.js (FT 出口换 IP Worker, 非 worktree cf-worker/index.js gate 前置代理).
+# 矩阵扩 N Worker 留后阶段 (圣上拉 HF flaretunnel_endpoints.json 裁真池数+族结构后定).
+# §2: RELAY_AUTH 真值零入 git/会话, GitHub Secret 自动打码日志 + wrangler secret put 加密存 CF.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'flaretunnel/worker.js'
+      - 'flaretunnel/wrangler.toml'
+      - '.github/workflows/deploy-ft-workers.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Show flaretunnel files
+        run: |
+          echo "---- flaretunnel ----"
+          ls -la flaretunnel
+          echo "---- wrangler.toml ----"
+          cat flaretunnel/wrangler.toml
+
+      - name: Deploy Worker via wrangler-action
+        uses: cloudflare/wrangler-action@v4   # v4.0.0 主推 (2026-05-12); secret/vars 输入语义同 v3
+        with:
+          workingDirectory: flaretunnel
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          # command 省略 = wrangler deploy (Workers, 非 pages deploy)
+          secrets: |
+            RELAY_AUTH
+        env:
+          # 名字须与 secrets: 行项一致; 值来自 GitHub repo Secret (自动打码日志)
+          RELAY_AUTH: ${{ secrets.RELAY_AUTH }}

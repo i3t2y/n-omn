@@ -2,6 +2,51 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
 
+## 2026-08-12 · FT Worker GitHub Actions 自控部署 (三件本地改完待 commit+push) — 仿 n-edget 手搓→自动 + fail-closed 鉴权根除
+
+圣上 2026-08-12 令 "参考 i3t2y/n-vless、i3t2y/n-edget, 用 GitHub 控制 CF 账号建设 Worker"。落 `DECISIONS` 2026-08-10 段 + `docs/flaretunnel.md:39` 自述运维负债: 现役手搓法 = "CF Dashboard 全选删除粘贴 worker.js → 部署 → 手填真实 URL 进 endpoints.json"。`worker.js:5` `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` 硬编占位圣上手填, 换钥逐 Worker 手改 → 密钥漏面大。
+
+### 改动 (3 件)
+- **`flaretunnel/worker.js`** (+12/-7): ①fetch 签名加 `env` 参 `async fetch(request, env)` ②硬编占位 `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` → `const AUTH_KEY = env.RELAY_AUTH || null` 读 wrangler secret 注入 ③**鉴权 fail-closed 双守** `if (!AUTH_KEY || request.headers.get("x-relay-auth") !== AUTH_KEY)` — `!AUTH_KEY` 短路守 `undefined`/`null`/空串全先硬拒 401, 根除原占位逻辑 fail-open 裸奔洞 (`undefined !== 真 string` 误 pass = 开放代理裸奔, docs/flaretunnel.md:41 裸奔警告实证)
+- **`flaretunnel/wrangler.toml`** (新建): Workers 非 Pages 最小骨架, `name="flaretunnel"` + `main="worker.js"` + `compatibility_date="2026-04-26"` + `workers_dev=true`
+- **`.github/workflows/deploy-ft-workers.yml`** (新建): 仿圣上 `i3t2y/n-edget` `sync-deploy.yml` 机制转 Workers 路径。`cloudflare/wrangler-action@v4` + `secrets:` 输入内建走 `wrangler secret put` (非 n-edget Pages `curl PATCH CF API` 注 `env_vars.secret_text`)。`push` paths 触 (worker.js/wrangler.toml/workflow 自) + `workflow_dispatch` 手动
+
+### n-edget 我仓差异 (机制移植转路径)
+- n-edget 走 **Pages** (`pages deploy .` + PATCH CF API 注 `env_vars` + `wrangler.toml` 用 `pages_build_output_dir`)
+- 我仓 worker.js 走 **Workers** (`wrangler deploy` + `wrangler.toml` `main` 必填 + `wrangler-action` `secrets:` 输入走 `wrangler secret put`)
+- 目标件 = `flaretunnel/worker.js` (FT 出口换 IP), 非 worktree `cf-worker/index.js` (gate 网关前置代理, 别混)
+
+### 前置验全绿 (本地)
+- `python3 .claude/hooks/secret-scan.py` exit 0 (worker.js env.RELAY_AUTH 无硬编真值)
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/deploy-ft-workers.yml'))"` OK
+- wrangler.toml 手解 OK (`name`/`main`/`compatibility_date`/`workers_dev`)
+- grep 零真 secret 值残留 (注释作废旧钥名 `OmniRouteFlareTunnelSecret2026` 非真值)
+- **worker.js fail-closed 五态真 fetch 调测全绿** (node 加载模块 mock env+request): CASE A env无→401 / B 头=钥→200 / C 头≠钥→401 / D 无头→401 / E 空串→401 — fail-closed 双守根除裸奔洞
+
+### 部署链
+- [x] 本地三件改完: worker.js (改3处) + wrangler.toml (新建) + deploy-ft-workers.yml (新建)
+- [x] 前置验五闸全绿 (含 fail-closed 五态真 fetch 调测)
+- [ ] commit ask 圣上 (§5 git add/commit 一律 ask) → 圣上 push nomn main
+- [ ] 圣上 GitHub repo 设 Secrets: `CF_ACCOUNT_ID` + `CF_API_TOKEN` (scope Workers Scripts:Edit + Workers Secrets Storage 写) + `RELAY_AUTH` (圣上 `openssl rand -hex 24` 真值, 须与 HF Space Secret RELAY_AUTH 同值 Worker 鉴权 ↔ 桥 RELAY_AUTH 铁律)
+- [ ] GitHub Actions 跑通 → `wrangler deploy` 出 Worker URL
+- [ ] Worker URL 回填 `flaretunnel_endpoints.json` (真身在 Dataset nonoke/omn-logic, 回流机制待圣上定)
+- [ ] Restart dev Space → boot 真验桥 round-robin N/M Worker 计数增 (路3 /metrics 已落)
+
+### 待圣上裁决 6 项 (卡矩阵扩 N, 单 Worker 先落)
+1. **矩阵规模**: 单 Worker 先落 vs 直接矩阵 16? 真 M=16 池须圣上拉 HF `flaretunnel_endpoints.json` 件裁 (本地零件 git 从未 tracked)
+2. **2池×8 vs 4池×4 矛盾**: `DECISIONS` 2026-08-10 (flaare/flbare 1-8) vs `audit/2026-08-01` :169-176 prometheus 钉死 (flaare/flbare/flcare/fldare 1-4) 冲突, 须圣上 HF 件终极裁决真族结构
+3. **单钥共享 vs 每省各钥**: 全 Worker 同 `RELAY_AUTH`? 还是每 CF 账号各钥? (单钥共享风险面最小)
+4. **endpoints.json URL 回流机制**: Worker 建成后 URL 怎回填 Dataset — n-edget 不涉此我独有项; 手填? Action dump? 待圣上定
+5. **deploy 触发路径**: 仅 `worker.js` 改 push 触发? `workflow_dispatch` 已含, 圣上验后定是否加定时
+6. **wrangler-action 版本**: `@v4` (主推) vs `@v3.15.0` (固定防移动 tag 劫持, 跟 n-edget `@v3` 一致)
+
+### 不变量
+- §1 拓扑: 三件定态 (space 根 Dockerfile/README/start.sh) 零触。worker.js + wrangler.toml + deploy workflow 均非三件。不新建 HF Space (CF Worker 非 Space)。不翻 `FT_WORKER_COUNT` 控池语义, 不改 endpoints.json 池结构
+- §2 secrets: `RELAY_AUTH` 真值零入 git/会话。走 GitHub repo Secret → wrangler secret put 加密存 CF。worker.js 读 env.RELAY_AUTH 运行时绑定。换钥时 GitHub Secret + HF Space Secret 同值同步改
+- §0 翻案: 本段落 2026-08-10 "欲真扩池超 M 须圣上先 CF 建新 Worker" 运维负债 (变 "设 Secret + 跑 Action"), 不翻案不改池语义
+- §5 护栏: git add/commit 一律 ask。secret-scan exit=0 五态测全绿
+- 详见 `DECISIONS.md` 2026-08-12 段
+
 ## 2026-08-10 · FT_WORKER_COUNT ENV 控桥轮换池规模 (dev/logic 层) — commit 67b6b8c push 通 nomn, 待 boot 真验
 
 圣上 2026-08-10 令加 Worker 数变量 (原题 "RELAY_AUTH 改 32 worker 重建仍 16")。病根钉死: `RELAY_AUTH` = 桥鉴权密钥与 worker 数 **正交**, worker 数物理源 = `flaretunnel_endpoints.json` 写死 16 条 Worker URL, 改鉴权不动池。

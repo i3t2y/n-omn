@@ -308,7 +308,8 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
     # CA 等生 (红线②): 桥首启自签 CA 落盘后才可 export; 上限 10s, 桥早夭即弃.
     #   多桥共用一 ca-dir, 首桥代整体判生死 (多桥首桥死 = 全 FT 资产级病, 弃全桥降级).
     _ft_ca="$FT_CA_DIR/flaretunnel_ca.crt"; _ft_wait=0
-    _ft_alive() { [ -n "$FT_PID" ] && kill -0 "$FT_PID" 2>/dev/null; }
+    # 多桥 FT_PID 不设 (仅单桥 300 行设), 取 FT_PIDS 首元素判活 (单桥 FT_PIDS=" $FT_PID" 去空格同效).
+    _ft_alive() { _ft_p="${FT_PIDS# }"; _ft_p="${_ft_p%% *}"; [ -n "$_ft_p" ] && kill -0 "$_ft_p" 2>/dev/null; }
     while [ "$_ft_wait" -lt 20 ]; do
       if [ -s "$_ft_ca" ]; then break; fi
       if ! _ft_alive; then

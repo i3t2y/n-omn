@@ -522,3 +522,17 @@ commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。
 **触 secrets**: 圣上改 GitHub repo Variable `PRESET=secrets` → workflow_dispatch → deploy job 100 格跑 Deploy1st 注 RELAY_AUTH 100 Worker → Restart dev Space → boot 真验桥 round-robin N/M 计数增。
 
 闸验: YAML 通 (jobs gate/gen-names/deploy) + secret-scan exit=0 + secrets_only 守残留 6 处皆域绑步 (须跳)。
+
+## 2026-08-12 · deploy workflow RELAY_AUTH 真不注根因 (原雏 008c48d bug, wrangler-action @v4 secrets: 输入缺)
+
+**病根 (圣上贴格 (2,8) Actions log 诊 + Context7 wrangler-action @v4 docs 铁证)**:
+- Deploy Worker 1st pass (:424) + 2nd pass (:467) 两 step 仅 `env.RELAY_AUTH: ${{ secrets.RELAY_AUTH }}` (值源对)
+- 但 **`with.secrets:` 输入缺** → wrangler-action @v4 不跑 `wrangler secret put/bulk` 注 Worker env
+- @v4 机制 (Context7 docs): secret 注须 `secrets:` newline 分隔列名 + `env:` 配同值 → wrangler-action 内建跑 `wrangler secret bulk/put`. 仅 env 不触发 secret 注, 仅 `wrangler deploy` 上传代码
+- 铁证 log: `🚀 Running Wrangler Commands / npx wrangler deploy` → 只 deploy, 无 `wrangler secret put RELAY_AUTH` 行 → RELAY_AUTH 真未注 → Worker `AUTH_KEY=env.RELAY_AUTH||null` = null → fail-closed 401 全拒 → 桥全断
+
+**治法 (Context7 docs 导正)**: Deploy1st + Deploy2nd 两 step `with:` 加 `secrets: | RELAY_AUTH` 输入。env.RELAY_AUTH 值源对不变。@v4 检测 secrets 输入 → 跑 `wrangler secret bulk/put RELAY_AUTH=<env值>` 注 Worker。
+
+**原雏 008c48d 血统债**: 此 bug 原雏代码引入 (memory [[ft-worker-github-deploy-landed-2026-08-12]] :16 注称 "secrets:输入走 wrangler secret put" 设计意图对, 但实装漏 secrets: 输入 = 注释对代码错). 经 secrets PRESET 场景门控改 (c10d544) 后圣上触 secrets run 暴露: Deploy1st 跑但空注入.
+
+闸验: YAML 通 (jobs gate/gen-names/deploy) + secrets: 两处 (:432 + :474) 对应 env RELAY_AUTH 两处 (:434 + :476) + secret-scan exit=0.

@@ -427,8 +427,10 @@ jobs:
           apiToken: ${{ steps.creds.outputs.token }}
           accountId: ${{ steps.creds.outputs.account }}
           command: deploy
+          # secrets: 输入列名 → wrangler-action 跑 wrangler secret bulk/put 注 Worker env (Context7 @v4 docs 铁证)
+          secrets: |
+            RELAY_AUTH
         env:
-          # secret 走 wrangler-action secrets: 输入内建 wrangler secret put (非 n-vless curl PUT)
           RELAY_AUTH: ${{ secrets.RELAY_AUTH }}
 
       # ── Step 5: 双 pass 绕 CF 扫描 (pass_mode=2 首次新建 Worker 用) ─
@@ -468,6 +470,8 @@ jobs:
           apiToken: ${{ steps.creds.outputs.token }}
           accountId: ${{ steps.creds.outputs.account }}
           command: deploy
+          secrets: |
+            RELAY_AUTH
         env:
           RELAY_AUTH: ${{ secrets.RELAY_AUTH }}
 

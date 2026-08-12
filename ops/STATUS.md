@@ -474,6 +474,18 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
 4. URL 回填 `flaretunnel_endpoints.json` (HF Dataset `nonoke/omn-logic`) → Restart dev Space → boot 真验桥 round-robin N/M 计数增
 
 **未决/扩展待批**:
-- 旧 `flare*.workers.dev` 删 (圣上"到时临时删下"): **Mode 2 全删已含** (圣上 2026-08-12 令改 Mode 2 全删无滤波 → 旧 `flare*` 自然删, 无须另扩正则)
+- 旧 `flare*.workers.dev` 删 (圣上"到时临时删下"): **Mode 2 全删 + Mode 3 delete:o 均含** (圣上 2026-08-12 令改 Mode 2 全删无滤波 → 旧 `flare*` 自然删; Mode 3 delete:o 滤现役名单外删 → 旧 `flare*` 不在名单亦删; 无须另扩正则)
 - push 须圣上亲启 (§5 ask 仅 commit 已落, push 另准; 前轮 008c48d 圣上自掌 push 私库惯例)
 - memory 项 [[ft-worker-github-deploy-landed-2026-08-12]] :34 旧误记 "Workers Secrets Storage 写" 已更正归 Workers Scripts Edit (secret 绑 script 无独立权限)
+
+## 2026-08-12 · deploy workflow 加 delete:o 模式 (commit 本批)
+
+**改动**: `deploy-ft-workers.yml` 加 `PRESET=delete:o` (新场景, `DELETE_MODE=3` + `PASS_MODE=0` 纯删无部署)。
+- gate case `delete:o` → `DELETE_MODE=3; PASS_MODE=0` (纯删不重建)
+- Delete 段 Mode 3: 列账号全 Worker → `echo ",$WORKER_NAMES," | grep -q ",$W,"` 滤现役名单 → 在 Keep / 不在 DELETE (清旧词基/孤儿/过时)
+- 全 deploy step `if` 加 `pass_mode != '0'` 门控 (Generate wrangler.toml/Deploy1st/Wait stable/Verify&Bind 跳; 双 pass step `pass_mode=='2'` 跳; 纯删仅跑 Extract + Mode 3 删段)
+- PRESET desc 顶部加 `delete:o` 场景
+- DECISIONS 删段裁决改三模式 (Mode 1/2/3)
+- 详 [[ft-worker-100topology-landed-2026-08-12]] + DECISIONS "2026-08-12 FT Worker 二维矩阵" 条删段裁决
+
+**YAML 闸过 + secret-scan exit=0**. push 须圣上亲启。

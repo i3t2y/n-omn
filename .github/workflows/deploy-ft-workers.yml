@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       preset:
-        description: 'PRESET 场景 (gen/first/daily/solo:N/secrets/delete:1/delete:v, 留空用 Variables)'
+        description: 'PRESET 场景 (gen/first/daily/solo:N/secrets/delete:1/delete:v/delete:o, 留空用 Variables)'
         required: false
         default: ''
 
@@ -124,6 +124,9 @@ jobs:
             delete:v)
               # 删各账号下所有 Worker (全删, FT CF 账号内无他 Worker) 后重建 (全量绕封)
               GEN_NAMES=0; DELETE_MODE=2; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
+            delete:o)
+              # 删各账号下所有 Worker 唯保留现役 WORKER_NAMES 名单的 (清过时/孤儿/旧词基, 不重建)
+              GEN_NAMES=0; DELETE_MODE=3; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=0 ;;
             "")
               echo ">>> No PRESET, using individual Variables" ;;
             *)
@@ -321,17 +324,19 @@ jobs:
 
       # ── Step 2: 删旧 Worker (delete_mode 门控, 仿 n-vless:485-532) ──
       # delete_mode=1: 删 WORKER_NAMES 对应单 Worker (Worker 被封立重设)
-      # delete_mode=2: 删账号下所有 ft 后缀 Worker (全量绕封重建)
+      # delete_mode=2: 删账号下所有 Worker (全删无滤波, 全量绕封重建)
+      # delete_mode=3: 删账号下所有 Worker 唯保留现役 WORKER_NAMES 名单内的 (清旧/孤儿/过时词基)
       - name: Delete Worker(s)
         if: |
           steps.creds.outputs.skip != 'true' &&
           needs.gate.outputs.secrets_only == '0' &&
-          (needs.gate.outputs.delete_mode == '1' || needs.gate.outputs.delete_mode == '2')
+          (needs.gate.outputs.delete_mode == '1' || needs.gate.outputs.delete_mode == '2' || needs.gate.outputs.delete_mode == '3')
         env:
-          TOKEN:       ${{ steps.creds.outputs.token }}
-          ACCOUNT:     ${{ steps.creds.outputs.account }}
-          WNAME:       ${{ steps.creds.outputs.wname }}
-          DELETE_MODE: ${{ needs.gate.outputs.delete_mode }}
+          TOKEN:        ${{ steps.creds.outputs.token }}
+          ACCOUNT:      ${{ steps.creds.outputs.account }}
+          WNAME:        ${{ steps.creds.outputs.wname }}
+          WORKER_NAMES: ${{ vars.WORKER_NAMES }}
+          DELETE_MODE:  ${{ needs.gate.outputs.delete_mode }}
         run: |
           if [ "$DELETE_MODE" = "1" ] && [ -z "$WNAME" ]; then
             echo ">>> Skip delete: WNAME empty"
@@ -350,6 +355,28 @@ jobs:
                 -H "Authorization: Bearer $TOKEN")
               echo ">>> Deleted: $W (HTTP $RESP)"
             done
+          elif [ "$DELETE_MODE" = "3" ]; then
+            # Mode 3: 删账号下所有 Worker 唯保留现役 WORKER_NAMES 名单内的 (清旧/孤儿/过时词基)
+            # WORKER_NAMES = 全 100 名平铺逗号串 (现役名单); 列账号全 Worker → 不在名单内则删
+            echo ">>> Mode 3: deleting all workers EXCEPT those in WORKER_NAMES (stale cleanup)"
+            if [ -z "$WORKER_NAMES" ]; then
+              echo ">>> ERROR: WORKER_NAMES Variable empty. Run PRESET=gen first to populate active roster."
+              exit 1
+            fi
+            RESPONSE=$(curl -s \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts" \
+              -H "Authorization: Bearer $TOKEN")
+            WORKERS=$(echo "$RESPONSE" | grep -oP '"id"\s*:\s*"\K[^"]+' || true)
+            for W in $WORKERS; do
+              if echo ",$WORKER_NAMES," | grep -q ",$W,"; then
+                echo ">>> Keep (in roster): $W"
+              else
+                RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+                  "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$W" \
+                  -H "Authorization: Bearer $TOKEN")
+                echo ">>> Deleted (stale): $W (HTTP $RESP)"
+              fi
+            done
           else
             # Mode 1: 删单 Worker
             RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
@@ -362,10 +389,12 @@ jobs:
 
       # ── Step 3: 生成 wrangler.toml (动态 name + custom domain) ───
       # 仿 n-vless wrangler.toml 生成 (sync-deploy.yml:587-600). FT 无 Patch Worker File (worker.js 已含 fail-closed).
+      # pass_mode=0 = 纯删模式 (delete:o) 跳过部署相关步 (无 wrangler.toml/deploy/bind)
       - name: Generate wrangler.toml
         if: |
           steps.creds.outputs.skip != 'true' &&
-          needs.gate.outputs.secrets_only == '0'
+          needs.gate.outputs.secrets_only == '0' &&
+          needs.gate.outputs.pass_mode != '0'
         working-directory: flaretunnel
         env:
           WNAME: ${{ steps.creds.outputs.wname }}
@@ -392,7 +421,8 @@ jobs:
       - name: Deploy Worker (1st pass)
         if: |
           steps.creds.outputs.skip != 'true' &&
-          needs.gate.outputs.secrets_only == '0'
+          needs.gate.outputs.secrets_only == '0' &&
+          needs.gate.outputs.pass_mode != '0'
         continue-on-error: true
         uses: cloudflare/wrangler-action@v4
         with:
@@ -447,7 +477,8 @@ jobs:
       - name: Wait for Worker to stabilize
         if: |
           steps.creds.outputs.skip != 'true' &&
-          needs.gate.outputs.secrets_only == '0'
+          needs.gate.outputs.secrets_only == '0' &&
+          needs.gate.outputs.pass_mode != '0'
         run: sleep 15
 
       # ── Step 6: 验证部署 + custom domain 补绑 + 关 workers.dev ────
@@ -455,7 +486,8 @@ jobs:
       - name: Verify & Bind Domain
         if: |
           steps.creds.outputs.skip != 'true' &&
-          needs.gate.outputs.secrets_only == '0'
+          needs.gate.outputs.secrets_only == '0' &&
+          needs.gate.outputs.pass_mode != '0'
         env:
           TOKEN:   ${{ steps.creds.outputs.token }}
           ACCOUNT: ${{ steps.creds.outputs.account }}

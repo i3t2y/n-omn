@@ -178,10 +178,12 @@ worker.js 原占位逻辑 `if (request.headers.get("x-relay-auth") !== AUTH_KEY)
 - **deploy 二维矩阵每格 6 step**: Extract Credentials (`POS=(( account-1 )*10 + worker)` cut 取名 + `::add-mask::$TOKEN`) + Generate wrangler.toml (`workers_dev=false` + `[[routes]] pattern="$WSUB" custom_domain=true`) + Delete Worker (deploy 段自带删该格名防同名) + Deploy1st (`continue-on-error` 兜 10007) + 双 pass 绕扫 (PASS_MODE=2 全格重 deploy) + Verify & Bind Domain 三段验证 (存在性 3 重试 5s + custom domain 校验补绑 + 关 workers.dev)
 - **域名派生 (圣上拓扑, 非 n-vless 循环回 0)**: `ACC2=$(printf "%02d" $account)` `WSUB="$worker.f$ACC2.cc.cd"`
 
-**删段两模式裁决**:
+**删段三模式裁决**:
 - **Mode 1 (`delete:1`)** = 删当前矩阵单元指定 `WNAME` (散点删, 错杀他格)
-- **Mode 2 (`delete:v`)** = 扫该账号 CF 全 Worker **全删 (无后缀滤波)** 全 DELETE (圣上 2026-08-12 令改「全删」反 n-vless 滤波删, 圣上确认 FT CF 账号内无 gate 网关他 Worker, 全删安全); 前态滤波 `~ ft[0-9]$` (仿 n-vless 防误删他项目) 已去
+- **Mode 2 (`delete:v`)** = 扫该账号 CF 全 Worker **全删 (无后缀滤波)** 全 DELETE 后重建 (PASS_MODE=2 双 pass), 圣上 2026-08-12 令改「全删」反 n-vless 滤波删, 圣上确认 FT CF 账号内无 gate 网关他 Worker 全删安全
+- **Mode 3 (`delete:o`)** = 扫该账号 CF 全 Worker → 滤现役 `WORKER_NAMES` 名单 → 在名单 `Keep` / 不在 `DELETE` (清旧词基/孤儿/过时 Worker); **纯删无部署** (PASS_MODE=0 跳全 deploy step 唯删段跑); 圣上问「删上次建立 worker 之外的所有 worker」定此场景, `delete:o` 名圣上定 (`other` 缩写, 对齐 `delete:1`/`delete:v` 序号风格)
 - **绕封正解 (n-vless 证同名重部署不绕封)**: Mode 2 删光 → 重新 `gen` 换词基 → `first` 复绑旧子域 (子域不变桥零改动, 名变 CF 认新 Worker)
+- **Mode 3 filter 安全**: `echo ",$WORKER_NAMES," | grep -q ",$W,"` 前后加逗号防部分命中 (如 `ft1` 误吞 `xxx-ft10`)
 
 **旧 `flare*.workers.dev` 删不了裁决 (圣上会话问)**:
 - 拦1: 删段正则 `~ ft[0-9]$` 不匹配 `flare` 后缀

@@ -27,6 +27,17 @@ const GATE_PORT = parseInt(process.env.EXPOSED_PORT || '7860', 10);
 const UPSTREAM_TIMEOUT_MS = parseInt(process.env.GATE_UPSTREAM_TIMEOUT_MS || '30000', 10) || 30000;
 const SHUTDOWN_GRACE_MS = parseInt(process.env.GATE_SHUTDOWN_GRACE_MS || '5000', 10) || 5000;
 
+// ── FT (FlareTunnel) 桥本地端端口 (路3 路3-b 反代) ──────────────
+// entrypoint export FT_PORTS "空格分隔端口串" (多桥) / FT_PORT (单桥回退 8080).
+// FT 桥监听 127.0.0.1:$PORT, 同端口 /healthz + /metrics (Host 守卫非 127.0.0.1:PORT 不命中).
+// gate 现役惯例 "首桥代整体" (init-nim-keys.sh _ft_register_proxy 多桥 healthz 读 [0].port);
+//   /v1/ft/metrics 默认取首桥, ?bridge=index (0-基) 选特定桥, 越界回 400.
+const FT_PORTS_LIST = (process.env.FT_PORTS || '').split(/\s+/).map(s => parseInt(s, 10)).filter(n => Number.isInteger(n) && n > 0);
+const FT_PORT_SINGLE = parseInt(process.env.FT_PORT || process.env.FT_PROXY_PORT || '8080', 10);
+if (!Number.isInteger(FT_PORT_SINGLE) || FT_PORT_SINGLE <= 0) { /* 兜 8080 */ }
+const FT_HOST = process.env.FT_PROXY_HOST || '127.0.0.1';
+const FT_BRIDGES = FT_PORTS_LIST.length > 0 ? FT_PORTS_LIST : [8080];  // FT 未启 (FT_PORTS 空) 时仍 8080 兜, /v1/ft/metrics 取时 503
+
 // ── #4 context guard 配置 (2026-07-25 裁 b): 单阈值字节硬拦 ──────────────────
 // 斩病链首环: 400-context-overflow → N×round-robin fallback 同体转发 → heap OOM → Space shutdown.
 // 病链根因: omniroute 计数偏 NVIDIA 实测 ~40% (自认 212813 vs 实测 297040); 200000 软限+压缩(仅省3%)
@@ -62,6 +73,7 @@ if (!OR_API_KEY) {
 // 不弹 Basic Auth 框 (浏览器原生框反复弹弊大于利); 后台写执行认证全交 OR 自身
 // INITIAL_PASSWORD (bcrypt) + loginGuard (5次/15min IP锁) + JWT session 兜底.
 console.log(`[gate] admin UI: ${ADMIN_ENABLED ? 'enabled' : 'disabled'} (GATE_ADMIN_ENABLED 开关状态).`);
+console.log(`[gate] FT bridges: ${FT_BRIDGES.join(',')} (FT_PORTS env, 首桥代整体; /v1/ft/metrics 反代 FT 本地端).`);
 
 // timing-safe equal: 双方 Buffer, 长度不等先返回不泄露内容, 长度相等路径走 timingSafeEqual.
 function safeEqual(a, b) {
@@ -345,6 +357,50 @@ function proxyV1(req, res) {
     upstreamReq.end();
   }
 }
+
+// ── /v1/ft/metrics: PSK 鉴权反代 FlareTunnel 桥本地 /metrics (路3-b, 2026-08-12 圣上令) ──
+// PSK 校验靠前 /v1 app.use (line 187-198): Bearer INTERNAL_PSK safeEqual, 缺/错 fail-closed 401.
+// 反代 FT 桥 127.0.0.1:$PORT/metrics (Prometheus text exposition, text/plain; version=0.0.4).
+//   FT 桥本地端无鉴权 (127.0.0.1 Host 守卫), gate 此层做唯一公网鉴权门.
+// 现役惯例 "首桥代整体" (init-nim-keys.sh _ft_register_proxy 多桥 healthz 读首桥);
+//   ?bridge=index (0-基) 选特定桥, 越界/非数 → 400; 默认 bridge=0 首桥.
+// FT 未启 (FT_PIDS 空): /metrics 上游 ECONNREFUSED → 503 (不 404, 区分路由存在 vs 桥死).
+// 不反代 /healthz: 公网已有 /healthz (探 OR 链), FT healthz 本地端无额外面价值; metrics 含 per-Worker 计数才是圣上要.
+app.get('/v1/ft/metrics', async (req, res) => {
+  if (shuttingDown) return res.status(503).json({ error: 'service_unavailable', abort_source: 'shutdown' });
+  // bridge 选址 (?bridge=N, 0-基, 默 0 首桥)
+  const bi = (() => {
+    if (req.query.bridge === undefined || req.query.bridge === '') return 0;
+    const n = parseInt(req.query.bridge, 10);
+    if (!Number.isInteger(n) || n < 0 || n >= FT_BRIDGES.length) return -1;
+    return n;
+  })();
+  if (bi < 0) {
+    return res.status(400).json({ error: 'bad_bridge_index', bridges: FT_BRIDGES.length, msg: `?bridge=N (0..${FT_BRIDGES.length - 1})` });
+  }
+  const ftPort = FT_BRIDGES[bi];
+  try {
+    const r = await fetch(`http://${FT_HOST}:${ftPort}/metrics`, {
+      signal: AbortSignal.timeout(3000),
+      headers: { Host: `${FT_HOST}:${ftPort}` },   // FT Host 守卫须 = 桥监听地址, 否则不命中落 HandleHTTP 透传
+    });
+    if (!r.ok) {
+      return res.status(502).json({ error: 'bad_gateway', abort_source: 'upstream_error', ft_http: r.status, bridge: bi });
+    }
+    const text = await r.text();
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    return res.status(200).send(text);
+  } catch (e) {
+    // ECONNREFUSED = FT 桥未启/死; timeout = 桥卡; 其余 transport err.
+    const code = (e?.cause?.code === 'ECONNREFUSED' || e?.code === 'ECONNREFUSED') ? 503
+      : (e?.name === 'TimeoutError' || e?.cause?.code === 'ETIMEDOUT') ? 504 : 502;
+    return res.status(code).json({
+      error: code === 503 ? 'service_unavailable' : (code === 504 ? 'gateway_timeout' : 'bad_gateway'),
+      abort_source: code === 503 ? 'upstream_unavailable' : (code === 504 ? 'timeout' : 'upstream_error'),
+      bridge: bi, ft_port: ftPort, err: e?.message || String(e),
+    });
+  }
+});
 
 app.use('/v1', (req, res) => proxyV1(req, res));
 

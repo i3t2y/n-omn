@@ -78,7 +78,7 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 > GitHub Actions 自控部署 CF Worker 出口换 IP 层 (非 n-vless/n-edget)。血统 + 契约 + 排障入口在此, 历史裁决见 ops/DECISIONS.md (2026-08-12 三段)。
 
 ### 不变量
-- **拓扑**: 10 CF 账号 × 10 Worker = 100 上限, 现役启 4 账号 40 Worker (`ACTIVE_ACCOUNTS` Variable 控扩, 加 f05~f10 zone 仅改此值 workflow 矩阵自适应)。
+- **拓扑**: 10 CF 账号 × 10 Worker = 100 上限, 现役**满额 10 账号 100 Worker 全活** (`ACTIVE_ACCOUNTS=10` Variable 已设, f01~f10 zone 全启; 扩/缩仅改此值, workflow 矩阵自适应)。
 - **域名派生**: `{worker 1-10}.f{account 01-10}.cc.cd` (圣上定 f, 非 n-vless `%10` 循环回0)。Worker 名 `<W1>-<W2>-ft{1-10}` (每账号独立抽双词, 后缀 `ft` 非 `v`)。
 - **鉴权铁律**: Worker `env.RELAY_AUTH` ↔ 桥 (HF Space Secret) `RELAY_AUTH` 同值, 异值则桥 401。fail-closed (`env.RELAY_AUTH||null` + `!AUTH_KEY`)。
 - **endpoint.json = worker-major 排**: idx0-9=worker1 各账号, ..., idx90-99=worker10。nim 桥 `workers:"0-39"` 连续直取 = 每账号前4 worker。真身 in HF Dataset `nonoke/omn-logic` `flaretunnel_endpoints.json` (workflow publish-endpoints job 自动派生传)。
@@ -102,7 +102,7 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 ### 链序 (新 zone 扩池)
 1. 圣上 CF 侧加 zone (f05~f10.cc.cd) + 建对应 token (锁该账号+zone)
 2. GitHub Secrets 加 CF_ACCOUNT_IDS/CF_API_TOKENS 该账号位序
-3. GitHub Variable `ACTIVE_ACCOUNTS` 改 N (现 4→N)
+3. GitHub Variable `ACTIVE_ACCOUNTS` 改 N (现 10→N)
 4. `PRESET=gen` 触生名 → `PRESET=first` 触全量建 (双 pass) → Worker+域绑成
 5. `PRESET=publish` 触 (deploy 跳) → endpoint.json 自动传 Dataset (worker-major 重排含新 Worker)
 6. 圣上 HF UI 改 bridges.json nim `workers:"0-{N*4-1}"` (扩账号扩取前4)
@@ -121,5 +121,5 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 
 ### 待办/下一步
 - gate 加路由暴露 FT 桥 `/metrics` 公网 (现容器内 127.0.0.1:8081, 公网取不得 per-Worker 计数) → 下会话事
-- ACTIVE_ACCOUNTS 现役启 4 账号 40 Worker (满额 100 待圣上加 f05~f10 zone)
-- 5 deprecated model (kimi-k3/deepseek-v4-flash/pro/qwen3.8-max/mistral-small-4) NVIDIA 目录无 → 圣上定剔或留
+- FT Worker 100 拓扑已满额全活 (2026-08-12 圣上扩 f05~f10 zone + Variable `ACTIVE_ACCOUNTS=10`)
+- deprecated model 剔: 2026-08-12 圣上令删 deepseek-v4-flash + deepseek-v4-pro + mistral-small-4-119b-2603 (NVIDIA 目录无, 已落 init-nim-keys.sh); 留 kimi-k3 + qwen3.8-max (圣上未命删, deprecated 但待复检)

@@ -310,3 +310,29 @@ fname = parts[2]
 **圣上用**: `PRESET=publish` (workflow_dispatch 输入框 或 Variable 临时设) → 仅 publish-endpoints 跑, deploy 零耗 → 派生 endpoint.json worker-major 传 Dataset。
 
 **关联**: [[ft-worker-100topology-landed-2026-08-12]]
+
+## 2026-08-12 · deepseek + mistral-small-4 模型剔 (圣上令 "NVIDIA 删了")
+
+**触发**: 2026-08-12 dev boot 日志印 5 model DEPRECATED (NVIDIA 目录无): moonshotai/kimi-k3, deepseek-ai/deepseek-v4-flash, deepseek-ai/deepseek-v4-pro, qwen/qwen3.8-max-preview, mistralai/mistral-small-4-119b-2603. 圣上两令: "deepseek删了吧" + "mistral-small-4 NVIDIA删了".
+
+**剔范围** (圣上命删):
+- `deepseek-ai/deepseek-v4-flash` — TIER_FAST + NIM_FAST_MODELS + NIM_EXTRA_MODELS 三处
+- `deepseek-ai/deepseek-v4-pro` — TIER_FAST + NIM_CODEX_MODELS 两处
+- `mistralai/mistral-small-4-119b-2603` — TIER_STABLE 一处
+
+**留** (圣上未命删, deprecated 但待复检): moonshotai/kimi-k3 + qwen/qwen3.8-max-preview. 候圣上另令裁.
+
+**落点** `dev/logic/init-nim-keys.sh` 6 处 (数据数组删, 注释保留历史标记同 `meta/llama-3.3-70b` / `openai/gpt-oss-120b` / `qwen/qwen3.5-397b` 格款, 供血统追溯):
+- L66/67: TIER_FAST 删 deepseek 两行 → 注释
+- L77: TIER_STABLE 删 mistral-small-4 → 注释
+- L95: NIM_CODEX_MODELS 删 deepseek-v4-pro
+- L103: NIM_FAST_MODELS 删 deepseek-v4-flash
+- L110: NIM_EXTRA_MODELS 数组内移除 deepseek-v4-flash
+
+**同步** `docs/nim_context_probe.sh` MODELS 删 deepseek (圣上手动探真截断点工具, 非 boot 血统, 逼圣上跑时不烧 deprecated 请求)。
+
+**闸验**: `bash -n dev/logic/init-nim-keys.sh` PASS + `python3 .claude/hooks/secret-scan.py` exit=0 (模型名非 secret, 闸无害)。
+
+**不变量守**: §1 三件定态 (Dockerfile/README/start.sh) 零触; init-nim-keys.sh = dev 逻辑层镜像 (Dataset nonoke/omn-logic 真身, 改须 git 先行再 push); §0 不翻案 Task D/E 已删模型 (llama-3.3/gpt-oss/qwen3.5-397b); §3 DECISIONS 只增不改。
+
+**关联**: [[ft-worker-100topology-landed-2026-08-12]] (同期 100 Worker 满额全活)

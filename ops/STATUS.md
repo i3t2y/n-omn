@@ -576,3 +576,20 @@ commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。
 - workflow_dispatch inputs preset 描述加 publish
 闸验: YAML 通 4 jobs + deploy if publish_only 门 + publish if always()+publish_only 分支 + gate outputs publish_only + secret-scan exit=0.
 圣上用: `PRESET=publish` (workflow_dispatch 输入框 或 Variable 临时设) → 仅 publish 跑, deploy 零耗. push 待圣上亲启.
+
+## 2026-08-12 续 · 100 Worker 满额全活 + deepseek/mistral-small-4 剔
+
+**FT Worker 100 拓扑满额全活 (圣上宣告 "10账号100worker全都搞定了")**:
+- 圣上 GitHub Variable `ACTIVE_ACCOUNTS=10` 已设 (f01~f10 zone 全启 + 10 CF 账号 token + Secrets 全配齐)
+- `PRESET=publish` workflow_dispatch 触发 → publish-endpoints 自动派生 100 条 worker-major endpoint.json 传 HF Dataset `nonoke/omni-logic`
+- boot 真验 (dev Space nonoke-omn): 9 段全绿 + FT 桥 nim 建 40 Worker 池 (现役取每账号前 4, `bridges.json` `workers="0-39"`) round-robin 全活
+- f01 zone DNS 病 (2-4.f01.cc.cd no such host, 圣上诊 "DNS 服务器没设好") → 圣上 CF 侧修 zone DNS 服务器 → 40 池全活 (curl 401 fail-closed, 非 502)
+- 代理真生效铁证三证 (HF Dataset save/ft/ capture log): ① Prometheus `flaretunnel_worker_requests_total{name="calm-mist-ft1"} 1` successes=1 ② round-robin 真轮跨 worker 跨账号 (1.f10→2.f01, 3.f08→4.f03) ③ 真业务穿链 POST integrate.api.nvidia.com via Worker 3.f02 ✅200 GLM-5.2 Pong. 10 chat 全 200 时延 3.5-33.7s (40 Worker 各独立 CF 出口 IP 致散布)
+- SSOT 落: DECISIONS +3 段 +69 行 + HANDOFF +51 行 FT 架构交接段 = commit 2b74731, 圣上亲推 nomn/main (b577e5b..2b74731 成)
+
+**deepseek + mistral-small-4 模型剔 (圣上令 "deepseek删了吧 + mistral-small-4 NVIDIA删了")**:
+- 2026-08-12 boot 日志印 5 model DEPRECATED (NVIDIA 目录无): moonshotai/kimi-k3, deepseek-ai/deepseek-v4-flash, deepseek-ai/deepseek-v4-pro, qwen/qwen3.8-max-preview, mistralai/mistral-small-4-119b-2603
+- 圣上命删 deepseek 二组 (flash + pro) + mistral-small-4 一组; 留 kimi-k3 + qwen3.8-max (deprecated 但待复检, 圣上未命删)
+- 落点 `dev/logic/init-nim-keys.sh` 6 处删: TIER_FAST (66/67) + TIER_STABLE (77) + NIM_CODEX_MODELS (95) + NIM_FAST_MODELS (103) + NIM_EXTRA_MODELS (110, 数组内移除); 注释保留历史标记 (同 llama-3.3 / gpt-oss 格款)
+- `docs/nim_context_probe.sh` 探针脚本 MODELS 同步删 deepseek (圣上手动探真截断点工具, 非 boot 血统)
+- 闸验: `bash -n` PASS + `secret-scan exit=0`

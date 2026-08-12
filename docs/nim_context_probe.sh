@@ -21,13 +21,14 @@ SLEEP_BETWEEN="${SLEEP_BETWEEN:-8}"     # 档位间隔（秒），控频防 429
 MAX_OUT="${MAX_OUT:-16}"                # 输出 token，尽量小
 TIMEOUT="${TIMEOUT:-90}"                # 单请求超时（秒）
 # 待测模型（按需增删；用裸 vendor/model，不带 nvidia/ 前缀）
+# 2026-08-12: 删 deepseek/mistral-small-4 (DEPRECATED) + llama-3.3-70b/gpt-oss/qwen3.5-397b (上游挂/旧删)
 MODELS=(
   "z-ai/glm-5.2"
-  "deepseek-ai/deepseek-v4-pro"
-  "deepseek-ai/deepseek-v4-flash"
-  "meta/llama-3.3-70b-instruct"
-  "openai/gpt-oss-120b"
-  "qwen/qwen3.5-397b-a17b"
+  "moonshotai/kimi-k3"
+  "qwen/qwen3.8-max-preview"
+  "nvidia/llama-3.1-nemotron-nano-8b-v1"
+  "nvidia/nemotron-3-nano-30b-a3b"
+  "google/gemma-4-31b-it"
 )
 # 递增档位（目标输入 token 数）。默认覆盖 16k~128k。
 STEPS="${STEPS:-16000 32000 48000 64000 96000 128000}"

@@ -63,18 +63,18 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 TIER_FAST=(
   "z-ai/glm-5.2"
   "moonshotai/kimi-k3"
-  "deepseek-ai/deepseek-v4-flash"
-  "deepseek-ai/deepseek-v4-pro"
   "qwen/qwen3.8-max-preview"
   "nvidia/llama-3.1-nemotron-nano-8b-v1"
   "nvidia/nemotron-3-nano-30b-a3b"
   # "meta/llama-3.3-70b-instruct"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-pool 笔2 101s 超时 gpt-oss-120b + llama-3.3-70b 路由慢挂, check_nim_model_health 探 NVIDIA 目录有=available 不标 deprecated, filter_alive 不剔, 每 boot combo PUT 回冲; 落源不落库方能切除). 圣上裁决矛盾二取 ii (主池+codex 同步删 gpt-oss-120b)
+  # "deepseek-ai/deepseek-v4-flash"  # 2026-08-12 圣上令删: DEPRECATED (NVIDIA 目录无)
+  # "deepseek-ai/deepseek-v4-pro"    # 2026-08-12 圣上令删: DEPRECATED (NVIDIA 目录无)
 )
 TIER_STABLE=(
   "nvidia/nemotron-3-super-120b-a12b"
   # "openai/gpt-oss-120b"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-codex 笔1 101s 超时 priority 命中 gpt-oss-120b 挂无 fallback; 亦在 NIM_CODEX_MODELS 行89 同步删). 圣上裁决矛盾二取 ii
   # "qwen/qwen3.5-397b-a17b"  # 2026-07-25 Task D 移除: catalog 可查≠可服务, POST /v1/chat/completions 上游返 function-not-found 404 (omniroute 真转发 NVIDIA 后被上游拒)
-  "mistralai/mistral-small-4-119b-2603"
+  # "mistralai/mistral-small-4-119b-2603"  # 2026-08-12 圣上令删: DEPRECATED (NVIDIA 目录无)
   "google/gemma-4-31b-it"
 )
 TIER_RESTRICTED=(
@@ -92,7 +92,6 @@ esac
 echo "[init] NIM_PROFILE=$_PROFILE -> pool 意向 ${#NIM_POOL_MODELS[@]} 个模型"
 
 NIM_CODEX_MODELS=(
-  "deepseek-ai/deepseek-v4-pro"
   "z-ai/glm-5.2"
   "moonshotai/kimi-k3"
   "qwen/qwen3.8-max-preview"
@@ -100,14 +99,13 @@ NIM_CODEX_MODELS=(
   "nvidia/nemotron-3-nano-30b-a3b"
 )
 NIM_FAST_MODELS=(
-  "deepseek-ai/deepseek-v4-flash"
   "google/gemma-4-31b-it"
   "moonshotai/kimi-k3"
   "qwen/qwen3.8-max-preview"
   "nvidia/llama-3.1-nemotron-nano-8b-v1"
   "nvidia/nemotron-3-nano-30b-a3b"
 )
-NIM_EXTRA_MODELS=( "deepseek-ai/deepseek-v4-flash" "moonshotai/kimi-k3" "qwen/qwen3.8-max-preview" "nvidia/llama-3.1-nemotron-nano-8b-v1" "nvidia/nemotron-3-nano-30b-a3b" )
+NIM_EXTRA_MODELS=( "moonshotai/kimi-k3" "qwen/qwen3.8-max-preview" "nvidia/llama-3.1-nemotron-nano-8b-v1" "nvidia/nemotron-3-nano-30b-a3b" )
 
 build_all_models() {
   printf '%s

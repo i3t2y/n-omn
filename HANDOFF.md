@@ -113,13 +113,15 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 - **某 Worker 域 `no such host`**: CF zone DNS 未绑/nameserver 未接 (非 Worker/部署错, 同代码他 zone 全活证) → 圣上 CF 侧修 zone DNS 服务器, 无须重部署。round-robin fallback 兜跳死 Worker 仍 200 = 韧性。
 - **Worker 池数不符**: `ACTIVE_ACCOUNTS` Variable 控, endpoint.json 看 publish-endpoints 派生条数 = ACTIVE_ACCOUNTS×10
 - **proxy 真生效证**: HF Dataset `nonoke/omn-logic` `save/ft/` capture log (每 60s 一件, `via Worker:` + `✅ 200` + Prometheus `flaretunnel_worker_requests_total`)
-- **per-Worker 计数**: FT 桥 `/metrics` (容器内 127.0.0.1:8081, 公网 gate 未暴露; boot 时 init 内 curl 印一次; 持续观 Save/ft/ 件 `FT METRICS DUMP` 段)
+- **per-Worker 计数**: FT 桥 `/metrics` (容器内 127.0.0.1:8081) + 公网 `gate /v1/ft/metrics` (PSK 鉴权反代, commit `ec0712d` 路3-b 落; `?bridge=N` 0-基选桥默首桥, ECONNREFUSED→503); boot 时 init 内 curl 印一次; 持续观 Save/ft/ 件 `FT METRICS DUMP` 段
+- **公网取 FT metrics**: `curl -H "Authorization: Bearer $INTERNAL_PSK" https://<Space>/v1/ft/metrics` (PSK fail-closed, 缺/错 401); `?bridge=N` 选桥 (0-基, 越界 400 `bad_bridge_index`), 不带参默首桥 (首桥代整体, init-nim-keys.sh `_ft_register_proxy` 旧例)
 - **本地拉 save 日志**: `source ~/.omn-secrets; env HF_TOKEN="$HF_TOKEN_DATASET_WRITE" python3 -c "from huggingface_hub import hf_hub_download as f; print(f('nonoke/omni-logic','save/ft/<件>',repo_type='dataset',token=__import__('os').environ['HF_TOKEN']))"` (repo 真 nonoke/omni-logic 非 omn-logic)
 
 ### commit 链 (本会话及前轮)
-`008c48d` 雏 → `6c78f2d` 100 拓扑 → `1431b0f` delete:o → `08d272a` tag-driven → `c10d544` secrets bug → `517357f` RELAY_AUTH 真注 → `d1c324b` publish-endpoints job → `c22b3a9` PRESET=publish。nomn/main 远端 = `b577e5b` (含 STATUS)。
+- FT Worker deploy 链: `008c48d` 雏 → `6c78f2d` 100 拓扑 → `1431b0f` delete:o → `08d272a` tag-driven → `c10d544` secrets bug → `517357f` RELAY_AUTH 真注 → `d1c324b` publish-endpoints job → `c22b3a9` PRESET=publish。
+- dev/logic 镜像链: `3b1564c` deepseek/mistral-small-4 剔 → `ec0712d` gate /v1/ft/metrics PSK 反代 (路3-b)。nomn/main 远端 = `b577e5b` (含 STATUS, push 前 `3b1564c`+`ec0712d` 待圣上亲启)。
 
 ### 待办/下一步
-- gate 加路由暴露 FT 桥 `/metrics` 公网 (现容器内 127.0.0.1:8081, 公网取不得 per-Worker 计数) → 下会话事
+- ✅ gate 加路由暴露 FT 桥 `/metrics` 公网 (commit `ec0712d` 路3-b 落, `GET /v1/ft/metrics` PSK 反代 + `?bridge=N` 选桥; 真路测五态全绿 2026-08-12)
 - FT Worker 100 拓扑已满额全活 (2026-08-12 圣上扩 f05~f10 zone + Variable `ACTIVE_ACCOUNTS=10`)
 - deprecated model 剔: 2026-08-12 圣上令删 deepseek-v4-flash + deepseek-v4-pro + mistral-small-4-119b-2603 (NVIDIA 目录无, 已落 init-nim-keys.sh); 留 kimi-k3 + qwen3.8-max (圣上未命删, deprecated 但待复检)

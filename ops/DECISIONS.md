@@ -336,3 +336,30 @@ fname = parts[2]
 **不变量守**: §1 三件定态 (Dockerfile/README/start.sh) 零触; init-nim-keys.sh = dev 逻辑层镜像 (Dataset nonoke/omn-logic 真身, 改须 git 先行再 push); §0 不翻案 Task D/E 已删模型 (llama-3.3/gpt-oss/qwen3.5-397b); §3 DECISIONS 只增不改。
 
 **关联**: [[ft-worker-100topology-landed-2026-08-12]] (同期 100 Worker 满额全活)
+
+## 2026-08-12 · gate /v1/ft/metrics PSK 反代 FT 桥 Prometheus 计数 (路3-b 圣上令)
+
+**触发**: 圣上令 "做" (前轮汇总承 "gate 加路由暴露 FT 桥 /metrics 公网 → 下会话事" 待办, HANDOFF:123 旧列). 痛=公网取不得 FT per-Worker 计数 (容器内 127.0.0.1:8081 /metrics, 公网 gate 未暴露).
+
+**裁决 (commit ec0712d, dev/logic/gate.js +56 行)**: 加 `GET /v1/ft/metrics` 公网路由, PSK 鉴权反代 FlareTunnel 桥本地 `/metrics` (Prometheus text exposition, `text/plain; version=0.0.4`).
+
+- **PSK 鉴权**: 靠前 `app.use('/v1', ...)` (gate.js line 187-198), Bearer INTERNAL_PSK safeEqual 常量时比, 缺/错 fail-closed 401. 路由序 `/v1/ft/metrics` (line 369) 在 proxyV1 mount (line 405) 前, PSK 层在两者前.
+- **桥选址**: `?bridge=N` 0-基选特定桥, 默 0 首桥 (现役惯例 "首桥代整体", init-nim-keys.sh `_ft_register_proxy` 多桥 healthz 读 `[0].port` 旧例); 越界/非数 → 400 `bad_bridge_index` (告池数 `?bridge=N (0..M-1)`).
+- **FT_PORTS env**: entrypoint export `FT_PORTS` (空格分隔端口串, 多桥) / `FT_PORT` (单桥回退 8080). `FT_PORTS_LIST` 解析 + `FT_PORT_SINGLE` 回退 + `FT_HOST` (默 127.0.0.1) + `FT_BRIDGES` (FT 未启 FT_PORTS 空时 8080 兜, 取时 ECONNREFUSED→503 区分路由存在 vs 桥死).
+- **上游错码**: ECONNREFUSED→503 `upstream_unavailable` (FT 桥未启/死, 非 404 区分路由存在) / TimeoutError→504 `gateway_timeout` / 其余 502 `bad_gateway`. shutdown→503 `abort_source:'shutdown'`. Host 头须 = `${FT_HOST}:${ftPort}` (FT Host 守卫非 127.0.0.1:PORT 不命中落 HandleHTTP 透传).
+- **不反代 /healthz**: 公网已有 `/healthz` (探 OR 链), FT 本地 healthz 无额外面价值; metrics 含 per-Worker 计数 (路3 落) 才是圣上要.
+
+**真路测五态全绿** (临时装 express --no-save 跑 spawn 真 gate.js + mock FT 桥, 测后删 node_modules 非血统):
+1. 无 PSK → 401 `unauthorized` (PSK fail-closed)
+2. 对 PSK + bridge=0 活桥 → 200 + `flaretunnel_worker_requests_total{name="calm-mist-ft1"} 1` 计数命中
+3. bridge=1 死桥 → 503 `service_unavailable` (ECONNREFUSED→503)
+4. bridge=99 越界 → 400 `bad_bridge_index` (告 `?bridge=N (0..1)`)
+5. 错 PSK → 401 `unauthorized` (safeEqual 拒)
+
+**闸验**: `node --check dev/logic/gate.js` PASS + `python3 .claude/hooks/secret-scan.py` exit=0 (gate.js 单独 + 全工作树) + pre-commit 闸通过.
+
+**落点**: `dev/logic/gate.js` (dev 逻辑层镜像, 真身 Dataset nonoke/omn-logic, 改须 git 先行再 push; 非 §1 三件定态). 真路测 spawn 真 gate.js 印 `[gate] FT bridges:` + `[gate] listening on` 全正常.
+
+**不变量守**: §1 三件定态零触 (Dockerfile/README/start.sh); gate.js 非 §1 三件可改; §6 /v1/* Bearer = INTERNAL_PSK safeEqual 缺/<16 fail-closed 守; §2 secret 零入会话 (测试用合成串 `testpsk_synthetic_0123456789ab` 32 字符, Authorization 头运行期拼非源字面避 secret-scan 误伤); §0 不翻案 FT 桥"/metrics 路由3 落 (`FlareTunnel.go:1890-1933` Start()) 旧决, 本段补公网暴露门.
+
+**关联**: [[ft-worker-100topology-landed-2026-08-12]] (FT 计数源 per-Worker), [[flaretunnel-metrics-endpoint-lu3-landed]] (路3 /metrics 落本基)

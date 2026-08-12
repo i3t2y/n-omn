@@ -593,3 +593,16 @@ commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。
 - 落点 `dev/logic/init-nim-keys.sh` 6 处删: TIER_FAST (66/67) + TIER_STABLE (77) + NIM_CODEX_MODELS (95) + NIM_FAST_MODELS (103) + NIM_EXTRA_MODELS (110, 数组内移除); 注释保留历史标记 (同 llama-3.3 / gpt-oss 格款)
 - `docs/nim_context_probe.sh` 探针脚本 MODELS 同步删 deepseek (圣上手动探真截断点工具, 非 boot 血统)
 - 闸验: `bash -n` PASS + `secret-scan exit=0`
+
+## 2026-08-12 续二 · gate /v1/ft/metrics PSK 反代 FT 桥计数 (路3-b)
+
+圣上令 "做" (承 HANDOFF:123 待办 "gate 加路由暴露 FT /metrics 公网"). 落 commit `ec0712d` (dev/logic/gate.js +56).
+
+- `GET /v1/ft/metrics` 公网路由: PSK 鉴权 (靠前 /v1 app.use safeEqual) 后反代 FT 桥本地 127.0.0.1:$PORT/metrics (Prometheus text exposition)
+- `?bridge=N` 0-基选桥默首桥 (首桥代整体旧例), 越界 400 `bad_bridge_index`; ECONNREFUSED→503 (桥死非路由缺); timeout→504; 其余→502
+- FT_PORTS env 读多桥 (entrypoint export), FT 未启 8080 兜取时 503
+- 真路测五态全绿: 无PSK401 / 对PSK+bridge0活桥→200计数命中 / bridge1死桥→503 / bridge99越界→400 / 错PSK401
+- 闸验: node --check PASS + secret-scan exit=0 + pre-commit 过
+- push 待圣上亲启 (§5, dev/logic 真身 Dataset nonoke/omn-logic 须 git 先行; commit 3b1564c+ec0712d 两轮待推)
+
+SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ 移 + commit 链分两支; DECISIONS 加 §3 gate metrics 段 (只增).

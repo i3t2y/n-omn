@@ -1,0 +1,1856 @@
+data: {"data":"===== Application Startup at 2026-08-12 11:46:24 =====\n","timestamp":"2026-08-12T11:46:24Z"}
+
+data: {"data":"[start] >>> 启动 2026-08-12 11:46:49 <<<","timestamp":"2026-08-12T11:46:49.055Z"}
+
+data: {"data":"[start] 基础镜像: ghcr.io/i3t2y/omniroute-base:3.8.48@sha256:da99fac1a697022a0529805294c58a10923fc1c758616f4f0b2ea8428b0f408f","timestamp":"2026-08-12T11:46:49.055Z"}
+
+data: {"data":"[start] 镜像 B 模式：工具链已就绪","timestamp":"2026-08-12T11:46:49.055Z"}
+
+data: {"data":"[start] 同步 Dataset: nonoke/omn-logic","timestamp":"2026-08-12T11:46:49.055Z"}
+
+data: {"data":"[start] Dataset HEAD 锁定 revision=9a517c88cd40 (竞速根治: atomic 同点拉取)","timestamp":"2026-08-12T11:46:49.654Z"}
+
+data: {"data":"/tmp/logic","timestamp":"2026-08-12T11:49:21.347Z"}
+
+data: {"data":"\u001b[90mHint: A new version of huggingface_hub (1.27.0) is available! You are using version 1.24.0.","timestamp":"2026-08-12T11:49:21.501Z"}
+
+data: {"data":"To update, run: hf update\u001b[0m","timestamp":"2026-08-12T11:49:21.501Z"}
+
+data: {"data":"Still waiting to acquire lock on /tmp/logic/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)","timestamp":"2026-08-12T11:49:21.501Z"}
+
+data: {"data":"Still waiting to acquire lock on /tmp/logic/.cache/huggingface/.gitignore.lock (elapsed: 0.1 seconds)","timestamp":"2026-08-12T11:49:21.501Z"}
+
+data: {"data":"[start] 逻辑注入完成","timestamp":"2026-08-12T11:49:27.901Z"}
+
+data: {"data":"[start] 移交控制权给逻辑层","timestamp":"2026-08-12T11:49:28.921Z"}
+
+data: {"data":"[entrypoint] boot 编排日志 tee -> /data/omn-raw/entrypoint.log (_raw → capture_loop entrypoint 源 → omn_redact → save/entrypoint/)","timestamp":"2026-08-12T11:49:28.938Z"}
+
+data: {"data":"[entrypoint] STREAM_READINESS_TIMEOUT_MS=180000 (M7 外科单注, wiki §15 实证)","timestamp":"2026-08-12T11:49:28.938Z"}
+
+data: {"data":"[entrypoint] 上游服务启动 | PORT=20128 EXPOSED=7860 DATA=/data (ephemeral, R2 是数据主路径)","timestamp":"2026-08-12T11:49:28.938Z"}
+
+data: {"data":"[entrypoint] lock acquired (flock /data/.omniroute.lock, fd 9).","timestamp":"2026-08-12T11:49:28.939Z"}
+
+data: {"data":"time=2026-08-12T11:49:28.963Z level=ERROR msg=\"failed to run\" error=\"database not found in config: /data/storage.sqlite\"","timestamp":"2026-08-12T11:49:28.964Z"}
+
+data: {"data":"[entrypoint] ⚠ restore 失败 rc=1 (见 /tmp/ls_restore.err; 已脱敏, 不打凭据). 空库启动.","timestamp":"2026-08-12T11:49:28.972Z"}
+
+data: {"data":"[entrypoint] FT: FLARETUNNEL_ENABLED=1, 启动 FlareTunnel 本地桥 (档位A)...","timestamp":"2026-08-12T11:49:28.974Z"}
+
+data: {"data":"[entrypoint] FT: 多桥模式起 1 桥 (PID=[80], PORT=[8081], NAME=[nim], endpoints.json 池=100, log→/data/omn-raw/flaretunnel-<name>.log)","timestamp":"2026-08-12T11:49:28.997Z"}
+
+data: {"data":"[entrypoint] FT: CA 就绪, NODE_EXTRA_CA_CERTS=/tmp/ft-ca/flaretunnel_ca.crt 已 export (先于 §2 上游启动, 红线②满足)","timestamp":"2026-08-12T11:49:29.499Z"}
+
+data: {"data":"[entrypoint] 上游服务 PID=91 (heap 4096)","timestamp":"2026-08-12T11:49:29.502Z"}
+
+data: {"data":"▲ Next.js 16.2.10","timestamp":"2026-08-12T11:49:29.738Z"}
+
+data: {"data":"- Local:         http://localhost:20128","timestamp":"2026-08-12T11:49:29.738Z"}
+
+data: {"data":"- Network:       http://0.0.0.0:20128","timestamp":"2026-08-12T11:49:29.738Z"}
+
+data: {"data":"✓ Ready in 0ms","timestamp":"2026-08-12T11:49:29.738Z"}
+
+data: {"data":"[CREDENTIALS] No external credentials file found, using defaults.","timestamp":"2026-08-12T11:49:30.096Z"}
+
+data: {"data":"[DB] Added usage_history.combo_strategy column","timestamp":"2026-08-12T11:49:30.115Z"}
+
+data: {"data":"[DB] Added call_logs.model_pinned column","timestamp":"2026-08-12T11:49:30.116Z"}
+
+data: {"data":"[Migration] Pre-migration backup created: /data/db_backups/db_2026-08-12T11-49-30-121Z_pre-migration.sqlite","timestamp":"2026-08-12T11:49:30.129Z"}
+
+data: {"data":"[Migration] Applied: 002_mcp_a2a_tables","timestamp":"2026-08-12T11:49:30.131Z"}
+
+data: {"data":"[Migration] Skipped executing 003_provider_node_custom_paths as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.131Z"}
+
+data: {"data":"[Migration] Applied: 003_provider_node_custom_paths","timestamp":"2026-08-12T11:49:30.132Z"}
+
+data: {"data":"[Migration] Applied: 004_proxy_registry","timestamp":"2026-08-12T11:49:30.132Z"}
+
+data: {"data":"[Migration] Applied: 005_combo_agent_fields","timestamp":"2026-08-12T11:49:30.134Z"}
+
+data: {"data":"[Migration] Applied: 006_detailed_request_logs","timestamp":"2026-08-12T11:49:30.134Z"}
+
+data: {"data":"[Migration] Skipped executing 007_search_request_type as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.134Z"}
+
+data: {"data":"[Migration] Applied: 007_search_request_type","timestamp":"2026-08-12T11:49:30.134Z"}
+
+data: {"data":"[Migration] Applied: 008_registered_keys","timestamp":"2026-08-12T11:49:30.135Z"}
+
+data: {"data":"[Migration] Skipped executing 009_requested_model as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.135Z"}
+
+data: {"data":"[Migration] Applied: 009_requested_model","timestamp":"2026-08-12T11:49:30.135Z"}
+
+data: {"data":"[Migration] Applied: 010_model_combo_mappings","timestamp":"2026-08-12T11:49:30.136Z"}
+
+data: {"data":"[Migration] Applied: 011_webhooks","timestamp":"2026-08-12T11:49:30.136Z"}
+
+data: {"data":"[Migration] Applied: 012_fix_token_input_cache_tokens","timestamp":"2026-08-12T11:49:30.136Z"}
+
+data: {"data":"[Migration] Applied: 013_quota_snapshots","timestamp":"2026-08-12T11:49:30.136Z"}
+
+data: {"data":"[Migration] Applied: 014_unified_log_artifacts","timestamp":"2026-08-12T11:49:30.136Z"}
+
+data: {"data":"[Migration] Applied: 015_create_memories","timestamp":"2026-08-12T11:49:30.137Z"}
+
+data: {"data":"[Migration] Applied: 016_create_skills","timestamp":"2026-08-12T11:49:30.138Z"}
+
+data: {"data":"[Migration] Applied: 017_version_manager_upstream_proxy","timestamp":"2026-08-12T11:49:30.138Z"}
+
+data: {"data":"[Migration] Skipped executing 018_call_logs_detailed_tokens as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.138Z"}
+
+data: {"data":"[Migration] Applied: 018_call_logs_detailed_tokens","timestamp":"2026-08-12T11:49:30.138Z"}
+
+data: {"data":"[Migration] Applied: 019_context_handoffs","timestamp":"2026-08-12T11:49:30.139Z"}
+
+data: {"data":"[Migration] Skipped executing 020_combo_sort_order as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.139Z"}
+
+data: {"data":"[Migration] Applied: 020_combo_sort_order","timestamp":"2026-08-12T11:49:30.139Z"}
+
+data: {"data":"[Migration] Skipped executing 021_combo_call_log_targets as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.139Z"}
+
+data: {"data":"[Migration] Applied: 021_combo_call_log_targets","timestamp":"2026-08-12T11:49:30.139Z"}
+
+data: {"data":"[Migration] Applied: 022_add_memory_fts5","timestamp":"2026-08-12T11:49:30.140Z"}
+
+data: {"data":"[Migration] Applied: 023_fix_memory_fts_uuid","timestamp":"2026-08-12T11:49:30.142Z"}
+
+data: {"data":"[Migration] Applied: 024_create_sync_tokens","timestamp":"2026-08-12T11:49:30.142Z"}
+
+data: {"data":"[Migration] Skipped executing 025_call_logs_summary_storage as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.142Z"}
+
+data: {"data":"[Migration] Applied: 025_call_logs_summary_storage","timestamp":"2026-08-12T11:49:30.142Z"}
+
+data: {"data":"[Migration] Applied: 027_skill_mode_and_metadata","timestamp":"2026-08-12T11:49:30.146Z"}
+
+data: {"data":"[Migration] Applied: 028_create_files_and_batches","timestamp":"2026-08-12T11:49:30.146Z"}
+
+data: {"data":"[Migration] Skipped executing 029_provider_connection_max_concurrent as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.147Z"}
+
+data: {"data":"[Migration] Applied: 029_provider_connection_max_concurrent","timestamp":"2026-08-12T11:49:30.147Z"}
+
+data: {"data":"[Migration] Applied: 030_create_eval_runs","timestamp":"2026-08-12T11:49:30.147Z"}
+
+data: {"data":"[Migration] Applied: 031_create_eval_suites","timestamp":"2026-08-12T11:49:30.147Z"}
+
+data: {"data":"[Migration] Applied: 032_apikey_lifecycle","timestamp":"2026-08-12T11:49:30.154Z"}
+
+data: {"data":"[Migration] Applied: 033_create_reasoning_cache","timestamp":"2026-08-12T11:49:30.154Z"}
+
+data: {"data":"[Migration] Applied: 034_compression_settings","timestamp":"2026-08-12T11:49:30.154Z"}
+
+data: {"data":"[Migration] Applied: 035_standard_compression_config","timestamp":"2026-08-12T11:49:30.154Z"}
+
+data: {"data":"[Migration] Applied: 036_aggressive_compression","timestamp":"2026-08-12T11:49:30.155Z"}
+
+data: {"data":"[Migration] Applied: 037_ultra_compression","timestamp":"2026-08-12T11:49:30.155Z"}
+
+data: {"data":"[Migration] Applied: 038_compression_analytics","timestamp":"2026-08-12T11:49:30.155Z"}
+
+data: {"data":"[Migration] Applied: 039_compression_cache_stats","timestamp":"2026-08-12T11:49:30.155Z"}
+
+data: {"data":"[Migration] Applied: 040_oneproxy_proxy_fields","timestamp":"2026-08-12T11:49:30.163Z"}
+
+data: {"data":"[Migration] Applied: 041_compression_receipts","timestamp":"2026-08-12T11:49:30.174Z"}
+
+data: {"data":"[Migration] Applied: 042_compression_combos","timestamp":"2026-08-12T11:49:30.177Z"}
+
+data: {"data":"[Migration] Applied: 043_default_compression_combo_pipeline","timestamp":"2026-08-12T11:49:30.177Z"}
+
+data: {"data":"[Migration] Applied: 044_usage_history_api_key_backfill","timestamp":"2026-08-12T11:49:30.177Z"}
+
+data: {"data":"[Migration] Skipped executing 045_compression_tokens as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.177Z"}
+
+data: {"data":"[Migration] Applied: 045_compression_tokens","timestamp":"2026-08-12T11:49:30.177Z"}
+
+data: {"data":"[Migration] Applied: 046_database_settings","timestamp":"2026-08-12T11:49:30.178Z"}
+
+data: {"data":"[Migration] Applied: 047_aggregation_tables","timestamp":"2026-08-12T11:49:30.178Z"}
+
+data: {"data":"[Migration] Applied: 048_summary_indexes","timestamp":"2026-08-12T11:49:30.179Z"}
+
+data: {"data":"[Migration] Applied: 049_compression_analytics_indexes","timestamp":"2026-08-12T11:49:30.179Z"}
+
+data: {"data":"[Migration] Applied: 050_session_account_affinity","timestamp":"2026-08-12T11:49:30.180Z"}
+
+data: {"data":"[Migration] Applied: 051_hot_path_db_indexes","timestamp":"2026-08-12T11:49:30.180Z"}
+
+data: {"data":"[Migration] Applied: 052_api_key_combo_throttle","timestamp":"2026-08-12T11:49:30.182Z"}
+
+data: {"data":"[Migration] Applied: 053_remove_status_from_files","timestamp":"2026-08-12T11:49:30.186Z"}
+
+data: {"data":"[Migration] Skipped executing 054_usage_history_service_tier as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.186Z"}
+
+data: {"data":"[Migration] Applied: 054_usage_history_service_tier","timestamp":"2026-08-12T11:49:30.186Z"}
+
+data: {"data":"[Migration] Applied: 056_mcp_accessibility_compression","timestamp":"2026-08-12T11:49:30.187Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 057_provider_connection_quota_window_thresholds","timestamp":"2026-08-12T11:49:30.187Z"}
+
+data: {"data":"[Migration] Applied: 058_command_code_auth_sessions","timestamp":"2026-08-12T11:49:30.188Z"}
+
+data: {"data":"[Migration] Applied: 059_manifest_routing","timestamp":"2026-08-12T11:49:30.188Z"}
+
+data: {"data":"[Migration] Applied: 060_create_gamification","timestamp":"2026-08-12T11:49:30.189Z"}
+
+data: {"data":"[Migration] Applied: 061_cloud_agent_credentials","timestamp":"2026-08-12T11:49:30.189Z"}
+
+data: {"data":"[Migration] Skipped executing 062_usage_history_combo_strategy as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.189Z"}
+
+data: {"data":"[Migration] Applied: 062_usage_history_combo_strategy","timestamp":"2026-08-12T11:49:30.189Z"}
+
+data: {"data":"[Migration] Applied: 063_add_last_model_to_handoffs","timestamp":"2026-08-12T11:49:30.191Z"}
+
+data: {"data":"[Migration] Applied: 064_create_session_model_history","timestamp":"2026-08-12T11:49:30.191Z"}
+
+data: {"data":"[Migration] Applied: 065_middleware_hooks","timestamp":"2026-08-12T11:49:30.192Z"}
+
+data: {"data":"[Migration] Applied: 066_api_key_groups","timestamp":"2026-08-12T11:49:30.192Z"}
+
+data: {"data":"[Migration] Applied: 067_relay_proxies","timestamp":"2026-08-12T11:49:30.193Z"}
+
+data: {"data":"[Migration] Applied: 068_free_proxies","timestamp":"2026-08-12T11:49:30.193Z"}
+
+data: {"data":"[Migration] Applied: 069_webhook_deliveries","timestamp":"2026-08-12T11:49:30.194Z"}
+
+data: {"data":"[Migration] Applied: 070_webhooks_kind_metadata","timestamp":"2026-08-12T11:49:30.196Z"}
+
+data: {"data":"[Migration] Applied: 071_services","timestamp":"2026-08-12T11:49:30.200Z"}
+
+data: {"data":"[Migration] Applied: 072_free_proxies_fk","timestamp":"2026-08-12T11:49:30.200Z"}
+
+data: {"data":"[Migration] Applied: 073_per_model_token_limits","timestamp":"2026-08-12T11:49:30.201Z"}
+
+data: {"data":"[Migration] Applied: 074_discovery_results","timestamp":"2026-08-12T11:49:30.201Z"}
+
+data: {"data":"[Migration] Applied: 075_api_key_self_service_usage_scopes","timestamp":"2026-08-12T11:49:30.202Z"}
+
+data: {"data":"[Migration] Applied: 076_create_plugins","timestamp":"2026-08-12T11:49:30.202Z"}
+
+data: {"data":"[Migration] Applied: 077_api_key_stream_default_mode","timestamp":"2026-08-12T11:49:30.204Z"}
+
+data: {"data":"[Migration] Applied: 078_quota_consumption","timestamp":"2026-08-12T11:49:30.204Z"}
+
+data: {"data":"[Migration] Applied: 079_provider_plans","timestamp":"2026-08-12T11:49:30.204Z"}
+
+data: {"data":"[Migration] Applied: 080_agent_bridge","timestamp":"2026-08-12T11:49:30.205Z"}
+
+data: {"data":"[Migration] Applied: 081_inspector_custom_hosts","timestamp":"2026-08-12T11:49:30.205Z"}
+
+data: {"data":"[Migration] Applied: 082_inspector_sessions","timestamp":"2026-08-12T11:49:30.206Z"}
+
+data: {"data":"[Migration] Applied: 083_memory_vec","timestamp":"2026-08-12T11:49:30.208Z"}
+
+data: {"data":"[Migration] Applied: 084_playground_presets","timestamp":"2026-08-12T11:49:30.208Z"}
+
+data: {"data":"[Migration] Applied: 085_quota_pools","timestamp":"2026-08-12T11:49:30.209Z"}
+
+data: {"data":"[Migration] Applied: 086_api_key_allowed_quotas","timestamp":"2026-08-12T11:49:30.210Z"}
+
+data: {"data":"[Migration] Applied: 087_quota_pool_connections","timestamp":"2026-08-12T11:49:30.211Z"}
+
+data: {"data":"[Migration] Applied: 088_quota_groups","timestamp":"2026-08-12T11:49:30.213Z"}
+
+data: {"data":"[Migration] Applied: 089_add_disable_non_public_to_api_keys","timestamp":"2026-08-12T11:49:30.214Z"}
+
+data: {"data":"[Migration] Applied: 090_plugin_metrics","timestamp":"2026-08-12T11:49:30.215Z"}
+
+data: {"data":"[Migration] Applied: 091_plugin_analytics","timestamp":"2026-08-12T11:49:30.215Z"}
+
+data: {"data":"[Migration] Applied: 092_api_key_context_sources","timestamp":"2026-08-12T11:49:30.215Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 093_proxy_enable_toggles","timestamp":"2026-08-12T11:49:30.216Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 094_per_key_proxy_toggles","timestamp":"2026-08-12T11:49:30.216Z"}
+
+data: {"data":"[Migration] Skipped executing 095_provider_node_custom_headers as schema changes are already present (Idempotency check).","timestamp":"2026-08-12T11:49:30.216Z"}
+
+data: {"data":"[Migration] Applied: 095_provider_node_custom_headers","timestamp":"2026-08-12T11:49:30.216Z"}
+
+data: {"data":"[Migration] Applied: 096_sync_context_cache_protection","timestamp":"2026-08-12T11:49:30.216Z"}
+
+data: {"data":"[Migration] Applied: 097_model_intelligence","timestamp":"2026-08-12T11:49:30.217Z"}
+
+data: {"data":"[Migration] Applied: 098_clear_semantic_cache_for_key_isolation","timestamp":"2026-08-12T11:49:30.217Z"}
+
+data: {"data":"[Migration] Applied: 099_proxy_family","timestamp":"2026-08-12T11:49:30.223Z"}
+
+data: {"data":"[Migration] Applied: 100_cli_access_tokens","timestamp":"2026-08-12T11:49:30.223Z"}
+
+data: {"data":"[Migration] Applied: 101_api_key_usage_limits","timestamp":"2026-08-12T11:49:30.231Z"}
+
+data: {"data":"[Migration] Applied: 102_compression_engines_map","timestamp":"2026-08-12T11:49:30.231Z"}
+
+data: {"data":"[Migration] Applied: 103_strip_legacy_combo_config_keys","timestamp":"2026-08-12T11:49:30.231Z"}
+
+data: {"data":"[Migration] Applied: 104_normalize_database_cache_size","timestamp":"2026-08-12T11:49:30.231Z"}
+
+data: {"data":"[Migration] Applied: 105_usage_history_endpoint","timestamp":"2026-08-12T11:49:30.234Z"}
+
+data: {"data":"[Migration] Applied: 106_quota_allocation_model_caps","timestamp":"2026-08-12T11:49:30.234Z"}
+
+data: {"data":"[Migration] Applied: 107_quota_combos_quota_share_strategy","timestamp":"2026-08-12T11:49:30.234Z"}
+
+data: {"data":"[Migration] Applied: 108_provider_quota_reset_events","timestamp":"2026-08-12T11:49:30.235Z"}
+
+data: {"data":"[Migration] Applied (column pre-exists): 109_call_logs_correlation_id","timestamp":"2026-08-12T11:49:30.235Z"}
+
+data: {"data":"[Migration] Applied: 110_model_context_overrides","timestamp":"2026-08-12T11:49:30.236Z"}
+
+data: {"data":"[Migration] Applied: 111_memory_typed_decay","timestamp":"2026-08-12T11:49:30.242Z"}
+
+data: {"data":"[Migration] Applied: 112_batch_item_checkpoints","timestamp":"2026-08-12T11:49:30.243Z"}
+
+data: {"data":"[Migration] Applied: 113_provider_node_icon_url","timestamp":"2026-08-12T11:49:30.245Z"}
+
+data: {"data":"[Migration] Applied: 114_mux_service_seed","timestamp":"2026-08-12T11:49:30.258Z"}
+
+data: {"data":"[Migration] Applied: 115_bifrost_service","timestamp":"2026-08-12T11:49:30.261Z"}
+
+data: {"data":"[Migration] Applied: 116_call_logs_reasoning_source","timestamp":"2026-08-12T11:49:30.265Z"}
+
+data: {"data":"[Migration] Applied: 117_proxy_pool_rotation","timestamp":"2026-08-12T11:49:30.270Z"}
+
+data: {"data":"[Migration] Applied: 118_provider_param_filters","timestamp":"2026-08-12T11:49:30.270Z"}
+
+data: {"data":"[Migration] Applied: 119_model_capability_overrides","timestamp":"2026-08-12T11:49:30.270Z"}
+
+data: {"data":"[Migration] Applied: 120_interception_rules","timestamp":"2026-08-12T11:49:30.270Z"}
+
+data: {"data":"[Migration] Applied: 122_free_proxy_sync_errors","timestamp":"2026-08-12T11:49:30.270Z"}
+
+data: {"data":"[Migration] 118 migration(s) applied successfully.","timestamp":"2026-08-12T11:49:30.270Z"}
+
+data: {"data":"[DB] cache_size already set to 16384KB","timestamp":"2026-08-12T11:49:30.271Z"}
+
+data: {"data":"[DB] SQLite database ready: /data/storage.sqlite (DATA_DIR=/data, SQLITE_FILE=/data/storage.sqlite)","timestamp":"2026-08-12T11:49:30.273Z"}
+
+data: {"data":"[STARTUP] Global fetch proxy patch initialized","timestamp":"2026-08-12T11:49:31.197Z"}
+
+data: {"data":"[STARTUP] JWT_SECRET auto-generated and persisted (random 64-char secret)","timestamp":"2026-08-12T11:49:31.199Z"}
+
+data: {"data":"[HealthCheck] Starting proactive token health-check (tick every 60s)","timestamp":"2026-08-12T11:49:31.269Z"}
+
+data: {"data":"[Shutdown] Graceful shutdown handlers registered.","timestamp":"2026-08-12T11:49:31.271Z"}
+
+data: {"data":"[STARTUP] Spend batch writer started","timestamp":"2026-08-12T11:49:31.272Z"}
+
+data: {"data":"[STARTUP] Guardrail registry initialized","timestamp":"2026-08-12T11:49:31.272Z"}
+
+data: {"data":"[STARTUP] Builtin skill handlers registered","timestamp":"2026-08-12T11:49:31.272Z"}
+
+data: {"data":"[STARTUP] Quota cache background refresh started","timestamp":"2026-08-12T11:49:31.272Z"}
+
+data: {"data":"[ProviderLimitsSync] Scheduler started — interval: 70m","timestamp":"2026-08-12T11:49:31.272Z"}
+
+data: {"data":"[STARTUP] Provider limits sync scheduler started","timestamp":"2026-08-12T11:49:31.272Z"}
+
+data: {"data":"[ModelSync] Scheduler started — interval: 24h","timestamp":"2026-08-12T11:49:31.282Z"}
+
+data: {"data":"[STARTUP] Cloud/model sync background bootstrap initialized","timestamp":"2026-08-12T11:49:31.284Z"}
+
+data: {"data":"[BATCH] Initializing batch processor polling...","timestamp":"2026-08-12T11:49:31.289Z"}
+
+data: {"data":"[STARTUP] Batch processor started","timestamp":"2026-08-12T11:49:31.289Z"}
+
+data: {"data":"[AUTH] Migrated INITIAL_PASSWORD to bcrypt hash during startup","timestamp":"2026-08-12T11:49:31.647Z"}
+
+data: {"data":"[STARTUP] Runtime settings hydrated: payloadRules, modelAliases, backgroundDegradation, cliCompatProviders, cacheControl, usageTracking, healthCheckLogs, thoughtSignature, modelsDevSync, corsOrigins, ccBridgeTransforms, systemTransforms, authzBypass, bannedSignals","timestamp":"2026-08-12T11:49:31.654Z"}
+
+data: {"data":"[STARTUP] Model alias seed: applied=6, skipped=0, failed=0","timestamp":"2026-08-12T11:49:31.656Z"}
+
+data: {"data":"[STARTUP] Migrated Codex connection defaults for 0 connection(s)","timestamp":"2026-08-12T11:49:31.657Z"}
+
+data: {"data":"[STARTUP] Synced migrated Codex connection defaults to cloud","timestamp":"2026-08-12T11:49:31.665Z"}
+
+data: {"data":"[HOT_RELOAD] Runtime config hot-reload started (poll=5000ms, fsWatch=on)","timestamp":"2026-08-12T11:49:31.666Z"}
+
+data: {"data":"[COMPLIANCE] Audit log table initialized","timestamp":"2026-08-12T11:49:31.669Z"}
+
+data: {"data":"[STARTUP] Scheduled VACUUM initialized (#4437)","timestamp":"2026-08-12T11:49:31.673Z"}
+
+data: {"data":"[STARTUP] Embedded services bootstrap complete","timestamp":"2026-08-12T11:49:31.676Z"}
+
+data: {"data":"[AutoRefreshDaemon] Started — checking 0 credentials every 900s","timestamp":"2026-08-12T11:49:31.681Z"}
+
+data: {"data":"[ConnectionRecovery] Starting proactive cooldown recovery (tick every 60s)","timestamp":"2026-08-12T11:49:31.686Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Starting periodic sync every 86400s","timestamp":"2026-08-12T11:49:31.687Z"}
+
+data: {"data":"[STARTUP] Arena ELO sync initialized","timestamp":"2026-08-12T11:49:31.695Z"}
+
+data: {"data":"[PRICING_SYNC] Disabled (set PRICING_SYNC_ENABLED=true to enable)","timestamp":"2026-08-12T11:49:31.696Z"}
+
+data: {"data":"[MODELS_DEV] Disabled (enable via Settings > AI)","timestamp":"2026-08-12T11:49:31.703Z"}
+
+data: {"data":"[STARTUP] Live dashboard WebSocket daemon bootstrap invoked","timestamp":"2026-08-12T11:49:31.711Z"}
+
+data: {"data":"[LocalHealthCheck] Starting local provider health check (initial delay 15s)","timestamp":"2026-08-12T11:49:32.488Z"}
+
+data: {"data":"[entrypoint] ✓ 就绪","timestamp":"2026-08-12T11:49:32.530Z"}
+
+data: {"data":"[REDIS] REDIS_URL is not set in production. Using in-memory rate limiting.","timestamp":"2026-08-12T11:49:33.186Z"}
+
+data: {"data":"[EmbedWsProxy] Listening on 127.0.0.1:20131","timestamp":"2026-08-12T11:49:36.024Z"}
+
+data: {"data":"[LiveWS] Dashboard WebSocket server listening on 127.0.0.1:20132","timestamp":"2026-08-12T11:49:36.024Z"}
+
+data: {"data":"[entrypoint] 版本=3.8.48 (期望未设置, 跳过比对)","timestamp":"2026-08-12T11:49:36.060Z"}
+
+data: {"data":"[entrypoint] Init PID=153","timestamp":"2026-08-12T11:49:36.062Z"}
+
+data: {"data":"[entrypoint] Litestream: OMN_PERSIST_WRITE=0 关态, replicate 不启 → 本次改动不保存 (不写回 R2).","timestamp":"2026-08-12T11:49:36.065Z"}
+
+data: {"data":"[entrypoint] 全部就绪：OR=91 Init=153 LS=无 Gate→:7860 (background, entrypoint 持 PID 1 主监)","timestamp":"2026-08-12T11:49:36.066Z"}
+
+data: {"data":"[init] 🛠️ NIM_MODE=DEBUG：日志 tee -> /data/omn-raw/init_20260812_114936.log（_raw → capture_init 脱敏推 save）","timestamp":"2026-08-12T11:49:36.067Z"}
+
+data: {"data":"[init] NIM_PROFILE=balanced -> pool 意向 10 个模型","timestamp":"2026-08-12T11:49:36.071Z"}
+
+data: {"data":"[init] 动态限流 RPM=300 concurrent=96 interval=200ms (alive_keys=32, per_key_rpm=35 per_key_conc=3)","timestamp":"2026-08-12T11:49:36.076Z"}
+
+data: {"data":"[init] pool strategy=p2c | codex strategy=priority","timestamp":"2026-08-12T11:49:36.081Z"}
+
+data: {"data":"[init] body limit: raw=4 -> maxBodySizeMb=4","timestamp":"2026-08-12T11:49:36.081Z"}
+
+data: {"data":"[init] Starting NIM OmniRoute initializer v4.3.2 (profile=balanced, mode=DEBUG) on node v24.18.0...","timestamp":"2026-08-12T11:49:36.089Z"}
+
+data: {"data":"[init] BASE_URL=http://127.0.0.1:20128","timestamp":"2026-08-12T11:49:36.089Z"}
+
+data: {"data":"[init] Waiting for OmniRoute...","timestamp":"2026-08-12T11:49:36.089Z"}
+
+data: {"data":"kill deprecated models complete.","timestamp":"2026-08-12T11:49:36.161Z"}
+
+data: {"data":"[init] OmniRoute up (after 0s).","timestamp":"2026-08-12T11:49:36.182Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] synced 150 model intelligence entries from Arena leaderboards","timestamp":"2026-08-12T11:49:36.183Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Initial sync complete: 150 model intelligence entries","timestamp":"2026-08-12T11:49:36.183Z"}
+
+data: {"data":"[init] version: 3.8.48","timestamp":"2026-08-12T11:49:36.271Z"}
+
+data: {"data":"[init] Logging in...","timestamp":"2026-08-12T11:49:36.271Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 2ms","timestamp":"2026-08-12T11:49:36.381Z"}
+
+data: {"data":"[ModelSync] No connections with autoSync enabled — skipping cycle","timestamp":"2026-08-12T11:49:36.382Z"}
+
+data: {"data":"[entrypoint] gate 依赖已就绪 (require('express') 命中, 跳 npm install)","timestamp":"2026-08-12T11:49:36.401Z"}
+
+data: {"data":"[entrypoint] starting gate on port 7860...","timestamp":"2026-08-12T11:49:36.401Z"}
+
+data: {"data":"[entrypoint] helper.sh 装依赖 (boto3 插件包)...","timestamp":"2026-08-12T11:49:36.459Z"}
+
+data: {"data":"[helper] 补包完成 (全件已入 base, helper 留框架)","timestamp":"2026-08-12T11:49:36.462Z"}
+
+data: {"data":"[entrypoint] gate PID=196, stderr → /data/omn-raw/gate-stderr.log","timestamp":"2026-08-12T11:49:36.462Z"}
+
+data: {"data":"[entrypoint] omn_scheduler PID=197 (永续日志: 明文 stderr → 私有 Dataset)","timestamp":"2026-08-12T11:49:36.463Z"}
+
+data: {"data":"[gate] admin UI: enabled (GATE_ADMIN_ENABLED 开关状态).","timestamp":"2026-08-12T11:49:36.666Z"}
+
+data: {"data":"[gate] listening on 0.0.0.0:7860 -> 127.0.0.1:20128","timestamp":"2026-08-12T11:49:36.677Z"}
+
+data: {"data":"[init] Logged in.","timestamp":"2026-08-12T11:49:36.890Z"}
+
+data: {"data":"[init] OMNIROUTE_API_KEY env set, skip /api/keys.","timestamp":"2026-08-12T11:49:36.894Z"}
+
+data: {"data":"[init] probe_nim_keys_real: 并发3 探活 NIM keys via POST /v1/chat/completions (model=z-ai/glm-5.2, timeout=15s/key, 403→dead, 余→alive fail-open, 重试关(000→alive))...","timestamp":"2026-08-12T11:49:36.895Z"}
+
+data: {"data":"[init] probe key#1: HTTP 200 → alive","timestamp":"2026-08-12T11:49:51.134Z"}
+
+data: {"data":"[init] probe key#2: HTTP 200 → alive","timestamp":"2026-08-12T11:49:51.136Z"}
+
+data: {"data":"[init] probe key#3: HTTP 200 → alive","timestamp":"2026-08-12T11:49:51.137Z"}
+
+data: {"data":"[init] probe key#4: HTTP 200 → alive","timestamp":"2026-08-12T11:49:59.929Z"}
+
+data: {"data":"[init] probe key#5: HTTP 200 → alive","timestamp":"2026-08-12T11:49:59.931Z"}
+
+data: {"data":"[init] probe key#6: HTTP 200 → alive","timestamp":"2026-08-12T11:49:59.933Z"}
+
+data: {"data":"[init] probe key#7: HTTP 200 → alive","timestamp":"2026-08-12T11:50:08.774Z"}
+
+data: {"data":"[init] probe key#8: HTTP 200 → alive","timestamp":"2026-08-12T11:50:08.777Z"}
+
+data: {"data":"[init] probe key#9: HTTP 200 → alive","timestamp":"2026-08-12T11:50:08.778Z"}
+
+data: {"data":"[init] probe key#10: HTTP 200 → alive","timestamp":"2026-08-12T11:50:18.366Z"}
+
+data: {"data":"[init] probe key#11: HTTP 200 → alive","timestamp":"2026-08-12T11:50:18.367Z"}
+
+data: {"data":"[init] probe key#12: HTTP 200 → alive","timestamp":"2026-08-12T11:50:18.369Z"}
+
+data: {"data":"[init] probe key#13: HTTP 200 → alive","timestamp":"2026-08-12T11:50:26.735Z"}
+
+data: {"data":"[init] probe key#14: HTTP 200 → alive","timestamp":"2026-08-12T11:50:26.737Z"}
+
+data: {"data":"[init] probe key#15: HTTP 200 → alive","timestamp":"2026-08-12T11:50:26.739Z"}
+
+data: {"data":"[ProxyHealth] Starting proxy health scheduler (interval: 600000ms)","timestamp":"2026-08-12T11:50:31.272Z"}
+
+data: {"data":"[init] probe key#16: HTTP 200 → alive","timestamp":"2026-08-12T11:50:38.127Z"}
+
+data: {"data":"[init] probe key#17: HTTP 200 → alive","timestamp":"2026-08-12T11:50:38.129Z"}
+
+data: {"data":"[init] probe key#18: HTTP 200 → alive","timestamp":"2026-08-12T11:50:38.131Z"}
+
+data: {"data":"[init] probe key#19: HTTP 200 → alive","timestamp":"2026-08-12T11:50:46.293Z"}
+
+data: {"data":"[init] probe key#20: HTTP 200 → alive","timestamp":"2026-08-12T11:50:46.295Z"}
+
+data: {"data":"[init] probe key#21: HTTP 200 → alive","timestamp":"2026-08-12T11:50:46.296Z"}
+
+data: {"data":"[init] probe key#22: HTTP 200 → alive","timestamp":"2026-08-12T11:50:54.356Z"}
+
+data: {"data":"[init] probe key#23: HTTP 200 → alive","timestamp":"2026-08-12T11:50:54.358Z"}
+
+data: {"data":"[init] probe key#24: HTTP 200 → alive","timestamp":"2026-08-12T11:50:54.360Z"}
+
+data: {"data":"[init] probe key#25: HTTP 200 → alive","timestamp":"2026-08-12T11:51:03.685Z"}
+
+data: {"data":"[init] probe key#26: HTTP 200 → alive","timestamp":"2026-08-12T11:51:03.687Z"}
+
+data: {"data":"[init] probe key#27: HTTP 200 → alive","timestamp":"2026-08-12T11:51:03.689Z"}
+
+data: {"data":"[init] probe key#28: HTTP 200 → alive","timestamp":"2026-08-12T11:51:12.638Z"}
+
+data: {"data":"[init] probe key#29: HTTP 200 → alive","timestamp":"2026-08-12T11:51:12.640Z"}
+
+data: {"data":"[init] probe key#30: HTTP 200 → alive","timestamp":"2026-08-12T11:51:12.642Z"}
+
+data: {"data":"[init] probe key#31: HTTP 200 → alive","timestamp":"2026-08-12T11:51:21.272Z"}
+
+data: {"data":"[init] probe key#32: HTTP 200 → alive","timestamp":"2026-08-12T11:51:21.274Z"}
+
+data: {"data":"[init] probe 汇总: alive=32 dead=0 (auth_dead 跳 0 个注册, POST z-ai/glm-5.2, 并发3)","timestamp":"2026-08-12T11:51:21.277Z"}
+
+data: {"data":"[init] probe 后 alive 无变化 (auth_dead=0), 限流维持原值 RPM=300 concurrent=96 interval=200ms","timestamp":"2026-08-12T11:51:21.277Z"}
+
+data: {"data":"[init] Registering NIM keys (auth_dead skip, INDEX 递增编号不塌)...","timestamp":"2026-08-12T11:51:21.277Z"}
+
+data: {"data":"[init] nim-01 OK","timestamp":"2026-08-12T11:51:21.317Z"}
+
+data: {"data":"[init] nim-02 OK","timestamp":"2026-08-12T11:51:21.361Z"}
+
+data: {"data":"[init] nim-03 OK","timestamp":"2026-08-12T11:51:21.411Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.443Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.443Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.464Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.464Z"}
+
+data: {"data":"[init] nim-04 OK","timestamp":"2026-08-12T11:51:21.497Z"}
+
+data: {"data":"[init] nim-05 OK","timestamp":"2026-08-12T11:51:21.529Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.542Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.542Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.559Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.559Z"}
+
+data: {"data":"[init] nim-06 OK","timestamp":"2026-08-12T11:51:21.587Z"}
+
+data: {"data":"[init] nim-07 OK","timestamp":"2026-08-12T11:51:21.624Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.630Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.630Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.652Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.652Z"}
+
+data: {"data":"[init] nim-08 OK","timestamp":"2026-08-12T11:51:21.679Z"}
+
+data: {"data":"[init] nim-09 OK","timestamp":"2026-08-12T11:51:21.716Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.722Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.722Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.742Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.742Z"}
+
+data: {"data":"[init] nim-10 OK","timestamp":"2026-08-12T11:51:21.768Z"}
+
+data: {"data":"[init] nim-11 OK","timestamp":"2026-08-12T11:51:21.805Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.819Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.819Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.849Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.849Z"}
+
+data: {"data":"[init] nim-12 OK","timestamp":"2026-08-12T11:51:21.871Z"}
+
+data: {"data":"[init] nim-13 OK","timestamp":"2026-08-12T11:51:21.910Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.944Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.944Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.956Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:21.956Z"}
+
+data: {"data":"[init] nim-14 OK","timestamp":"2026-08-12T11:51:21.990Z"}
+
+data: {"data":"[init] nim-15 OK","timestamp":"2026-08-12T11:51:22.035Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.044Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.044Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.077Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.077Z"}
+
+data: {"data":"[init] nim-16 OK","timestamp":"2026-08-12T11:51:22.098Z"}
+
+data: {"data":"[init] nim-17 OK","timestamp":"2026-08-12T11:51:22.136Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.168Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.168Z"}
+
+data: {"data":"[init] nim-18 OK","timestamp":"2026-08-12T11:51:22.216Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.232Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.232Z"}
+
+data: {"data":"[init] nim-19 OK","timestamp":"2026-08-12T11:51:22.279Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.285Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.285Z"}
+
+data: {"data":"[init] nim-20 OK","timestamp":"2026-08-12T11:51:22.327Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.335Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.335Z"}
+
+data: {"data":"[init] nim-21 OK","timestamp":"2026-08-12T11:51:22.381Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.387Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.387Z"}
+
+data: {"data":"[init] nim-22 OK","timestamp":"2026-08-12T11:51:22.428Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.436Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.436Z"}
+
+data: {"data":"[init] nim-23 OK","timestamp":"2026-08-12T11:51:22.472Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.497Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.497Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.509Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.510Z"}
+
+data: {"data":"[init] nim-24 OK","timestamp":"2026-08-12T11:51:22.538Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.566Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.566Z"}
+
+data: {"data":"[init] nim-25 OK","timestamp":"2026-08-12T11:51:22.602Z"}
+
+data: {"data":"[init] nim-26 OK","timestamp":"2026-08-12T11:51:22.662Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.679Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.680Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.780Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.780Z"}
+
+data: {"data":"[init] nim-27 OK","timestamp":"2026-08-12T11:51:22.863Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.969Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:22.969Z"}
+
+data: {"data":"[init] nim-28 OK","timestamp":"2026-08-12T11:51:22.987Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.015Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.015Z"}
+
+data: {"data":"[init] nim-29 OK","timestamp":"2026-08-12T11:51:23.044Z"}
+
+data: {"data":"[init] nim-30 OK","timestamp":"2026-08-12T11:51:23.102Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.117Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.117Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.153Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.153Z"}
+
+data: {"data":"[init] nim-31 OK","timestamp":"2026-08-12T11:51:23.178Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.213Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.213Z"}
+
+data: {"data":"[init] nim-32 OK","timestamp":"2026-08-12T11:51:23.245Z"}
+
+data: {"data":"[init] Keys: 32 registered, 0 skipped, 0 failed. (probe: 32 alive / 0 dead-skipped)","timestamp":"2026-08-12T11:51:23.245Z"}
+
+data: {"data":"[init] gc_stale: 无待删连接 (当前 NIM_KEYS=32, 增量幂等)","timestamp":"2026-08-12T11:51:23.285Z"}
+
+data: {"data":"[init] Fetching provider IDs...","timestamp":"2026-08-12T11:51:23.285Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.292Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.292Z"}
+
+data: {"data":"[init] Provider IDs: 32","timestamp":"2026-08-12T11:51:23.312Z"}
+
+data: {"data":"[init] FT proxy: 多桥模式, 读 /logic/flaretunnel_bridges.json 绑 1 桥.","timestamp":"2026-08-12T11:51:23.318Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.325Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-08-12T11:51:23.325Z"}
+
+data: {"data":"[init] FT proxy nim: 建 ✓ (host=127.0.0.1:8081 → id=8f7aeb14-3fef-4207-b2c6-f8f42dd58978, HTTP 201)","timestamp":"2026-08-12T11:51:23.353Z"}
+
+data: {"data":"[init] FT proxy nim: 绑族 ✓ (provider scope, scopeIds=[nvidia], updated=1)","timestamp":"2026-08-12T11:51:23.389Z"}
+
+data: {"data":"[init] FT bridge healthz: {\"blacklist_patterns\":0,\"current_index\":0,\"rotation_mode\":\"round-robin\",\"stats\":{\"calm-mist-ft1\":{\"name\":\"calm-mist-ft1\",\"url\":\"https://1.f07.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"calm-mist-ft2\":{\"name\":\"calm-mist-ft2\",\"url\":\"https://2.f07.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"calm-mist-ft3\":{\"name\":\"calm-mist-ft3\",\"url\":\"https://3.f07.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"calm-mist-ft4\":{\"name\":\"calm-mist-ft4\",\"url\":\"https://4.f07.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"cute-rain-ft1\":{\"name\":\"cute-rain-ft1\",\"url\":\"https://1.f08.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"cute-rain-ft2\":{\"name\":\"cute-rain-ft2\",\"url\":\"https://2.f08.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"cute-rain-ft3\":{\"name\":\"cute-rain-ft3\",\"url\":\"https://3.f08.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"cute-rain-ft4\":{\"name\":\"cute-rain-ft4\",\"url\":\"https://4.f08.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"gem-fire-ft1\":{\"name\":\"gem-fire-ft1\",\"url\":\"https://1.f01.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"gem-fire-ft2\":{\"name\":\"gem-fire-ft2\",\"url\":\"https://2.f01.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"gem-fire-ft3\":{\"name\":\"gem-fire-ft3\",\"url\":\"https://3.f01.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"gem-fire-ft4\":{\"name\":\"gem-fire-ft4\",\"url\":\"https://4.f01.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"leaf-fire-ft1\":{\"name\":\"leaf-fire-ft1\",\"url\":\"https://1.f03.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"leaf-fire-ft2\":{\"name\":\"leaf-fire-ft2\",\"url\":\"https://2.f03.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"leaf-fire-ft3\":{\"name\":\"leaf-fire-ft3\",\"url\":\"https://3.f03.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"leaf-fire-ft4\":{\"name\":\"leaf-fire-ft4\",\"url\":\"https://4.f03.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"luck-love-ft1\":{\"name\":\"luck-love-ft1\",\"url\":\"https://1.f10.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"luck-love-ft2\":{\"name\":\"luck-love-ft2\",\"url\":\"https://2.f10.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"luck-love-ft3\":{\"name\":\"luck-love-ft3\",\"url\":\"https://3.f10.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"luck-love-ft4\":{\"name\":\"luck-love-ft4\",\"url\":\"https://4.f10.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"mist-hope-ft1\":{\"name\":\"mist-hope-ft1\",\"url\":\"https://1.f05.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"mist-hope-ft2\":{\"name\":\"mist-hope-ft2\",\"url\":\"https://2.f05.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"mist-hope-ft3\":{\"name\":\"mist-hope-ft3\",\"url\":\"https://3.f05.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"mist-hope-ft4\":{\"name\":\"mist-hope-ft4\",\"url\":\"https://4.f05.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"pen-bee-ft1\":{\"name\":\"pen-bee-ft1\",\"url\":\"https://1.f06.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"pen-bee-ft2\":{\"name\":\"pen-bee-ft2\",\"url\":\"https://2.f06.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"pen-bee-ft3\":{\"name\":\"pen-bee-ft3\",\"url\":\"https://3.f06.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"pen-bee-ft4\":{\"name\":\"pen-bee-ft4\",\"url\":\"https://4.f06.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"snow-fire-ft1\":{\"name\":\"snow-fire-ft1\",\"url\":\"https://1.f09.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"snow-fire-ft2\":{\"name\":\"snow-fire-ft2\",\"url\":\"https://2.f09.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"snow-fire-ft3\":{\"name\":\"snow-fire-ft3\",\"url\":\"https://3.f09.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"snow-fire-ft4\":{\"name\":\"snow-fire-ft4\",\"url\":\"https://4.f09.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"star-mist-ft1\":{\"name\":\"star-mist-ft1\",\"url\":\"https://1.f04.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"star-mist-ft2\":{\"name\":\"star-mist-ft2\",\"url\":\"https://2.f04.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"star-mist-ft3\":{\"name\":\"star-mist-ft3\",\"url\":\"https://3.f04.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"star-mist-ft4\":{\"name\":\"star-mist-ft4\",\"url\":\"https://4.f04.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"tiny-snow-ft1\":{\"name\":\"tiny-snow-ft1\",\"url\":\"https://1.f02.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"tiny-snow-ft2\":{\"name\":\"tiny-snow-ft2\",\"url\":\"https://2.f02.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"tiny-snow-ft3\":{\"name\":\"tiny-snow-ft3\",\"url\":\"https://3.f02.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0},\"tiny-snow-ft4\":{\"name\":\"tiny-snow-ft4\",\"url\":\"https://4.f02.cc.cd\",\"requests\":0,\"successes\":0,\"failures\":0,\"last_status\":0,\"last_used\":0}},\"status\":\"ok\",\"worker_stats\":40,\"workers\":40}","timestamp":"2026-08-12T11:51:23.401Z"}
+
+data: {"data":"[init] Resilience (RPM=300, concurrent=96, interval=200ms)...","timestamp":"2026-08-12T11:51:23.401Z"}
+
+data: {"data":"[init] Resilience PATCH body keys=[requestQueue] requestQueue.keys=[concurrentRequests,maxWaitMs,minTimeBetweenRequestsMs,requestsPerMinute] (无顶层 useUpstream429BreakerHints)","timestamp":"2026-08-12T11:51:23.411Z"}
+
+data: {"data":"[init] Resilience PATCH HTTP 200 (dur=33ms)","timestamp":"2026-08-12T11:51:23.450Z"}
+
+data: {"data":"[init] Resilience 读回: RPM=300 minMs=200 concurrent=96 maxWaitMs=300000 (预期 300/200/96/300000)","timestamp":"2026-08-12T11:51:23.479Z"}
+
+data: {"data":"[init] ✓ Resilience 读回全字段一致 (300/96/200/300000 已落定)","timestamp":"2026-08-12T11:51:23.479Z"}
+
+data: {"data":"[init] Routing + maxBodySizeMb=4...","timestamp":"2026-08-12T11:51:23.479Z"}
+
+data: {"data":"[init] Settings HTTP 200","timestamp":"2026-08-12T11:51:23.504Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos HTTP 200 :: combos=[]","timestamp":"2026-08-12T11:51:23.523Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos/auto HTTP 200 :: auto=[\t\t\t0]","timestamp":"2026-08-12T11:51:23.757Z"}
+
+data: {"data":"[init] [readonly] GET /api/providers HTTP 200 :: providers=043a9062-e72a-4456-a70e-1bb55e5baa33\tnvidia;0c37af19-2942-4962-8aef-4aad9d509393\tnvidia;123c1af0-6333-4b78-9778-b4e389fbcb05\tnvidia;1828b58e-2d72-4f1f-b2df-b5b9f1c8349a\tnvidia;1c9594b7-8ef1-4313-8cfa-14a15baed065\tnvidia;211a85bf-1625-429f-8760-9e2fb4c8ad82\tnvidia;2b623968-df2f-4a10-833b-4ad0be74f0ad\tnvidia;37ffd0e2-08dc-4c47-920c-7c71c18852f0\tnvidia;38284a44-3958-4dfe-9ebf-f582adf12f9a\tnvidia;3c334081-68ec-4953-a9f1-1244b2e25c69\tnvidia;4e93cbf6-1b59-48f4-a96a-d8e6a7fb04a6\tnvidia;57d68d08-a900-4c22-ad4d-b5fe38d2752e\tnvidia;603095d9-afa0-4b49-bc4b-5f1acf1f7824\tnvidia;67ed2deb-1a34-4ce8-88d2-979981c4a414\tnvidia;686d2d2d-373e-4a91-94a9-e44dea8f8f86\tnvidia;6c137417-35ee-4852-93a6-7b8180ba72fa\tnvidia;6e3cac60-8f81-4008-82ca-e366a4179f98\tnvidia;723e0240-9661-4231-9903-69eb5244453b\tnvidia;73a4475c-9538-4a90-940a-2cbd6c69411f\tnvidia;7871c6de-c462-4bc3-9394-1435042ec3e6\tnvidia;7bcbed77-7d71-416e-8ae5-17af04f1b9e5\tnvidia;928a031f-b6a0-42b1-aa37-49d716534e32\tnvidia;a495b80e-00d2-4b8c-a725-81b9cf8e6bb0\tnvidia;ace4c7bb-882b-4974-95a2-5c4bd78b6a20\tnvidia;c0afd1db-58bd-44c5-b1c6-edc4aafc9865\tnvidia;c34c63ad-2f01-4b7c-ac3c-1433c73bd074\tnvidia;c9ab2389-fbc6-4fa7-89a3-ea57cb0d89bc\tnvidia;d1f7af67-dfd1-4579-a8f4-2a3ac52b5c3f\tnvidia;dc427b24-7a34-4385-9285-84973bdc20ea\tnvidia;df866798-38dd-45fa-9a02-5168df383964\tnvidia;e846d73d-826d-4799-a49c-9792c975debc\tnvidia;ed0ac05f-7cf1-4940-9711-7131cda5443b\tnvidia;","timestamp":"2026-08-12T11:51:23.781Z"}
+
+data: {"data":"[init] [readonly] 三份 GET 完 — Restart B 写跳据此结构 (POST/PUT/PATCH), Restart A 仅读不写.","timestamp":"2026-08-12T11:51:23.781Z"}
+
+data: {"data":"[init] Compression globally disabled (enabled=false; per-combo 启用路径不受影响)...","timestamp":"2026-08-12T11:51:23.781Z"}
+
+data: {"data":"[init] Compression HTTP 200","timestamp":"2026-08-12T11:51:23.804Z"}
+
+data: {"data":"[init] Resetting circuit breakers (first-init clean start)...","timestamp":"2026-08-12T11:51:23.804Z"}
+
+data: {"data":"[init] CB reset HTTP 200","timestamp":"2026-08-12T11:51:23.822Z"}
+
+data: {"data":"[init] per-model 200K override (real_context=200000)...","timestamp":"2026-08-12T11:51:23.823Z"}
+
+data: {"data":"[init] override: 10 applied, 0 failed.","timestamp":"2026-08-12T11:51:23.914Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-08-12T11:51:23.914Z"}
+
+data: {"data":"[init]   PROFILE=balanced MODE=DEBUG KEYS=32 RPM=300 BODY=4 MB","timestamp":"2026-08-12T11:51:23.914Z"}
+
+data: {"data":"[init]   POOL_STRATEGY=p2c REAL_CONTEXT=200000 (per-model override 应用, monitor 自动回写禁用)","timestamp":"2026-08-12T11:51:23.914Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-08-12T11:51:23.914Z"}
+
+data: {"data":"[init] check_nim_model_health...","timestamp":"2026-08-12T11:51:23.920Z"}
+
+data: {"data":"[init]   z-ai/glm-5.2 — available","timestamp":"2026-08-12T11:51:23.959Z"}
+
+data: {"data":"[init]   moonshotai/kimi-k3 — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-12T11:51:23.962Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-flash — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-12T11:51:23.965Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-pro — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-12T11:51:23.968Z"}
+
+data: {"data":"[init]   qwen/qwen3.8-max-preview — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-12T11:51:23.972Z"}
+
+data: {"data":"[init]   nvidia/llama-3.1-nemotron-nano-8b-v1 — available","timestamp":"2026-08-12T11:51:23.975Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-nano-30b-a3b — available","timestamp":"2026-08-12T11:51:23.979Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-super-120b-a12b — available","timestamp":"2026-08-12T11:51:23.982Z"}
+
+data: {"data":"[init]   mistralai/mistral-small-4-119b-2603 — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-08-12T11:51:23.985Z"}
+
+data: {"data":"[init]   google/gemma-4-31b-it — available","timestamp":"2026-08-12T11:51:23.988Z"}
+
+data: {"data":"[init] 5 deprecated / 102 available","timestamp":"2026-08-12T11:51:23.990Z"}
+
+data: {"data":"[init] Registering models...","timestamp":"2026-08-12T11:51:23.990Z"}
+
+data: {"data":"[init] model z-ai/glm-5.2 OK","timestamp":"2026-08-12T11:51:24.013Z"}
+
+data: {"data":"[init] model nvidia/llama-3.1-nemotron-nano-8b-v1 OK","timestamp":"2026-08-12T11:51:24.032Z"}
+
+data: {"data":"[init] model nvidia/nemotron-3-nano-30b-a3b OK","timestamp":"2026-08-12T11:51:24.050Z"}
+
+data: {"data":"[init] model nvidia/nemotron-3-super-120b-a12b OK","timestamp":"2026-08-12T11:51:24.069Z"}
+
+data: {"data":"[init] model google/gemma-4-31b-it OK","timestamp":"2026-08-12T11:51:24.088Z"}
+
+data: {"data":"[init] Model registration done.","timestamp":"2026-08-12T11:51:24.088Z"}
+
+data: {"data":"[init] upsert nim-pool: new -> POST HTTP 201","timestamp":"2026-08-12T11:51:24.158Z"}
+
+data: {"data":"[init] upsert nim-codex: new -> POST HTTP 201","timestamp":"2026-08-12T11:51:24.209Z"}
+
+data: {"data":"[init] context_accumulator_update: 增量累积每模型成功/失败口径...","timestamp":"2026-08-12T11:51:24.210Z"}
+
+data: {"data":"[init]   列探测 input=tokens_in output=tokens_out","timestamp":"2026-08-12T11:51:24.232Z"}
+
+data: {"data":"[init]   checkpoint last_ts=1970-01-01T00:00:00.000Z","timestamp":"2026-08-12T11:51:24.238Z"}
+
+data: {"data":"[init]   本轮无新日志（timestamp > checkpoint）。","timestamp":"2026-08-12T11:51:24.245Z"}
+
+data: {"data":"[init] HF Dataset snapshot（配置 + 可选 DEBUG log）...","timestamp":"2026-08-12T11:51:24.245Z"}
+
+data: {"data":"[DB] Added api_keys.blocked_models column","timestamp":"2026-08-12T11:51:24.272Z"}
+
+data: {"data":"[DB] Added api_keys.allowed_connections column","timestamp":"2026-08-12T11:51:24.274Z"}
+
+data: {"data":"[DB] Added api_keys.auto_resolve column","timestamp":"2026-08-12T11:51:24.276Z"}
+
+data: {"data":"[DB] Added api_keys.is_active column","timestamp":"2026-08-12T11:51:24.278Z"}
+
+data: {"data":"[DB] Added api_keys.access_schedule column","timestamp":"2026-08-12T11:51:24.280Z"}
+
+data: {"data":"[DB] Added api_keys.max_requests_per_day column","timestamp":"2026-08-12T11:51:24.282Z"}
+
+data: {"data":"[DB] Added api_keys.max_requests_per_minute column","timestamp":"2026-08-12T11:51:24.284Z"}
+
+data: {"data":"[DB] Added api_keys.max_sessions column","timestamp":"2026-08-12T11:51:24.286Z"}
+
+data: {"data":"[DB] Added api_keys.rate_limits column","timestamp":"2026-08-12T11:51:24.288Z"}
+
+data: {"data":"[DB] Added api_keys.is_banned column","timestamp":"2026-08-12T11:51:24.290Z"}
+
+data: {"data":"[DB] Added api_keys.key_hash column","timestamp":"2026-08-12T11:51:24.292Z"}
+
+data: {"data":"[DB] Added api_keys.proxy_id column","timestamp":"2026-08-12T11:51:24.294Z"}
+
+data: {"data":"[DB] Added api_keys.allowed_endpoints column","timestamp":"2026-08-12T11:51:24.296Z"}
+
+data: {"data":"[DB] Added api_keys.allow_usage_command column","timestamp":"2026-08-12T11:51:24.298Z"}
+
+data: {"data":"[DB] Added api_keys.chaos_mode_enabled column","timestamp":"2026-08-12T11:51:24.300Z"}
+
+data: {"data":"[init] snapshot: init_vars.json written","timestamp":"2026-08-12T11:51:24.342Z"}
+
+data: {"data":"[init] snapshot: 附带 DEBUG log -> debug/debug_20260812_114936.log","timestamp":"2026-08-12T11:51:24.351Z"}
+
+data: {"data":"[init] HF Dataset uploaded.","timestamp":"2026-08-12T11:51:25.141Z"}
+
+data: {"data":"[init] Final health check...","timestamp":"2026-08-12T11:51:25.203Z"}
+
+data: {"data":"[init]   Status: healthy / 3.8.48","timestamp":"2026-08-12T11:51:25.226Z"}
+
+data: {"data":"[init] Done (first-init). v4.3.2","timestamp":"2026-08-12T11:51:25.226Z"}
+
+data: {"data":"[entrypoint] NIM init 已退出 rc=0 (正常完成).","timestamp":"2026-08-12T11:51:26.076Z"}
+
+data: {"data":"[SSE] Translators initialized for /v1/messages","timestamp":"2026-08-12T11:51:53.381Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T11:51:53.419Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:51:53.385Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 147 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 147 msgs | 42 tools\"}","timestamp":"2026-08-12T11:51:53.419Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:51:53.403Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T11:51:53.420Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:51:53.413Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T11:51:53.420Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:51:53.415Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 6e3cac60...\"}","timestamp":"2026-08-12T11:51:53.420Z"}
+
+data: {"data":"🛡️ [RATE-LIMIT] Loaded 0 explicit + 32 auto-enabled protection(s)","timestamp":"2026-08-12T11:51:53.474Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T11:51:53.495Z"}
+
+data: {"data":"[ProxyEgress] nvidia/6e3cac60 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T11:52:07.378Z"}
+
+data: {"data":"[INFO] [GAMIFICATION] events.badge_unlocked {\"apiKeyId\":\"env-key\",\"badgeId\":\"first-token\"}","timestamp":"2026-08-12T11:52:07.380Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:52:07.364Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 6e3cac60 error cleared\"}","timestamp":"2026-08-12T11:52:07.382Z"}
+
+data: {"data":"[11:52:15] 📊 \u001b[32m[USAGE] NVIDIA | in=126929 | out=839 | account=6e3cac60...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=320","timestamp":"2026-08-12T11:52:15.390Z"}
+
+data: {"data":"[11:52:15] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 21904ms | complete","timestamp":"2026-08-12T11:52:15.417Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:34.349Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 150 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 150 msgs | 42 tools\"}","timestamp":"2026-08-12T11:56:34.365Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T11:56:34.365Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:34.358Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T11:56:34.365Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:34.363Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T11:56:34.365Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:34.363Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 4e93cbf6...\"}","timestamp":"2026-08-12T11:56:34.365Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T11:56:34.416Z"}
+
+data: {"data":"[ProxyEgress] nvidia/4e93cbf6 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T11:56:46.602Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:46.599Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 4e93cbf6 error cleared\"}","timestamp":"2026-08-12T11:56:46.603Z"}
+
+data: {"data":"[11:56:49] 📊 \u001b[32m[USAGE] NVIDIA | in=127836 | out=195 | account=4e93cbf6...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=4544","timestamp":"2026-08-12T11:56:49.029Z"}
+
+data: {"data":"[11:56:49] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 14613ms | complete","timestamp":"2026-08-12T11:56:49.037Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T11:56:49.791Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T11:56:49.839Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:49.774Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 150 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 150 msgs | 42 tools\"}","timestamp":"2026-08-12T11:56:49.867Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:49.784Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T11:56:49.867Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:49.789Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T11:56:49.867Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:56:49.790Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 57d68d08...\"}","timestamp":"2026-08-12T11:56:49.867Z"}
+
+data: {"data":"[ProxyEgress] nvidia/57d68d08 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T11:57:02.929Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T11:57:02.926Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 57d68d08 error cleared\"}","timestamp":"2026-08-12T11:57:02.930Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 1 tested, 1 alive, 0 inconclusive, 0 auto-removed","timestamp":"2026-08-12T12:00:31.482Z"}
+
+data: {"data":"[12:00:37] 📊 \u001b[32m[USAGE] NVIDIA | in=129129 | out=9555 | account=57d68d08...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=4544","timestamp":"2026-08-12T12:00:37.607Z"}
+
+data: {"data":"[12:00:37] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 227767ms | complete","timestamp":"2026-08-12T12:00:37.618Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:00:38.619Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:00:38.993Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:00:39.292Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:00:39.404Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:00:40.023Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:00:40.071Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:00:40.010Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 4 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 4 msgs | 42 tools\"}","timestamp":"2026-08-12T12:00:40.103Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:00:40.017Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:00:40.104Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:00:40.022Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:00:40.104Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:00:40.023Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: c0afd1db...\"}","timestamp":"2026-08-12T12:00:40.104Z"}
+
+data: {"data":"[ProxyEgress] nvidia/c0afd1db in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:00:59.853Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:00:59.849Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account c0afd1db error cleared\"}","timestamp":"2026-08-12T12:00:59.855Z"}
+
+data: {"data":"[12:01:03] 📊 \u001b[32m[USAGE] NVIDIA | in=56315 | out=93 | account=c0afd1db...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=37760","timestamp":"2026-08-12T12:01:03.985Z"}
+
+data: {"data":"[12:01:03] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 23913ms | complete","timestamp":"2026-08-12T12:01:03.993Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:01:04.552Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:01:05.079Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:01:05.132Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:05.061Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 7 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 7 msgs | 42 tools\"}","timestamp":"2026-08-12T12:01:05.156Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:05.068Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:01:05.157Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:05.077Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:01:05.157Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:05.078Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: e846d73d...\"}","timestamp":"2026-08-12T12:01:05.157Z"}
+
+data: {"data":"[ProxyEgress] nvidia/e846d73d in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:01:25.706Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:25.704Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account e846d73d error cleared\"}","timestamp":"2026-08-12T12:01:25.708Z"}
+
+data: {"data":"[12:01:27] 📊 \u001b[32m[USAGE] NVIDIA | in=77843 | out=111 | account=e846d73d...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=56384","timestamp":"2026-08-12T12:01:27.287Z"}
+
+data: {"data":"[12:01:27] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 22156ms | complete","timestamp":"2026-08-12T12:01:27.298Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:28.308Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 9 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 9 msgs | 42 tools\"}","timestamp":"2026-08-12T12:01:28.322Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:01:28.322Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:28.315Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:01:28.322Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:28.320Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:01:28.322Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:28.321Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: c34c63ad...\"}","timestamp":"2026-08-12T12:01:28.323Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:01:28.351Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:043a9062-e72a-4456-a70e-1bb55e5baa33 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:211a85bf-1625-429f-8760-9e2fb4c8ad82 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d1f7af67-dfd1-4579-a8f4-2a3ac52b5c3f (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:ace4c7bb-882b-4974-95a2-5c4bd78b6a20 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2b623968-df2f-4a10-833b-4ad0be74f0ad (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:7871c6de-c462-4bc3-9394-1435042ec3e6 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:7bcbed77-7d71-416e-8ae5-17af04f1b9e5 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:37ffd0e2-08dc-4c47-920c-7c71c18852f0 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:3c334081-68ec-4953-a9f1-1244b2e25c69 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:df866798-38dd-45fa-9a02-5168df383964 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:603095d9-afa0-4b49-bc4b-5f1acf1f7824 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:1828b58e-2d72-4f1f-b2df-b5b9f1c8349a (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:a495b80e-00d2-4b8c-a725-81b9cf8e6bb0 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:ed0ac05f-7cf1-4940-9711-7131cda5443b (inactive for 600s)","timestamp":"2026-08-12T12:01:53.489Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:1c9594b7-8ef1-4313-8cfa-14a15baed065 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:0c37af19-2942-4962-8aef-4aad9d509393 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:dc427b24-7a34-4385-9285-84973bdc20ea (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:67ed2deb-1a34-4ce8-88d2-979981c4a414 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:686d2d2d-373e-4a91-94a9-e44dea8f8f86 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:723e0240-9661-4231-9903-69eb5244453b (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:38284a44-3958-4dfe-9ebf-f582adf12f9a (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:73a4475c-9538-4a90-940a-2cbd6c69411f (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:c9ab2389-fbc6-4fa7-89a3-ea57cb0d89bc (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:123c1af0-6333-4b78-9778-b4e389fbcb05 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:6c137417-35ee-4852-93a6-7b8180ba72fa (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:928a031f-b6a0-42b1-aa37-49d716534e32 (inactive for 600s)","timestamp":"2026-08-12T12:01:53.490Z"}
+
+data: {"data":"[ProxyEgress] nvidia/c34c63ad in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:01:55.171Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:01:55.169Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account c34c63ad error cleared\"}","timestamp":"2026-08-12T12:01:55.172Z"}
+
+data: {"data":"[12:02:15] 📊 \u001b[32m[USAGE] NVIDIA | in=78117 | out=1107 | account=c34c63ad...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=4544","timestamp":"2026-08-12T12:02:15.715Z"}
+
+data: {"data":"[12:02:15] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 47365ms | complete","timestamp":"2026-08-12T12:02:15.722Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:16.422Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 11 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 11 msgs | 42 tools\"}","timestamp":"2026-08-12T12:02:16.437Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:16.429Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:02:16.437Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:16.435Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:02:16.437Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:16.435Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 7871c6de...\"}","timestamp":"2026-08-12T12:02:16.437Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:02:16.437Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:02:16.465Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:6e3cac60-8f81-4008-82ca-e366a4179f98 (inactive for 616s)","timestamp":"2026-08-12T12:02:23.490Z"}
+
+data: {"data":"[ProxyEgress] nvidia/7871c6de in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:02:45.861Z"}
+
+data: {"data":"[12:02:45] 📊 \u001b[32m[USAGE] NVIDIA | in=79270 | out=540 | account=7871c6de...\u001b[0m | cache_read=79168","timestamp":"2026-08-12T12:02:45.864Z"}
+
+data: {"data":"[12:02:45] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 29397ms | complete","timestamp":"2026-08-12T12:02:45.870Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:45.858Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 7871c6de error cleared\"}","timestamp":"2026-08-12T12:02:45.876Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:46.733Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 13 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 13 msgs | 42 tools\"}","timestamp":"2026-08-12T12:02:46.749Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:46.741Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:02:46.749Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:46.747Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:02:46.749Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:02:46.747Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 7bcbed77...\"}","timestamp":"2026-08-12T12:02:46.749Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:02:46.749Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:02:46.777Z"}
+
+data: {"data":"[ProxyEgress] nvidia/7bcbed77 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:03:13.618Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:13.611Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 7bcbed77 error cleared\"}","timestamp":"2026-08-12T12:03:13.621Z"}
+
+data: {"data":"[12:03:16] 📊 \u001b[32m[USAGE] NVIDIA | in=79856 | out=218 | account=7bcbed77...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=1088","timestamp":"2026-08-12T12:03:16.556Z"}
+
+data: {"data":"[12:03:16] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 29779ms | complete","timestamp":"2026-08-12T12:03:16.562Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:17.306Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 2 msgs\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 2 msgs\"}","timestamp":"2026-08-12T12:03:17.321Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:17.313Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:03:17.321Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:17.319Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:ef58a... has no available affinity target\"}","timestamp":"2026-08-12T12:03:17.321Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:17.319Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 37ffd0e2...\"}","timestamp":"2026-08-12T12:03:17.321Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:03:17.325Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:03:17.327Z"}
+
+data: {"data":"[ProxyEgress] nvidia/37ffd0e2 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:03:42.381Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:42.369Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 37ffd0e2 error cleared\"}","timestamp":"2026-08-12T12:03:42.386Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:03:42.894Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:03:42.927Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:42.880Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 16 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 16 msgs | 42 tools\"}","timestamp":"2026-08-12T12:03:42.942Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:42.887Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:03:42.942Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:42.892Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:03:42.942Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:03:42.893Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 3c334081...\"}","timestamp":"2026-08-12T12:03:42.942Z"}
+
+data: {"data":"[ProxyEgress] nvidia/3c334081 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:04:06.992Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:06.986Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 3c334081 error cleared\"}","timestamp":"2026-08-12T12:04:06.994Z"}
+
+data: {"data":"[12:04:16] 📊 \u001b[32m[USAGE] NVIDIA | in=80497 | out=299 | account=3c334081...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=80064","timestamp":"2026-08-12T12:04:16.443Z"}
+
+data: {"data":"[12:04:16] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 33516ms | complete","timestamp":"2026-08-12T12:04:16.449Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:17.281Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 18 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 18 msgs | 42 tools\"}","timestamp":"2026-08-12T12:04:17.320Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:17.288Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:04:17.320Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:17.293Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:04:17.320Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:17.318Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: df866798...\"}","timestamp":"2026-08-12T12:04:17.320Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:04:17.320Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:04:17.351Z"}
+
+data: {"data":"[ProxyEgress] nvidia/df866798 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:04:40.864Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:40.862Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account df866798 error cleared\"}","timestamp":"2026-08-12T12:04:40.866Z"}
+
+data: {"data":"[12:04:43] 📊 \u001b[32m[USAGE] NVIDIA | in=81749 | out=160 | account=df866798...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=80768","timestamp":"2026-08-12T12:04:43.371Z"}
+
+data: {"data":"[12:04:43] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 26020ms | complete","timestamp":"2026-08-12T12:04:43.378Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:04:44.158Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:04:44.186Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:44.145Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 20 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 20 msgs | 42 tools\"}","timestamp":"2026-08-12T12:04:44.211Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:44.152Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:04:44.211Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:44.157Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:04:44.211Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:04:44.158Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 603095d9...\"}","timestamp":"2026-08-12T12:04:44.211Z"}
+
+data: {"data":"[ProxyEgress] nvidia/603095d9 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:05:10.702Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:10.698Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 603095d9 error cleared\"}","timestamp":"2026-08-12T12:05:10.704Z"}
+
+data: {"data":"[12:05:17] 📊 \u001b[32m[USAGE] NVIDIA | in=82835 | out=413 | account=603095d9...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=64","timestamp":"2026-08-12T12:05:17.703Z"}
+
+data: {"data":"[12:05:17] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 33515ms | complete","timestamp":"2026-08-12T12:05:17.711Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:18.277Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 22 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 22 msgs | 42 tools\"}","timestamp":"2026-08-12T12:05:18.297Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:18.288Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:05:18.297Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:18.294Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:05:18.297Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:18.296Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 1828b58e...\"}","timestamp":"2026-08-12T12:05:18.297Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:05:18.297Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:05:18.336Z"}
+
+data: {"data":"[ProxyEgress] nvidia/1828b58e in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:05:38.278Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:38.276Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 1828b58e error cleared\"}","timestamp":"2026-08-12T12:05:38.280Z"}
+
+data: {"data":"[12:05:38] 📊 \u001b[32m[USAGE] NVIDIA | in=83292 | out=62 | account=1828b58e...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=81856","timestamp":"2026-08-12T12:05:38.977Z"}
+
+data: {"data":"[12:05:38] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 20642ms | complete","timestamp":"2026-08-12T12:05:38.985Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:05:39.592Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:05:39.618Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:39.580Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 24 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 24 msgs | 42 tools\"}","timestamp":"2026-08-12T12:05:39.634Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:39.586Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:05:39.634Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:39.590Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:05:39.635Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:05:39.591Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: a495b80e...\"}","timestamp":"2026-08-12T12:05:39.635Z"}
+
+data: {"data":"[ProxyEgress] nvidia/a495b80e in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:06:02.105Z"}
+
+data: {"data":"[12:06:02] 📊 \u001b[32m[USAGE] NVIDIA | in=83634 | out=35 | account=a495b80e...\u001b[0m | cache_read=3648","timestamp":"2026-08-12T12:06:02.112Z"}
+
+data: {"data":"[12:06:02] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 22492ms | complete","timestamp":"2026-08-12T12:06:02.118Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:02.097Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account a495b80e error cleared\"}","timestamp":"2026-08-12T12:06:02.122Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:03.227Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 26 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 26 msgs | 42 tools\"}","timestamp":"2026-08-12T12:06:03.240Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:03.233Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:06:03.240Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:03.239Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:06:03.240Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:03.239Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: ed0ac05f...\"}","timestamp":"2026-08-12T12:06:03.241Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:06:03.241Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:06:03.268Z"}
+
+data: {"data":"[ProxyEgress] nvidia/ed0ac05f in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:06:20.099Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:20.096Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account ed0ac05f error cleared\"}","timestamp":"2026-08-12T12:06:20.101Z"}
+
+data: {"data":"[12:06:22] 📊 \u001b[32m[USAGE] NVIDIA | in=84250 | out=187 | account=ed0ac05f...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=83328","timestamp":"2026-08-12T12:06:22.828Z"}
+
+data: {"data":"[12:06:22] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 19562ms | complete","timestamp":"2026-08-12T12:06:22.834Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:06:23.650Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:06:23.680Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:23.637Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 29 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 29 msgs | 42 tools\"}","timestamp":"2026-08-12T12:06:23.699Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:23.645Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:06:23.699Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:23.649Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:06:23.699Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:23.649Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 1c9594b7...\"}","timestamp":"2026-08-12T12:06:23.699Z"}
+
+data: {"data":"[ProxyEgress] nvidia/1c9594b7 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:06:40.430Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:40.428Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 1c9594b7 error cleared\"}","timestamp":"2026-08-12T12:06:40.433Z"}
+
+data: {"data":"[12:06:47] 📊 \u001b[32m[USAGE] NVIDIA | in=86531 | out=271 | account=1c9594b7...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=83584","timestamp":"2026-08-12T12:06:47.963Z"}
+
+data: {"data":"[12:06:47] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 24285ms | complete","timestamp":"2026-08-12T12:06:47.971Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:48.624Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 31 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 31 msgs | 42 tools\"}","timestamp":"2026-08-12T12:06:48.638Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:48.631Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:06:48.638Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:48.636Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:06:48.638Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:06:48.637Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 0c37af19...\"}","timestamp":"2026-08-12T12:06:48.638Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:06:48.638Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:06:48.672Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:4e93cbf6-1b59-48f4-a96a-d8e6a7fb04a6 (inactive for 607s)","timestamp":"2026-08-12T12:06:53.491Z"}
+
+data: {"data":"[ProxyEgress] nvidia/0c37af19 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:07:12.702Z"}
+
+data: {"data":"[12:07:12] 📊 \u001b[32m[USAGE] NVIDIA | in=86844 | out=306 | account=0c37af19...\u001b[0m | cache_read=4544","timestamp":"2026-08-12T12:07:12.704Z"}
+
+data: {"data":"[12:07:12] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 24033ms | complete","timestamp":"2026-08-12T12:07:12.710Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:12.700Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 0c37af19 error cleared\"}","timestamp":"2026-08-12T12:07:12.721Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:07:13.519Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:07:13.571Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:13.501Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 33 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 33 msgs | 42 tools\"}","timestamp":"2026-08-12T12:07:13.599Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:13.510Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:07:13.599Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:13.517Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:07:13.599Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:13.518Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: dc427b24...\"}","timestamp":"2026-08-12T12:07:13.599Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:57d68d08-a900-4c22-ad4d-b5fe38d2752e (inactive for 621s)","timestamp":"2026-08-12T12:07:23.492Z"}
+
+data: {"data":"[ProxyEgress] nvidia/dc427b24 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:07:31.702Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:31.699Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account dc427b24 error cleared\"}","timestamp":"2026-08-12T12:07:31.704Z"}
+
+data: {"data":"[12:07:36] 📊 \u001b[32m[USAGE] NVIDIA | in=87192 | out=368 | account=dc427b24...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=4544","timestamp":"2026-08-12T12:07:36.269Z"}
+
+data: {"data":"[12:07:36] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 22693ms | complete","timestamp":"2026-08-12T12:07:36.275Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:37.093Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 35 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 35 msgs | 42 tools\"}","timestamp":"2026-08-12T12:07:37.106Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:37.100Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:07:37.106Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:37.104Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:07:37.106Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:37.105Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 67ed2deb...\"}","timestamp":"2026-08-12T12:07:37.106Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:07:37.108Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:07:37.142Z"}
+
+data: {"data":"[ProxyEgress] nvidia/67ed2deb in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:07:51.355Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:51.352Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 67ed2deb error cleared\"}","timestamp":"2026-08-12T12:07:51.357Z"}
+
+data: {"data":"[12:07:52] 📊 \u001b[32m[USAGE] NVIDIA | in=87602 | out=66 | account=67ed2deb...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=84416","timestamp":"2026-08-12T12:07:52.202Z"}
+
+data: {"data":"[12:07:52] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 15061ms | complete","timestamp":"2026-08-12T12:07:52.208Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:07:52.798Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:07:52.833Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:52.785Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 37 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 37 msgs | 42 tools\"}","timestamp":"2026-08-12T12:07:52.848Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:52.793Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:07:52.849Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:52.797Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:07:52.849Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:07:52.797Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 686d2d2d...\"}","timestamp":"2026-08-12T12:07:52.849Z"}
+
+data: {"data":"[ProxyEgress] nvidia/686d2d2d in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:08:07.684Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:07.681Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 686d2d2d error cleared\"}","timestamp":"2026-08-12T12:08:07.685Z"}
+
+data: {"data":"[12:08:09] 📊 \u001b[32m[USAGE] NVIDIA | in=88345 | out=135 | account=686d2d2d...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=87552","timestamp":"2026-08-12T12:08:09.602Z"}
+
+data: {"data":"[12:08:09] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 16770ms | complete","timestamp":"2026-08-12T12:08:09.608Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:10.534Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 39 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 39 msgs | 42 tools\"}","timestamp":"2026-08-12T12:08:10.551Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:10.542Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:08:10.551Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:10.549Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:08:10.551Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:10.550Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 723e0240...\"}","timestamp":"2026-08-12T12:08:10.551Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:08:10.552Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:08:10.609Z"}
+
+data: {"data":"[ProxyEgress] nvidia/723e0240 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:08:23.968Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:23.966Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 723e0240 error cleared\"}","timestamp":"2026-08-12T12:08:23.970Z"}
+
+data: {"data":"[12:08:24] 📊 \u001b[32m[USAGE] NVIDIA | in=89260 | out=100 | account=723e0240...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=87104","timestamp":"2026-08-12T12:08:24.992Z"}
+
+data: {"data":"[12:08:24] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 14381ms | complete","timestamp":"2026-08-12T12:08:24.999Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:08:25.595Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:08:25.626Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:25.582Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 42 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 42 msgs | 42 tools\"}","timestamp":"2026-08-12T12:08:25.642Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:25.589Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:08:25.642Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:25.594Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:08:25.642Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:25.594Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 38284a44...\"}","timestamp":"2026-08-12T12:08:25.642Z"}
+
+data: {"data":"[ProxyEgress] nvidia/38284a44 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:08:41.107Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:41.105Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 38284a44 error cleared\"}","timestamp":"2026-08-12T12:08:41.109Z"}
+
+data: {"data":"[12:08:48] 📊 \u001b[32m[USAGE] NVIDIA | in=90034 | out=55 | account=38284a44...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=87616","timestamp":"2026-08-12T12:08:48.845Z"}
+
+data: {"data":"[12:08:48] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 23220ms | complete","timestamp":"2026-08-12T12:08:48.852Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:49.415Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 44 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 44 msgs | 42 tools\"}","timestamp":"2026-08-12T12:08:49.427Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:49.422Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:08:49.428Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:49.426Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:08:49.428Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:08:49.427Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 73a4475c...\"}","timestamp":"2026-08-12T12:08:49.428Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:08:49.428Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:08:49.459Z"}
+
+data: {"data":"[ProxyEgress] nvidia/73a4475c in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:09:04.959Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:04.956Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 73a4475c error cleared\"}","timestamp":"2026-08-12T12:09:04.960Z"}
+
+data: {"data":"[12:09:27] 📊 \u001b[32m[USAGE] NVIDIA | in=90505 | out=999 | account=73a4475c...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=90048","timestamp":"2026-08-12T12:09:27.292Z"}
+
+data: {"data":"[12:09:27] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 37839ms | complete","timestamp":"2026-08-12T12:09:27.303Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:27.837Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 46 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 46 msgs | 42 tools\"}","timestamp":"2026-08-12T12:09:27.851Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:27.845Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:09:27.851Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:27.850Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:09:27.851Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:27.850Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: c9ab2389...\"}","timestamp":"2026-08-12T12:09:27.851Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:09:27.851Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:09:27.884Z"}
+
+data: {"data":"[ProxyEgress] nvidia/c9ab2389 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:09:42.052Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:42.049Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account c9ab2389 error cleared\"}","timestamp":"2026-08-12T12:09:42.054Z"}
+
+data: {"data":"[12:09:42] 📊 \u001b[32m[USAGE] NVIDIA | in=91648 | out=83 | account=c9ab2389...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=91456","timestamp":"2026-08-12T12:09:42.924Z"}
+
+data: {"data":"[12:09:42] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 15042ms | complete","timestamp":"2026-08-12T12:09:42.932Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:09:43.521Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:09:43.579Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:43.501Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 48 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 48 msgs | 42 tools\"}","timestamp":"2026-08-12T12:09:43.598Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:43.511Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:09:43.598Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:43.519Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:09:43.598Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:09:43.520Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 123c1af0...\"}","timestamp":"2026-08-12T12:09:43.598Z"}
+
+data: {"data":"[ProxyEgress] nvidia/123c1af0 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:10:01.301Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:01.298Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 123c1af0 error cleared\"}","timestamp":"2026-08-12T12:10:01.302Z"}
+
+data: {"data":"[12:10:15] 📊 \u001b[32m[USAGE] NVIDIA | in=92024 | out=923 | account=123c1af0...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-08-12T12:10:15.019Z"}
+
+data: {"data":"[12:10:15] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 31438ms | complete","timestamp":"2026-08-12T12:10:15.024Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:15.928Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 50 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 50 msgs | 42 tools\"}","timestamp":"2026-08-12T12:10:15.941Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:15.936Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:10:15.941Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:15.940Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:10:15.941Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:15.940Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 6c137417...\"}","timestamp":"2026-08-12T12:10:15.941Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:10:15.942Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:10:15.975Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 1 tested, 1 alive, 0 inconclusive, 0 auto-removed","timestamp":"2026-08-12T12:10:31.316Z"}
+
+data: {"data":"[ProxyEgress] nvidia/6c137417 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:10:32.913Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:32.911Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 6c137417 error cleared\"}","timestamp":"2026-08-12T12:10:32.916Z"}
+
+data: {"data":"[12:10:36] 📊 \u001b[32m[USAGE] NVIDIA | in=92990 | out=93 | account=6c137417...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=92928","timestamp":"2026-08-12T12:10:36.702Z"}
+
+data: {"data":"[12:10:36] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 20728ms | complete","timestamp":"2026-08-12T12:10:36.708Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:10:37.499Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:10:37.544Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:37.472Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 53 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 53 msgs | 42 tools\"}","timestamp":"2026-08-12T12:10:37.575Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:37.489Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:10:37.575Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:37.495Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:10:37.575Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:10:37.496Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 928a031f...\"}","timestamp":"2026-08-12T12:10:37.575Z"}
+
+data: {"data":"[ProxyEgress] nvidia/928a031f in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:11:01.253Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:01.251Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 928a031f error cleared\"}","timestamp":"2026-08-12T12:11:01.254Z"}
+
+data: {"data":"[12:11:08] 📊 \u001b[32m[USAGE] NVIDIA | in=93548 | out=767 | account=928a031f...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-08-12T12:11:08.557Z"}
+
+data: {"data":"[12:11:08] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 31008ms | complete","timestamp":"2026-08-12T12:11:08.567Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:09.566Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 55 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 55 msgs | 42 tools\"}","timestamp":"2026-08-12T12:11:09.580Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:09.573Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:11:09.580Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:09.578Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:11:09.580Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:09.579Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 6e3cac60...\"}","timestamp":"2026-08-12T12:11:09.580Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:11:09.580Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:11:09.618Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:c0afd1db-58bd-44c5-b1c6-edc4aafc9865 (inactive for 624s)","timestamp":"2026-08-12T12:11:23.492Z"}
+
+data: {"data":"[ProxyEgress] nvidia/6e3cac60 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:11:32.427Z"}
+
+data: {"data":"[12:11:33] 📊 \u001b[32m[USAGE] NVIDIA | in=94396 | out=63 | account=6e3cac60...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=704","timestamp":"2026-08-12T12:11:33.390Z"}
+
+data: {"data":"[12:11:33] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 23772ms | complete","timestamp":"2026-08-12T12:11:33.396Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:11:33.951Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:11:34.011Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:33.933Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 57 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 57 msgs | 42 tools\"}","timestamp":"2026-08-12T12:11:34.046Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:33.943Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:11:34.046Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:33.949Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:11:34.046Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:33.950Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 4e93cbf6...\"}","timestamp":"2026-08-12T12:11:34.046Z"}
+
+data: {"data":"[ProxyEgress] nvidia/4e93cbf6 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:11:51.999Z"}
+
+data: {"data":"[12:11:52] 📊 \u001b[32m[USAGE] NVIDIA | in=94672 | out=54 | account=4e93cbf6...\u001b[0m | cache_read=94272","timestamp":"2026-08-12T12:11:52.002Z"}
+
+data: {"data":"[12:11:52] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 17988ms | complete","timestamp":"2026-08-12T12:11:52.008Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:52.812Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 59 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 59 msgs | 42 tools\"}","timestamp":"2026-08-12T12:11:52.831Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:52.821Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:11:52.831Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:52.829Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:11:52.831Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:11:52.830Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 57d68d08...\"}","timestamp":"2026-08-12T12:11:52.831Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:11:52.832Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:11:52.870Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:e846d73d-826d-4799-a49c-9792c975debc (inactive for 628s)","timestamp":"2026-08-12T12:11:53.492Z"}
+
+data: {"data":"[ProxyEgress] nvidia/57d68d08 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:12:14.767Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:c34c63ad-2f01-4b7c-ac3c-1433c73bd074 (inactive for 628s)","timestamp":"2026-08-12T12:12:23.492Z"}
+
+data: {"data":"[12:12:25] 📊 \u001b[32m[USAGE] NVIDIA | in=94927 | out=879 | account=57d68d08...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=94720","timestamp":"2026-08-12T12:12:25.037Z"}
+
+data: {"data":"[12:12:25] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 32176ms | complete","timestamp":"2026-08-12T12:12:25.052Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:25.972Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 61 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 61 msgs | 42 tools\"}","timestamp":"2026-08-12T12:12:25.991Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:25.979Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:12:25.991Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:25.986Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:12:25.991Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:25.990Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 043a9062...\"}","timestamp":"2026-08-12T12:12:25.991Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:12:25.993Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:12:26.033Z"}
+
+data: {"data":"[ProxyEgress] nvidia/043a9062 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:12:45.200Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:45.192Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 043a9062 error cleared\"}","timestamp":"2026-08-12T12:12:45.206Z"}
+
+data: {"data":"[12:12:48] 📊 \u001b[32m[USAGE] NVIDIA | in=95851 | out=298 | account=043a9062...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=95744","timestamp":"2026-08-12T12:12:48.258Z"}
+
+data: {"data":"[12:12:48] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 22231ms | complete","timestamp":"2026-08-12T12:12:48.270Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:12:51.273Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:12:51.278Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:51.252Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 2 msgs\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 2 msgs\"}","timestamp":"2026-08-12T12:12:51.284Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:51.260Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:12:51.284Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:51.269Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:ef58a... has no available affinity target\"}","timestamp":"2026-08-12T12:12:51.284Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:12:51.272Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 211a85bf...\"}","timestamp":"2026-08-12T12:12:51.284Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:7871c6de-c462-4bc3-9394-1435042ec3e6 (inactive for 608s)","timestamp":"2026-08-12T12:12:53.492Z"}
+
+data: {"data":"[ProxyEgress] nvidia/211a85bf in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:13:18.186Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:18.161Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 211a85bf error cleared\"}","timestamp":"2026-08-12T12:13:18.193Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:18.777Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 63 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 63 msgs | 42 tools\"}","timestamp":"2026-08-12T12:13:18.804Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:18.789Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:13:18.804Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:18.799Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:13:18.805Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:18.803Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: d1f7af67...\"}","timestamp":"2026-08-12T12:13:18.805Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:13:18.805Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:13:18.852Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:7bcbed77-7d71-416e-8ae5-17af04f1b9e5 (inactive for 610s)","timestamp":"2026-08-12T12:13:23.492Z"}
+
+data: {"data":"[ProxyEgress] nvidia/d1f7af67 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:13:45.206Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:45.199Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account d1f7af67 error cleared\"}","timestamp":"2026-08-12T12:13:45.217Z"}
+
+data: {"data":"[12:13:47] 📊 \u001b[32m[USAGE] NVIDIA | in=97607 | out=120 | account=d1f7af67...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=94400","timestamp":"2026-08-12T12:13:47.823Z"}
+
+data: {"data":"[12:13:47] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 28971ms | complete","timestamp":"2026-08-12T12:13:47.834Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:48.810Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 66 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 66 msgs | 42 tools\"}","timestamp":"2026-08-12T12:13:48.835Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:13:48.835Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:48.819Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:13:48.835Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:48.826Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:13:48.835Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:13:48.833Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: ace4c7bb...\"}","timestamp":"2026-08-12T12:13:48.835Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:13:48.881Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:37ffd0e2-08dc-4c47-920c-7c71c18852f0 (inactive for 611s)","timestamp":"2026-08-12T12:13:53.492Z"}
+
+data: {"data":"[ProxyEgress] nvidia/ace4c7bb in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:14:13.749Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:13.739Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account ace4c7bb error cleared\"}","timestamp":"2026-08-12T12:14:13.754Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:3c334081-68ec-4953-a9f1-1244b2e25c69 (inactive for 617s)","timestamp":"2026-08-12T12:14:23.493Z"}
+
+data: {"data":"[12:14:27] 📊 \u001b[32m[USAGE] NVIDIA | in=98570 | out=1451 | account=ace4c7bb...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=96128","timestamp":"2026-08-12T12:14:27.450Z"}
+
+data: {"data":"[12:14:27] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 38576ms | complete","timestamp":"2026-08-12T12:14:27.461Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:28.436Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 68 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 68 msgs | 42 tools\"}","timestamp":"2026-08-12T12:14:28.457Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:28.447Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:14:28.457Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:28.452Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:14:28.457Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:28.456Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: c0afd1db...\"}","timestamp":"2026-08-12T12:14:28.457Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:14:28.457Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:14:28.500Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:df866798-38dd-45fa-9a02-5168df383964 (inactive for 613s)","timestamp":"2026-08-12T12:14:53.494Z"}
+
+data: {"data":"[ProxyEgress] nvidia/c0afd1db in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:14:55.432Z"}
+
+data: {"data":"[12:14:56] 📊 \u001b[32m[USAGE] NVIDIA | in=100070 | out=83 | account=c0afd1db...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=98944","timestamp":"2026-08-12T12:14:56.376Z"}
+
+data: {"data":"[12:14:56] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 27881ms | complete","timestamp":"2026-08-12T12:14:56.387Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:14:56.977Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:14:57.031Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:56.956Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 70 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 70 msgs | 42 tools\"}","timestamp":"2026-08-12T12:14:57.055Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:56.966Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:14:57.055Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:56.973Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:14:57.055Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:14:56.977Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 2b623968...\"}","timestamp":"2026-08-12T12:14:57.055Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:603095d9-afa0-4b49-bc4b-5f1acf1f7824 (inactive for 613s)","timestamp":"2026-08-12T12:15:23.495Z"}
+
+data: {"data":"[ProxyEgress] nvidia/2b623968 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:15:29.445Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:15:29.442Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Account 2b623968 error cleared\"}","timestamp":"2026-08-12T12:15:29.450Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:1828b58e-2d72-4f1f-b2df-b5b9f1c8349a (inactive for 615s)","timestamp":"2026-08-12T12:15:53.494Z"}
+
+data: {"data":"[12:16:06] 📊 \u001b[32m[USAGE] NVIDIA | in=102086 | out=1855 | account=2b623968...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=320","timestamp":"2026-08-12T12:16:06.132Z"}
+
+data: {"data":"[12:16:06] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 69104ms | complete","timestamp":"2026-08-12T12:16:06.143Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:16:06.958Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 72 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 72 msgs | 42 tools\"}","timestamp":"2026-08-12T12:16:06.974Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:16:06.967Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:16:06.974Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:16:06.972Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:16:06.974Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:16:06.973Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: e846d73d...\"}","timestamp":"2026-08-12T12:16:06.974Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:16:06.975Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:16:07.010Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:a495b80e-00d2-4b8c-a725-81b9cf8e6bb0 (inactive for 621s)","timestamp":"2026-08-12T12:16:23.494Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:ed0ac05f-7cf1-4940-9711-7131cda5443b (inactive for 603s)","timestamp":"2026-08-12T12:16:23.495Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:1c9594b7-8ef1-4313-8cfa-14a15baed065 (inactive for 613s)","timestamp":"2026-08-12T12:16:53.494Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:0c37af19-2942-4962-8aef-4aad9d509393 (inactive for 611s)","timestamp":"2026-08-12T12:17:23.494Z"}
+
+data: {"data":"[ProxyEgress] nvidia/e846d73d in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:17:39.005Z"}
+
+data: {"data":"[12:17:40] 📊 \u001b[32m[USAGE] NVIDIA | in=103993 | out=85 | account=e846d73d...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-08-12T12:17:40.444Z"}
+
+data: {"data":"[12:17:40] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 93438ms | complete","timestamp":"2026-08-12T12:17:40.454Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:17:41.321Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 74 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 74 msgs | 42 tools\"}","timestamp":"2026-08-12T12:17:41.339Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:17:41.331Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:17:41.339Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:17:41.336Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:13fea... has no available affinity target\"}","timestamp":"2026-08-12T12:17:41.339Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:17:41.338Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: c34c63ad...\"}","timestamp":"2026-08-12T12:17:41.339Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:17:41.341Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:17:41.376Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:dc427b24-7a34-4385-9285-84973bdc20ea (inactive for 622s)","timestamp":"2026-08-12T12:17:53.494Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:67ed2deb-1a34-4ce8-88d2-979981c4a414 (inactive for 602s)","timestamp":"2026-08-12T12:17:53.495Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:686d2d2d-373e-4a91-94a9-e44dea8f8f86 (inactive for 616s)","timestamp":"2026-08-12T12:18:23.494Z"}
+
+data: {"data":"[ProxyEgress] nvidia/c34c63ad in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:18:41.882Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:723e0240-9661-4231-9903-69eb5244453b (inactive for 630s)","timestamp":"2026-08-12T12:18:53.494Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:38284a44-3958-4dfe-9ebf-f582adf12f9a (inactive for 612s)","timestamp":"2026-08-12T12:18:53.494Z"}
+
+data: {"data":"[12:19:01] 📊 \u001b[32m[USAGE] NVIDIA | in=104201 | out=924 | account=c34c63ad...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=704","timestamp":"2026-08-12T12:19:01.356Z"}
+
+data: {"data":"[12:19:01] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 79987ms | complete","timestamp":"2026-08-12T12:19:01.369Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:73a4475c-9538-4a90-940a-2cbd6c69411f (inactive for 619s)","timestamp":"2026-08-12T12:19:23.495Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:c9ab2389-fbc6-4fa7-89a3-ea57cb0d89bc (inactive for 611s)","timestamp":"2026-08-12T12:19:53.495Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:08.141Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 77 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 77 msgs | 42 tools\"}","timestamp":"2026-08-12T12:20:08.167Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:20:08.167Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:08.151Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:20:08.167Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:08.160Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:51d7e... has no available affinity target\"}","timestamp":"2026-08-12T12:20:08.167Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:08.165Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 7871c6de...\"}","timestamp":"2026-08-12T12:20:08.167Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:20:08.221Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:123c1af0-6333-4b78-9778-b4e389fbcb05 (inactive for 622s)","timestamp":"2026-08-12T12:20:23.495Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 1 tested, 1 alive, 0 inconclusive, 0 auto-removed","timestamp":"2026-08-12T12:20:31.314Z"}
+
+data: {"data":"[ProxyEgress] nvidia/7871c6de in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:20:38.060Z"}
+
+data: {"data":"[12:20:42] 📊 \u001b[32m[USAGE] NVIDIA | in=105609 | out=119 | account=7871c6de...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=384","timestamp":"2026-08-12T12:20:42.909Z"}
+
+data: {"data":"[12:20:42] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 34693ms | complete","timestamp":"2026-08-12T12:20:42.921Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:50.388Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 80 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 80 msgs | 42 tools\"}","timestamp":"2026-08-12T12:20:50.409Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:50.397Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:20:50.409Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:50.404Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:51d7e... has no available affinity target\"}","timestamp":"2026-08-12T12:20:50.409Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:20:50.408Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 7bcbed77...\"}","timestamp":"2026-08-12T12:20:50.409Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:20:50.410Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:20:50.448Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:6c137417-35ee-4852-93a6-7b8180ba72fa (inactive for 621s)","timestamp":"2026-08-12T12:20:53.496Z"}
+
+data: {"data":"[ProxyEgress] nvidia/7bcbed77 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:21:16.202Z"}
+
+data: {"data":"[12:21:19] 📊 \u001b[32m[USAGE] NVIDIA | in=105978 | out=260 | account=7bcbed77...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=105664","timestamp":"2026-08-12T12:21:19.441Z"}
+
+data: {"data":"[12:21:19] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 28996ms | complete","timestamp":"2026-08-12T12:21:19.450Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:928a031f-b6a0-42b1-aa37-49d716534e32 (inactive for 622s)","timestamp":"2026-08-12T12:21:23.495Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:21:35.061Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 82 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 82 msgs | 42 tools\"}","timestamp":"2026-08-12T12:21:35.074Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:21:35.068Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:21:35.075Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:21:35.073Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:51d7e... has no available affinity target\"}","timestamp":"2026-08-12T12:21:35.075Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:21:35.073Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 37ffd0e2...\"}","timestamp":"2026-08-12T12:21:35.075Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:21:35.075Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:21:35.111Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:6e3cac60-8f81-4008-82ca-e366a4179f98 (inactive for 621s)","timestamp":"2026-08-12T12:21:53.495Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:4e93cbf6-1b59-48f4-a96a-d8e6a7fb04a6 (inactive for 602s)","timestamp":"2026-08-12T12:21:53.495Z"}
+
+data: {"data":"[ProxyEgress] nvidia/37ffd0e2 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:21:58.948Z"}
+
+data: {"data":"[12:22:00] 📊 \u001b[32m[USAGE] NVIDIA | in=106352 | out=58 | account=37ffd0e2...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=106176","timestamp":"2026-08-12T12:22:00.044Z"}
+
+data: {"data":"[12:22:00] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 24940ms | complete","timestamp":"2026-08-12T12:22:00.056Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:22:01.497Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:22:01.533Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:22:01.483Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 84 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 84 msgs | 42 tools\"}","timestamp":"2026-08-12T12:22:01.552Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:22:01.492Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:22:01.552Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:22:01.496Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:51d7e... has no available affinity target\"}","timestamp":"2026-08-12T12:22:01.552Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:22:01.497Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: 3c334081...\"}","timestamp":"2026-08-12T12:22:01.552Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:57d68d08-a900-4c22-ad4d-b5fe38d2752e (inactive for 609s)","timestamp":"2026-08-12T12:22:23.496Z"}
+
+data: {"data":"[ProxyEgress] nvidia/3c334081 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:22:24.906Z"}
+
+data: {"data":"[12:22:28] 📊 \u001b[32m[USAGE] NVIDIA | in=106446 | out=246 | account=3c334081...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=106368","timestamp":"2026-08-12T12:22:28.790Z"}
+
+data: {"data":"[12:22:28] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 27260ms | complete","timestamp":"2026-08-12T12:22:28.800Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:043a9062-e72a-4456-a70e-1bb55e5baa33 (inactive for 608s)","timestamp":"2026-08-12T12:22:53.495Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:211a85bf-1625-429f-8760-9e2fb4c8ad82 (inactive for 605s)","timestamp":"2026-08-12T12:23:23.495Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:23:50.390Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/messages | nvidia/z-ai/glm-5.2 | 86 msgs | 42 tools\",\"msg\":\"📥 POST /v1/messages | nvidia/z-ai/glm-5.2 | 86 msgs | 42 tools\"}","timestamp":"2026-08-12T12:23:50.405Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:23:50.399Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: z-ai/glm-5.2\"}","timestamp":"2026-08-12T12:23:50.405Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:23:50.403Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:51d7e... has no available affinity target\"}","timestamp":"2026-08-12T12:23:50.405Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-08-12T12:23:50.404Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: df866798...\"}","timestamp":"2026-08-12T12:23:50.405Z"}
+
+data: {"data":"[ProxyFetch] Applied request proxy context: http://127.0.0.1:8081","timestamp":"2026-08-12T12:23:50.405Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-08-12T12:23:50.449Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:d1f7af67-dfd1-4579-a8f4-2a3ac52b5c3f (inactive for 608s)","timestamp":"2026-08-12T12:23:53.495Z"}
+
+data: {"data":"[ProxyEgress] nvidia/df866798 in=113.20.2.214 out=? proxy=provider:127.0.0.1 status=success","timestamp":"2026-08-12T12:24:16.676Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:ace4c7bb-882b-4974-95a2-5c4bd78b6a20 (inactive for 610s)","timestamp":"2026-08-12T12:24:23.495Z"}
+
+data: {"data":"[12:24:27] 📊 \u001b[32m[USAGE] NVIDIA | in=106773 | out=399 | account=df866798...\u001b[0m \u001b[33m(estimated)\u001b[0m | cache_read=4544","timestamp":"2026-08-12T12:24:27.816Z"}
+
+data: {"data":"[12:24:27] 🌊 [STREAM] NVIDIA | z-ai/glm-5.2 | 37368ms | complete","timestamp":"2026-08-12T12:24:27.822Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:c0afd1db-58bd-44c5-b1c6-edc4aafc9865 (inactive for 628s)","timestamp":"2026-08-12T12:25:23.495Z"}
+
+data: {"data":"🧹 [RATE-LIMIT] Evicting idle limiter: nvidia:2b623968-df2f-4a10-833b-4ad0be74f0ad (inactive for 624s)","timestamp":"2026-08-12T12:25:53.495Z"}
+
+: keep-alive
+

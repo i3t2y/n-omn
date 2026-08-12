@@ -563,3 +563,16 @@ commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。
 **圣上须 vistas**: bridges.json nim workers `0-39` (现 `0-31`) 须圣上天 UI 改 (workflow 不传 bridges).
 
 闸验: YAML 通 (jobs gate/gen-names/deploy/publish-endpoints = 4) + publish needs[gate,deploy] + if 门控 + secret-scan exit=0 + Python 派生序与 /tmp 脚本对证全匹配.
+
+### 2026-08-12 commit c22b3a9 — PRESET=publish 场景 (publish-only 路径)
+圣上令 "额外特定任务路径" = PRESET=publish: deploy 100 格跳 (省 ~16m 重部 Worker), 仅 publish-endpoints 直跑派生 endpoint.json 传 Dataset.
+- gate case 加 `publish)` 分支: `PUBLISH_ONLY=1` + GEN_NAMES=0 + SECRETS_ONLY=0 + DELETE_MODE=0
+- gate outputs 加 `publish_only` flag (主输出段 + cron 阻塞分支 + 默认值段 全补)
+- deploy if 加 `publish_only != '1'` 门 → publish 场景 deploy **跳** (skipped, 100 格零跑)
+- publish-endpoints if 改: `always() && gate.result=='success' && gen_names!='1' && (publish_only=='1' || (deploy.result=='success' && secrets_only!='1'))`
+  - `always()` 兜 deploy skipped (publish-only 场景 deploy 跳 needs 仍跑)
+  - `publish_only==1` 分支绕 `deploy.result=='success'` 判 (deploy 跳不阻 publish)
+- publish needs 保留 `[gate, deploy]` (deploy skipped 仍算 needs 满 + always())
+- workflow_dispatch inputs preset 描述加 publish
+闸验: YAML 通 4 jobs + deploy if publish_only 门 + publish if always()+publish_only 分支 + gate outputs publish_only + secret-scan exit=0.
+圣上用: `PRESET=publish` (workflow_dispatch 输入框 或 Variable 临时设) → 仅 publish 跑, deploy 零耗. push 待圣上亲启.

@@ -552,3 +552,61 @@ jobs:
           else
             echo "OK: workers.dev disabled"
           fi
+
+  # ── publish-endpoints: 派生 worker-major endpoint.json 传 HF Dataset (圣上令自动回填) ─
+  # needs deploy 成后跑 (gen 场景跳: gen 仅生名未建 Worker, URL 未 live 不宜 publish 就绪态)
+  # 读 GitHub Variable WORKER_NAMES 100 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 nonoke/omn-logic
+  # 不涉 secret 真值 (HF_TOKEN_NONOKE Action 自动打码; URL 非 secret)
+  publish-endpoints:
+    needs: [gate, deploy]
+    if: |
+      needs.deploy.result == 'success' &&
+      needs.gate.outputs.gen_names != '1' &&
+      needs.gate.outputs.secrets_only != '1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Derive worker-major endpoint.json + upload Dataset
+        env:
+          WORKER_NAMES: ${{ vars.WORKER_NAMES }}
+          HF_TOKEN_NONOKE: ${{ secrets.HF_TOKEN_NONOKE }}
+        run: |
+          pip install -q huggingface_hub 2>/dev/null || true
+          python3 << 'PYEOF'
+          import json, os, sys
+          names_str = os.environ.get('WORKER_NAMES', '').strip()
+          if not names_str:
+              print('ERROR: WORKER_NAMES Variable empty. Run PRESET=gen first.')
+              sys.exit(1)
+          names = [n.strip() for n in names_str.split(',') if n.strip()]
+          n_total = len(names)
+          if n_total == 0 or n_total % 10 != 0:
+              print(f'ERROR: WORKER_NAMES count {n_total} not multiple of 10')
+              sys.exit(1)
+          # worker-major 派生: newidx → (worker 0-9, account 0-9) → old account-major idx = a*10 + w
+          # account-major WORKER_NAMES 格: [acc1 w1..w10, acc2 w1..w10, ...]
+          # worker-major 排: 先 worker1 各账号, 再 worker2 各账号, ... worker10 各账号
+          eps = []
+          for newidx in range(n_total):
+              w = newidx // 10        # worker 0-9
+              a = newidx % 10         # account 0-9
+              old = a * 10 + w        # account-major WORKER_NAMES index
+              name = names[old]
+              wn = w + 1              # worker 1-10
+              acc2 = f"{a+1:02d}"
+              url = f"https://{wn}.f{acc2}.cc.cd"
+              eps.append({"name": name, "url": url})
+          with open('/tmp/flaretunnel_endpoints.json', 'w') as f:
+              json.dump(eps, f, indent=2)
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ.get('HF_TOKEN_NONOKE'))
+          api.upload_file(
+              path_or_fileobj='/tmp/flaretunnel_endpoints.json',
+              path_in_repo='flaretunnel_endpoints.json',
+              repo_id='nonoke/omn-logic',
+              repo_type='dataset'
+          )
+          print(f'>>> publish-endpoints: upload {len(eps)} worker-major URLs to nonoke/omn-logic/flaretunnel_endpoints.json')
+          print(f'>>> first 3: {eps[:3]}')
+          print(f'>>> last 1: {eps[-1]}')
+          PYEOF

@@ -536,3 +536,30 @@ commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。
 **原雏 008c48d 血统债**: 此 bug 原雏代码引入 (memory [[ft-worker-github-deploy-landed-2026-08-12]] :16 注称 "secrets:输入走 wrangler secret put" 设计意图对, 但实装漏 secrets: 输入 = 注释对代码错). 经 secrets PRESET 场景门控改 (c10d544) 后圣上触 secrets run 暴露: Deploy1st 跑但空注入.
 
 闸验: YAML 通 (jobs gate/gen-names/deploy) + secrets: 两处 (:432 + :474) 对应 env RELAY_AUTH 两处 (:434 + :476) + secret-scan exit=0.
+
+## 2026-08-12 · deploy workflow 加 publish-endpoints job (圣上令自动化回填 endpoint.json 到 Dataset)
+
+**动机**: 圣上令"actions 有没有没法按新顺序生成 endpoint.json 并传到 bucket" → 加 publish-endpoints job 自动化派生 worker-major endpoint + 传 HF Dataset.
+
+**新 job `publish-endpoints`** (workflow 末):
+- `needs: [gate, deploy]` deploy 成后跑
+- `if`: `deploy.result == 'success' && gen_names != '1' && secrets_only != '1'` (gen 场景跳=未建 Worker URL 未 live; secrets 场景跳=Worker URL 不变 无须重传)
+- 2 step: checkout + Python 派生
+- 派生 logic (worker-major 排): newidx → (worker=`newidx//10`, account=`newidx%10`) → old account-major idx = `account*10 + worker` → 取 WORKER_NAMES 名 → URL = `https://{worker+1}.f{account+1:02d}.cc.cd`
+- 铁律: `WORKER_NAMES` (account-major 圣上 Variable) + f{XX}.cc.cd 拓扑 → worker-major endpoint.json 派生 (本地 /tmp 脚本产对证 Python 派生序完全匹配)
+- 传 `nonoke/omn-logic` `flaretunnel_endpoints.json` via `HF_TOKEN_NONOKE` GitHub Secret (圣上已有 write scope, 零硬编真值 §2)
+- 不涉 bridges.json (桥编排骨圣上域, workflow 不动)
+
+**拓扑对照 (worker-major 排)**:
+| idx | worker | account | name | URL |
+|-----|--------|---------|------|-----|
+| 0-9 | 1 | f01-f10 | 各账号 ft1 | 1.f01..1.f10.cc.cd |
+| 10-19 | 2 | f01-f10 | 各账号 ft2 | 2.f01..2.f10.cc.cd |
+| ... | ... | ... | ... | ... |
+| 90-99 | 10 | f01-f10 | 各账号 ft10 | 10.f01..10.f10.cc.cd |
+
+→ `nim` 桥 `workers:"0-39"` = worker1-4 各 10 账号 = 每账号前4 worker (圣上目标)
+
+**圣上须 vistas**: bridges.json nim workers `0-39` (现 `0-31`) 须圣上天 UI 改 (workflow 不传 bridges).
+
+闸验: YAML 通 (jobs gate/gen-names/deploy/publish-endpoints = 4) + publish needs[gate,deploy] + if 门控 + secret-scan exit=0 + Python 派生序与 /tmp 脚本对证全匹配.

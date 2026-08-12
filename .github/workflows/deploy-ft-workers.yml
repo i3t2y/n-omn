@@ -1,10 +1,22 @@
 name: Deploy FlareTunnel Workers
 
-# 用 GitHub 控制 CF 账号建设 Worker (仿 i3t2y/n-edget sync-deploy.yml 机制).
-# n-edget 走 Pages (pages deploy + PATCH CF API 注 env_vars); 本 workflow 走 Workers
-#   (wrangler deploy + wrangler-action `secrets:` 输入内建走 wrangler secret put).
-# 目标件: flaretunnel/worker.js (FT 出口换 IP Worker, 非 worktree cf-worker/index.js gate 前置代理).
-# 矩阵扩 N Worker 留后阶段 (圣上拉 HF flaretunnel_endpoints.json 裁真池数+族结构后定).
+# 用 GitHub 控制 CF 账号建设 FT Worker (仿 i3t2y/n-vless + i3t2y/n-edget sync-deploy.yml 机制).
+# 圣上 2026-08-12 三点令 + 拓扑裁决:
+#   1. Worker 名 + 自定义域名参考两项目 (儿童单词池, n-vless gen_names 范式), 排序 1-10 递增 (非 0)
+#   2. 删旧 Worker → 新建 → 绑 custom domain (Worker 被封立重设, 仿 n-vless delete:1/delete:v Mode)
+#   3. 每账号绑 1 主域名 f01.cc.cd ~ f10.cc.cd, Worker 子域 {N}.f{账号:02d}.cc.cd
+#      (例: 第 4 账号第 5 Worker = 5.f04.cc.cd)
+# 拓扑定夺: 10 账号 × 10 Worker = 100 上限框架, 现役启 4 账号 sub集 40 (后续圣上加 f05~f10 zone 只改 matrix 列表).
+#
+# 机制择优 (圣上"参考两项目优点"):
+#   - n-vless: gen_names 儿童单词池 + Delete Mode 1/2 + custom domain 三段验证 + 双 pass 绕扫描 + PRESET 场景切换
+#   - n-edget: 逗号串 + cut 位序取凭 (两项目同范式) + cron 定时同步 upstream (FT 非 fork 故略)
+# FT 适配差异 (非全抄 n-vless):
+#   - 后缀 v → ft (项目标识, 防 delete Mode 2 误删 n-vless Worker)
+#   - 域名 wXX.cc.cd → fXX.cc.cd (圣上定 f)
+#   -.secret 注入走 wrangler-action `secrets:` 输入 (非 n-vless curl PUT secrets API; 前轮 commit 008c48d 已采此路径, 更简)
+#   - 二维 account×worker 矩阵 (n-vless 一维 10 账号单 Worker; 圣上 1 账号 10 Worker 须二维扩)
+#   - 工作目录 flaretunnel/ (worker.js 非 n-vless _worker.js)
 # §2: RELAY_AUTH 真值零入 git/会话, GitHub Secret 自动打码日志 + wrangler secret put 加密存 CF.
 
 on:
@@ -14,34 +26,500 @@ on:
       - 'flaretunnel/worker.js'
       - 'flaretunnel/wrangler.toml'
       - '.github/workflows/deploy-ft-workers.yml'
+  schedule:
+    - cron: '17 2 * * *'   # 日常 daily 预设走此 (UTC 02:17, 避 :00 整点)
   workflow_dispatch:
+    inputs:
+      preset:
+        description: 'PRESET 场景 (gen/first/daily/solo:N/secrets/delete:1/delete:v, 留空用 Variables)'
+        required: false
+        default: ''
+
+# 并发组: 同分支新 run 不取消旧 run (deploy 须完整跑完, 中断半截 Worker 状态乱)
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  deploy:
+  # ════════════════════════════════════════════════════════════════════
+  # Job 1: gate — 门控 + 解析 PRESET + 构建执行矩阵
+  # 仿 n-vless gate (sync-deploy.yml:34-217). 决定下游 job 行为参数.
+  # ════════════════════════════════════════════════════════════════════
+  gate:
     runs-on: ubuntu-latest
+    outputs:
+      proceed:      ${{ steps.check.outputs.proceed }}
+      matrix:       ${{ steps.check.outputs.matrix }}
+      gen_names:    ${{ steps.check.outputs.gen_names }}
+      pass_mode:    ${{ steps.check.outputs.pass_mode }}
+      delete_mode:  ${{ steps.check.outputs.delete_mode }}
+      secrets_only: ${{ steps.check.outputs.secrets_only }}
+
     steps:
-      - name: Checkout GitHub repository
-        uses: actions/checkout@v4
+      - name: Check Gate & Build Matrix
+        id: check
+        env:
+          PRESET_INPUT: ${{ inputs.preset }}
+          PRESET_VAR:   ${{ vars.PRESET }}
+          CRON_ENABLE:   ${{ vars.CRON_ENABLE }}
+          EVENT_NAME:    ${{ github.event_name }}
+          DEPLOY_SCOPE:  ${{ vars.DEPLOY_SCOPE }}   # 1=solo单账号 2=全量 (默认 2)
+          SOLO_ACCOUNT:  ${{ vars.SOLO_ACCOUNT }}    # solo 时指定账号 1-10
+          GEN_NAMES:     ${{ vars.GEN_NAMES }}
+          PASS_MODE:     ${{ vars.PASS_MODE }}       # 1=单 pass 2=双 pass (首次建 Worker 用 2 绕扫)
+          DELETE_MODE:   ${{ vars.DELETE_MODE }}
+          SECRETS_ONLY:  ${{ vars.SECRETS_ONLY }}
+          # 现役启账号数 (1-10). 圣上加 zone 后扩此值. matrix account 维上限.
+          ACTIVE_ACCOUNTS: ${{ vars.ACTIVE_ACCOUNTS }}
 
-      - name: Show flaretunnel files
         run: |
-          echo "---- flaretunnel ----"
-          ls -la flaretunnel
-          echo "---- wrangler.toml ----"
-          cat flaretunnel/wrangler.toml
+          # ── PRESET 三层优先 (输入框 > Variables > 默认) ──────────
+          PRESET="${PRESET_INPUT:-$PRESET_VAR}"
+          echo ">>> PRESET resolved: '$PRESET'"
 
-      - name: Deploy Worker via wrangler-action
-        uses: cloudflare/wrangler-action@v4   # v4.0.0 主推 (2026-05-12); secret/vars 输入语义同 v3
+          # ── 默认值 ────────────────────────────────────────────────
+          GEN_NAMES="${GEN_NAMES:-0}"
+          DEPLOY_SCOPE="${DEPLOY_SCOPE:-2}"
+          SOLO_ACCOUNT="${SOLO_ACCOUNT:-1}"
+          PASS_MODE="${PASS_MODE:-1}"
+          DELETE_MODE="${DELETE_MODE:-0}"
+          SECRETS_ONLY="${SECRETS_ONLY:-0}"
+          # 现役启 4 账号 (圣上前轮裁先 4 zone). 后续扩 f05~f10 改此 Variables 即可.
+          ACTIVE_ACCOUNTS="${ACTIVE_ACCOUNTS:-4}"
+
+          # ── SOLO_ACCOUNT 范围校验 ─────────────────────────────────
+          if ! [[ "$SOLO_ACCOUNT" =~ ^[1-9]$|^10$ ]]; then
+            echo "ERROR: SOLO_ACCOUNT must be 1-10, got '$SOLO_ACCOUNT'"
+            exit 1
+          fi
+
+          # ── PRESET 覆盖细粒度变量 (仿 n-vless case) ───────────────
+          case "$PRESET" in
+            gen)
+              # 只生成随机 Worker 名写 GitHub Variable, 不部署
+              GEN_NAMES=1 ;;
+            first)
+              # 首次全量建 Worker: 双 pass 绕 CF 扫描
+              GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=2; DELETE_MODE=0; SECRETS_ONLY=0 ;;
+            daily)
+              # 日常维护: 单 pass 全量重部署
+              GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=1; DELETE_MODE=0; SECRETS_ONLY=0 ;;
+            solo:*)
+              # 单账号部署: 冒号后数字 = 账号位 (1-10)
+              GEN_NAMES=0; DEPLOY_SCOPE=1; SOLO_ACCOUNT="${PRESET#solo:}"
+              DELETE_MODE=0; SECRETS_ONLY=0
+              if ! [[ "$SOLO_ACCOUNT" =~ ^[1-9]$|^10$ ]]; then
+                echo "ERROR: solo account must be 1-10, got '$SOLO_ACCOUNT'"
+                exit 1
+              fi ;;
+            secrets)
+              # 只更 RELAY_AUTH secret 不重部署 Worker 代码
+              GEN_NAMES=0; SECRETS_ONLY=1; DEPLOY_SCOPE=2; DELETE_MODE=0 ;;
+            delete:1)
+              # 删各账号 WORKER_NAMES 对应的单个 Worker 后重建 (Worker 被封立重设)
+              GEN_NAMES=0; DELETE_MODE=1; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
+            delete:v)
+              # 删各账号下所有 ft 后缀 Worker 后重建 (全量绕封)
+              GEN_NAMES=0; DELETE_MODE=2; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
+            "")
+              echo ">>> No PRESET, using individual Variables" ;;
+            *)
+              echo "WARNING: Unknown PRESET='$PRESET', falling back to individual vars" ;;
+          esac
+
+          # ── 定时触发门控 ─────────────────────────────────────────
+          if [ "$EVENT_NAME" = "schedule" ] && [ "$CRON_ENABLE" = "0" ]; then
+            echo ">>> Cron blocked (CRON_ENABLE=0)"
+            echo "proceed=false"         >> $GITHUB_OUTPUT
+            echo 'matrix={"account":[1],"worker":[1]}' >> $GITHUB_OUTPUT
+            echo "gen_names=0"           >> $GITHUB_OUTPUT
+            echo "pass_mode=1"           >> $GITHUB_OUTPUT
+            echo "delete_mode=0"         >> $GITHUB_OUTPUT
+            echo "secrets_only=0"        >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo ">>> Gate passed (event: $EVENT_NAME)"
+          echo "proceed=true" >> $GITHUB_OUTPUT
+          echo "gen_names=$GEN_NAMES"       >> $GITHUB_OUTPUT
+          echo "pass_mode=$PASS_MODE"       >> $GITHUB_OUTPUT
+          echo "delete_mode=$DELETE_MODE"   >> $GITHUB_OUTPUT
+          echo "secrets_only=$SECRETS_ONLY" >> $GITHUB_OUTPUT
+
+          # ── 构建二维矩阵 (account × worker) ──────────────────────
+          # n-vless 一维 10 账号; FT 二维 — 每账号建 10 Worker.
+          # WORKER 维恒 [1-10] (圣上定排序 1-10 非 0-9).
+          # ACCOUNT 维随 DEPLOY_SCOPE: solo=[SOLO_ACCOUNT] / 全量=[1..ACTIVE_ACCOUNTS].
+          WORKER_MATRIX='[1,2,3,4,5,6,7,8,9,10]'
+          if [ "$GEN_NAMES" = "1" ]; then
+            echo 'matrix={"account":[1],"worker":[1]}' >> $GITHUB_OUTPUT
+            echo ">>> Matrix: placeholder (gen-names mode)"
+          elif [ "$DEPLOY_SCOPE" = "2" ]; then
+            # 全量: 账号 [1..ACTIVE_ACCOUNTS] × Worker [1..10]
+            ACC_LIST=$(seq -s, 1 "$ACTIVE_ACCOUNTS")
+            echo "matrix={\"account\":[$ACC_LIST],\"worker\":$WORKER_MATRIX}" >> $GITHUB_OUTPUT
+            echo ">>> Matrix: accounts [1..$ACTIVE_ACCOUNTS] × workers [1..10]"
+          else
+            # solo: 单账号 × Worker [1..10]
+            echo "matrix={\"account\":[$SOLO_ACCOUNT],\"worker\":$WORKER_MATRIX}" >> $GITHUB_OUTPUT
+            echo ">>> Matrix: solo account $SOLO_ACCOUNT × workers [1..10]"
+          fi
+
+  # ════════════════════════════════════════════════════════════════════
+  # Job 2: gen-names — 生成 100 个随机 Worker 名写 GitHub Variable
+  # 仿 n-vless gen-names (sync-deploy.yml:224-339). 每账号独立抽 2 词 (障缝+封禁隔离).
+  # PRESET=gen 触发. WORKER_NAMES 平铺 100 名逗号串 (pos=(account-1)*10+worker).
+  # ════════════════════════════════════════════════════════════════════
+  gen-names:
+    needs: gate
+    runs-on: ubuntu-latest
+    if: needs.gate.outputs.gen_names == '1'
+    permissions:
+      contents: read
+    steps:
+      - name: Generate & Save Worker Names
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}   # Fine-grained PAT, 需 Variables:Write
+          REPO:     ${{ github.repository }}
+        run: |
+          # ── 儿童单词池 (3-4 字母, 仿 n-vless WORDS) ─────────────
+          WORDS=("sky" "sun" "joy" "gem" "fun" "top" "dot" "pal" "key" "toy"
+                 "elf" "bee" "owl" "fox" "ray" "dew" "hop" "cup" "pen" "map"
+                 "star" "moon" "rain" "snow" "fire" "leaf" "rose" "lily" "dawn" "blue"
+                 "pink" "gold" "ruby" "jade" "calm" "kind" "fair" "soft" "warm" "cool"
+                 "luck" "hope" "gift" "wish" "dear" "tiny" "cute" "bold" "free" "love"
+                 "pony" "swan" "tree" "fish" "lake" "cloud" "mist" "wave" "nest" "bird")
+
+          # 长度 3-4 过滤 (仿 n-vless 防御校验)
+          FILTERED=()
+          for w in "${WORDS[@]}"; do
+            LEN=${#w}
+            if [ $LEN -ge 3 ] && [ $LEN -le 4 ]; then
+              FILTERED+=("$w")
+            fi
+          done
+          WLEN=${#FILTERED[@]}
+
+          # ── 每账号独立抽 2 词 (词基不跨账号共享) ─────────────────
+          # 理由: 障缝性 (跨账号同名易顺藤摸) + 封禁隔离 (1 账号封仅砍该账号词基).
+          ALL_NAMES=()
+          for account in $(seq 1 10); do
+            IDX1=$(( RANDOM % WLEN ))
+            IDX2=$(( RANDOM % WLEN ))
+            while [ $IDX2 -eq $IDX1 ]; do IDX2=$(( RANDOM % WLEN )); done
+            W1="${FILTERED[$IDX1]}"
+            W2="${FILTERED[$IDX2]}"
+            # 该账号 10 Worker 名: <W1>-<W2>-ft{1..10}
+            for worker in $(seq 1 10); do
+              ALL_NAMES+=("$W1-$W2-ft$worker")
+            done
+          done
+
+          # 平铺逗号串 (pos=(account-1)*10 + worker)
+          WORKER_NAMES=$(printf '%s,' "${ALL_NAMES[@]}" | sed 's/,$//')
+          echo ">>>>>> WORKER_NAMES (100): $WORKER_NAMES"
+
+          # ── Job Summary 预览 ─────────────────────────────────────
+          echo "## FT Worker Identities (100 = 10 accounts × 10 workers)" >> $GITHUB_STEP_SUMMARY
+          echo "| account | worker | Worker Name | Subdomain |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          idx=0
+          for account in $(seq 1 10); do
+            ACC2=$(printf "%02d" "$account")
+            for worker in $(seq 1 10); do
+              NM="${ALL_NAMES[$idx]}"
+              echo "| $account | $worker | $NM | $worker.f$ACC2.cc.cd |" >> $GITHUB_STEP_SUMMARY
+              idx=$((idx+1))
+            done
+          done
+
+          # ── 写 GitHub Variable (PATCH 存在则更, 404/422 则 POST 新建) ──
+          STATUS=$(curl -s -o /tmp/_gh_resp -w "%{http_code}" -X PATCH \
+            "https://api.github.com/repos/$REPO/actions/variables/WORKER_NAMES" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"WORKER_NAMES\",\"value\":\"$WORKER_NAMES\"}")
+          if [ "$STATUS" = "404" ] || [ "$STATUS" = "422" ]; then
+            STATUS2=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              "https://api.github.com/repos/$REPO/actions/variables" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"WORKER_NAMES\",\"value\":\"$WORKER_NAMES\"}")
+            echo ">>> POST WORKER_NAMES: HTTP $STATUS2"
+          elif [ "$STATUS" = "204" ]; then
+            echo ">>> OK: WORKER_NAMES updated"
+          else
+            echo ">>> ERROR (HTTP $STATUS): $(cat /tmp/_gh_resp)"
+          fi
+
+  # ════════════════════════════════════════════════════════════════════
+  # Job 3: deploy — 二维矩阵并行部署 (account×worker)
+  # 仿 n-vless deploy (sync-deploy.yml:389-795). 每 matrix 实例 = 1 账号 1 Worker.
+  # ════════════════════════════════════════════════════════════════════
+  deploy:
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: |
+      always() &&
+      needs.gate.result == 'success' &&
+      needs.gate.outputs.gen_names != '1' &&
+      needs.gate.outputs.proceed == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 10   # 并发上限 10 (圣上 §5 速率 ≤2-3 约束在 CF API 维, Runner 并发 10 账号同时无碍)
+      matrix: ${{ fromJson(needs.gate.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Step 1: 位序取凭 + Worker 名 + 域名派生 ──────────────────
+      - name: Extract Credentials & Identity
+        id: creds
+        env:
+          CF_ACCOUNT_IDS: ${{ secrets.CF_ACCOUNT_IDS }}
+          CF_API_TOKENS:  ${{ secrets.CF_API_TOKENS }}
+          WORKER_NAMES:   ${{ vars.WORKER_NAMES }}
+          MATRIX_ACCOUNT: ${{ matrix.account }}
+          MATRIX_WORKER:  ${{ matrix.worker }}
+        run: |
+          # 账号凭位序取 (逗号串 cut, 仿 n-edget/n-vless)
+          ACCOUNT=$(echo "$CF_ACCOUNT_IDS" | cut -d',' -f$MATRIX_ACCOUNT)
+          TOKEN=$(echo "$CF_API_TOKENS"    | cut -d',' -f$MATRIX_ACCOUNT)
+
+          # 空值校验 (未启账号的 Secrets 槽位空 → cut 返空 → 此实例即可降级跳)
+          if [ -z "$ACCOUNT" ] || [ -z "$TOKEN" ]; then
+            echo ">>> Skip: credentials empty at account $MATRIX_ACCOUNT (zone 未配 / Secret 未填)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+          # Worker 名平铺取: pos = (account-1)*10 + worker
+          POS=$(( (MATRIX_ACCOUNT - 1) * 10 + MATRIX_WORKER ))
+          WNAME=$(echo "$WORKER_NAMES" | cut -d',' -f$POS)
+          if [ -z "$WNAME" ]; then
+            echo "ERROR: WORKER_NAMES empty at pos $POS. Run PRESET=gen first."
+            exit 1
+          fi
+
+          # 域名派生: {worker 1-10}.f{account 01-10}.cc.cd (圣上定, 非 n-vless %10 循环)
+          ACC2=$(printf "%02d" "$MATRIX_ACCOUNT")
+          WSUB="$MATRIX_WORKER.f$ACC2.cc.cd"
+
+          echo "account=$ACCOUNT" >> $GITHUB_OUTPUT
+          echo "token=$TOKEN"     >> $GITHUB_OUTPUT
+          echo "wname=$WNAME"      >> $GITHUB_OUTPUT
+          echo "wsub=$WSUB"        >> $GITHUB_OUTPUT
+          echo ">>> Identity: account $MATRIX_ACCOUNT worker $MATRIX_WORKER → $WNAME @ $WSUB"
+
+          # ::add-mask:: 防 cut 出 token 在日志明文 (GitHub 自动打码 secrets.* 但不打码 shell 输出)
+          echo "::add-mask::$TOKEN"
+
+      # ── Step 2: 删旧 Worker (delete_mode 门控, 仿 n-vless:485-532) ──
+      # delete_mode=1: 删 WORKER_NAMES 对应单 Worker (Worker 被封立重设)
+      # delete_mode=2: 删账号下所有 ft 后缀 Worker (全量绕封重建)
+      - name: Delete Worker(s)
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0' &&
+          (needs.gate.outputs.delete_mode == '1' || needs.gate.outputs.delete_mode == '2')
+        env:
+          TOKEN:       ${{ steps.creds.outputs.token }}
+          ACCOUNT:     ${{ steps.creds.outputs.account }}
+          WNAME:       ${{ steps.creds.outputs.wname }}
+          DELETE_MODE: ${{ needs.gate.outputs.delete_mode }}
+        run: |
+          if [ "$DELETE_MODE" = "1" ] && [ -z "$WNAME" ]; then
+            echo ">>> Skip delete: WNAME empty"
+            exit 0
+          fi
+          if [ "$DELETE_MODE" = "2" ]; then
+            # Mode 2: 删账号下所有 ft 后缀 Worker (后缀 [0-9]ft = FT 项目标识, 防误删 n-vless 的 v)
+            echo ">>> Mode 2: deleting all FT workers (suffix: ft[0-9])"
+            RESPONSE=$(curl -s \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts" \
+              -H "Authorization: Bearer $TOKEN")
+            WORKERS=$(echo "$RESPONSE" | grep -oP '"id"\s*:\s*"\K[^"]+' || true)
+            for W in $WORKERS; do
+              if [[ "$W" =~ ft[0-9]$ ]]; then
+                RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+                  "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$W" \
+                  -H "Authorization: Bearer $TOKEN")
+                echo ">>> Deleted: $W (HTTP $RESP)"
+              else
+                echo ">>> Skip (not FT): $W"
+              fi
+            done
+          else
+            # Mode 1: 删单 Worker
+            RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME" \
+              -H "Authorization: Bearer $TOKEN")
+            if   [ "$RESP" = "200" ]; then echo ">>> Deleted: $WNAME"
+            elif [ "$RESP" = "404" ]; then echo ">>> Not found (already gone): $WNAME"
+            else                           echo ">>> Unexpected HTTP $RESP"; fi
+          fi
+
+      # ── Step 3: 生成 wrangler.toml (动态 name + custom domain) ───
+      # 仿 n-vless wrangler.toml 生成 (sync-deploy.yml:587-600). FT 无 Patch Worker File (worker.js 已含 fail-closed).
+      - name: Generate wrangler.toml
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0'
+        working-directory: flaretunnel
+        env:
+          WNAME: ${{ steps.creds.outputs.wname }}
+          WSUB:  ${{ steps.creds.outputs.wsub }}
+        run: |
+          cat > wrangler.toml << EOF
+          # FlareTunnel 出口换 IP Worker · wrangler 配置 (Workers 非 Pages)
+          # 矩阵实例 account=${{ matrix.account }} worker=${{ matrix.worker }}
+          # secret: RELAY_AUTH 走 wrangler secret put (§2 零入 git), worker.js 读 env.RELAY_AUTH
+          name = "${WNAME}"
+          main = "worker.js"
+          compatibility_date = "2026-04-26"
+          # workers_dev=false 关 CF 免费子域 (防暴露), 10007 伪错由 continue-on-error + Verify 兜
+          workers_dev = false
+
+          [[routes]]
+          pattern = "${WSUB}"
+          custom_domain = true
+          EOF
+          echo "---- wrangler.toml ----"
+          cat wrangler.toml
+
+      # ── Step 4: 部署 (1st pass, continue-on-error 兜 10007 伪错) ──
+      - name: Deploy Worker (1st pass)
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0'
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v4
         with:
           workingDirectory: flaretunnel
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          # command 省略 = wrangler deploy (Workers, 非 pages deploy)
-          secrets: |
-            RELAY_AUTH
+          apiToken: ${{ steps.creds.outputs.token }}
+          accountId: ${{ steps.creds.outputs.account }}
+          command: deploy
         env:
-          # 名字须与 secrets: 行项一致; 值来自 GitHub repo Secret (自动打码日志)
+          # secret 走 wrangler-action secrets: 输入内建 wrangler secret put (非 n-vless curl PUT)
           RELAY_AUTH: ${{ secrets.RELAY_AUTH }}
+
+      # ── Step 5: 双 pass 绕 CF 扫描 (pass_mode=2 首次新建 Worker 用) ─
+      # 仿 n-vless 双 pass (sync-deploy.yml:617-644). 等 30s 让扫描器标记 → 删被标 → 重部署干净.
+      - name: Wait for scanner cycle
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0' &&
+          needs.gate.outputs.pass_mode == '2'
+        run: sleep 30
+
+      - name: Delete Flagged Worker
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0' &&
+          needs.gate.outputs.pass_mode == '2'
+        env:
+          TOKEN:   ${{ steps.creds.outputs.token }}
+          ACCOUNT: ${{ steps.creds.outputs.account }}
+          WNAME:   ${{ steps.creds.outputs.wname }}
+        run: |
+          RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME" \
+            -H "Authorization: Bearer $TOKEN")
+          echo ">>> Flagged worker deleted: HTTP $RESP"
+          sleep 10
+
+      - name: Deploy Worker (2nd pass)
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0' &&
+          needs.gate.outputs.pass_mode == '2'
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v4
+        with:
+          workingDirectory: flaretunnel
+          apiToken: ${{ steps.creds.outputs.token }}
+          accountId: ${{ steps.creds.outputs.account }}
+          command: deploy
+        env:
+          RELAY_AUTH: ${{ secrets.RELAY_AUTH }}
+
+      - name: Wait for Worker to stabilize
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0'
+        run: sleep 15
+
+      # ── Step 6: 验证部署 + custom domain 补绑 + 关 workers.dev ────
+      # 仿 n-vless Verify & Bind Domain (sync-deploy.yml:716-795) 三层验证.
+      - name: Verify & Bind Domain
+        if: |
+          steps.creds.outputs.skip != 'true' &&
+          needs.gate.outputs.secrets_only == '0'
+        env:
+          TOKEN:   ${{ steps.creds.outputs.token }}
+          ACCOUNT: ${{ steps.creds.outputs.account }}
+          WNAME:   ${{ steps.creds.outputs.wname }}
+          WSUB:    ${{ steps.creds.outputs.wsub }}
+        run: |
+          # 第一层: 存在性 (3 重试 5s 间隔)
+          EXISTS=""
+          for attempt in 1 2 3; do
+            EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME" \
+              -H "Authorization: Bearer $TOKEN")
+            if [ "$EXISTS" = "200" ]; then break; fi
+            echo ">>> Existence check attempt $attempt: HTTP $EXISTS, retry 5s..."
+            sleep 5
+          done
+          if [ "$EXISTS" != "200" ]; then
+            echo "ERROR: Worker $WNAME not found (HTTP $EXISTS) after 3 attempts."
+            exit 1
+          fi
+          echo ">>> Worker exists: OK (HTTP $EXISTS)"
+
+          # 第二层: custom domain 校验 + 补绑
+          # 从 WSUB 推算 zone: 5.f04.cc.cd → f04.cc.cd (cut -d'.' -f2-)
+          ZONE_NAME=$(echo "$WSUB" | cut -d'.' -f2-)
+          DOMAINS=$(curl -s \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/domains?service=$WNAME" \
+            -H "Authorization: Bearer $TOKEN")
+          if echo "$DOMAINS" | grep -q "$WSUB"; then
+            echo ">>> Custom domain: OK ($WSUB)"
+          else
+            echo ">>> Custom domain: MISSING, binding via API..."
+            ZONE_ID=$(curl -s \
+              "https://api.cloudflare.com/client/v4/zones?name=$ZONE_NAME" \
+              -H "Authorization: Bearer $TOKEN" | jq -r '.result[0].id')
+            if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "null" ]; then
+              echo "WARNING: Cannot find zone_id for $ZONE_NAME (Token 缺 Zone:Read 或 zone 名错) — 手动绑"
+            else
+              echo ">>> Found zone_id for $ZONE_NAME: $ZONE_ID"
+              BIND=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+                "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/domains" \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"hostname\":\"$WSUB\",\"service\":\"$WNAME\",\"zone_id\":\"$ZONE_ID\"}")
+              echo ">>> Custom domain binding: HTTP $BIND"
+            fi
+          fi
+
+          # 第三层: 关 workers.dev 子域防暴露
+          CLOSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME/subdomain" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"enabled":false}')
+          echo ">>> Disable subdomain: HTTP $CLOSE"
+          RESULT=$(curl -s \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$WNAME/subdomain" \
+            -H "Authorization: Bearer $TOKEN")
+          if echo "$RESULT" | grep -q '"enabled":true'; then
+            echo "WARNING: workers.dev still enabled!"
+          else
+            echo "OK: workers.dev disabled"
+          fi

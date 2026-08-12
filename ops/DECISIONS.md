@@ -241,3 +241,72 @@ fname = parts[2]
 **关联**: [[log-archive-to-new-private-repo-landed]] [[save-log-full-arch-landed]] [[omn-永续日志架构-landed]]。
 
 <!-- 旧决策回填区 (待圣上令, 散落 audit/ / ops/incidents/ / ops/STATUS.md 段内未迁入) -->
+
+---
+
+## 2026-08-12 · FT Worker 100 拓扑 + GitHub Actions 自控部署链 (仿 n-vless/n-edget)
+
+**背景**: `docs/flaretunnel.md:39` 自述现役机制 = "手工建 Worker 后写进 flaretunnel_endpoints.json 喂本地桥" + `ops/DECISIONS.md:24` (旧) 锁决 "欲真扩池超 M 须圣上先 CF 建新 Worker → 填真实 URL"。运维负债: 换 RELAY_AUTH 钥须逐 Worker 手改 + worker.js 更新须逐 Worker 手粘贴。圣上令参考两私库 `i3t2y/n-vless` + `i3t2y/n-edget` 用 GitHub 控制 CF 账号建设 Worker。
+
+**裁决 (圣上 2026-08-12 三点 + 拓扑定夺)**:
+- **拓扑**: 10 CF 账号 × 10 Worker = 100 上限框架, 现役启 4 账号 sub集 40 (后续圣上加 f05~f10 zone 只改 `ACTIVE_ACCOUNTS` Variable, workflow 矩阵自适应)。每账号绑 1 主域名 `f01~f10.cc.cd`, Worker 子域 `{1-10}.f{账号:02d}.cc.cd` (例第4账号第5 Worker = `5.f04.cc.cd`)。
+- **Worker 名+域名**: 仿 n-vless 儿童单词池 (60 词 3-4 字母), 每账号独立抽双词不跨账号共享 (障缝性 + 封禁隔离), 名格式 `<W1>-<W2>-ft{1-10}`。后缀 `v`→`ft` (项目标识防 delete Mode 2 误删 n-vless Worker)。
+- **secret 注入**: 走 wrangler-action `with.secrets:` 输入列名 + `env:` 配同值 (非 n-vless curl PUT secrets API; 内建跑 `wrangler secret bulk/put` 注 Worker env), 值源 GitHub repo Secret `RELAY_AUTH`, §2 零入 git。
+- **二维 account×worker 矩阵** (n-vless 一维 10 账号单 Worker; FT 1 账号 10 Worker 须二维扩), 工作目录 `flaretunnel/` (worker.js 非 n-vless `_worker.js`)。
+- **绕封正解链** (n-vless 证同名重部署不绕封): Mode 2 删光 → 重新 `gen` 换词基 → `first` 复绑旧子域 (子域不变桥零改动, 名变 CF 认新 Worker)。
+- **Token scope 最小集** (WebFetch developers.cloudflare.com 铁证): CF token 每 CF 账号一 token 锁该账号+该 zone: `Workers Scripts Edit` + `Workers Routes Edit` + `Zone Read` + `DNS Edit`; Resources `Include→Specific account`+`Specific zone` (作用域隔离勿 All)。GH_PAT Fine-grained: `Variables` Read/Write (核心写 WORKER_NAMES) + `Contents` Read + `Metadata` Read, repo only `i3t2y/n-omn`。
+- **触发机制 tag-driven (圣上令 B 方案)**: `on.push.tags:['deploy-*']` 仅 deploy tag 推时触部署, 普通 push 改 workflow 零触 (圣上主动 tag 掌触发权); 三路触: ① `git tag deploy-vN && push` ② `schedule cron 17 2 * * *` (daily 走 PRESET Variable) ③ `workflow_dispatch` (input preset 即时覆盖)。
+
+**commit 链 (本会话及前轮)**:
+- `008c48d` 雏: worker.js fail-closed (env.RELAY_AUTH 双守) + wrangler.toml + deploy workflow (单 Worker 起步)
+- `6c78f2d` 二维矩阵 10×10=100 + 三 job (gate/gen-names/deploy) + 删段 Mode 1/2/3
+- `1431b0f` delete:o (清旧/孤儿/过时词基 Worker 纯删无部署, PASS_MODE=0)
+- `08d272a` tag-driven on 段 (`on.push.tags:['deploy-*']`)
+- `c10d544` secrets 场景 bug 修: Generate wrangler.toml + Deploy1st 去 `secrets_only=='0'` 守 (secrets_only=1 时两 step 原跳 → secret 不注)
+- `517357f` RELAY_AUTH 真不注根因: Deploy1st + Deploy2nd `with:` 加 `secrets: | RELAY_AUTH` (Context7 wrangler-action @v4 docs 铁证: 仅 env 无 secrets 输入 = 仅 deploy 代码无 secret 注 → null AUTH_KEY → 401)
+- `d1c324b` publish-endpoints job: deploy 成后派生 worker-major endpoint.json 传 HF Dataset via HF_TOKEN_NONOKE
+- `c22b3a9` PRESET=publish 场景 (publish-only 路径): deploy 跳省 ~16m, 仅 publish 直跑无须重部 Worker
+
+**boot 真验 (2026-08-12 10:43Z)**: 9 段全执行 + init rc=0 + FT 桥建 nim host=127.0.0.1:8081 HTTP 201 + 绑族 nvidia + healthz `worker_stats=40 workers=40 current_index=0 rotation_mode=round-robin` + 32 NIM key alive + 5 model available + balanced。
+
+**代理真生效铁证 (HF Dataset save/ft/ capture log)**:
+- `/metrics` Prometheus per-Worker 计数真增: `flaretunnel_worker_requests_total{name="calm-mist-ft1"} 1` `successes=1` `failures=0`
+- round-robin 真轮 worker-major 40 Worker 连续: `1.f10→2.f01→2.f02` 跨 Worker 跨账号 + `3.f01→…→3.f05` 连续 + `3.f08→3.f09→3.f10→4.f01→4.f02→4.f03` 跨跨跨
+- 真业务穿链: `POST integrate.api.nvidia.com/v1/chat/completions via Worker https://3.f02.cc.cd ✅ 200` → GLM-5.2 "Pong!" 真回
+- 10 chat 全 HTTP 200 时延散布 3.5-33.7s = 40 Worker 各独立 CF 出口 IP 致时延异 (非单 Worker 死跑)
+
+**f01 zone DNS 病 + 修 (2026-08-12)**: 初 boot 后 save/ft/ 日志印 `no such host` 集中 `2.f01/3.f01/4.f01.cc.cd` (f01 账号 zone 全 4 Worker 子域无 DNS), 其他账号正常。圣上 CF 侧修 zone DNS 服务器 → 重探 `dig 1-4.f01.cc.cd` 全返 CF IP + curl `401` (Worker fail-closed 拒无 PSK = 活非 502/DNS 错) = 40 Worker 池全活。根: zone 层配置非 Worker/部署错 (f02-f04 同代码全活), 重部署不修 zone, 须圣上 CF 侧裁。round-robin fallback 兜跳死 Worker 仍 200 = 韧性。
+
+**关联**: [[ft-worker-100topology-landed-2026-08-12]] [[ft-worker-github-deploy-landed-2026-08-12]] [[flaretunnel-impl-built-verified]] [[flaretunnel-metrics-endpoint-lu3-landed]] [[ft-worker-count-env-lu-landed-2026-08-10]] [[ft-worker-count-vs-keys-decoupled]] [[flaretunnel-feasibility-verified]]
+
+---
+
+## 2026-08-12 · worker-major 重排 endpoint.json (圣上妙案, 桥取简化)
+
+**背景**: endpoint.json 原 account-major 排 (idx0-9=acc1 w1-10, idx10-19=acc2 w1-10, ...), nim 桥取"每账号前4 worker"须手展开 `0-3,10-13,20-23,30-33` (parseWorkerIndices FlareTunnel.go:2119 解逗号+range 不支持步长) → 字串冗长易错。
+
+**裁决 (圣上妙案)**: endpoint.json 重排 worker-major: idx0-9=worker1 各账号 (1.f01..1.f10), idx10-19=worker2, ..., idx90-99=worker10。nim 桥 `workers:"0-39"` 连续直取 = worker1-4 各 10 账号 = 每账号前4 worker (省字串手展开)。
+
+**派生序**: `newidx → (worker=newidx//10, account=newidx%10) → old account-major idx = account*10 + worker → 取 WORKER_NAMES 名 → URL = https://{worker+1}.f{account+1:02d}.cc.cd`。本地 /tmp 脚本产 + workflow publish-endpoints Python 派生序完全匹配对证 (idx0=gem-fire-ft1→1.f01, idx30=gem-fire-ft4→4.f01, idx99=luck-love-ft10→10.f10)。
+
+**自动化回填**: `publish-endpoints` job (commit d1c324b) deploy 成后 (或 PRESET=publish 场景 deploy 跳后) 派生 worker-major endpoint.json 传 HF Dataset `nonoke/omn-logic` `flaretunnel_endpoints.json` via `HF_TOKEN_NONOKE` GitHub Secret, 零硬编真值 §2。圣上须手设 `flaretunnel_bridges.json` nim `workers:"0-39"` (桥编排骨圣上域, workflow 不传 bridges)。
+
+**关联**: [[ft-worker-100topology-landed-2026-08-12]]
+
+---
+
+## 2026-08-12 · PRESET=publish 场景 (publish-only 路径, deploy 跳省 16m)
+
+**背景**: 圣上欲"仅 publish 不重部 Worker" (daily 重部 100 格 ~16m 成本大), 额外特定任务路径。
+
+**裁决 (commit c22b3a9)**: 加 `PRESET=publish` 场景, `PUBLISH_ONLY=1` flag:
+- gate case `publish)` 分支: GEN_NAMES=0 + SECRETS_ONLY=0 + DELETE_MODE=0 + PUBLISH_ONLY=1
+- gate outputs 加 `publish_only` (主输出 + cron 阻塞分支 + 默认值段)
+- deploy if 加 `publish_only != '1'` 门 → publish 场景 deploy **跳** (100 格零跑省 ~16m)
+- publish-endpoints if 改 `always() && gate.result=='success' && gen_names!='1' && (publish_only=='1' || (deploy.result=='success' && secrets_only!='1'))` — `always()` 兜 deploy skipped, `publish_only==1` 分支绕 deploy.result 判
+- publish needs 保留 `[gate, deploy]` (deploy skipped 仍算 needs 满 + always())
+- workflow_dispatch inputs preset 描述加 publish
+
+**圣上用**: `PRESET=publish` (workflow_dispatch 输入框 或 Variable 临时设) → 仅 publish-endpoints 跑, deploy 零耗 → 派生 endpoint.json worker-major 传 Dataset。
+
+**关联**: [[ft-worker-100topology-landed-2026-08-12]]

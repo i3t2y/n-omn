@@ -72,3 +72,54 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 - `jq: Cannot index array` → C1 jq 归一化闭环 (task5)
 - `7 registered` 静默终断 → C2 pipefail 闭环 (ops/incidents/2026-07-25-c2-pipefail-init-silent-death.md)
 - probe subshell exit1 经裸 wait 触 set-e 杀 init (2026-07-31, 同源病族第三轮) → `_probe_one` 子shell最后语句非verbose模test返exit1→裸`wait`收1→`set-e`杀init→container exit1, 两boot崩05:24/05:25。治法L675末`||true`兜恒exit0 (commit `ef16b46`)。诊断弯路教训: 我前臆测"HF supervisor杀"被圣上驳回退查源坐实代码bug, 排障先穷尽代码退出码传播链再归外因。06:14 boot PROBE=1真路透rc0+40秒三轮对照定谳。(ops/incidents/2026-07-31-probe-subshell-exit1-crash.md)
+
+## FT Worker 100 池架构交接 (2026-08-12 落地})
+
+> GitHub Actions 自控部署 CF Worker 出口换 IP 层 (非 n-vless/n-edget)。血统 + 契约 + 排障入口在此, 历史裁决见 ops/DECISIONS.md (2026-08-12 三段)。
+
+### 不变量
+- **拓扑**: 10 CF 账号 × 10 Worker = 100 上限, 现役启 4 账号 40 Worker (`ACTIVE_ACCOUNTS` Variable 控扩, 加 f05~f10 zone 仅改此值 workflow 矩阵自适应)。
+- **域名派生**: `{worker 1-10}.f{account 01-10}.cc.cd` (圣上定 f, 非 n-vless `%10` 循环回0)。Worker 名 `<W1>-<W2>-ft{1-10}` (每账号独立抽双词, 后缀 `ft` 非 `v`)。
+- **鉴权铁律**: Worker `env.RELAY_AUTH` ↔ 桥 (HF Space Secret) `RELAY_AUTH` 同值, 异值则桥 401。fail-closed (`env.RELAY_AUTH||null` + `!AUTH_KEY`)。
+- **endpoint.json = worker-major 排**: idx0-9=worker1 各账号, ..., idx90-99=worker10。nim 桥 `workers:"0-39"` 连续直取 = 每账号前4 worker。真身 in HF Dataset `nonoke/omn-logic` `flaretunnel_endpoints.json` (workflow publish-endpoints job 自动派生传)。
+- **bridges.json 圣上域**: `flaretunnel_bridges.json` (HF Dataset同仓) 圣上手设 UI, workflow 不传 bridges。现役 `[{nim,8081,0-39,nvidia}]`。
+- **触发 tag-driven**: `on.push.tags:['deploy-*']` 普通 push 零触部署; workflow_dispatch 输入框 preset 即时覆盖 Variable。
+- **§2 secret 真值零入 git/会话**: CF_API_TOKENS/CF_ACCOUNT_IDS/RELAY_AUTH/GH_PAT/HF_TOKEN_NONOKE 全 GitHub Secrets, wrangler secret put 加密存 CF。
+
+### PRESET 场景表 (圣上手工定 deploy 路径)
+| PRESET | 动作 | pass_mode | deploy 格 |
+|--------|------|-----------|----------|
+| `gen` | 生 100 名写 WORKER_NAMES Variable | - | 跳 |
+| `first` | 首次全量建 Worker 双 pass 绕 CF 扫描 | 2 | 100 |
+| `daily` | 日常单 pass 全量重部署 | 1 | 100 (~16m) |
+| `publish` | **仅派生 endpoint.json 传 Dataset, deploy 跳省 16m** | - | 跳 |
+| `solo:N` | 单账号 N 部署 10 Worker | 1 | 10 |
+| `secrets` | 仅更 RELAY_AUTH secret 不重绑域 | - | 100 (deploy 注 secret) |
+| `delete:1` | 删 WORKER_NAMES 对应单 Worker 后重建 | 2 | 100 |
+| `delete:v` | 删账号下全 Worker (全删无滤波) 后重建 | 2 | 100 |
+| `delete:o` | 删旧/孤儿/过时词基 Worker 唯保留现役名单, 无部署 | 0 | 跳 |
+
+### 链序 (新 zone 扩池)
+1. 圣上 CF 侧加 zone (f05~f10.cc.cd) + 建对应 token (锁该账号+zone)
+2. GitHub Secrets 加 CF_ACCOUNT_IDS/CF_API_TOKENS 该账号位序
+3. GitHub Variable `ACTIVE_ACCOUNTS` 改 N (现 4→N)
+4. `PRESET=gen` 触生名 → `PRESET=first` 触全量建 (双 pass) → Worker+域绑成
+5. `PRESET=publish` 触 (deploy 跳) → endpoint.json 自动传 Dataset (worker-major 重排含新 Worker)
+6. 圣上 HF UI 改 bridges.json nim `workers:"0-{N*4-1}"` (扩账号扩取前4)
+7. Restart dev Space → boot 真验池 N×10 Worker
+
+### 排障入口
+- **Worker 401 全拒**: RELAY_AUTH 未注或异值 → 查 `PRESET=secrets` run log 印 `Successfully created secret for key: RELAY_AUTH` (workflow Deploy1st/2nd `with.secrets:` 输入须有)
+- **某 Worker 域 `no such host`**: CF zone DNS 未绑/nameserver 未接 (非 Worker/部署错, 同代码他 zone 全活证) → 圣上 CF 侧修 zone DNS 服务器, 无须重部署。round-robin fallback 兜跳死 Worker 仍 200 = 韧性。
+- **Worker 池数不符**: `ACTIVE_ACCOUNTS` Variable 控, endpoint.json 看 publish-endpoints 派生条数 = ACTIVE_ACCOUNTS×10
+- **proxy 真生效证**: HF Dataset `nonoke/omn-logic` `save/ft/` capture log (每 60s 一件, `via Worker:` + `✅ 200` + Prometheus `flaretunnel_worker_requests_total`)
+- **per-Worker 计数**: FT 桥 `/metrics` (容器内 127.0.0.1:8081, 公网 gate 未暴露; boot 时 init 内 curl 印一次; 持续观 Save/ft/ 件 `FT METRICS DUMP` 段)
+- **本地拉 save 日志**: `source ~/.omn-secrets; env HF_TOKEN="$HF_TOKEN_DATASET_WRITE" python3 -c "from huggingface_hub import hf_hub_download as f; print(f('nonoke/omni-logic','save/ft/<件>',repo_type='dataset',token=__import__('os').environ['HF_TOKEN']))"` (repo 真 nonoke/omni-logic 非 omn-logic)
+
+### commit 链 (本会话及前轮)
+`008c48d` 雏 → `6c78f2d` 100 拓扑 → `1431b0f` delete:o → `08d272a` tag-driven → `c10d544` secrets bug → `517357f` RELAY_AUTH 真注 → `d1c324b` publish-endpoints job → `c22b3a9` PRESET=publish。nomn/main 远端 = `b577e5b` (含 STATUS)。
+
+### 待办/下一步
+- gate 加路由暴露 FT 桥 `/metrics` 公网 (现容器内 127.0.0.1:8081, 公网取不得 per-Worker 计数) → 下会话事
+- ACTIVE_ACCOUNTS 现役启 4 账号 40 Worker (满额 100 待圣上加 f05~f10 zone)
+- 5 deprecated model (kimi-k3/deepseek-v4-flash/pro/qwen3.8-max/mistral-small-4) NVIDIA 目录无 → 圣上定剔或留

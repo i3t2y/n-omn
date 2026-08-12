@@ -489,3 +489,16 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
 - 详 [[ft-worker-100topology-landed-2026-08-12]] + DECISIONS "2026-08-12 FT Worker 二维矩阵" 条删段裁决
 
 **YAML 闸过 + secret-scan exit=0**. push 须圣上亲启。
+
+## 2026-08-12 · deploy workflow 触发改 tag-driven (圣上令 B 方案)
+
+**改动**: `.github/workflows/deploy-ft-workers.yml` `on.push` 段 branches+paths → **push.tags: `deploy-*`** (圣上主动 tag 掌触发权)。普通 push 改 workflow **不触全自动全量重 deploy** (B 方案, 省浪费 + 净 Actions 历史)。
+
+**触 workflow 三路**:
+1. **`git tag deploy-vN && git push nomn deploy-vN`** → 触 (圣上定 deploy tag)
+2. **schedule cron `17 2 * * *`** → 触 daily (现 `PRESET` Variable 定场景)
+3. **workflow_dispatch (GitHub UI / `gh workflow run`)** → 手触 (input preset 可即时覆盖 Variable)
+
+**普通 push 改 workflow**: 零触 (不消耗 Actions 配额, 历史 pollution 零)。
+
+commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。

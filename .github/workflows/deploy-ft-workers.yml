@@ -21,11 +21,8 @@ name: Deploy FlareTunnel Workers
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'flaretunnel/worker.js'
-      - 'flaretunnel/wrangler.toml'
-      - '.github/workflows/deploy-ft-workers.yml'
+    tags:
+      - 'deploy-*'   # 仅 deploy-* tag 推时触部署 (圣上主动 tag 掌触发权, 普通 push 改 workflow 不触全量重部署)
   schedule:
     - cron: '17 2 * * *'   # 日常 daily 预设走此 (UTC 02:17, 避 :00 整点)
   workflow_dispatch:

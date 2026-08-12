@@ -387,10 +387,10 @@ jobs:
       # ── Step 3: 生成 wrangler.toml (动态 name + custom domain) ───
       # 仿 n-vless wrangler.toml 生成 (sync-deploy.yml:587-600). FT 无 Patch Worker File (worker.js 已含 fail-closed).
       # pass_mode=0 = 纯删模式 (delete:o) 跳过部署相关步 (无 wrangler.toml/deploy/bind)
+      # secrets 场景 (secrets_only=1) 也跑此步: wrangler deploy 须 wrangler.toml 定位 Worker
       - name: Generate wrangler.toml
         if: |
           steps.creds.outputs.skip != 'true' &&
-          needs.gate.outputs.secrets_only == '0' &&
           needs.gate.outputs.pass_mode != '0'
         working-directory: flaretunnel
         env:
@@ -415,10 +415,10 @@ jobs:
           cat wrangler.toml
 
       # ── Step 4: 部署 (1st pass, continue-on-error 兜 10007 伪错) ──
+      # secrets 场景 (secrets_only=1) 也跑此步: wrangler deploy 注 env.RELAY_AUTH = wrangler secret put
       - name: Deploy Worker (1st pass)
         if: |
           steps.creds.outputs.skip != 'true' &&
-          needs.gate.outputs.secrets_only == '0' &&
           needs.gate.outputs.pass_mode != '0'
         continue-on-error: true
         uses: cloudflare/wrangler-action@v4

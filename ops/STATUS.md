@@ -502,3 +502,23 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
 **普通 push 改 workflow**: 零触 (不消耗 Actions 配额, 历史 pollution 零)。
 
 commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。
+
+## 2026-08-12 · deploy workflow secrets 场景 bug 修 (RELAY_AUTH 不注根因)
+
+**病根**: `secrets` PRESET 场景 (`SECRETS_ONLY=1`) design 意图"只更 RELAY_AUTH secret 不重绑域" (:116 注), 但实现错: `Generate wrangler.toml` (:390) + `Deploy Worker 1st pass` (:418) 两 step 门控含 `secrets_only == '0'` → secrets 场景两 step 跳 → 无 wrangler.toml + 无 deploy → env.RELAY_AUTH 不注 → Worker 鉴权 401 全拒 → 桥连不上。
+
+**铁证** (圣上贴两格 Actions log):
+- 格 (1,2) `gem-fire-ft2` build OK 44s = first 场景跑过 (Worker 已建 + 域绑 ✓)
+- 格 (2,8) `tiny-snow-ft8` 7s 全 step 0s = secrets 场景跑但 secrets_only=1 门控跳全 deployment step → secret 未注
+
+**治法 (圣上准, 路 2 豁)**: 去 `Generate wrangler.toml` + `Deploy1st` 两 step 的 `secrets_only == '0'` 守。secrets 场景现跑此两 step = `wrangler deploy` (代码 0 变 worker.js 未动) 注 `env.RELAY_AUTH` = wrangler secret put。域绑相关步 (Wait stable / DeleteFlagged / Deploy2nd / Verify&Bind) 仍守 `secrets_only == '0'` → secrets 场景跳不重绑域。
+
+**secrets 场景跑链**: Extract Credentials → Generate wrangler.toml → Deploy1st (注 RELAY_AUTH) → 跳 Delete/双 pass/Verify。
+
+**圣上补设两处同值 RELAY_AUTH**:
+1. GitHub repo Secret `RELAY_AUTH` (圣上 `openssl rand -hex 24` 48 字符随机串)
+2. HF Space Secret `RELAY_AUTH` = **同上值** (Worker 鉴权 ↔ 桥同值铁律, 两处异值则桥 401)
+
+**触 secrets**: 圣上改 GitHub repo Variable `PRESET=secrets` → workflow_dispatch → deploy job 100 格跑 Deploy1st 注 RELAY_AUTH 100 Worker → Restart dev Space → boot 真验桥 round-robin N/M 计数增。
+
+闸验: YAML 通 (jobs gate/gen-names/deploy) + secret-scan exit=0 + secrets_only 守残留 6 处皆域绑步 (须跳)。

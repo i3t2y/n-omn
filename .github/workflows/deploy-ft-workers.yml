@@ -28,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       preset:
-        description: 'PRESET 场景 (gen/first/daily/solo:N/secrets/delete:1/delete:v/delete:o, 留空用 Variables)'
+        description: 'PRESET 场景 (gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o, 留空用 Variables)'
         required: false
         default: ''
 
@@ -54,6 +54,7 @@ jobs:
       pass_mode:    ${{ steps.check.outputs.pass_mode }}
       delete_mode:  ${{ steps.check.outputs.delete_mode }}
       secrets_only: ${{ steps.check.outputs.secrets_only }}
+      publish_only: ${{ steps.check.outputs.publish_only }}
 
     steps:
       - name: Check Gate & Build Matrix
@@ -69,6 +70,7 @@ jobs:
           PASS_MODE:     ${{ vars.PASS_MODE }}       # 1=单 pass 2=双 pass (首次建 Worker 用 2 绕扫)
           DELETE_MODE:   ${{ vars.DELETE_MODE }}
           SECRETS_ONLY:  ${{ vars.SECRETS_ONLY }}
+          PUBLISH_ONLY:  ${{ vars.PUBLISH_ONLY }}
           # 现役启账号数 (1-10). 圣上加 zone 后扩此值. matrix account 维上限.
           ACTIVE_ACCOUNTS: ${{ vars.ACTIVE_ACCOUNTS }}
 
@@ -84,6 +86,7 @@ jobs:
           PASS_MODE="${PASS_MODE:-1}"
           DELETE_MODE="${DELETE_MODE:-0}"
           SECRETS_ONLY="${SECRETS_ONLY:-0}"
+          PUBLISH_ONLY="${PUBLISH_ONLY:-0}"
           # 现役启 4 账号 (圣上前轮裁先 4 zone). 后续扩 f05~f10 改此 Variables 即可.
           ACTIVE_ACCOUNTS="${ACTIVE_ACCOUNTS:-4}"
 
@@ -104,6 +107,9 @@ jobs:
             daily)
               # 日常维护: 单 pass 全量重部署
               GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=1; DELETE_MODE=0; SECRETS_ONLY=0 ;;
+            publish)
+              # 只派生 worker-major endpoint.json 传 Dataset, 不重部 Worker (省 16m 100 格 deploy)
+              GEN_NAMES=0; SECRETS_ONLY=0; DEPLOY_SCOPE=2; DELETE_MODE=0; PUBLISH_ONLY=1 ;;
             solo:*)
               # 单账号部署: 冒号后数字 = 账号位 (1-10)
               GEN_NAMES=0; DEPLOY_SCOPE=1; SOLO_ACCOUNT="${PRESET#solo:}"
@@ -139,6 +145,7 @@ jobs:
             echo "pass_mode=1"           >> $GITHUB_OUTPUT
             echo "delete_mode=0"         >> $GITHUB_OUTPUT
             echo "secrets_only=0"        >> $GITHUB_OUTPUT
+            echo "publish_only=0"        >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -148,6 +155,7 @@ jobs:
           echo "pass_mode=$PASS_MODE"       >> $GITHUB_OUTPUT
           echo "delete_mode=$DELETE_MODE"   >> $GITHUB_OUTPUT
           echo "secrets_only=$SECRETS_ONLY" >> $GITHUB_OUTPUT
+          echo "publish_only=$PUBLISH_ONLY" >> $GITHUB_OUTPUT
 
           # ── 构建二维矩阵 (account × worker) ──────────────────────
           # n-vless 一维 10 账号; FT 二维 — 每账号建 10 Worker.
@@ -267,6 +275,7 @@ jobs:
       always() &&
       needs.gate.result == 'success' &&
       needs.gate.outputs.gen_names != '1' &&
+      needs.gate.outputs.publish_only != '1' &&
       needs.gate.outputs.proceed == 'true'
     strategy:
       fail-fast: false
@@ -554,15 +563,19 @@ jobs:
           fi
 
   # ── publish-endpoints: 派生 worker-major endpoint.json 传 HF Dataset (圣上令自动回填) ─
-  # needs deploy 成后跑 (gen 场景跳: gen 仅生名未建 Worker, URL 未 live 不宜 publish 就绪态)
+  # 两路跑 (always() 因 deploy 可能 skipped):
+  #   ① PRESET=publish 场景: deploy 跳 (省 16m 100 格), 仅 publish 直跑无须重部 Worker
+  #   ② daily/first 场景: deploy 成后跑 (secrets/gen 场景跳: URL 未变无须重传)
   # 读 GitHub Variable WORKER_NAMES 100 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 nonoke/omn-logic
   # 不涉 secret 真值 (HF_TOKEN_NONOKE Action 自动打码; URL 非 secret)
   publish-endpoints:
     needs: [gate, deploy]
     if: |
-      needs.deploy.result == 'success' &&
+      always() &&
+      needs.gate.result == 'success' &&
       needs.gate.outputs.gen_names != '1' &&
-      needs.gate.outputs.secrets_only != '1'
+      (needs.gate.outputs.publish_only == '1' ||
+       (needs.deploy.result == 'success' && needs.gate.outputs.secrets_only != '1'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

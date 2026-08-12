@@ -122,7 +122,7 @@ jobs:
               # 删各账号 WORKER_NAMES 对应的单个 Worker 后重建 (Worker 被封立重设)
               GEN_NAMES=0; DELETE_MODE=1; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
             delete:v)
-              # 删各账号下所有 ft 后缀 Worker 后重建 (全量绕封)
+              # 删各账号下所有 Worker (全删, FT CF 账号内无他 Worker) 后重建 (全量绕封)
               GEN_NAMES=0; DELETE_MODE=2; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
             "")
               echo ">>> No PRESET, using individual Variables" ;;
@@ -338,21 +338,17 @@ jobs:
             exit 0
           fi
           if [ "$DELETE_MODE" = "2" ]; then
-            # Mode 2: 删账号下所有 ft 后缀 Worker (后缀 [0-9]ft = FT 项目标识, 防误删 n-vless 的 v)
-            echo ">>> Mode 2: deleting all FT workers (suffix: ft[0-9])"
+            # Mode 2: 删账号下所有 Worker (圣上定全删, FT CF 账号内无 gate 网关他 Worker)
+            echo ">>> Mode 2: deleting ALL workers in account (no suffix filter)"
             RESPONSE=$(curl -s \
               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts" \
               -H "Authorization: Bearer $TOKEN")
             WORKERS=$(echo "$RESPONSE" | grep -oP '"id"\s*:\s*"\K[^"]+' || true)
             for W in $WORKERS; do
-              if [[ "$W" =~ ft[0-9]$ ]]; then
-                RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-                  "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$W" \
-                  -H "Authorization: Bearer $TOKEN")
-                echo ">>> Deleted: $W (HTTP $RESP)"
-              else
-                echo ">>> Skip (not FT): $W"
-              fi
+              RESP=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+                "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$W" \
+                -H "Authorization: Bearer $TOKEN")
+              echo ">>> Deleted: $W (HTTP $RESP)"
             done
           else
             # Mode 1: 删单 Worker

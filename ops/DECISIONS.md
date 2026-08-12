@@ -180,7 +180,7 @@ worker.js 原占位逻辑 `if (request.headers.get("x-relay-auth") !== AUTH_KEY)
 
 **删段两模式裁决**:
 - **Mode 1 (`delete:1`)** = 删当前矩阵单元指定 `WNAME` (散点删, 错杀他格)
-- **Mode 2 (`delete:v`)** = 扫该账号 CF 全 Worker 过滤 `~ ft[0-9]$` 后缀全 DELETE (该账号 ft 清零, 留非 ft 如 gate 网关不动)
+- **Mode 2 (`delete:v`)** = 扫该账号 CF 全 Worker **全删 (无后缀滤波)** 全 DELETE (圣上 2026-08-12 令改「全删」反 n-vless 滤波删, 圣上确认 FT CF 账号内无 gate 网关他 Worker, 全删安全); 前态滤波 `~ ft[0-9]$` (仿 n-vless 防误删他项目) 已去
 - **绕封正解 (n-vless 证同名重部署不绕封)**: Mode 2 删光 → 重新 `gen` 换词基 → `first` 复绑旧子域 (子域不变桥零改动, 名变 CF 认新 Worker)
 
 **旧 `flare*.workers.dev` 删不了裁决 (圣上会话问)**:

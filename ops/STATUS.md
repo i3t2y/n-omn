@@ -474,6 +474,6 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
 4. URL 回填 `flaretunnel_endpoints.json` (HF Dataset `nonoke/omn-logic`) → Restart dev Space → boot 真验桥 round-robin N/M 计数增
 
 **未决/扩展待批**:
-- 旧 `flare*.workers.dev` 删 (圣上"到时临时删下"): 下批 commit 合并扩删段正则 `~ ^(flare|ft)[0-9]+$` 容旧 `flare*`, 不阻塞现 push
+- 旧 `flare*.workers.dev` 删 (圣上"到时临时删下"): **Mode 2 全删已含** (圣上 2026-08-12 令改 Mode 2 全删无滤波 → 旧 `flare*` 自然删, 无须另扩正则)
 - push 须圣上亲启 (§5 ask 仅 commit 已落, push 另准; 前轮 008c48d 圣上自掌 push 私库惯例)
 - memory 项 [[ft-worker-github-deploy-landed-2026-08-12]] :34 旧误记 "Workers Secrets Storage 写" 已更正归 Workers Scripts Edit (secret 绑 script 无独立权限)

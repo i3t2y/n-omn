@@ -454,3 +454,26 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
     · 三件定态红线零触 (五件全 dev/logic/ sync-logic paths 不触 Rebuild, entrypoint/helper/init 读 ENV 不改三件), 链①设计经核冗余撤销 (scheduler 全掖 gate stderr 文件不漏 boot 段早期行)
     详 DECISIONS "2026-07-29 永续日志架构" 条. 未 commit 待圣上.
 - [ ] 永续日志批后续 (个人最小方案降级后, 圣上 2026-07-29 裁砍七成): ① 圣上 Space Secrets 配 3~4 ENV (HF_TOKEN dataset-write + OMN_DATASET_REPO 复用 + 插件包套 OMN_BUCKET_* 5件+OMN_BUCKET_SYNC=1 若需; OMN_SCHED_EVERY/OMN_CAPTURE_INTERVAL 默认值兜底不配; ENCRYPTION_KEY 已删路2降级) ② 圣上 commit + push 触 sync-logic-nonoke 自派 → Dataset 第十件平铺 ③ 圣上手动 Restart (零 Rebuild) ④ boot 真验: scheduler PID 现 + helper.sh 装 boto3 绿 + gate-stderr.log 有内容 + Dataset repo omn_data/logs/stdout 落地单件
+
+## 2026-08-12 · FT Worker 100 拓扑本地 commit 6c78f2d 待 push (承 008c48d 雏)
+
+**本批改动 (commit 6c78f2d, 本地已落, 待 push)**:
+- `.github/workflows/deploy-ft-workers.yml` 单维 → **二维矩阵 10×10=100 上限**框架重写 (+525/-47, rewrite 65%): 三 job (gate PRESET 8 场景 + 动态矩阵 / gen-names 60 词池每账号独立抽双词不共享 / deploy 二维矩阵 6 step)
+- 守三件: `worker.js` (008c48d fail-closed) + `wrangler.toml` (git 版单 Worker 骨架, workflow 动态覆写) 未动
+- 详 [[ft-worker-100topology-landed-2026-08-12]] + DECISIONS "2026-08-12 FT Worker 二维矩阵 10×10=100" 条
+
+**圣上手设 GitHub repo (我零碰真值 §2, push 前置)**:
+- **Variables**: `ACTIVE_ACCOUNTS=10` `PRESET=`(空默认 gen) `CRON_ENABLE=true` `DEPLOY_SCOPE=2` `PASS_MODE=2` `SOLO_ACCOUNT=1` `GEN_NAMES=0` `DELETE_MODE=0` `SECRETS_ONLY=0`
+- **Secrets**: `CF_ACCOUNT_IDS` (10 accID 逗号串) + `CF_API_TOKENS` (10 tok 逗号串每锁该账号其 zone: Workers Scripts Edit + Workers Routes Edit + Zone Read + DNS Edit) + `RELAY_AUTH` (`openssl rand -hex 24` 须同 HF Space Secret) + `GH_PAT` (Fine-grained 仅 n-omn: Variables RW + Contents R + Metadata R, 90 天)
+- 圣上补 10 CF 账号 + 10 zone (`f01.cc.cd`~`f10.cc.cd`) + 每 zone 建 token
+
+**链序 (圣上裁决先 push 后配 or 先配后 push 未定)**:
+1. push nomn main → 触 `GEN_NAMES=0` 默认 gen Phase → 写 `WORKER_NAMES` (100 名)
+2. 改 `PRESET=first` → 双 pass 全量建 100 Worker + custom domain + 关 workers.dev
+3. 验 GitHub Actions 绿 + CF Dashboard 见 100 Worker + 100 子域
+4. URL 回填 `flaretunnel_endpoints.json` (HF Dataset `nonoke/omn-logic`) → Restart dev Space → boot 真验桥 round-robin N/M 计数增
+
+**未决/扩展待批**:
+- 旧 `flare*.workers.dev` 删 (圣上"到时临时删下"): 下批 commit 合并扩删段正则 `~ ^(flare|ft)[0-9]+$` 容旧 `flare*`, 不阻塞现 push
+- push 须圣上亲启 (§5 ask 仅 commit 已落, push 另准; 前轮 008c48d 圣上自掌 push 私库惯例)
+- memory 项 [[ft-worker-github-deploy-landed-2026-08-12]] :34 旧误记 "Workers Secrets Storage 写" 已更正归 Workers Scripts Edit (secret 绑 script 无独立权限)

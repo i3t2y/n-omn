@@ -166,6 +166,48 @@ worker.js 原占位逻辑 `if (request.headers.get("x-relay-auth") !== AUTH_KEY)
 
 **关联**: [[save-log-full-arch-landed]] [[save-log-analysis-2026-08-01]] [[log-archive-to-new-private-repo-landed]] [[omn-永续日志架构-landed]] [[omn-v30-logic-litestream-replicate-contract]]。
 
+## 2026-08-12 · FT Worker 二维矩阵 10×10=100 上限框架 (commit 6c78f2d 本地待 push)
+
+**圣上令**: 承 [[ft-worker-github-deploy-landed-2026-08-12]] 单 Worker 雏 (commit 008c48d), 圣上定终"按 10 账号部署"+三点: ①Worker 名+自定域名仿两项目 (i3t2y/n-vless + n-edget) 儿童词池, 序从 1 递增 (1-10)②引两项目机制删旧 Worker→建新→绑 custom domain (封后立重设)③每账号绑一自定域名 `f01.cc.cd` 递增 (第 4 账号第 5 Worker = `5.f04.cc.cd`)。圣上明"参考两项目别臆造" → 谭照 n-vless `sync-deploy.yml` (795 行 5 job) 全机制移植扩。
+
+**拓扑定夺 (圣上)**: 10 账号 × 10 Worker = 100 上限框架, 现役由 GitHub repo Variable `ACTIVE_ACCOUNTS` 自定 (圣上现满额 10 = 100 Worker)。每账号整 10 Worker (内序 1-10) 独立词基 (不跨账号共享: 障缝性 + 封禁隔离 + 1 账号封仅砍该账号词基)。
+
+**机制移植 (commit 6c78f2d, deploy-ft-workers.yml 单维→二维全重写 +525/-47 rewrite 65%)**:
+- **gate job**: PRESET 8 场景 (`gen`/`first`/`daily`/`solo:N`/`secrets`/`delete:1`/`delete:v`) + 动态矩阵构建 `account∈[1..ACTIVE_ACCOUNTS] × worker∈[1..10]`
+- **gen-names job**: 60 词池 (3-4 字母过滤) + 每账号独立 `$RANDOM%WLEN` 抽双词不重 → `<W1>-<W2>-ft{1..10}` 平铺 100 名存 GitHub repo Variable `WORKER_NAMES`
+- **deploy 二维矩阵每格 6 step**: Extract Credentials (`POS=(( account-1 )*10 + worker)` cut 取名 + `::add-mask::$TOKEN`) + Generate wrangler.toml (`workers_dev=false` + `[[routes]] pattern="$WSUB" custom_domain=true`) + Delete Worker (deploy 段自带删该格名防同名) + Deploy1st (`continue-on-error` 兜 10007) + 双 pass 绕扫 (PASS_MODE=2 全格重 deploy) + Verify & Bind Domain 三段验证 (存在性 3 重试 5s + custom domain 校验补绑 + 关 workers.dev)
+- **域名派生 (圣上拓扑, 非 n-vless 循环回 0)**: `ACC2=$(printf "%02d" $account)` `WSUB="$worker.f$ACC2.cc.cd"`
+
+**删段两模式裁决**:
+- **Mode 1 (`delete:1`)** = 删当前矩阵单元指定 `WNAME` (散点删, 错杀他格)
+- **Mode 2 (`delete:v`)** = 扫该账号 CF 全 Worker 过滤 `~ ft[0-9]$` 后缀全 DELETE (该账号 ft 清零, 留非 ft 如 gate 网关不动)
+- **绕封正解 (n-vless 证同名重部署不绕封)**: Mode 2 删光 → 重新 `gen` 换词基 → `first` 复绑旧子域 (子域不变桥零改动, 名变 CF 认新 Worker)
+
+**旧 `flare*.workers.dev` 删不了裁决 (圣上会话问)**:
+- 拦1: 删段正则 `~ ft[0-9]$` 不匹配 `flare` 后缀
+- 拦2: `1-8.flare*.workers.dev` = 子域/workers.dev 域非 Worker 名; CF 删须 `DELETE scripts/{name}`, 旧名结构未知
+- 裁决: 圣上"到时临时删下手动太麻烦" → 下批 commit 合并扩删段正则容 `flare*` (`~ ^(flare|ft)[0-9]+$`), 不阻塞现 push; 或新池运行后旧 `flare*` 废弃不动 (Worker 不调不耗配额)
+
+**Token scope 最小集 (WebFetch developers.cloudflare.com limits+permissions 页铁证)**:
+- **CF Worker 池 token (每账号一 token 锁该账号+其 zone)**: Account `Workers Scripts Edit` (含 deploy/secret put/DELETE/列/subdomain关全; **无独立 'Workers Secrets Storage' 权限, secret_text 绑 script**) + Zone `Workers Routes Edit` + `Zone Read` (custom domain 须) + `DNS Edit`; Resources 锁 `Specific account` + `Specific zone`; 勿选 KV/R2/Pages/D1/Tail/Containers/Account Settings/User Details/Memberships/Builds/Agents
+- **Edit vs Read**: Workers Scripts/Workers Routes/DNS = Edit; Zone = Read
+- **GH_PAT (Fine-grained, 写 WORKER_NAMES Variable)**: Only `i3t2y/n-omn`; Repo perms `Variables` RW + `Contents` R + `Metadata` R; 勿 Actions/Workflows/Admin/Secrets/Statuses/Deployments/Pages; Expiration 推 90 天圣上定
+
+**CF Free 配额铁证 (WebFetch limits 页)**: 每 account 100 Worker 上限 + 每 zone 100 custom domains (10 Worker<<100 安) + 配额账号级聚合 100k req/日/account (非 Worker 级, 不调不耗) + 10 账号各独立 token/zone 各吃本账号配额不共享不互抢。
+
+**圣上手设 GitHub repo (我零碰真值 §2)**:
+- **Variables**: `ACTIVE_ACCOUNTS=10` `PRESET=` (空默认 gen) `CRON_ENABLE=true` `DEPLOY_SCOPE=2` `PASS_MODE=2` `SOLO_ACCOUNT=1` `GEN_NAMES=0` `DELETE_MODE=0` `SECRETS_ONLY=0`
+- **Secrets**: `CF_ACCOUNT_IDS` (10 accID 逗号串) + `CF_API_TOKENS` (10 tok 逗号串每锁该账号其 zone) + `RELAY_AUTH` (`openssl rand -hex 24` 且 **须同 HF Space Secret RELAY_AUTH** = Worker 鉴权↔桥铁律) + `GH_PAT` (Fine-grained)
+- 圣上补全 10 CF 账号 + 10 zone (`f01.cc.cd`~`f10.cc.cd` 各挂对应账号 zone) + 每 zone 建对应 token
+
+**不变量守**: worker.js (008c48d fail-closed 态) + wrangler.toml (git 版单 Worker 骨架, workflow 动态覆写) 未动; 三件定态 (Dockerfile/README/start.sh) 零触; §1 私库唯一血统; §2 secret 真值零入 git/会话全走 `${{secrets.*}}` 占位 + `::add-mask::`; §5 commit 6c78f2d 已落 (圣上准), push 须圣上另准。
+
+**部署链**: push nomn main (=触 `GEN_NAMES=0` 默认 gen Phase 生 100 名写 `WORKER_NAMES`) → 改 `PRESET=first` → 双 pass 全量建 100 Worker + custom domain + 关 workers.dev → GitHub Actions 绿 + CF Dashboard 见 100 Worker + 100 子域 → URL 回填 `flaretunnel_endpoints.json` (真身 HF Dataset `nonoke/omn-logic` 本地零件 git 未 tracked) → Restart dev Space → boot 真验桥 round-robin N/M 计数增 (路 3 /metrics 已落)。
+
+**闸验全绿**: YAML 闸过 (`python3 yaml.safe_load` jobs gate/gen-names/deploy + matrix 动态 `${{fromJson}}`) + secret-scan exit=0 + 真值零残留 (全 `${{secrets.*}}` 占位)。
+
+**关联**: [[ft-worker-100topology-landed-2026-08-12]] [[ft-worker-github-deploy-landed-2026-08-12]] [[ft-worker-count-env-lu-landed-2026-08-10]] [[flaretunnel-impl-built-verified]] [[flaretunnel-metrics-endpoint-lu3-landed]] [[ft-worker-count-vs-keys-decoupled]]。
+
 <!-- 旧决策回填区 (待圣上令, 散落 audit/ / ops/incidents/ / ops/STATUS.md 段内未迁入) -->
 
 ## 2026-08-01 · omn_scheduler.py 归档结构假设错病根 (`parts != 4` 全杀零归档)

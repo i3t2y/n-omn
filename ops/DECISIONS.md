@@ -363,3 +363,32 @@ fname = parts[2]
 **不变量守**: §1 三件定态零触 (Dockerfile/README/start.sh); gate.js 非 §1 三件可改; §6 /v1/* Bearer = INTERNAL_PSK safeEqual 缺/<16 fail-closed 守; §2 secret 零入会话 (测试用合成串 `testpsk_synthetic_0123456789ab` 32 字符, Authorization 头运行期拼非源字面避 secret-scan 误伤); §0 不翻案 FT 桥"/metrics 路由3 落 (`FlareTunnel.go:1890-1933` Start()) 旧决, 本段补公网暴露门.
 
 **关联**: [[ft-worker-100topology-landed-2026-08-12]] (FT 计数源 per-Worker), [[flaretunnel-metrics-endpoint-lu3-landed]] (路3 /metrics 落本基)
+
+## §4 时延基线对比 + CF IP 优化裁决 (2026-08-13, 只增不改, 纯查证无 commit)
+
+**裁决**: 100 Worker 共享池 = CF 免费层 IP 多样性天花板, 不升 Enterprise 无优化空间.
+
+**时延基线** (`audit/2026-07-20-r3plus-group2-3parallel-10rounds.md`, 16 Worker 扩 100 前):
+- 基线 200: 2.17-14.15s (3 并发 10 轮); 429 快拒 1.45-1.98s
+- 现态 100 Worker: 3.5-33.7s + 30s client abort + 502 lockout 3s
+- 差: 下限 +1.3s (+60%), 上限 +19.6s (+138%) 翻倍, 新增 30s abort
+- 基线非纯对照 (16 Worker 期亦 FT 启期), 真"FT 开销"定论须无 FT 直连测, 候圣上命
+
+**外部 AI 文判** (圣上贴"架构师建议"):
+- ❌伪: "关小黄云 DNS Only" (CF Routes doc: Worker 须 proxied 调用关=断链); "优选 IP 映射 1.1.1.1" (CF Anycast 无 origin IP)
+- ❌撞锁: "收 40 子域" (撤销换 IP 池撞 warp-vs-ft③); "砍 Worker" (撞本 §4 上文 100 锁决 + §0 不翻案)
+- ✅真可取唯一: "FT 转发重 + HF 2vCPU 计算压" (与本仓 ft-worker-count-vs-keys + warp-vs-ft 档案一致)
+
+**CF IP 优化三选项裁决**:
+- 独享固定 IP (Dedicated Egress/BYOIP) ❌: Enterprise+加购 + 反设计 (固定单 IP 撞 warp-vs-ft 裁决③ "单 IP 静态反加剧风控" 否决). CF 社区 MVP sjr 明确 "Any dedicated IP addressing requires Enterprise plan"
+- Smart Placement ⚠️微调: 迁 Worker 到低延迟数据中心, 但不改出口 IP 改跑位置; 100 Worker 同好迁可能反降 IP 多样性; Worker→NIM 美国境内 <5ms 优化空间小; 不轻试
+- 多账号扩域 ⚠️撞圣上 10 账号满额上限 (2026-08-12 明令) + 更多 NV/邮箱运维负债
+
+**NIM 403 真根重诊方向** (推翻前轮臆测):
+- NVIDIA 论坛大量用户证 403 "Authorization failed" 真根 = 账号缺 "Public API Endpoints" 权限/组织权限, 非出口 IP 封
+- ft1 集中 403 须按 NIM key 维度重诊: 查 403 Worker 用 NIM key vs 200 Worker 用 key 是否同账号? 同账号配额耗尽触发 403 = 非 IP
+- (承前轮 ft-worker-100topology memory 已列 "出口 IP 风控/NIM key 配额地理拒" 双可能, 本段收敛到 NIM key 维度为主嫌疑)
+
+**不变量守**: §0 不翻案 100 Worker 拓扑 (翻案须圣上明确令); §1 三件定态零触; §2 secret 零入会话 (本轮纯查证无代码); DECISIONS 只增不改 (本 §4 即只增).
+
+**关联**: [[ft-worker-100topology-landed-2026-08-12]] [[warp-vs-ft-egress-对比]] [[ft-worker-count-vs-keys-decoupled]] [[latency-baseline-vs-100worker-2026-08-13]]

@@ -116,6 +116,12 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 - **per-Worker 计数**: FT 桥 `/metrics` (容器内 127.0.0.1:8081) + 公网 `gate /v1/ft/metrics` (PSK 鉴权反代, commit `ec0712d` 路3-b 落; `?bridge=N` 0-基选桥默首桥, ECONNREFUSED→503); boot 时 init 内 curl 印一次; 持续观 Save/ft/ 件 `FT METRICS DUMP` 段
 - **公网取 FT metrics**: `curl -H "Authorization: Bearer $INTERNAL_PSK" https://<Space>/v1/ft/metrics` (PSK fail-closed, 缺/错 401); `?bridge=N` 选桥 (0-基, 越界 400 `bad_bridge_index`), 不带参默首桥 (首桥代整体, init-nim-keys.sh `_ft_register_proxy` 旧例)
 - **本地拉 save 日志**: `source ~/.omn-secrets; env HF_TOKEN="$HF_TOKEN_DATASET_WRITE" python3 -c "from huggingface_hub import hf_hub_download as f; print(f('nonoke/omni-logic','save/ft/<件>',repo_type='dataset',token=__import__('os').environ['HF_TOKEN']))"` (repo 真 nonoke/omni-logic 非 omn-logic)
+- **慢诊 (2026-08-13 时延基线对比, 详 ops/STATUS + DECISIONS §4)**:
+  - 基线 `audit/2026-07-20-r3plus-group2-3parallel-10rounds.md` (16 Worker 扩 100 前, 3 并发 10 轮): 200 2.17-14.15s; 现态 100 Worker 3.5-33.7s + 30s client abort. 差上限 +19.6s (+138%) 翻倍. 慢真.
+  - 慢真四根: ① 100 Worker round-robin 游标长+冷端握手 ② `unhandledRejection AbortError` 30s client abort 漏 catch ③ ft1 集中 403 (NIM 侧非 IP, 重诊 NIM key 维度) ④ HF 2vCPU 计算压 (90k token 注入, 恒定非升级)
+  - CF IP 优化: 100 Worker 共享池 = CF 免费层 IP 多样性天花板. 独享固定 IP = Enterprise + 反设计 (撞 warp-vs-ft③否决). Smart Placement 微调不轻试. 多账号撞圣上 10 上限.
+  - 外部 AI 文"关小黄云/优选 IP 映射/收子域/砍 Worker" 全伪或撞锁, 不可执行 (详 DECISIONS §4).
+  - 无 FT 直连 NVIDIA 测 = 真"FT 开销"定论前提, 候圣上命.
 
 ### commit 链 (本会话及前轮)
 - FT Worker deploy 链: `008c48d` 雏 → `6c78f2d` 100 拓扑 → `1431b0f` delete:o → `08d272a` tag-driven → `c10d544` secrets bug → `517357f` RELAY_AUTH 真注 → `d1c324b` publish-endpoints job → `c22b3a9` PRESET=publish。

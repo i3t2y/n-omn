@@ -606,3 +606,33 @@ commit 三件 (workflow + STATUS, DECISIONS 不动触发机制非裁决)。
 - push 待圣上亲启 (§5, dev/logic 真身 Dataset nonoke/omn-logic 须 git 先行; commit 3b1564c+ec0712d 两轮待推)
 
 SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ 移 + commit 链分两支; DECISIONS 加 §3 gate metrics 段 (只增).
+
+## 2026-08-13 · 时延基线对比 + CF IP 优化裁决 (无 commit, 纯查证存档)
+
+圣上问 "比之前慢多少" + "CF IP 来源没法优化吗" + 贴外部 AI 文逐条裁. 搜证 (anysearch) 落.
+
+**时延基线对比** (基线 `audit/2026-07-20-r3plus-group2-3parallel-10rounds.md` = 16 Worker 扩 100 前, 3 并发 10 轮):
+- 基线 200: 2.17s ~ 14.15s (中位 ~7-8s); 429 快拒 1.45-1.98s
+- 现态 100 Worker: 3.5s ~ 33.7s + 30s client abort + 502 lockout 3s
+- 差值: 下限 +1.3s (+60%), **上限 +19.6s (+138%) 翻倍**, 新增 30s abort
+- 基线非纯对照 (16 Worker 期亦 FT 启期, 非"无 FT vs 有 FT"), 真"FT 开销"定论须无 FT 直连测, 候圣上命
+
+**外部 AI 文判** (圣上贴"架构师建议"):
+- "关小黄云/DNS Only" ❌ 伪 (CF Routes doc: Worker 须 proxied 调用, 关=Worker 死断链)
+- "优选 IP/Local Host 映射 1.1.1.1" ❌ 伪 (CF Anycast 无 origin IP 可直穿)
+- "收 40 子域单域" ❌ 撞锁 (撤销换 IP 池设计, 撞 warp-vs-ft 裁决③)
+- "简化 FT 砍 Worker" ❌ 撞 DECISIONS 100 满额锁决 (§0 不翻案)
+- 真可取唯一: "FT 转发重 + HF 2vCPU 计算压" = 与本仓 ft-worker-count-vs-keys + warp-vs-ft 档案一致
+
+**CF IP 优化裁决**:
+- 现状 100 Worker 共享池 = CF 免费层 IP 多样性天花板 (免费 Worker 出口=CF 全球共享池, CF 内部路由决定, 非钉死账号/worker)
+- 独享固定 IP (Dedicated Egress/BYOIP) ❌ Enterprise+加购且反设计 (固定单 IP 撞 warp-vs-ft 裁决③否决); CF 社区 MVP sjr 明 "Any dedicated IP requires Enterprise plan"
+- Smart Placement ⚠️ 微调 (迁 Worker 位置不改出口 IP, 100 同好迁可能反降多样性, 不轻试)
+- 多账号扩域 ⚠️ 撞圣上 10 账号满额上限 + 邮箱负债
+- **NIM 403 真根重诊方向**: NVIDIA 论坛大量证 403 "Authorization failed" 真根 = 账号缺 "Public API Endpoints" 权限/组织权限, 非快 IP 封. ft1 集中 403 须按 NIM key 维度重诊 (查 403 Worker 用 key vs 200 Worker 用 key), 候圣上命深入
+
+**慢真四根** (综合): ① 100 Worker round-robin 游标长+冷端握手 ② 30s client abort 漏 catch (unhandledRejection) ③ ft1 集中 403 (NIM 侧非 IP) ④ HF 2vCPU 计算压 (90k token, 恒定)
+
+**可取三小调** (非升 tier 非翻案): NIM 403 key 维度重诊 / Smart Placement 谨审监控多样性 / 10 账号 40 Worker 真出口 IP 取件比对
+
+本轮无 commit (纯查证, memory + SSOT 落存档). 翻案 100 Worker 数或 FT 拓扑须圣上明确令 (§0).

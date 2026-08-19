@@ -194,6 +194,89 @@ gc_stale_providers() {
   echo "[init] gc_stale: 删除 $_DEL_COUNT 个僵尸/重复 nvidia 连接 (批量 DELETE /api/providers HTTP $_DEL_HTTP, 上限 max=$_NIM_TOTAL)"
 }
 
+# ══ Task C3: 清 OmniRoute Health Autopilot 陈旧错态 (clear_stale_connection_error) ══
+# 病: OmniRoute 冷却(60s)过期回活后 lastError/testStatus 不自动清 → Autopilot 检 stale_connection_error
+#      → 回活 account 被路由偏置绕开。dev nonoke/omn ephemeral (R2 无副本每 boot 空库) → external
+#      manage key 不持久, 无法走 dev/scripts/clear-stale-nim-errors.sh; 故 init boot 自清 (cookie 鉴权)。
+# 源: 3.8.48 src/app/api/providers/health-autopilot/{route.ts GET, actions/route.ts POST}
+#      + src/lib/monitoring/providerHealthAutopilot.ts executeProviderHealthAutopilotAction
+#      actionSchema: {type:"clear_stale_connection_error", target:{provider,connectionId}, preconditionsHash, confirm}
+# 闸: OMN_CLEAR_STALE 默1开 =0 跳整段 (仿 OMN_LOG_TO_DATASET 闸)。fail-open: 清失败不杀 boot。
+# 终态连接 (banned/expired/credits_exhausted) 源 409 拒不清 (isTerminalConnection) → 印 INFO 跳, 非 cooldown 本身。
+clear_stale_nim_errors() {
+  if [ "${OMN_CLEAR_STALE:-1}" != "1" ]; then
+    echo "[init] clear_stale: OMN_CLEAR_STALE!=1 跳过清陈旧错态"; return 0
+  fi
+  local _AP_FILE _AP_HTTP
+  _AP_FILE="$(_resp omniroute-autopilot.json)"
+  _AP_HTTP=$(curl -s -o "$_AP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
+    "$BASE_URL/api/providers/health-autopilot?provider=nvidia&includeHealthy=false&includeActions=true")
+  if [ "$_AP_HTTP" != "200" ]; then
+    echo "[init] clear_stale: GET /api/providers/health-autopilot HTTP $_AP_HTTP 跳过 (fail-open)"; return 0
+  fi
+  # 提 issues[].actions[] 里 type=clear_stale_connection_error 的 (connectionId, preconditionsHash)
+  # set +eo pipefail 抬门防空 stale 态 pipefail 杀 init (照 gc_stale 范式 line 174)
+  set +eo pipefail
+  local _STALE_JSON
+  _STALE_JSON=$(python3 -c '
+import json, sys
+try:
+    r = json.load(open(sys.argv[1]))
+except Exception as e:
+    print("[]", end=""); sys.exit(0)
+if isinstance(r, dict) and r.get("error"):
+    print("[]", end=""); sys.exit(0)
+out = []
+for iss in (r.get("issues", []) if isinstance(r, dict) else []):
+    for a in (iss.get("actions", []) if isinstance(iss, dict) else []):
+        if a.get("type") == "clear_stale_connection_error":
+            tgt = a.get("target", {}) if isinstance(a, dict) else {}
+            cid = tgt.get("connectionId", "")
+            h = a.get("preconditionsHash", "")
+            if cid and h:
+                out.append({"connectionId": cid, "preconditionsHash": h})
+print(json.dumps(out))
+' "$_AP_FILE" 2>/dev/null)
+  set -eo pipefail
+  _STALE_JSON="${_STALE_JSON:-[]}"
+  local _STALE_COUNT
+  _STALE_COUNT=$(printf '%s' "$_STALE_JSON" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || printf '0')
+  if [ "$_STALE_COUNT" -le 0 ]; then
+    echo "[init] clear_stale: 无陈旧错态 (Autopilot issues=0 stale_connection_error)"; return 0
+  fi
+  echo "[init] clear_stale: 检出 $_STALE_COUNT 个 stale_connection_error, 逐清..."
+  local _OK=0 _SKIP=0 _CID _HASH _ACT_CODE
+  while IFS=$'\t' read -r _CID _HASH; do
+    [ -z "$_CID" ] && continue
+    _ACT_CODE=$(curl -s -o /tmp/omn_clear_act.json -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X POST "$BASE_URL/api/providers/health-autopilot/actions" \
+      -H "Content-Type: application/json" \
+      -H "Origin: $BASE_URL" \
+      -d "$(python3 -c '
+import json, sys
+print(json.dumps({
+  "type": "clear_stale_connection_error",
+  "target": {"provider": "nvidia", "connectionId": sys.argv[1]},
+  "preconditionsHash": sys.argv[2],
+  "confirm": True
+}))
+' "$_CID" "$_HASH")")
+    if [ "$_ACT_CODE" = "200" ] || [ "$_ACT_CODE" = "201" ]; then
+      _OK=$((_OK+1))
+    elif [ "$_ACT_CODE" = "409" ]; then
+      _SKIP=$((_SKIP+1))   # 终态连接 (banned/expired) 源拒不清, 正常跳
+    else
+      echo "[init] clear_stale:    WARN connectionId=$(printf %.12s "$_CID") HTTP $_ACT_CODE (跳过, fail-open)"
+      _SKIP=$((_SKIP+1))
+    fi
+  done < <(printf '%s' "$_STALE_JSON" | python3 -c '
+import json,sys
+for a in json.load(sys.stdin):
+    print(f"{a[\"connectionId\"]}\t{a[\"preconditionsHash\"]}")
+')
+  echo "[init] clear_stale: 清完 (OK=$_OK skip/terminal=$_SKIP total=$_STALE_COUNT)"
+}
+
 # ══ 按存活 Key 数动态推导 RPM/并发 ═════════════════════════════
 _count_alive_keys() { printf '%s
 ' "$NIM_KEYS" | sed '/^[[:space:]]*$/d' | wc -l; }
@@ -878,6 +961,9 @@ echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed. (pr
 
 # Task C2: 注册完 Key 后, Fetching provider IDs 前, GC 僵尸(编号>NIM_KEYS 数)/重复(POST 无查重累积)连接.
 gc_stale_providers
+
+# Task C3: GC 后清 OmniRoute Health Autopilot 陈旧错态 (冷却回活后残留 lastError, 致回活 account 被路由偏置绕开).
+clear_stale_nim_errors
 
 echo "[init] Fetching provider IDs..."
 PROVIDERS_HTTP=$(curl -s -o "$PROVIDERS_FILE" -w "%{http_code}" -b "$COOKIE_FILE" "$BASE_URL/api/providers")

@@ -663,3 +663,24 @@ SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ �
 **解方向候命** (非本轮 commit): 降客户端频率 / 拉长 429 cd 120-180s / 扩 account 池撞 10 上限 / NIM 侧提配额 (真根治非本地能控).
 
 本轮无 commit (纯查证, DECISIONS §5 + STATUS 落 SSOT). 翻案 §4 403 决或 100 Worker 拓扑须圣上明确令 (§0). 排障入口看 HANDOFF 历史 watcher 闭环段 (FALLBACK MODE / all accounts unavailable / Preserving last upstream error 三签名表).
+
+## 2026-08-19 · init boot 自清 OmniRoute 陈旧错态 路A 落闭环 (commit 3158c2c)
+
+§5 "陈旧错态 gap 缓释: 圣上点 Autopilot 批量清" 升级为 **路 A init boot 自清** 自动化落地 (圣上令 "A"). dev nonoke/omn ephemeral 死结 (R2 无副本每 boot 空库 → external manage key catch-22 不持久) → 用 init 既有 Dashboard session cookie 鉴权链调 autopilot actions = 不依赖 external 持久 key.
+
+**落点**: `dev/logic/init-nim-keys.sh` +86 行 `clear_stale_nim_errors()` 函数 (gc_stale_providers 后插, 调用点 line 965). 机制: GET `/api/providers/health-autopilot?provider=nvidia&includeActions=true` (cookie 鉴权) → python3 解 `issues[].actions[]` type=`clear_stale_connection_error` 提 (connectionId,preconditionsHash) → 逐 POST `/actions` 清. fail-open 范式 (仿 gc_stale, 非200 skip / set +eo pipefail 抬门 / 0 stale return 0 / 409 终态 skip). ENV 闸 `OMN_CLEAR_STALE` 默1开. 语法修: `$(curl -d "$(python3 -c '...')")` 双层 sub 须 `))` 双配. 闸验 `bash -n`+`secret-scan` exit 0.
+
+**部署链实**: commit `3158c2c` push nomn main 成 (`54b1b5a..3158c2c`). `sync-logic-nonoke.yml` Action 触但**上 Dataset 旧版** (init-nim-keys.sh 不含函数, sha256 `1e0d2fad` vs 本地 `bab088f0` 差 4363 bytes = 函数体) —— 真根未查 (可能 checkout SHA 落后/path filter 未中/concurrent race). **手推修**: Python 读 `~/.omn-secrets` `HF_TOKEN_DATASET_WRITE` 注入 os.environ (§2 token 零 cli 字面) → upload_file + hf_hub_download 读回 sha256 闭验 (Dataset `169bc09c` == 本地 ✓, 函数内嵌 True).
+
+**boot 真活闭环** (dev nonoke/omn Restart × 全绿):
+- 2026-08-19 13:25Z: Dataset HEAD `ea08edbb256c` (含手推新版系) → init rc=0, 32 key alive (200/429 鉴权链通), 40 Worker 池全活, 7 模型 (2 deprecated = kimi-k3/qwen3.8-max 预期), Resilience 落定 300/96/200/300000. **关键回显**: `[init] gc_stale: 无待删连接` → `[init] clear_stale: 无陈旧错态 (Autopilot issues=0 stale_connection_error)` → `Fetching provider IDs` = 函数真跑, 预期三态之一 (本 boot 全新空库无历史 stale). fail-open 空转幂等零副作用 ✓.
+- 前 2 次 Restart (12:51 / 13:00) 缺回显 = boot 抽旧版 logic (Dataset sync Action 未跃或上旧) = 手推修后 13:25Z 闭.
+
+**保留**: `dev/scripts/clear-stale-nim-errors.sh` 保留作 prod 备 + 参考文档 (非顿旧, 路A 自清 = its boot 版). §5 缓释已被路A 自动化同向演进非翻案.
+
+**未决/下一步**:
+- **sync-logic-nonoke.yml Action 上旧版未解** (本轮手推绕过) —— 须圣上侧查 Action run log, 下次 dev/logic/** push 若仍上旧版会覆盖回旧. 候命排查.
+- §2 副排: 两暴露 token (OpenRouter sk-or- / dev oma_live_) 前轮已入会话记录不可撤, 须圣上侧 revoke+regen.
+- §4 403 NIM account 公开发行权限深查仍候命 (本轮未触).
+
+本轮 commit 1 (`3158c2c` 路A函数), SSOT 落 (HANDOFF 陈旧错态段+commit链+待办 / DECISIONS §6 / STATUS 本段). DECISIONS 只增不改 (§4 §5 未动). 翻案 §4 403 决或 100 Worker 拓扑须圣上明确令 (§0).

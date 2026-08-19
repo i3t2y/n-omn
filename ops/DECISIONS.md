@@ -425,3 +425,33 @@ fname = parts[2]
 **不变量守**: §0 不翻案 100 Worker 拓扑 + §4 403 决 (翻案须圣上明确令); §1 三件定态零触; §2 secret 零入会话 (本轮纯查证无代码); DECISIONS 只增不改 (本 §5 即只增, §4 未动).
 
 **关联**: [[429-fallback-alive-combo-empty-normal-2026-08-19]] [[429-vs-403-combo-empty-diagnose-2026-08-19]] [[latency-baseline-vs-100worker-2026-08-13]] [[ft-worker-100topology-landed-2026-08-12]] [[gate-ft-metrics-public-proxy-landed-2026-08-12]]
+
+## §6 init boot 自清 OmniRoute Health Autopilot 陈旧错态 (路A 2026-08-19 落, commit 3158c2c, 只增不改)
+
+**裁决**: 2026-08-19 §5 裁决"陈旧错态 gap 缓释: 圣上点 Autopilot 批量清, 我零碰 prod"升级为 **路 A init boot 自清** 自动化落地 (圣上令 "A"= init boot 自清 init 已有 cookie 鉴权)。dev nonoke/omn ephemeral 语境唯一解。
+
+**病链复述** (接 §5 陈旧错态 gap):
+- OmniRoute 冷却 (60s) 过期回活后 lastError (code 429) 不自动清 → Health Autopilot 检 `stale_connection_error` 22 issues 提手动清 → 回活 account 被路由偏置绕开。
+- **dev nonoke/omn ephemeral 死结** = R2 无 3.8.48 snapshot (STATUS line 170) → 每 boot 空库启动 migration 重建空表 → Dashboard 手加 manage-scope API key 写 ephemeral SQLite → 重启空库归零刷新不持久。`dev/scripts/clear-stale-nim-errors.sh` 须 external manage-scope key (Bearer) → catch-22 `/api/keys POST` 需 `requireManagementAuth` (四路鉴权: Dashboard session / CLI loopback / `oma_` access token / manage-scope API key) → external key 不持久 script 无法跑。
+- **init 已有 Dashboard session cookie 鉴权链** (`dev/logic/init-nim-keys.sh:602-605` login→auth_token cookie→`624` /api/keys POST 证通管理端) → 用同 cookie 调 autopilot actions = 走 `requireManagementAuth` 路 1 Dashboard session ✓ = 不依赖 external 持久 key。
+
+**治法** (commit 3158c2c `dev/logic/init-nim-keys.sh` +86 行):
+- 新增 `clear_stale_nim_errors()` 函数 (插 `gc_stale_providers()` 后), 调用点 gc_stale_providers 调用后 (line 965)。
+- 机制两步 (源 3.8.48 `src/app/api/providers/health-autopilot/{route.ts GET, actions/route.ts POST}` + `providerHealthAutopilot.ts executeProviderHealthAutopilotAction` actionSchema `{type,target:{provider,connectionId},preconditionsHash,confirm}`):
+  1. GET `/api/providers/health-autopilot?provider=nvidia&includeHealthy=false&includeActions=true` 带 `$COOKIE_FILE` cookie。
+  2. python3 解 `issues[].actions[]` 里 `type=="clear_stale_connection_error"` 提 `(connectionId, preconditionsHash)`。
+  3. 逐个 POST `/api/providers/health-autopilot/actions` body `{type, target:{provider:"nvidia", connectionId}, preconditionsHash, confirm:true}` 带 cookie `-b $COOKIE_FILE` + `Origin: $BASE_URL` 头 (pipeline 已统一 Origin, 显式带更稳)。
+- **fail-open 范式** (仿 `gc_stale_providers` line 161-195): GET 非200 →印跳过 return 0; `set +eo pipefail` 抬门防空 pipefail 杀 init; 0 stale →return 0; 逐 POST 失败 → WARN `continue`; 终态连接 (banned/expired) 源 409 拒不清 → INFO skip (z.enum 限 `clear_stale_connection_error` 非 cooldown 本身, 终态 `isTerminalConnection` 409)。
+- **ENV 闸** `OMN_CLEAR_STALE` (默 `"1"` 开, `="0"` 跳整段), 仿 `OMN_LOG_TO_DATASET` 闸范式。
+- **语法修**: `_ACT_CODE=$(curl ... -d "$(python3 -c '...')")` 双层 `$(...)` 命令替换末须 `))` 双配 (内闭 python3 sub + `"`闭 -d 引 + 外闭 curl sub)。原单 `)` 致 bash quote tracking 失衡 EOF 错。闸验 `bash -n` + `secret-scan.py` exit 0 (connectionId/hash 非 Bearer 凭非敏感, §2 不触)。
+
+**部署链**:
+- commit `3158c2c` push nomn main → `sync-logic-nonoke.yml` GitHub Action 触 (dev/logic/** push) → HF Dataset nonoke/omni-logic 同步。**疑点 (未解)**: 本次 sync Action 上 Dataset 旧版 (init-nim-keys.sh 不含函数, sha256 `1e0d2fad` / 79691 bytes vs 本地 `bab088f0` / 84054 bytes), 根未查 (可能 checkout SHA 落后/path filter 未中/concurrent race)。**手推修**: Python 读 `~/.omn-secrets` `HF_TOKEN_DATASET_WRITE` 注入 os.environ (非 cli 字面, §2 零触) → upload_file + hf_hub_download 读回 sha256 闭验 (Dataset `169bc09c` == 本地 ✓) → dev nonoke/omn Restart。boot 真活回显 (Dataset HEAD `ea08edbb256c` 系) `[init] clear_stale: 无陈旧错态 (Autopilot issues=0 stale_connection_error)` 预期三态之一 = 本 boot 全新空库无历史 stale。
+
+**保留**: `dev/scripts/clear-stale-nim-errors.sh` 保留作 (a) prod 侧 (nomke/omn R2 副本 key 持久) 偶用备 (须 §1 明令 + 取 prod manage key); (b) 参考文档 (init 自清函数即其 boot 版)。非顿旧决策 (§5 "缓释: 圣上点 Autopilot" 已被路 A 自清自动化升级, 非 §0 翻案 = 同向演进)。
+
+**不变量守**: §0 一次会话一件事 (路 A 闭环); §1 三件定态 (Dockerfile/README/start.sh) 零触, 改 `dev/logic/` 非三件走 Dataset sync 非 Rebuild; §2 secret 零入 git/会话 (由盾外 + sha256 闭验, token 读 ~/.omn-secrets 注入 os.environ); §1 nomke/omn 生产无 Supreme 令不动; 上游只读查证 (`/tmp/om48` = v3.8.48 ref 非血统不进 git), init 改属我仓 dev 镜像真身。
+
+**未决/下一步**: sync-logic-nonoke.yml Action 上旧版未解 —— 本次手推绕过, 下次 dev/logic/** push 若 Action 仍上旧版会覆盖回旧。须圣上侧查 Action run log (GitHub repo i3t2y/n-omn → Actions), 可能 checkout SHA 落后/path filter 未中/concurrent race。候命排查。
+
+**关联**: [[429-fallback-alive-combo-empty-normal-2026-08-19]] [[429-vs-403-combo-empty-diagnose-2026-08-19]] [[ft-worker-100topology-landed-2026-08-12]] [[omniroute-upstream-entrypoint-drift-v3.8.48]] [[omn-merge-three-remote-topology]]

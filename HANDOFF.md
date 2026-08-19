@@ -128,14 +128,16 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
   - **combo `—` 空 = 正常非病**: glm-5.2 单 model 设计 (`getComboForModel` 返 null = single-model 非 fallback 失效, 连 200 也 `—`). 勿按"combo 空最可抓活根"误判.
   - **fallback 韧态全活**: attempts 链跨 account 连试 (be1e20b9 7/3b3e55c6 16 末 200/36a91736 12 末 200) + 控制台 `🚫 [RATE-LIMIT] pausing for 60s` (cd 实跑 60s, 源码 default 120s = 配覆写, 查 `/api/resilience`) + `FALLBACK MODE excluded_count ... picked_lru` (LRU 排已限选下一) + `Account X error cleared`.
   - **三病并存** (非互斥): 429 (account 维主流) / 403 (ft1 族 IP/权限维, 前轮 §4 另案候查) / 502 (1× nim-13 NIM 服务层 RST 透传).
-  - **陈旧错态 gap**: 冷却 (60s) 过期回活后 lastError code 429 不自动清 → Health Autopilot 检 22 issues 提"Clear stale error state"手动清 (小 bug: 路由偏置或绕开本已回活 account). 缓释: 圣上点 Autopilot 批量清 (或 API), 我零碰 prod.
+  - **陈旧错态 gap**: 冷却 (60s) 过期回活后 lastError code 429 不自动清 → Health Autopilot 检 22 issues 提"Clear stale error state"手动清 (小 bug: 路由偏置或绕开本已回活 account).
+  - **路 A 自清已落 (2026-08-19 ✅ commit 3158c2c)**: init boot 自清 `clear_stale_nim_errors()` (dev/logic/init-nim-keys.sh, gc_stale_providers 后调)。走 Dashboard session cookie 鉴权链 (login→auth_token cookie 调管理端) 调 `GET/POST /api/providers/health-autopilot`, 提 `issues[].actions[]` 里 `type=clear_stale_connection_error` 的 (connectionId, preconditionsHash) 逐清。fail-open (非200跳过, set +eo pipefail 抬门防空 pipefail 杀 init, 0 stale return 0, 终态连接 409 skip)。ENV 闸 `OMN_CLEAR_STALE` 默1开 =0 跳整段。dev ephemeral 语境唯一解 (R2 无副本每 boot 空库 → external manage key catch-22 不持久)。boot 真活回显三态: 无 stale 空转 / 清 N / fail-open 跳 (2026-08-19 13:25Z 实测无 stale 空转)。clear-stale-nim-errors.sh 保留 prod 备 + 参考文档。源 3.8.48 `src/app/api/providers/health-autopilot/{route.ts,actions/route.ts}` + `providerHealthAutopilot.ts executeProviderHealthAutopilotAction` actionSchema。
   - 解候命: 降客户端高频 / 拉长 429 cd 120-180s / 扩 account 池撞 10 上限 / NIM 侧提配额 (真根治非本地能控). 真测现态不建议 (0% 错无活病, 造风暴成本高).
 
 ### commit 链 (本会话及前轮)
 - FT Worker deploy 链: `008c48d` 雏 → `6c78f2d` 100 拓扑 → `1431b0f` delete:o → `08d272a` tag-driven → `c10d544` secrets bug → `517357f` RELAY_AUTH 真注 → `d1c324b` publish-endpoints job → `c22b3a9` PRESET=publish。
-- dev/logic 镜像链: `3b1564c` deepseek/mistral-small-4 剔 → `ec0712d` gate /v1/ft/metrics PSK 反代 (路3-b)。nomn/main 远端 = `b577e5b` (含 STATUS, push 前 `3b1564c`+`ec0712d` 待圣上亲启)。
+- dev/logic 镜像链: `3b1564c` deepseek/mistral-small-4 剔 → `ec0712d` gate /v1/ft/metrics PSK 反代 (路3-b) → `54b1b5a` clear-stale-nim-errors.sh fail-loud 修 → `3158c2c` init boot 自清 OmniRoute 陈旧错态 clear_stale_connection_error (路A)。nomn/main 远端 = `3158c2c` (含 STATUS, sync-logic-nonoke.yml 推 HF Dataset nonoke/omni-logic auto sync)。
 
 ### 待办/下一步
+- ✅ init boot 自清 OmniRoute Health Autopilot 陈旧错态 (commit `3158c2c` 路A落, clear_stale_nim_errors() 函数; boot 真活回显 2026-08-19 13:25Z 无 stale 空转; Dataset nonoke/omni-logic 手推 `169bc09c` sha256 闭验)
 - ✅ gate 加路由暴露 FT 桥 `/metrics` 公网 (commit `ec0712d` 路3-b 落, `GET /v1/ft/metrics` PSK 反代 + `?bridge=N` 选桥; 真路测五态全绿 2026-08-12)
 - FT Worker 100 拓扑已满额全活 (2026-08-12 圣上扩 f05~f10 zone + Variable `ACTIVE_ACCOUNTS=10`)
 - deprecated model 剔: 2026-08-12 圣上令删 deepseek-v4-flash + deepseek-v4-pro + mistral-small-4-119b-2603 (NVIDIA 目录无, 已落 init-nim-keys.sh); 留 kimi-k3 + qwen3.8-max (圣上未命删, deprecated 但待复检)

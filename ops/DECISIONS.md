@@ -455,3 +455,45 @@ fname = parts[2]
 **未决/下一步**: sync-logic-nonoke.yml Action 上旧版未解 —— 本次手推绕过, 下次 dev/logic/** push 若 Action 仍上旧版会覆盖回旧。须圣上侧查 Action run log (GitHub repo i3t2y/n-omn → Actions), 可能 checkout SHA 落后/path filter 未中/concurrent race。候命排查。
 
 **关联**: [[429-fallback-alive-combo-empty-normal-2026-08-19]] [[429-vs-403-combo-empty-diagnose-2026-08-19]] [[ft-worker-100topology-landed-2026-08-12]] [[omniroute-upstream-entrypoint-drift-v3.8.48]] [[omn-merge-three-remote-topology]]
+
+## §7 加 R2 副本根治 nonoke/omn ephemeral 持久化 (路B 2026-08-19 裁, 待落, 只增不改)
+
+**圣上原话**: "怎么也要实现路径1啊,直接把r2加上,搞定持久化不就行了。" = 超越路A自清 (commit 3158c2c, 绕过 ephemeral 死结兜底), 真根治 = 让 R2 副本建立, restore 拉 R2 真库, manage key 跨 boot 持久 → 路径1 external 脚本 `dev/scripts/clear-stale-nim-errors.sh` 可真跑。
+
+**§1 拓扑翻案 (与本 §7 同期, 圣上 2026-08-19 明令)**: 撤 nomke 生产 Space, 剩 **nonoke/omn 单 Space 兼生产+dev**。R2 bucket = **omn-data (dev 桶升正单桶)**; omniroute-data 旧生产桶不动存历史。旧"双 Space / R2 bucket 永不双写"铁律随 nomke 撤失效 (单 Space 单桶无双写问题)。CLAUDE.md §1 已改 (2026-08-19 修订: 单源单Space)。本 §7 病根/治法按单 Space 单桶 omn-data 论。
+
+**架构已全建好 — 零代码改动, 纯 HF Space Variables**:
+- `dev/logic/litestream.yml` R2 s3 replica 配置全 (bucket `$\{R2_BUCKET\}`, path `db/storage.sqlite`, endpoint `https://$\{R2_ACCOUNT_ID\}.r2.cloudflarestorage.com`, sync-interval 10s, auto-recover false)。
+- `dev/logic/entrypoint.sh:124-125` `has_r2=0; [ -n R2_ACCESS_KEY_ID ] && [ -n R2_SECRET_ACCESS_KEY ] && [ -n R2_ACCOUNT_ID ] && has_r2=1` (判活只验 **3 凭据**, **不验 R2_BUCKET**)。
+- L128-166 restore: has_r2=0 → skip 空库 | 本地非空 → skip 不覆盖 | 空库 → litestream restore -config -if-replica-exists -o DB_TMP; 无副本例外 grep 'no replica|empty|not found' 不 WARN → 空库 init 重建。
+- L391-407 replicate: has_r2=1 后 `OMN_PERSIST_WRITE:-1` 闸; =1 启 litestream replicate 后台 (sync-interval 10s 写 R2) | =0 关态不启 (本次改动不写回 R2)。
+- L499 replicate 退出 STRICT exit / 非致命 WARN PID 置空 (LITESTREAM_STRICT 闸)。
+
+**病根**:
+1. **(实证) 3 R2 凭据未齐** → `has_r2=0` → boot `⚠ R2 凭据未配置 → skip restore 空库启动` (STATUS line 170 "dev R2 omn-data 无 3.8.48 snapshot" 钉死)。
+2. **(待核, 非 hardcode 断言) `OMN_PERSIST_WRITE` 现态未实证**: 该闸 2026-08-10 加 (commit 63497bd) 默认未设=1开 (entrypoint L400 `$\{OMN_PERSIST_WRITE:-1\}`)。memory `omn-persist-write-request-landed-2026-08-10` line 13 明 "现状(加开关前)本就是保存的 replicate 无条件跑", 圣上加闸后**可能从未设0故默1开 replicate 仍跑**。"OMN_PERSIST_WRITE=0 关态"乃前轮摘要记忆断言**未经 boot 日志实证**; 真根若"加 key 重启丢"可能 litestream 链有病 (replicate 死 L487 WARN/restore 断 L136/sync-10s 窗口) 非设计不保存 (memory line 13 "须贴 boot 日志取证定根 未结")。圣上侧补凭据后 boot 看 `[entrypoint] Litestream:` 行态定关态真伪后决定处置。
+- `R2_BUCKET=omn-data` 圣上已设 (STATUS line 210 ✅) 但 has_r2 判活不含此故不生效。
+
+**治法 (圣上侧操作, 我无 HF UI 权限, §2 凭据零入会话) — 单 Space 单桶 omn-data**:
+1. nonoke/omn Space (现唯一 Space) → Settings → Variables 补 3 R2 凭据: `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_ACCOUNT_ID` (圣上手填, token **最小 scope: 锁 omn-data 单桶 Write+Read**)。
+2. Restart 非 Rebuild (纯 Variable 改零数据清零) → boot 看 `[entrypoint] Litestream:` 行态:
+   - 若印 `Litestream PID=$LS_PID ...` = 默1开 replicate 跑 (OMN_PERSIST_WRITE 未设) → 跳处置, 病根②不存在。
+   - 若印 `OMN_PERSIST_WRITE=0 关态 replicate 不启` = 圣上曾设0 → 处置设 `1` **或删此 Variable** 回默1 (推荐删 = 少一件)。
+
+**§1 单 Space 单桶复核**:
+- nonoke/omn = 唯一 Space (nomke 废)。R2 bucket = **omn-data** (dev 桶升正, omniroute-data 旧生产桶不动存历史)。**单 Space 单桶无双写问题** (旧"双 Space 永不同时写同一 bucket"铁律随 nomke 撤失效)。
+- R2 token scope **锁 omn-data 单桶 Write+Read** (非全账号) 即可, 无双写越权面。补凭据前圣上侧 R2 Dashboard 核 omn-data 桶存在。
+- **遗留疑点 (audit 反证)**: audit §2.1 证 2026-07-27 04:55Z boot `litestream initialized` + `snapshot complete txid=0x01` 成功 = 那时 has_r2=1 凭据齐 replicate 跑, 写 omn-data 桶。STATUS line 170 后期"无 3.8.48 snapshot" = R2 副本后期已无 (可能 lifecycle 清/凭据撤/关态无写致空/桶误删)。须圣上侧 R2 Dashboard 核 omn-data 桶 `db/storage.sqlite` path 历史代数现状。不阻塞本次 (补凭据启 replicate 重建 omn-data 副本)。
+
+**验证两轮**:
+- **首 boot** (建首个 R2 snapshot): Restart → boot 见 has_r2=1 restore 段 (非 skip) → replicate PID 印 (非关态) → init rc=0 → ≥10s litestream sync 写 R2 (`replica: sync: wrote segment/snapshot complete` 行) → R2 Dashboard omn-data 桶 `db/storage.sqlite` 首个 generation 建。
+- **二 boot** (真持久化铁证): 再 Restart → boot 见 `restore rc=0 原子 mv` + 本地非空 skip (L130) → Dashboard 手加 manage key → 再 Restart 仍存 = catch-22 破 → 路径1 external 脚本可真跑。
+
+**与路A关系**: 非互斥, 并存。R2 持久化后 manage key 持久 → 路径1 external 可跑; 但 init boot 自清 (路A) 仍留作自愈兜底 (每 boot 重建同步清上轮风暴残留, 不依赖 external key)。两方案同向根治演进。
+
+**未决/下一步**:
+- 候圣上侧补 3 R2 凭据 (§2 零入会话, 我侧无法操作) + OMN_PERSIST_WRITE boot 验态后处置。
+- 候圣上侧 R2 Dashboard 核 omn-data 桶历史代数现状 (副本后期空根)。
+- 验签两轮后全绿 → STATUS 续真持久化闭环段。
+
+**关联**: [[clear-stale-nim-errors-init-boot-auto-la-2026-08-19]] [[omn-v30-logic-litestream-replicate-contract]] [[storage-bucket-dataset-堪察]] [[omn-三层解耦新方案绕hf冻]] [[compaction-txid-gap-scar-closed]]

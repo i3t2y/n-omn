@@ -10,15 +10,15 @@
 - 输出纪律: 改代码只输出 diff 或定点替换, 禁整文件重写; 全量文件由
   git 出货, 不经会话即兴生成。
 
-## §1 拓扑铁律(2026-07-25 修订: 单源双Space)
+## §1 拓扑铁律(2026-08-19 修订: 单源单Space, 圣上令撤 nomke)
 - n-omn 私库 = 唯一血统。根目录=生产血统; dev/logic/=dev逻辑层镜像
   (实物在 Dataset nonoke/omn-logic, 改动须 git 先行再 push);
   dev/base/=基镜像血缘; ops/=运营层(永不进Space, 不同步)。
-- nomke/omn = 现役生产(v4.2.3, 无 Supreme 令不动); ③时 Pause 停写转冻结回退底牌。
-  nonoke/omn = dev 金丝雀; ②六绿后于 ③ 晋级生产(变量切换 R2→生产 bucket + Restart, 零 Rebuild)。
-  omn-v2 第三 Space 撤销(HF 免费层 2026-07 关闭新建 Docker Space 通道), 全程不新建任何 Space。
-- 两 Space 日志分开取证, 禁止交叉引用结论; R2 bucket 永不双写
-  (新旧 Space 不得同时在线写同一 bucket)。
+- **nonoke/omn = 唯一 Space, 兼生产+dev**(2026-08-19 圣上令: 撤 nomke 生产, 剩 nonoke 单 Space)。
+  nomke/omn 废弃(旧生产 Space, 不动不写); omn-v2 第三 Space 撤销(HF 免费层 2026-07 关闭新建)。
+  全程不新建任何 Space。
+- R2 bucket = **omn-data**(单 Space 单桶; omniroute-data 旧生产桶不动存历史)。
+  单 Space 无双写问题, 旧"R2 bucket 永不双写"双 Space 铁律随 nomke 撤失效。
 - upstream/ 两树只读; 机制结论须 file:line 双版本对照;
   基座 3.8.43 + 4.2.3 行为参数 + 3.8.49 定点移植。
 

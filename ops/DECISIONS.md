@@ -392,3 +392,36 @@ fname = parts[2]
 **不变量守**: §0 不翻案 100 Worker 拓扑 (翻案须圣上明确令); §1 三件定态零触; §2 secret 零入会话 (本轮纯查证无代码); DECISIONS 只增不改 (本 §4 即只增).
 
 **关联**: [[ft-worker-100topology-landed-2026-08-12]] [[warp-vs-ft-egress-对比]] [[ft-worker-count-vs-keys-decoupled]] [[latency-baseline-vs-100worker-2026-08-13]]
+
+## §5 429 风暴红外诊断 + 三病并存定谳 (2026-08-19, 只增不改, 纯查证无 commit)
+
+**裁决**: 429 真根 = NIM account-level 配额速率限 (纯 key/account 维, 非出口 IP 维), 与前轮 §4 403 (ft1 族 IP/权限维) **两病并存非互斥**. OmniRoute fallback 韧态全活, 非本地代码 bug.
+
+**证据三叠** (圣上 2026-08-19 贴代理日志 + 单事件详情 + 应用控制台 + Health 仪表盘):
+1. **代理日志 59 条**: combo `—` 空 = glm-5.2 单 model 设计如此 (`getComboForModel` model.ts:237 返 null = single-model 请求, 非 fallback 没生效; 连 200 成功也 `—`). 推翻前轮"combo 空最可抓活根"误判.
+2. **attempts 链展开** = fallback 换 key 真活铁证: `be1e20b9` 7 attempts 跨 nim-01~06 连 429 / `3b3e55c6` 16 attempts 烧 16 key 末中 200 / `36a91736` 12 attempts 全 429 末 200 = 同 request_id 跨 account 连试. OmniRoute internal fallback 韧态真撑.
+3. **控制台**: `🚫 [RATE-LIMIT] nvidia:<UUID> — 429 received, pausing for 60s` (60s cooldown 实跑; 源码 errorConfig rateLimit default 120s, 实跑 60s = init 配/resilience profile 覆写, 圣上侧 `/api/resilience` 可查真值) + `nvidia round-robin: FALLBACK MODE - excluded_count=N excluded=...  picked_lru=...` (LRU 排除已限 account 选下一) + `Account X error cleared` (成功清 cooldown) + `Model-only lockout ... 429 rate_limited 3s (failureCount=1, connection stays active)` (model 级 3s 短锁, connection 不死, 他 model 可继续).
+4. **Health 仪表盘终极证**: 32 account 风暴窗 140 请求 · **40% 成功率**, 21 account `rate_limited degraded` 散布**无 IP 族聚类** (若 IP 限应 Worker-IP 扎堆, 反见 nim-XX 按账号成簇无规律), healthy 10 散布全账号 (nim-07,08,09,16,19,20,21,23,27,32). provider 熔断 **CB CLOSED** (未跳, round-robin 始终在 provider 内换 account, 无全停). cooldown 0 (无 account 长锁, 60s 窗过即回活). 限速标 `nvidia:<UUID>` = account ID = NIM 按 account 计限. 风暴过后现态 12min 11 请求 **0% 错误率** = 系统回稳.
+
+**429 = account 维强证 (非 IP)**: 21/32 散布无聚类 + 限速标 account UUID 非 IP + cooldown/account-clear 按 account 非 Worker = NIM account-level 配额速率限. 推翻任何"429 源 FT 出口 IP"臆测.
+
+**三病并存定谳** (现盘全合):
+- **429 (本轮主流)** = NIM account 配额速率限 × Hermes 高频连发 (4-5s 隔, msg 88→130 增). 纯 account/key 维, 非本地 bug, 非 FT 桥病. 风暴窗 60% 拒, 60s cd 窗解即回 0% 错.
+- **403 (前轮 §4, ft1 族集中)** = auth/权限维, 另案并存. 本轮未复现, §4"账号缺 Public API Endpoints 权限/组织权限"方向仍立, 待深查 (查 403 Worker NIM key vs 200 Worker key 同否账号).
+- **502 (1× nim-13)** = NIM 服务层瞬时 RST (`fetch failed ECONNRESET`), 透传非桥造, fallback 跳过续试.
+- **+ 新发现 陈旧错态 gap**: OmniRoute 冷却 (60s) 过期回活后错误字段 (lastError code 429) 不自动清 → Health Autopilot 检到提"Clear stale error state"手动按钮 (22 issues/22 actions). 小 bug 级: spend-cooldown account 可能被路由偏置继续绕开本已回活 account. **缓释**: 圣上点 Autopilot 22 动作批量清 (或 API 批量), 21 account 立回 healthy. 我零碰 prod.
+
+**解方向 (候圣上命, 非本轮 commit)**:
+1. 降打高频: 客户端侧 4-5s 隔太快, OmniRoute `requestQueue.requestsPerMinute` 调低 + `maxWaitMs=300000` (已落, init-nim-keys.sh:909 R3+) 排队撑非即拒.
+2. 拉长 429 cd 反加效: 60s 太短致 Hermes 复发前回复活又被烧, 拉到 120-180s 让单 account 彻底冷却 (须配降客户端频率否则更堵).
+3. 扩 NIM account 池减单 key 承压, 但撞圣上 10 account 满额上限 ([[ft-worker-100topology-landed-2026-08-12]]).
+4. 真根治 = NIM 侧配额/credits 提升 (NVIDIA 端非本地能控).
+
+**否定项 (已查证排除)**:
+- combo `—` 空 = 正常设计非 bug (getComboForModel 返 null = single-model). 推翻前轮误判.
+- FT 桥透传 429 = NIM 真返非桥造 (worker.js 纯转透换出口 IP, Authorization 不在 DROP_REQ 全转透 NIM). 403/502 同透传上游真返.
+- 真测现态不建议: 0% 错系统回稳, 无活病可测; 真须烧 NIM 配额高频打造风暴 = 成本高仅重复证已有定论. 真测脚本框架可写候圣上择机下次风暴测.
+
+**不变量守**: §0 不翻案 100 Worker 拓扑 + §4 403 决 (翻案须圣上明确令); §1 三件定态零触; §2 secret 零入会话 (本轮纯查证无代码); DECISIONS 只增不改 (本 §5 即只增, §4 未动).
+
+**关联**: [[429-fallback-alive-combo-empty-normal-2026-08-19]] [[429-vs-403-combo-empty-diagnose-2026-08-19]] [[latency-baseline-vs-100worker-2026-08-13]] [[ft-worker-100topology-landed-2026-08-12]] [[gate-ft-metrics-public-proxy-landed-2026-08-12]]

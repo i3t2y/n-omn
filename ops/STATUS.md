@@ -636,3 +636,30 @@ SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ �
 **可取三小调** (非升 tier 非翻案): NIM 403 key 维度重诊 / Smart Placement 谨审监控多样性 / 10 账号 40 Worker 真出口 IP 取件比对
 
 本轮无 commit (纯查证, memory + SSOT 落存档). 翻案 100 Worker 数或 FT 拓扑须圣上明确令 (§0).
+
+## 2026-08-19 · 429 风暴红外诊断 + 三病并存定谳 (无 commit, 纯查证存档)
+
+圣上贴代理日志 + 单事件详情 + 应用控制台 + Health 仪表盘四路证据, 闭环 429 真根诊断 (前轮 #3 NIM 403 key 维度重诊延伸).
+
+**429 真根 = NIM account-level 配额速率限** (纯 key/account 维, **非出口 IP 维**):
+- 32 account 风暴窗 140 请求 · 40% 成功率, 21 account rate_limited 散布**无 IP 族聚类** (若 IP 限应 Worker-IP 扎堆)
+- 限速标 `nvidia:<UUID>` = account ID = NIM 按 account 计; cooldown/error-clear 按 account 非 Worker
+- healthy 10 散布全账号 (nim-07,08,09,16,19,20,21,23,27,32), 熔断 CB CLOSED (未跳, round-robin 始终换 account), cooldown 0 (60s 窗过即回活)
+- 风暴过后现态 12min 11 请求 0% 错误率 = 系统回稳
+
+**OmniRoute fallback 韧态全活** (非本地 bug):
+- combo `—` 空 = glm-5.2 单 model 设计如此 (getComboForModel 返 null = single-model 非 fallback 失效; 连 200 也 `—`). 推翻前轮误判
+- attempts 链真活: be1e20b9 7 attempts 跨 nim-01~06 / 3b3e55c6 16 attempts 末 200 / 36a91736 12 attempts 末 200
+- 控制台: 🚫[RATE-LIMIT] pausing for 60s (cd 实跑 60s, 源码 default 120s = 配覆写, 圣上查 /api/resilience) + FALLBACK MODE excluded_count LRU 排除选下一 + Account error cleared 真清 + Model-only lockout 3s (connection 不死)
+
+**三病并存定谳** (现盘全合):
+- 429 (主流) = NIM account 配额限 × Hermes 高频 (4-5s 隔). account 维. 非桥病
+- 403 (前轮 §4, ft1 族) = auth/权限维, 另案. 本轮未复现, 仍候深查
+- 502 (1× nim-13) = NIM 服务层 RST 透传非桥造
+- + 陈旧错态 gap: 冷却过期回活后 lastError 不自动清 → Autopilot 22 issues 提手动清 (缓释: 圣上点 Autopilot 清, 我零碰 prod)
+
+**否定项**: combo 空非 bug (推翻前判); FT 桥透传 429/403/502 全 NIM 真返非桥造; 真测现态不建议 (0% 错无活病可测, 真须烧配额造风暴成本高仅重复证已有定论). 真测脚本可写候圣上择机下次风暴测.
+
+**解方向候命** (非本轮 commit): 降客户端频率 / 拉长 429 cd 120-180s / 扩 account 池撞 10 上限 / NIM 侧提配额 (真根治非本地能控).
+
+本轮无 commit (纯查证, DECISIONS §5 + STATUS 落 SSOT). 翻案 §4 403 决或 100 Worker 拓扑须圣上明确令 (§0). 排障入口看 HANDOFF 历史 watcher 闭环段 (FALLBACK MODE / all accounts unavailable / Preserving last upstream error 三签名表).

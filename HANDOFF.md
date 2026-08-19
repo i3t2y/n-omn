@@ -122,6 +122,14 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
   - CF IP 优化: 100 Worker 共享池 = CF 免费层 IP 多样性天花板. 独享固定 IP = Enterprise + 反设计 (撞 warp-vs-ft③否决). Smart Placement 微调不轻试. 多账号撞圣上 10 上限.
   - 外部 AI 文"关小黄云/优选 IP 映射/收子域/砍 Worker" 全伪或撞锁, 不可执行 (详 DECISIONS §4).
   - 无 FT 直连 NVIDIA 测 = 真"FT 开销"定论前提, 候圣上命.
+- **429 风暴诊断 (2026-08-19 红外, 详 ops/STATUS + DECISIONS §5)**:
+  - **429 = NIM account-level 配额速率限** (纯 key/account 维, 非出口 IP 维). 真根非本地 bug 非 FT 桥病.
+  - 签名: 32 account 窗 140 请求 40% 成功, 21 account rate_limited **散布无 IP 族聚类** (IP 限应扎堆反成簇), 限速标 `nvidia:<UUID>` (account 非 IP), 熔断 CB CLOSED (未跳, round-robin 始终换 account), cooldown 0 (60s 窗过即回活). 现态 0% 错 = 风暴过回稳.
+  - **combo `—` 空 = 正常非病**: glm-5.2 单 model 设计 (`getComboForModel` 返 null = single-model 非 fallback 失效, 连 200 也 `—`). 勿按"combo 空最可抓活根"误判.
+  - **fallback 韧态全活**: attempts 链跨 account 连试 (be1e20b9 7/3b3e55c6 16 末 200/36a91736 12 末 200) + 控制台 `🚫 [RATE-LIMIT] pausing for 60s` (cd 实跑 60s, 源码 default 120s = 配覆写, 查 `/api/resilience`) + `FALLBACK MODE excluded_count ... picked_lru` (LRU 排已限选下一) + `Account X error cleared`.
+  - **三病并存** (非互斥): 429 (account 维主流) / 403 (ft1 族 IP/权限维, 前轮 §4 另案候查) / 502 (1× nim-13 NIM 服务层 RST 透传).
+  - **陈旧错态 gap**: 冷却 (60s) 过期回活后 lastError code 429 不自动清 → Health Autopilot 检 22 issues 提"Clear stale error state"手动清 (小 bug: 路由偏置或绕开本已回活 account). 缓释: 圣上点 Autopilot 批量清 (或 API), 我零碰 prod.
+  - 解候命: 降客户端高频 / 拉长 429 cd 120-180s / 扩 account 池撞 10 上限 / NIM 侧提配额 (真根治非本地能控). 真测现态不建议 (0% 错无活病, 造风暴成本高).
 
 ### commit 链 (本会话及前轮)
 - FT Worker deploy 链: `008c48d` 雏 → `6c78f2d` 100 拓扑 → `1431b0f` delete:o → `08d272a` tag-driven → `c10d544` secrets bug → `517357f` RELAY_AUTH 真注 → `d1c324b` publish-endpoints job → `c22b3a9` PRESET=publish。

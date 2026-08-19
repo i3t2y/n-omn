@@ -35,8 +35,19 @@ API="/api/providers/health-autopilot"
 ACT_API="/api/providers/health-autopilot/actions"
 
 echo "==> 取 autopilot 报告 (provider=${PROVIDER}, includeHealthy=false, includeActions=true)..."
-REPORT=$(curl -sS -H "Authorization: Bearer ${OMN_MANAGE_TOKEN}" \
+# -w 取 HTTP 状态码, fail-loud: 非 200 直接报错退出 (防 403/401 静默吞当 COUNT=0 正常)
+HTTP_CODE=$(curl -sS -o /tmp/omn_autopilot_report.json -w "%{http_code}" \
+  -H "Authorization: Bearer ${OMN_MANAGE_TOKEN}" \
   "${OMN_BASE_URL}${API}?provider=${PROVIDER}&includeHealthy=false&includeActions=true")
+
+if [[ "${HTTP_CODE}" != "200" ]]; then
+  echo "✗ GET autopilot 失败 HTTP ${HTTP_CODE} (非 200), fail-loud 退出. body 前 300 字:"
+  head -c 300 /tmp/omn_autopilot_report.json 2>/dev/null
+  echo ""
+  echo "常见: 403/401=token 错或无 manage scope (须 Dashboard API Keys 页建 manage-scope key, 非 OpenRouter sk-or- key); 404=provider 名错; 5xx=Space 挂."
+  exit 1
+fi
+REPORT=$(cat /tmp/omn_autopilot_report.json)
 
 # 提取 stale_connection_error 动作 (connectionId + preconditionsHash)
 # 用 python3 解 JSON 免 jq 依赖
@@ -46,6 +57,9 @@ try:
     r = json.loads(sys.stdin.read())
 except Exception as e:
     print(f"JSON 解析失败: {e}", file=sys.stderr); print("[]", end=""); sys.exit(1)
+# 若上游返 error 字段报错退出 (非 200 但 curl 未抓到的兜底)
+if isinstance(r, dict) and r.get("error"):
+    print(f"上游 error: {r[\"error\"]}", file=sys.stderr); print("[]", end=""); sys.exit(1)
 # 找 issues[].actions[] 里 type=clear_stale_connection_error 的
 out = []
 for iss in r.get("issues", []):

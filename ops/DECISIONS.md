@@ -491,6 +491,8 @@ fname = parts[2]
 
 **与路A关系**: 非互斥, 并存。R2 持久化后 manage key 持久 → 路径1 external 可跑; 但 init boot 自清 (路A) 仍留作自愈兜底 (每 boot 重建同步清上轮风暴残留, 不依赖 external key)。两方案同向根治演进。
 
+**2026-08-20 实证修订 (三病根, 非翻案 = 同向确证)**: ① R2 凭据已补齐 (boot 走 restore 分支非 skip, has_r2=1) ② OMN_PERSIST_WRITE 已处置 (boot 印 `Litestream PID=151` 开态, replicate 启) ③ **litestream.yml path 不匹配实锤真根** = `path: /app/data/storage.sqlite` 硬编码对不上运行 DB path. entrypoint 默认 DATA_DIR=/app/data (L16) 但 HF Space env 设 `DATA_DIR=/data` → 运行 DB 实际 `/data/storage.sqlite` (boot 印 `SQLite database ready`), restore 报 `database not found in config: /data/storage.sqlite` → `⚠ restore 失败 rc=1 空库启动` = **R2 持久化真障碍** (restore 拉不到 R2, replicate 也匹配不上 config 写不到). **修复裁决 (c790e05)**: litestream.yml dbs[].path 硬编码 → `$\{DATA_DIR\}/storage.sqlite` env 派生对齐运行态. entrypoint L17 `export DATA_DIR` 保证 litestream 子进程见运行值 (/data); litestream.yml 其它键 (bucket/endpoint/keys) 全用 `${ENV}` 展开且已工作实证 (replicate 能写 R2), path 同受 env 展开支持. 走 dev/logic → push nomn → sync-logic-nonoke → Dataset → Restart 部署链. **验签**: 复验 `restore rc=0 原子 mv` (config 找得到 DB) 或 `无副本空库启动` + replicate PID + init rc=0 + litestream sync 写 R2 + R2 Dashboard 首个 generation; 若复验仍 `database not found in config` = path 修未生效 (sync 未上 Dataset / env 展开不支) 回查. **教训**: litestream.yml path 须与运行 DATA_DIR 同源, 硬编码 /app/data (entrypoint 默认) 会因 HF Space env DATA_DIR=/data 覆盖而漂移断链.
+
 **未决/下一步**:
 - 候圣上侧补 3 R2 凭据 (§2 零入会话, 我侧无法操作) + OMN_PERSIST_WRITE boot 验态后处置。
 - 候圣上侧 R2 Dashboard 核 omn-data 桶历史代数现状 (副本后期空根)。

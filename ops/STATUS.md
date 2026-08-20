@@ -694,18 +694,20 @@ SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ �
 **架构已全建好 — 零代码改动** (代码链 litestream.yml + entrypoint.sh L124/L128-166/L391-407/L499 全在, 详见 DECISIONS §7 代码段)。**纯 HF Space Variables 配置**:
 
 - **病根**:
-  1. **(实证)** 3 R2 凭据 (`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`) 未齐 → `has_r2=0` (entrypoint L124, 判活只验 3 凭据**不验 R2_BUCKET**) → L128 `skip restore 空库启动` (本 line 170 "dev R2 omn-data 无 3.8.48 snapshot" 现态即此, 钉死)。
-  2. **(待核)** `OMN_PERSIST_WRITE` 现态未实证: 该闸 2026-08-10 加 (commit 63497bd) 默认未设=1开 (entrypoint L400 `$\{OMN_PERSIST_WRITE:-1\}`)。memory `omn-persist-write-request-landed-2026-08-10` line 13 明"现状加开关前本就是保存的 replicate 无条件跑" = 圣上加闸后**可能从未设0故默1开 replicate 仍跑**。关态=前轮摘要记忆断言**未实证**; 真根若"加 key 重启丢"可能 litestream 链有病 (replicate 死/restore 断/sync 窗口) 非设计不保存 (memory "须贴 boot 日志取证定根 未结")。
-- `R2_BUCKET=omn-data` 圣上已补设 (本文件 line 210 ✅) 但 has_r2 判活不含此故未生效 replica。
+  1. **(已解除)** 3 R2 凭据 `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID` 圣上已补齐 → `has_r2=1` (entrypoint L124 判活 3 凭据已齐)。**2026-08-20 12:05 boot 实证**: 走 restore 分支 (印 `⚠ restore 失败 rc=1` 非 L128 `skip restore 空库启动`) = 凭据在, has_r2=1。
+  2. **(已解除)** `OMN_PERSIST_WRITE` 关态 = 圣上已处置 (设1 或删回默1)。**2026-08-20 12:05 boot 实证**: 印 `Litestream PID=151` 开态分支 (L403), 无 `OMN_PERSIST_WRITE=0 关态` 行 = replicate 启。前轮 STATUS "待核" 标注实为过时 (摘要记忆断言关态 + 现 boot 开态)。
+  3. **(实锤真根 c790e05 修)** litestream.yml `path` 硬编码 `/app/data/storage.sqlite` 对不上运行 DB path。**2026-08-20 12:05 boot 实证**: `error="database not found in config: /data/storage.sqlite"` — entrypoint 默认 DATA_DIR=/app/data (L16) 但 HF Space env 设 `DATA_DIR=/data` → 运行 DB 实际 `/data/storage.sqlite` (boot 印 `SQLite database ready: /data/storage.sqlite`), litestream.yml path 硬编码 /app/data 匹配不上 restore 目标 arg $DB_PATH. → restore 失败 rc=1. **修法 (commit c790e05)**: path 改 `$\{DATA_DIR\}/storage.sqlite` env 派生对齐运行态 (entrypoint L17 export DATA_DIR 已保证子进程见 /data; litestream.yml 其它键 bucket/endpoint/keys 全用 `${ENV}` 展开且已工作实证 replicate 能写 R2, path 同受 env 展开支持)。
+- `R2_BUCKET=omn-data` 圣上已补设 (本文件 line 210 ✅) — has_r2 判活不含此故未参与判活, 但 replica 配置 (litestream.yml bucket: ${R2_BUCKET}) 用之。
 
 **治法** (圣上侧操作, 我无 HF UI 权限 §2 凭据零入会话):
-1. nonoke/omn Space (现唯一 Space) → Settings → Variables 补 3 R2 凭据 (`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`, 圣上手填, token **scope 锁 omn-data 单桶 Write+Read**, 单桶无双写越权面)。
-2. Restart 非 Rebuild (纯 Variable 改零数据清零) → boot 看 `[entrypoint] Litestream:` 行态定病根②真伪: 印 `Litestream PID=$LS_PID` = 默1开 replicate 跑 跳处置 (病根②不存在); 印 `OMN_PERSIST_WRITE=0 关态` = 圣上曾设0 → 处置设 `1` **或删此 Variable** 回默1 (推荐删 = 少一件)。
+1. nonoke/omn Space (现唯一 Space) → Settings → Variables 补 3 R2 凭据 (`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_ACCOUNT_ID`, 圣上手填, token **scope 锁 omn-data 单桶 Write+Read**, 单桶无双写越权面) — **✅ 已补 (2026-08-20 boot 实证 has_r2=1)**。
+2. Restart 非 Rebuild (纯 Variable 改零数据清零) → boot 看 `[entrypoint] Litestream:` 行态定病根②真伪 — **✅ 已处置 (2026-08-20 boot 实证 PID=151 开态 replicate 启)**。
+3. **litestream.yml path env 派生修复 (c790e05)**: `/app/data/storage.sqlite` → `$\{DATA_DIR\}/storage.sqlite` 对齐运行 DATA_DIR=/data (病根③) — **✅ 已改 (待 push nomn → sync → Dataset → Restart 生效)**。
 
 **§1 单 Space 单桶**: nomke 废剩 nonoke 唯一 Space; R2=omn-data (dev桶升正, omniroute-data 不动存历史); 单 Space 单桶无双写问题。**遗留疑点** (不阻塞本次, 须圣上侧排查): 2026-07-27 04:55Z boot snapshot 全链 (本文件 line 173) audit 证那时 replicate 启写 omn-data 桶, 但本文件 line 170 后期"无 3.8.48 snapshot" = R2 副本后期已无。须圣上侧 R2 Dashboard 核 omn-data 桶 `db/storage.sqlite` path 历史代数现状。
 
 **验证两轮** (候圣上侧):
-- **首 boot** (建首个 R2 snapshot): Restart → 5 验签点: ① restore 段 has_r2=1 非 skip 空库 ② replicate PID 印 (非关态) ③ init rc=0 ④ ≥10s litestream sync 写 R2 (log `replica: sync: wrote segment/snapshot complete`) ⑤ R2 Dashboard omn-data 桶 `db/storage.sqlite` 首个 generation 建。
+- **首 boot 复验** (c790e05 部署后, 建首个 R2 snapshot): Restart → 5 验签点: ① restore 段 **`restore rc=0 原子 mv` 或 `无副本空库启动`** (path 对齐后 config 找得到 DB, 不再 `database not found`) ② replicate PID 印 (L403 开态, 病根②已解除 2026-08-20 实证) ③ init rc=0 ④ ≥10s litestream sync 写 R2 (log `replica: sync: wrote segment/snapshot complete`) ⑤ R2 Dashboard omn-data 桶 `db/storage.sqlite` 首个 generation 建。**判定**: 若仍 `database not found in config: /data/storage.sqlite` = path 修未生效 (sync 未上 Dataset / env 展开不支) → 回我侧查。
 - **二 boot** (真持久化铁证): 再 Restart → boot `restore rc=0 原子 mv` + 本地非空 skip (L130) → Dashboard 手加 manage key → 再 Restart 仍存 (catch-22 破) → 路径1 external 脚本可真跑。
 
 **与路A关系**: 非互斥并存。R2 持久化后 manage key 持久 → 路径1 external 可跑; 但 init boot 自清 (路A) 仍留 dev 自愈兜底 (每 boot 重建同步清上轮风暴残留, 不依赖 external key)。

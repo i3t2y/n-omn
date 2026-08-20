@@ -499,3 +499,50 @@ fname = parts[2]
 - 验签两轮后全绿 → STATUS 续真持久化闭环段。
 
 **关联**: [[clear-stale-nim-errors-init-boot-auto-la-2026-08-19]] [[omn-v30-logic-litestream-replicate-contract]] [[storage-bucket-dataset-堪察]] [[omn-三层解耦新方案绕hf冻]] [[compaction-txid-gap-scar-closed]]
+
+## §8 自定义 provider 名长短之分: 路由用 prefix, 显示用 name (2026-08-21, 只增不改, 源码查证)
+
+**圣上问**: "为什么后台加的就没用？非要加到启动脚本里注册了才能用？原生版本不是加了就能用的吗？" + "为什么官方原版加了就能用，也不用改什么短名？" + "在哪里改？" (贴 edit 表单: 名称=sensenova, **前缀=sensenova**, base URL=token.sensenova.cn)
+
+**定谳 (源码实证 + 表单实证, 非翻案 = 确证机制)**:
+- **自定义 openai-compatible 节点有两字段**: `prefix`(路由前缀) + `name`(显示名)。**路由只用 `prefix` 或 `id`, 绝不用 `name`** (`src/sse/services/model.ts` getModelInfo L282: `getModelInfo("sensenova/deepseek-v4-flash")` → `prefixToCheck="sensenova"` → 匹配 `node.prefix === "sensenova"` 或 `node.id === "sensenova"`)。`name` 仅作显示 (`src/lib/display/names.ts` 显示优先级 node.name → node.prefix → de-UUID id)。
+- **在哪里改 = 前缀 (prefix) 字段**: 圣上贴的 edit 表单已示**前缀字段 = `sensenova`** (可编辑, updateProviderNodeSchema prefix 非只读)。把**前缀 (prefix)** 设成与 model 串前缀一致 (`sensenova`), 保存后 `sensenova/deepseek-v4-flash` 路由 `node.prefix === "sensenova"` 命中 → provider 解析为节点 UUID → 凭据查找成功。**名称 (name) 字段纯显示, 改不改无碍路由**。
+- **"No credentials for sensenova" 真根**: `getProviderCredentials("sensenova")` 前 `resolveProviderId("sensenova")` 查内置 registry alias 映射 (providers.ts L368-371) → `sensenova` 非内置 alias → 原样返回 `sensenova` → `getConnections("sensenova")` 找不到 (连接 provider = 节点 UUID `openai-compatible-chat-a45f6ed1-...`, 非 `sensenova`) → **无连接 → "No credentials"**。即 getModelInfo 未命中节点 (prefix 未匹配) 时, provider 回落原始串。
+- **原版"加了就能用"非特例**: 内置 provider (如 `nvidia`) 的 **id 即路由前缀**, model 挂其下调用 `nvidia/<model>` 天然对 (init-nim-keys.sh 注册 `provider=nvidia` 同路)。**自定义节点必须用 `prefix` 做模型前缀** (非 `name`), 否则模型 id 前缀对不上路由 prefix 即断 = 圣上当前状态 (prefix 若确已=sensenova 却仍 No credentials, 须核 ① 该节点类型确为 openai-compatible (getModelInfo 只查 openai-compatible/anthropic-compatible 两类, 其他类型不匹配) ② model 确挂该节点 providerId (addCustomModel key=providerId, CustomModelsSection L138 modelId 原始串 trim 不自动前缀) ③ 该连接有可用 key 非 terminal)。
+
+**治法 (让 `sensenova/...` 直接可用)**:
+1. **设节点 prefix = `sensenova`** (圣上表单已示可改): Dashboard 编辑该节点, **前缀字段填 `sensenova`** (与 model 串前缀一致), 保存 → `sensenova/deepseek-v4-flash` 路由命中。**最贴合圣上"加了就能用"意图**。
+2. **核节点类型**: 确认该节点 type = `openai-compatible` (getModelInfo 只匹配此二类; 若存成 `openai-compatible-chat` 等带后缀 type 则不匹配)。
+3. **核 model 归属**: model 列表 `sensenova/deepseek-v4-flash` 须挂该节点 providerId (customModels namespace key = 节点 UUID), 且节点 prefix 与 model 前缀一致。
+4. **配 model alias** (备选): Settings 加 alias 把 `sensenova` 映射到该节点 UUID。
+
+**关链**: init-nim-keys.sh 走 `/api/providers` + `/api/provider-models` 注册 `provider=nvidia` (内置 provider id=prefix), 故 `nvidia/<model>` 天然路由成功 = 与自定义节点殊途同归。
+
+**未决**: 圣上核节点类型 + model 归属 + prefix 三处一致后验证。若 prefix 已=sensenova 仍失败, 疑 type 或 model 归属错, 非 prefix 值问题。
+
+### §8.1 实证修订: 单节点单连接但 prefix 仍不匹配 (2026-08-21 晚, 只增不改, API 铁证)
+
+**圣上追问**: "删除重新添加还是长名" + "每次加了不能立即生效" + "加了都是先测试再保存的" → 逐层剥离伪因, 最终 API 返回铁证定谳。
+
+**新证据 (POST /api/providers 返回, 决定性)**:
+- sensenova 连接: `provider=openai-compatible-chat-75176e99-8e99-4cbc-91be-f98734e789c2`, `prefix=sensenova`, `name=sensenova`, `testStatus=active`, key `sk-F1lzC****O5Nw` 健康。
+- amd 连接: `provider=openai-compatible-chat-484711e6-...`, `prefix=amd`, `name=amd`, `testStatus=active`。
+- **两连接 provider 字段都是长 UUID (节点 id), prefix 都是短名 (节点 prefix)**。节点/连接/prefix 三处**表面全同步**。
+- **但: `amd/DeepSeek-V4-Flash` 前缀调用 200 通; `sensenova/deepseek-v4-flash` 前缀调用 "No credentials" 不通; 两连接**长 id 直调都不通** (`openai-compatible-chat-<uuid>/...` → No active credentials)。
+
+**关键矛盾 → 真根定位 (getModelInfo vs getProviderCredentials 两段链, 各认各的键)**:
+- **getModelInfo (model.ts:285-288)**: `openaiNodes.find(node => node.prefix === "sensenova" || node.id === "sensenova")` → 匹配到 prefix=sensenova 的节点 → 返回 `provider = 该节点的 id`。**它返回的 provider id = getModelInfo 匹配到的那个节点的 UUID。**
+- **getProviderCredentials (auth.ts:1006-1013)**: 用 getModelInfo 返回的 provider id 去查 `getProviderSearchPool(provider)` → `getCachedRawProviderConnections({provider, isActive:true})`。
+- **连接按 provider = 长 UUID 存** (API 铁证)。若 getModelInfo 匹配到的节点 id **恰好 = 连接存的 provider UUID** → 通; **否则 → No credentials**。
+- **amd 通 = getModelInfo 匹配到的 amd 节点 id (484711e6) = 连接 provider (484711e6)**。
+- **sensenova 不通 = getModelInfo 匹配到的 sensenova 节点 id ≠ 连接 provider (75176e99)**, 或**有多个 prefix=sensenova 的节点** (getModelInfo 只取第一个), 或**节点缓存 (nodesCache 5s TTL) 里 sensenova 节点是旧的** (id ≠ 75176e99, 连接挂在 75176e99 下)。
+
+**核心**: 路由成功与否取决于 **getModelInfo 匹配到的节点 id 是否精确等于连接存的那个 provider UUID**。prefix 只是中间匹配键, **真正的凭据键是节点 id (UUID)**。圣上"删了重加还是长名" = 每次重加节点生成**新 UUID**, 连接 provider 跟着新节点, 但**旧节点/旧连接残留或缓存未失效**导致 getModelInfo 匹配到错 id。
+
+**治法 (让 sensenova 精确路由)**:
+1. **删净所有 sensenova 旧节点 + 旧连接** (provider 列表核无重复), 只留一个 prefix=sensenova 的新节点 + 一个连接 (provider=该新节点 id)。
+2. **重启** (清 nodesCache 5s TTL + 重拉 R2 库), 确保 getModelInfo 匹配的节点 = 连接 provider UUID。
+3. 调用 `sensenova/deepseek-v4-flash` → getModelInfo 匹配 prefix=sensenova 的**唯一**节点 → provider=该节点 id → 连接查到 → 通。
+4. **若仍不通**: 改 model 归属 (addCustomModel 用**节点 UUID** 做 namespace key) 或配 alias, 使 model 前缀对上层 provider。
+
+**教训**: 自定义 provider 路由 = **prefix 匹配节点 → 节点 id 查连接** 两段链, 凭据键是 **节点 UUID 非 prefix**。重复添加/删旧留新会致 getModelInfo 匹配到与连接 provider 不一致的节点 id → "No credentials"。删除重加必须**删净旧的**避免多节点残留。

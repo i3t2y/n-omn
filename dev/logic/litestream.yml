@@ -1,5 +1,8 @@
 dbs:
-  - path: /app/data/storage.sqlite
+  # 运行 DATA_DIR 由 HF Space env 设 (/data), 非 entrypoint 默认 /app/data.
+  # litestream restore 须按运行 DB path 匹配 config, 否则报 "database not found in config".
+  # 用 env 派生 ${DATA_DIR} 对齐运行态 (boot 印 SQLite ready: ${DATA_DIR}/storage.sqlite).
+  - path: ${DATA_DIR}/storage.sqlite
     replica:
       type: s3
       bucket: ${R2_BUCKET}

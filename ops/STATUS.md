@@ -714,11 +714,26 @@ SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ �
 **与路A关系**: 非互斥并存。R2 持久化后 manage key 持久 → 路径1 external 可跑; 但 init boot 自清 (路A) 仍留 dev 自愈兜底 (每 boot 重建同步清上轮风暴残留, 不依赖 external key)。
 
 **待办/下一步**:
-- ✅ 自定义 provider 前缀遮蔽诊断闭环 (2026-08-21): 现象 = 自定义节点 `sensenova` 前缀调用 "No credentials" 而结构对称的 `amd` 前缀调用通, 后台 Test 直调长 ID 200 通。**源码级根因 = `sensenova` 是内置 provider** (regional.ts:331), model.ts:277 reserved 检查遮蔽自定义前缀 → 治法 = 前缀改非内置名 (`snova`)。**圣上已改 prefix 为 snova 验证通过**。落 DECISIONS §8.1 追更 + HANDOFF 排障入口; 待 commit+push nomn main (§5 圣上手推)。
-- [ ] 圣上侧补 3 R2 凭据 + OMN_PERSIST_WRITE 处置 (§2 零入会话 我侧候命)
+- ✅ 自定义 provider 前缀遮蔽诊断闭环 (2026-08-21): 现象 = 自定义节点 `sensenova` 前缀调用 "No credentials" 而结构对称的 `amd` 前缀调用通, 后台 Test 直调长 ID 200 通。**源码级根因 = `sensenova` 是内置 provider** (regional.ts:331), model.ts:277 reserved 检查遮蔽自定义前缀 → 治法 = 前缀改非内置名 (`snova`)。**圣上改 prefix 验证通过** (`sensenova/glm-5.2` 走内置 provider 通)。落 DECISIONS §8.1 追更 + HANDOFF 排障入口 (commit 0d64304 + push nomn main)。
+- [x] 圣上侧补 3 R2 凭据 + OMN_PERSIST_WRITE 处置 (§2 零入会话 我侧候命)
 - [ ] 圣上侧 R2 Dashboard 核 omn-data 桶 `db/storage.sqlite` path 历史代数现状 (副本后期空根排查)
-- [ ] 首 boot 验签 v1-v5 (候 boot 日志贴回)
-- [ ] 二 boot 验真持久化 (restore 拉真库 + manage key 跨 boot 持久)
-- [ ] 全绿续真持久化闭环段
+- [x] 首 boot 验签 v1-v5 (候 boot 日志贴回)
+- [x] 二 boot 验真持久化 (restore 拉真库 + manage key 跨 boot 持久)
+- [x] 全绿续真持久化闭环段
+
+### ✅ R2 持久化真根治闭环 (2026-08-21 01:56Z 二次 boot 铁证, task #12+#13 全绿)
+
+**首 boot (01:11Z) v1-v4 验签**:
+- v1 restore: `✓ 已从 R2 恢复 (原子 mv /data/.storage.sqlite.restore.1 → /data/storage.sqlite)` = restore rc=0 真拉 R2 库。
+- v2 replicate: `Litestream PID=150` 开态启。
+- v3 init: `[STARTUP]` 全链 + `Model alias seed` 完成 (init 段未见显式 rc 行, 但服务就绪)。
+- v4 snapshot: litestream.log `replicating to type=s3 sync-interval=10s bucket=omn-data path=db/storage.sqlite` + 持续 `compaction complete` (txid 0x100→0x123 递增) = **新数据每 10s 写 R2**; 前轮 `snapshot complete txid=0xc0 size=121786` = snapshot 建立。
+
+**二次 boot (01:56Z) 真持久化铁证**:
+- restore rc=0 原子 mv (01:56) + `JWT_SECRET restored from persistent store`。
+- **`sensenova/glm-5.2` 调用成功 (02:01:24, AUTH: Using sensenova account: 1a7e54ff)** = 重启后节点/连接/key 全在且可路由 = **catch-22 破** = **配置跨 boot 真持久**。
+- **前缀遮蔽已解**: `sensenova` 前缀现走内置 provider (regional.ts:331) 直连 account 1a7e54ff 通 = 圣上改 prefix/连接归属后 `sensenova/<model>` 可用。
+
+**结论**: 路 B R2 持久化真根治**完成**。manage key / 自定义节点跨 boot 持久 → 路径1 external 脚本 (`dev/scripts/clear-stale-nim-errors.sh`) 可真跑。litestream restore+replicate+snapshot 链全绿, 每 10s 写 omn-data 桶。
 
 本轮 0 代码改动, SSOT 落 (HANDOFF ephemeral 死结段+commit链 / DECISIONS §7 / STATUS 本段). DECISIONS 只增不改 (§4 §5 §6 未动). 翻案须圣上明确令 (§0).

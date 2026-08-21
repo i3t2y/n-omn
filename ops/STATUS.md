@@ -714,6 +714,7 @@ SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ �
 **与路A关系**: 非互斥并存。R2 持久化后 manage key 持久 → 路径1 external 可跑; 但 init boot 自清 (路A) 仍留 dev 自愈兜底 (每 boot 重建同步清上轮风暴残留, 不依赖 external key)。
 
 **待办/下一步**:
+- ✅ 自定义 provider 前缀遮蔽诊断闭环 (2026-08-21): 现象 = 自定义节点 `sensenova` 前缀调用 "No credentials" 而结构对称的 `amd` 前缀调用通, 后台 Test 直调长 ID 200 通。**源码级根因 = `sensenova` 是内置 provider** (regional.ts:331), model.ts:277 reserved 检查遮蔽自定义前缀 → 治法 = 前缀改非内置名 (`snova`)。**圣上已改 prefix 为 snova 验证通过**。落 DECISIONS §8.1 追更 + HANDOFF 排障入口; 待 commit+push nomn main (§5 圣上手推)。
 - [ ] 圣上侧补 3 R2 凭据 + OMN_PERSIST_WRITE 处置 (§2 零入会话 我侧候命)
 - [ ] 圣上侧 R2 Dashboard 核 omn-data 桶 `db/storage.sqlite` path 历史代数现状 (副本后期空根排查)
 - [ ] 首 boot 验签 v1-v5 (候 boot 日志贴回)

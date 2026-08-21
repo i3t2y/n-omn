@@ -546,3 +546,11 @@ fname = parts[2]
 4. **若仍不通**: 改 model 归属 (addCustomModel 用**节点 UUID** 做 namespace key) 或配 alias, 使 model 前缀对上层 provider。
 
 **教训**: 自定义 provider 路由 = **prefix 匹配节点 → 节点 id 查连接** 两段链, 凭据键是 **节点 UUID 非 prefix**。重复添加/删旧留新会致 getModelInfo 匹配到与连接 provider 不一致的节点 id → "No credentials"。删除重加必须**删净旧的**避免多节点残留。
+
+**追更 (同 §8.1, 只增不改)**: 上述「多节点残留 / 节点 id 不匹配」判断**被后证推翻** — 圣上 API 返回两节点两连接**结构完全对称** (amd 节点 484711e6/连接 484711e6; sensenova 节点 75176e99/连接 75176e99, 各 type=openai-compatible, prefix 与连接 prefix 全一致), 且**后台 Test 功能直调长 ID `openai-compatible-chat-75176e99-.../deepseek-v4-flash` 200 通** (节点+连接+key 全健康)。**节点/连接/prefix 三处全对, 但 `sensenova/` 前缀路由仍不通, 而 `amd/` 前缀路由通** → 非节点缺失、非重复残留、非缓存陈旧。
+
+**真根 (源码级锁定)**: `sensenova` 是 **OmniRoute 内置 provider** (regional.ts:331-348, id=`sensenova`, alias=`sensenova`), 而 `amd` 非内置 (REGISTRY 零命中)。model.ts:277-278 `getReservedProviderPrefixes()` 把**所有内置 provider 的 id+alias 全加入 reserved 集合** (含 `sensenova`); L280 `if (!isReservedPrefix)` 对 `sensenova` = **false** → **跳过整个自定义节点匹配块 (L281-326)** → 落回 `getModelInfoCore` 查内置 sensenova → 无连接 → "No credentials for sensenova"。`amd` 非 reserved → 走 L285 `openaiNodes.find(node.prefix===amd)` → 匹配自定义节点 → 展开 → 通。**根因 = 自定义节点前缀恰好撞了内置 provider 名**, reserved-prefix 检查**故意**防「自定义前缀遮蔽内置 provider」 (model.ts:271-273 注释明说), 故前缀撞内置名的自定义节点**永远被遮蔽**, 配置再对也没用。
+
+**治法**: 把自定义节点 prefix 改成**非内置名** (如 `snova`, 已验证不在 REGISTRY), 连接 providerSpecificData.prefix 同步改 (或删旧重建), 重启后 `snova/<model>` 前缀路由展开到新节点 UUID → 通。**长 ID 直调不受影响** (后台 Test 功能/curl 长 UUID 仍可走), 只前缀调用须改非内置名。
+
+**教训 (修正 §8.1 前判)**: 自定义节点前缀**不可与内置 provider id/alias 撞名** (built-in registry 优先, 遮蔽自定义节点)。查"前缀路由不通"须先 `grep REGISTRY` 确认前缀非内置; 内置名 (如 sensenova/nvidia/glm 等) 做自定义前缀一律不生效。

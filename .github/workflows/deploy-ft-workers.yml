@@ -147,7 +147,8 @@ jobs:
             reorg)
               # 拓扑重组专用: 先重生成名 (WORKER_NAMES → 新 N×3) → 删旧 worker (DELETE_MODE=3) → 全量建新 (双 pass 绕扫).
               # 顺序: gen-names job 先跑重生成名 → deploy 后跑 (删旧 + 建新). 一次触发完成拓扑收缩 + 孤儿清理.
-              GEN_NAMES=1; REORG=1; DELETE_MODE=3; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
+              # GEN_NAMES=0 让 gate 输出完整矩阵 (DEPLOY_SCOPE=2 全量 30 格), gen-names job 由 REORG=1 触发 (下方 if 加 reorg 条件).
+              GEN_NAMES=0; REORG=1; DELETE_MODE=3; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
             "")
               echo ">>> No PRESET, using individual Variables" ;;
             *)
@@ -208,7 +209,7 @@ jobs:
   gen-names:
     needs: gate
     runs-on: ubuntu-latest
-    if: needs.gate.outputs.gen_names == '1'
+    if: needs.gate.outputs.gen_names == '1' || needs.gate.outputs.reorg == '1'
     permissions:
       contents: read
     steps:

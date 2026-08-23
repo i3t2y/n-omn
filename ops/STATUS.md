@@ -737,3 +737,15 @@ SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ �
 **结论**: 路 B R2 持久化真根治**完成**。manage key / 自定义节点跨 boot 持久 → 路径1 external 脚本 (`dev/scripts/clear-stale-nim-errors.sh`) 可真跑。litestream restore+replicate+snapshot 链全绿, 每 10s 写 omn-data 桶。
 
 本轮 0 代码改动, SSOT 落 (HANDOFF ephemeral 死结段+commit链 / DECISIONS §7 / STATUS 本段). DECISIONS 只增不改 (§4 §5 §6 未动). 翻案须圣上明确令 (§0).
+
+## 2026-08-23 段: FT 健康感知轮转落码 (待启用)
+
+圣上 2026-08-23 令"搜索论证最佳算法" + 批"落码" (docs/ft-health-aware-rotation.md + DECISIONS §9)。**纯桥层逻辑改**, 不动 worker.js/Worker/域名/鉴权。
+
+**改动 (未推)**: FlareTunnel.go +48 行 (struct 加 HealthCoolDown/HealthFailThreshold + GetWorkerURL 顺序扫跳不健康 worker + isHealthy helper + main 加 --health-cooldown 参数) + entrypoint.sh +9 行 (_ft_health 定义 + 3 处起桥命令加参数)。
+
+**验证 (全绿)**: docker 编译 EXIT 0 / isHealthy 单元测试 7/7 过 / entrypoint.sh bash -n OK / go vet EXIT 0 / git diff 完整.
+
+**默认关零风险**: 不设 `FT_HEALTH_COOLDOWN` env = 纯 round-robin 不变. 启用设 `FT_HEALTH_COOLDOWN=30` → 失败 worker 30s 降权跳过 (对治慢根①死 worker 照轮打冷端).
+
+**待办**: 圣上定推 HF Dataset (build.sh 编译 flaretunnel + 手推) + 真启用 (设 env → Restart → 验证 /v1/ft/metrics rotation_index 跳不健康 worker).

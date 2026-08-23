@@ -554,3 +554,20 @@ fname = parts[2]
 **治法**: 把自定义节点 prefix 改成**非内置名** (如 `snova`, 已验证不在 REGISTRY), 连接 providerSpecificData.prefix 同步改 (或删旧重建), 重启后 `snova/<model>` 前缀路由展开到新节点 UUID → 通。**长 ID 直调不受影响** (后台 Test 功能/curl 长 UUID 仍可走), 只前缀调用须改非内置名。
 
 **教训 (修正 §8.1 前判)**: 自定义节点前缀**不可与内置 provider id/alias 撞名** (built-in registry 优先, 遮蔽自定义节点)。查"前缀路由不通"须先 `grep REGISTRY` 确认前缀非内置; 内置名 (如 sensenova/nvidia/glm 等) 做自定义前缀一律不生效。
+
+## §9 FT 健康感知轮转落码 (2026-08-23 落码, docs/ft-health-aware-rotation.md, 只增不改)
+
+圣上 2026-08-23 令"深入设计 FT 可优化空间 + 搜索论证最佳算法"后批"落码"。**纯桥层逻辑改**, 不动 worker.js/Worker/域名/鉴权。
+
+**算法论证 (外部搜索实源)**: 对 FT 40 Worker 出口池, 纯 RR 等权分布对但死节点照轮; Least Connections 不适用 (短转发无长会话); Weighted RR 无意义 (Worker 容量等价); 纯 Random 打击同 IP 反风控。**最优 = RR + 健康过滤 (失败冷却跳过)** — Reddit ProxyEngineering"每 proxy 冷却" + LevelUp"熔断与重试分离"共识。
+
+**实现 (FlareTunnel.go + entrypoint.sh)**:
+- `ProxyServer` struct 加 `HealthCoolDown int` + `HealthFailThreshold int` 字段
+- `GetWorkerURL()` round-robin 分支: 顺序扫跳不健康 worker, 全不健康保底回退纯顺序 (不空转 503)
+- `isHealthy()` helper: 无记录/未用=健康放行; LastStatus≥400 或 err(0) 且距 LastUsed<冷却秒=降权跳过; 冷却过恢复
+- `main()` 加 `--health-cooldown` 参数 + 注入
+- entrypoint.sh 加 `_ft_health` (`FT_HEALTH_COOLDOWN` env 控, 默认空=不传=关), 3 处起桥命令 (多桥/单桥/单桥重启) 追加
+
+**验证 (全绿)**: docker 编译 EXIT 0 / isHealthy 单元测试 7/7 过 / entrypoint.sh bash -n OK / go vet EXIT 0 (2 pre-existing 冗余 newline 非我改) / git diff 完整.
+
+**默认关零风险**: 不设 `FT_HEALTH_COOLDOWN` env = 纯 round-robin 行为不变; 启用设 `FT_HEALTH_COOLDOWN=30` → 失败 worker 30s 降权跳过. 待圣上定是否推 HF Dataset + 真启用.

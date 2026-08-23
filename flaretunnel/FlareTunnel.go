@@ -1267,6 +1267,11 @@ type ProxyServer struct {
 	RelayAuth            string // 必建: 注入 Worker 的鉴权头 (透传 X-Relay-Auth 给 Bridge → Worker, 堵裸奔开放代理洞)
 	CADir                string // 必建: CA 证书目录 (/tmp/ft-ca, 每 boot 自签重生; Start() 用它拼 CACertPath/CAKeyPath)
 	WorkerStats          map[string]*WorkerStat // 路3: per-Worker 实时体检计数 (key=worker.Name), 复用 ps.mutex 保
+	// 健康感知轮转 (docs/ft-health-aware-rotation.md, 2026-08-23 落码): 失败冷却跳过不健康 worker.
+	//   0 = 关闭 (纯 round-robin 行为不变); >0 秒内 LastStatus>=400 或 err(0) 的 worker 降权跳过.
+	HealthCoolDown      int
+	// 健康感知轮转: 连续失败阈值 (超则视为需冷却降权). 默认 3 次.
+	HealthFailThreshold int
 	mutex                sync.Mutex
 	certCache            map[string]*tls.Certificate
 	certMutex            sync.RWMutex
@@ -1386,12 +1391,45 @@ func (ps *ProxyServer) GetWorkerURL() (*Worker, string) {
 		w := ps.Workers[time.Now().UnixNano()%int64(len(ps.Workers))]
 		return w, w.URL
 	} else if ps.RotationMode == "round-robin" {
+		// 健康感知 (docs/ft-health-aware-rotation.md): 从游标起顺序扫, 跳不健康 worker, 全不健康保底回退纯顺序.
+		//   HealthCoolDown>0 才启用; 否则 = 原纯 round-robin (行为不变).
+		n := len(ps.Workers)
+		if ps.HealthCoolDown > 0 && n > 1 {
+			start := ps.CurrentWorkerIndex
+			now := time.Now().Unix()
+			for i := 0; i < n; i++ {
+				idx := (start + i) % n
+				w := ps.Workers[idx]
+				if ps.isHealthy(w, now) {
+					ps.CurrentWorkerIndex = (idx + 1) % n
+					return w, w.URL
+				}
+			}
+			// 全不健康: 回退纯顺序 (保底不空转 503)
+		}
 		worker := ps.Workers[ps.CurrentWorkerIndex]
-		ps.CurrentWorkerIndex = (ps.CurrentWorkerIndex + 1) % len(ps.Workers)
+		ps.CurrentWorkerIndex = (ps.CurrentWorkerIndex + 1) % n
 		return worker, worker.URL
 	}
 
 	return ps.Workers[0], ps.Workers[0].URL
+}
+
+// isHealthy 基于 WorkerStat 判定 worker 是否可用 (健康感知轮转 helper, 2026-08-23 落码).
+// 规则: 无记录/从未用 = 健康放行 (新 worker 试水).
+//       LastStatus>=400 或 0(err) 且 距 LastUsed < 冷却秒 = 不健康 (冷却降权跳过).
+//       冷却过 = 恢复放行试水.
+func (ps *ProxyServer) isHealthy(w *Worker, now int64) bool {
+	stat, ok := ps.WorkerStats[w.Name]
+	if !ok || stat.LastUsed == 0 {
+		return true
+	}
+	if stat.LastStatus >= 400 || stat.LastStatus == 0 {
+		if now-stat.LastUsed < int64(ps.HealthCoolDown) {
+			return false // 冷却中降权
+		}
+	}
+	return true
 }
 
 func (ps *ProxyServer) IsBlacklisted(targetURL string) bool {
@@ -2323,6 +2361,7 @@ func main() {
 		port := 8080
 		workersStr := ""
 		mode := "round-robin"
+		healthCooldown := 0   // 健康感知轮转冷却秒 (2026-08-23 落码; 0=关纯 RR)
 		verbose := false
 		unsafe := false
 		blacklist := "blacklist-minimal.txt"
@@ -2374,6 +2413,11 @@ func main() {
 					mode = os.Args[i+1]
 					i++
 				}
+			case "--health-cooldown": // 健康感知轮转冷却秒 (2026-08-23 落码; 0=关纯 RR)
+				if i+1 < len(os.Args) {
+					healthCooldown, _ = strconv.Atoi(os.Args[i+1])
+					i++
+				}
 			case "--verbose", "-v":
 				verbose = true
 			case "--unsafe":
@@ -2413,6 +2457,8 @@ func main() {
 		// Patch D-3: 注入改造三参数到 ProxyServer
 		ps.RelayAuth = relayAuth
 		ps.CADir = caDir
+		// 健康感知轮转 (2026-08-23 落码): 冷却秒注入; 0=关纯 RR 行为不变.
+		ps.HealthCoolDown = healthCooldown
 
 		// Add inline block patterns
 		if len(blockPatterns) > 0 {

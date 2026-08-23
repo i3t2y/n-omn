@@ -147,3 +147,4 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 - ✅ gate 加路由暴露 FT 桥 `/metrics` 公网 (commit `ec0712d` 路3-b 落, `GET /v1/ft/metrics` PSK 反代 + `?bridge=N` 选桥; 真路测五态全绿 2026-08-12)
 - FT Worker 100 拓扑已满额全活 (2026-08-12 圣上扩 f05~f10 zone + Variable `ACTIVE_ACCOUNTS=10`)
 - deprecated model 剔: 2026-08-12 圣上令删 deepseek-v4-flash + deepseek-v4-pro + mistral-small-4-119b-2603 (NVIDIA 目录无, 已落 init-nim-keys.sh); 留 kimi-k3 + qwen3.8-max (圣上未命删, deprecated 但待复检)
+- ⏳ **FT 健康感知轮转已落码待启用** (2026-08-23 落码, docs/ft-health-aware-rotation.md + DECISIONS §9): FlareTunnel.go GetWorkerURL 顺序扫跳不健康 worker + entrypoint.sh `FT_HEALTH_COOLDOWN` env 控. 默认关 (不设=纯 RR 不变), 要启用设 `FT_HEALTH_COOLDOWN=30` → Restart. 待圣上定推 HF Dataset + 真启用 (对治慢根①死 worker 照轮打冷端)

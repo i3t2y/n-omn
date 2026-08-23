@@ -248,6 +248,9 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
     _ft_start() {
       _ft_verbose=""
       [ "${FT_VERBOSE:-0}" = "1" ] && _ft_verbose="--verbose"
+      # 健康感知轮转 (2026-08-23 落码): FT_HEALTH_COOLDOWN env 设 >0 秒才传 --health-cooldown, 默认空=不传=关纯 RR 行为不变.
+      _ft_health=""
+      [ "${FT_HEALTH_COOLDOWN:-0}" -gt 0 ] 2>/dev/null && _ft_health="--health-cooldown $FT_HEALTH_COOLDOWN"
       _ft_phys=$(jq 'if type=="array" then length elif .endpoints then (.endpoints|length) elif .workers then (.workers|length) else 0 end' /logic/flaretunnel_endpoints.json 2>/dev/null || echo 0)
       _ft_wflag=""
       _ft_use=$_ft_phys
@@ -282,7 +285,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
             /logic/flaretunnel tunnel --host 127.0.0.1 --port "$_b_port" \
               --endpoints /logic/flaretunnel_endpoints.json \
               --relay-auth "$RELAY_AUTH" \
-              --ca-dir "$FT_CA_DIR" $_b_wflag $_ft_verbose >>"${FT_LOG%.log}-$_b_name.log" 2>&1 &
+              --ca-dir "$FT_CA_DIR" $_b_wflag $_ft_health $_ft_verbose >>"${FT_LOG%.log}-$_b_name.log" 2>&1 &
             _b_pid=$!
             FT_PIDS="$FT_PIDS $_b_pid"; FT_PORTS="$FT_PORTS $_b_port"; FT_NAMES="$FT_NAMES $_b_name"
             _i=$((_i+1))
@@ -296,7 +299,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
       /logic/flaretunnel tunnel --host 127.0.0.1 --port "$FT_PORT" \
         --endpoints /logic/flaretunnel_endpoints.json \
         --relay-auth "$RELAY_AUTH" \
-        --ca-dir "$FT_CA_DIR" $_ft_wflag $_ft_verbose >>"$FT_LOG" 2>&1 &
+        --ca-dir "$FT_CA_DIR" $_ft_wflag $_ft_health $_ft_verbose >>"$FT_LOG" 2>&1 &
       FT_PID=$!
       export FT_PID
       : "${_ft_n:=$_ft_phys}"
@@ -545,7 +548,7 @@ while true; do
             /logic/flaretunnel tunnel --host 127.0.0.1 --port "$_fport" \
               --endpoints /logic/flaretunnel_endpoints.json \
               --relay-auth "$RELAY_AUTH" \
-              --ca-dir "$FT_CA_DIR" $_b_wflag $_ft_verbose >>"${FT_LOG%.log}-$_fname.log" 2>&1 &
+              --ca-dir "$FT_CA_DIR" $_b_wflag $_ft_health $_ft_verbose >>"${FT_LOG%.log}-$_fname.log" 2>&1 &
             _npid=$!
             _new_pids="$_new_pids $_npid"; _new_ports="$_new_ports $_fport"; _new_names="$_new_names $_fname"
           else

@@ -2,7 +2,7 @@
 
 > 圣上 2026-08-23 令"深入设计 FT 代理可优化空间 + 搜索论证最佳算法"。
 > 对治慢根 ①（100 Worker round-robin 游标长 + 冷端握手 + 死 worker 照轮）。
-> 状态: **设计评审稿**（未落码，默认关，待圣上批启用）。
+> 状态: **已落码启用**（FlareTunnel.go 改点 + entrypoint.sh env 门控，2026-08-23 圣上 Space 设 `FT_HEALTH_COOLDOWN=30` 并 Restart，boot 真活）。
 
 ---
 
@@ -118,8 +118,8 @@ case "--health-cooldown":
 
 ### 默认与启用方式
 
-- `--health-cooldown 0` = **默认关**（纯 round-robin，行为不变，不破坏现有）
-- 要启用：entrypoint.sh 的 FT 启桥段 `--workers 0-39` 加 `--health-cooldown 30`（30 秒冷却，失败 worker 30s 内降权）
+- **env 门控（实际实现）**：entrypoint.sh `_ft_start()` 读 `FT_HEALTH_COOLDOWN` env（L251-253），设 >0 秒才向 FlareTunnel 传 `--health-cooldown N`，**默认空/0 = 不传 = 关（纯 round-robin，行为不变）**。已启用 = Space 设 `FT_HEALTH_COOLDOWN=30` → Restart（无需改文件）。
+- 底层 flag：`--health-cooldown 0` = 关（纯 RR）；`--health-cooldown 30` = 失败 worker 30s 内降权冷却
 
 ## 四、验证方案（照 §4 健康信号）
 

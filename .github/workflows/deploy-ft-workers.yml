@@ -2,11 +2,12 @@ name: Deploy FlareTunnel Workers
 
 # 用 GitHub 控制 CF 账号建设 FT Worker (仿 i3t2y/n-vless + i3t2y/n-edget sync-deploy.yml 机制).
 # 圣上 2026-08-12 三点令 + 拓扑裁决:
-#   1. Worker 名 + 自定义域名参考两项目 (儿童单词池, n-vless gen_names 范式), 排序 1-10 递增 (非 0)
+#   1. Worker 名 + 自定义域名参考两项目 (儿童单词池, n-vless gen_names 范式), 排序 1-N 递增 (非 0-(N-1))
 #   2. 删旧 Worker → 新建 → 绑 custom domain (Worker 被封立重设, 仿 n-vless delete:1/delete:v Mode)
-#   3. 每账号绑 1 主域名 f01.cc.cd ~ f10.cc.cd, Worker 子域 {N}.f{账号:02d}.cc.cd
-#      (例: 第 4 账号第 5 Worker = 5.f04.cc.cd)
-# 拓扑定夺: 10 账号 × 10 Worker = 100 上限框架, 现役启 4 账号 sub集 40 (后续圣上加 f05~f10 zone 只改 matrix 列表).
+#   3. 每账号绑 1 主域名 f01.cc.cd ~ fNN.cc.cd, Worker 子域 {N}.f{账号:02d}.cc.cd
+#      (例: 第 4 账号第 3 Worker = 3.f04.cc.cd)
+# 拓扑定夺 (2026-08-23 圣上令): 账号数 × 每账号 worker 数 全可配变量 (ACTIVE_ACCOUNTS × WORKERS_PER_ACCOUNT).
+#   查证: 单 CF 账号建 2-3 worker 收益最大 (共享 Anycast 出口池 + 共享 100K 配额; 扩 IP 多样性的杠杆是加账号数非加每账号 worker).
 #
 # 机制择优 (圣上"参考两项目优点"):
 #   - n-vless: gen_names 儿童单词池 + Delete Mode 1/2 + custom domain 三段验证 + 双 pass 绕扫描 + PRESET 场景切换
@@ -15,7 +16,7 @@ name: Deploy FlareTunnel Workers
 #   - 后缀 v → ft (项目标识, 防 delete Mode 2 误删 n-vless Worker)
 #   - 域名 wXX.cc.cd → fXX.cc.cd (圣上定 f)
 #   -.secret 注入走 wrangler-action `secrets:` 输入 (非 n-vless curl PUT secrets API; 前轮 commit 008c48d 已采此路径, 更简)
-#   - 二维 account×worker 矩阵 (n-vless 一维 10 账号单 Worker; 圣上 1 账号 10 Worker 须二维扩)
+#   - 二维 account×worker 矩阵 (n-vless 一维 N 账号单 Worker; 圣上 N 账号 × WORKERS_PER_ACCOUNT Worker 二维扩)
 #   - 工作目录 flaretunnel/ (worker.js 非 n-vless _worker.js)
 # §2: RELAY_AUTH 真值零入 git/会话, GitHub Secret 自动打码日志 + wrangler secret put 加密存 CF.
 
@@ -55,6 +56,9 @@ jobs:
       delete_mode:  ${{ steps.check.outputs.delete_mode }}
       secrets_only: ${{ steps.check.outputs.secrets_only }}
       publish_only: ${{ steps.check.outputs.publish_only }}
+      reorg:        ${{ steps.check.outputs.reorg }}
+      act_accts:    ${{ steps.check.outputs.act_accts }}
+      wpa:          ${{ steps.check.outputs.wpa }}
 
     steps:
       - name: Check Gate & Build Matrix
@@ -71,8 +75,13 @@ jobs:
           DELETE_MODE:   ${{ vars.DELETE_MODE }}
           SECRETS_ONLY:  ${{ vars.SECRETS_ONLY }}
           PUBLISH_ONLY:  ${{ vars.PUBLISH_ONLY }}
-          # 现役启账号数 (1-10). 圣上加 zone 后扩此值. matrix account 维上限.
+          # 现役启账号数 (1-N). 圣上加 zone 后扩此值. matrix account 维上限.
           ACTIVE_ACCOUNTS: ${{ vars.ACTIVE_ACCOUNTS }}
+          # 每账号 worker 数 (共享 Anycast 出口池 + 共享 100K 配额, 2-3 收益最大; 扩 IP 多样性的杠杆是加账号数非加每账号 worker).
+          # 默认 3 (甜点), 圣上可改 2/3/5/10 等; 全链 (矩阵/gen-names/deploy POS/publish 派生) 动态跟随.
+          WORKERS_PER_ACCOUNT: ${{ vars.WORKERS_PER_ACCOUNT }}
+          # reorg: 拓扑重组专用 (1 = 先重生成名 → 删旧 worker → 全量建新). 非日常, 手动触发.
+          REORG: ${{ vars.REORG }}
 
         run: |
           # ── PRESET 三层优先 (输入框 > Variables > 默认) ──────────
@@ -87,12 +96,16 @@ jobs:
           DELETE_MODE="${DELETE_MODE:-0}"
           SECRETS_ONLY="${SECRETS_ONLY:-0}"
           PUBLISH_ONLY="${PUBLISH_ONLY:-0}"
+          REORG="${REORG:-0}"
           # 现役启 4 账号 (圣上前轮裁先 4 zone). 后续扩 f05~f10 改此 Variables 即可.
           ACTIVE_ACCOUNTS="${ACTIVE_ACCOUNTS:-4}"
+          # 每账号 worker 数默认 3 (甜点: 吞吐承载 + colo 出口分散, 共享配额不浪费).
+          # 全链动态跟随: 矩阵维 / gen-names / deploy POS / publish worker-major 派生均用此值.
+          WORKERS_PER_ACCOUNT="${WORKERS_PER_ACCOUNT:-3}"
 
-          # ── SOLO_ACCOUNT 范围校验 ─────────────────────────────────
-          if ! [[ "$SOLO_ACCOUNT" =~ ^[1-9]$|^10$ ]]; then
-            echo "ERROR: SOLO_ACCOUNT must be 1-10, got '$SOLO_ACCOUNT'"
+          # ── SOLO_ACCOUNT 范围校验 (账号位: 1-N 整数) ───────────────
+          if ! [[ "$SOLO_ACCOUNT" =~ ^[0-9]+$ ]] || [ "$SOLO_ACCOUNT" -lt 1 ]; then
+            echo "ERROR: SOLO_ACCOUNT must be a positive integer, got '$SOLO_ACCOUNT'"
             exit 1
           fi
 
@@ -108,14 +121,14 @@ jobs:
               # 日常维护: 单 pass 全量重部署
               GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=1; DELETE_MODE=0; SECRETS_ONLY=0 ;;
             publish)
-              # 只派生 worker-major endpoint.json 传 Dataset, 不重部 Worker (省 16m 100 格 deploy)
+              # 只派生 worker-major endpoint.json 传 Dataset, 不重部 Worker (省 16m N×M 格 deploy)
               GEN_NAMES=0; SECRETS_ONLY=0; DEPLOY_SCOPE=2; DELETE_MODE=0; PUBLISH_ONLY=1 ;;
             solo:*)
               # 单账号部署: 冒号后数字 = 账号位 (1-10)
               GEN_NAMES=0; DEPLOY_SCOPE=1; SOLO_ACCOUNT="${PRESET#solo:}"
               DELETE_MODE=0; SECRETS_ONLY=0
-              if ! [[ "$SOLO_ACCOUNT" =~ ^[1-9]$|^10$ ]]; then
-                echo "ERROR: solo account must be 1-10, got '$SOLO_ACCOUNT'"
+              if ! [[ "$SOLO_ACCOUNT" =~ ^[0-9]+$ ]] || [ "$SOLO_ACCOUNT" -lt 1 ]; then
+                echo "ERROR: solo account must be a positive integer, got '$SOLO_ACCOUNT'"
                 exit 1
               fi ;;
             secrets)
@@ -130,6 +143,10 @@ jobs:
             delete:o)
               # 删各账号下所有 Worker 唯保留现役 WORKER_NAMES 名单的 (清过时/孤儿/旧词基, 不重建)
               GEN_NAMES=0; DELETE_MODE=3; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=0 ;;
+            reorg)
+              # 拓扑重组专用: 先重生成名 (WORKER_NAMES → 新 N×3) → 删旧 worker (DELETE_MODE=3) → 全量建新 (双 pass 绕扫).
+              # 顺序: gen-names job 先跑重生成名 → deploy 后跑 (删旧 + 建新). 一次触发完成拓扑收缩 + 孤儿清理.
+              GEN_NAMES=1; REORG=1; DELETE_MODE=3; SECRETS_ONLY=0; DEPLOY_SCOPE=2; PASS_MODE=2 ;;
             "")
               echo ">>> No PRESET, using individual Variables" ;;
             *)
@@ -146,6 +163,7 @@ jobs:
             echo "delete_mode=0"         >> $GITHUB_OUTPUT
             echo "secrets_only=0"        >> $GITHUB_OUTPUT
             echo "publish_only=0"        >> $GITHUB_OUTPUT
+            echo "reorg=0"               >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -156,30 +174,35 @@ jobs:
           echo "delete_mode=$DELETE_MODE"   >> $GITHUB_OUTPUT
           echo "secrets_only=$SECRETS_ONLY" >> $GITHUB_OUTPUT
           echo "publish_only=$PUBLISH_ONLY" >> $GITHUB_OUTPUT
+          echo "reorg=$REORG"             >> $GITHUB_OUTPUT
+          echo "act_accts=$ACTIVE_ACCOUNTS" >> $GITHUB_OUTPUT
+          echo "wpa=$WORKERS_PER_ACCOUNT"   >> $GITHUB_OUTPUT
 
           # ── 构建二维矩阵 (account × worker) ──────────────────────
-          # n-vless 一维 10 账号; FT 二维 — 每账号建 10 Worker.
-          # WORKER 维恒 [1-10] (圣上定排序 1-10 非 0-9).
+          # n-vless 一维 N 账号; FT 二维 — 每账号建 WORKERS_PER_ACCOUNT 个 Worker (可配变量).
+          # WORKER 维 [1..WORKERS_PER_ACCOUNT] (圣上定排序 1-N 非 0-(N-1)).
           # ACCOUNT 维随 DEPLOY_SCOPE: solo=[SOLO_ACCOUNT] / 全量=[1..ACTIVE_ACCOUNTS].
-          WORKER_MATRIX='[1,2,3,4,5,6,7,8,9,10]'
+          # 两端全可配: ACTIVE_ACCOUNTS (账号数) + WORKERS_PER_ACCOUNT (每账号 worker 数).
+          WORKER_MATRIX="[$(seq -s, 1 "$WORKERS_PER_ACCOUNT")]"
           if [ "$GEN_NAMES" = "1" ]; then
             echo 'matrix={"account":[1],"worker":[1]}' >> $GITHUB_OUTPUT
             echo ">>> Matrix: placeholder (gen-names mode)"
           elif [ "$DEPLOY_SCOPE" = "2" ]; then
-            # 全量: 账号 [1..ACTIVE_ACCOUNTS] × Worker [1..10]
+            # 全量: 账号 [1..ACTIVE_ACCOUNTS] × Worker [1..WORKERS_PER_ACCOUNT]
             ACC_LIST=$(seq -s, 1 "$ACTIVE_ACCOUNTS")
             echo "matrix={\"account\":[$ACC_LIST],\"worker\":$WORKER_MATRIX}" >> $GITHUB_OUTPUT
-            echo ">>> Matrix: accounts [1..$ACTIVE_ACCOUNTS] × workers [1..10]"
+            echo ">>> Matrix: accounts [1..$ACTIVE_ACCOUNTS] × workers [1..$WORKERS_PER_ACCOUNT]"
           else
-            # solo: 单账号 × Worker [1..10]
+            # solo: 单账号 × Worker [1..WORKERS_PER_ACCOUNT]
             echo "matrix={\"account\":[$SOLO_ACCOUNT],\"worker\":$WORKER_MATRIX}" >> $GITHUB_OUTPUT
-            echo ">>> Matrix: solo account $SOLO_ACCOUNT × workers [1..10]"
+            echo ">>> Matrix: solo account $SOLO_ACCOUNT × workers [1..$WORKERS_PER_ACCOUNT]"
           fi
 
   # ════════════════════════════════════════════════════════════════════
-  # Job 2: gen-names — 生成 100 个随机 Worker 名写 GitHub Variable
+  # Job 2: gen-names — 生成 N×M 随机 Worker 名写 GitHub Variable
   # 仿 n-vless gen-names (sync-deploy.yml:224-339). 每账号独立抽 2 词 (障缝+封禁隔离).
-  # PRESET=gen 触发. WORKER_NAMES 平铺 100 名逗号串 (pos=(account-1)*10+worker).
+  # PRESET=gen/reorg 触发. WORKER_NAMES 平铺 ACTIVE_ACCOUNTS×WORKERS_PER_ACCOUNT 名逗号串.
+  # pos=(account-1)*WORKERS_PER_ACCOUNT + worker. 两端全可配 (账号数 + 每账号 worker 数).
   # ════════════════════════════════════════════════════════════════════
   gen-names:
     needs: gate
@@ -192,6 +215,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}   # Fine-grained PAT, 需 Variables:Write
           REPO:     ${{ github.repository }}
+          ACTIVE_ACCOUNTS:      ${{ needs.gate.outputs.act_accts }}
+          WORKERS_PER_ACCOUNT:  ${{ needs.gate.outputs.wpa }}
         run: |
           # ── 儿童单词池 (3-4 字母, 仿 n-vless WORDS) ─────────────
           WORDS=("sky" "sun" "joy" "gem" "fun" "top" "dot" "pal" "key" "toy"
@@ -213,31 +238,34 @@ jobs:
 
           # ── 每账号独立抽 2 词 (词基不跨账号共享) ─────────────────
           # 理由: 障缝性 (跨账号同名易顺藤摸) + 封禁隔离 (1 账号封仅砍该账号词基).
+          ACTIVE_ACCOUNTS="${ACTIVE_ACCOUNTS:-4}"
+          WORKERS_PER_ACCOUNT="${WORKERS_PER_ACCOUNT:-3}"
+          N_TOTAL=$(( ACTIVE_ACCOUNTS * WORKERS_PER_ACCOUNT ))
           ALL_NAMES=()
-          for account in $(seq 1 10); do
+          for account in $(seq 1 "$ACTIVE_ACCOUNTS"); do
             IDX1=$(( RANDOM % WLEN ))
             IDX2=$(( RANDOM % WLEN ))
             while [ $IDX2 -eq $IDX1 ]; do IDX2=$(( RANDOM % WLEN )); done
             W1="${FILTERED[$IDX1]}"
             W2="${FILTERED[$IDX2]}"
-            # 该账号 10 Worker 名: <W1>-<W2>-ft{1..10}
-            for worker in $(seq 1 10); do
+            # 该账号 WORKERS_PER_ACCOUNT Worker 名: <W1>-<W2>-ft{1..N}
+            for worker in $(seq 1 "$WORKERS_PER_ACCOUNT"); do
               ALL_NAMES+=("$W1-$W2-ft$worker")
             done
           done
 
-          # 平铺逗号串 (pos=(account-1)*10 + worker)
+          # 平铺逗号串 (pos=(account-1)*WORKERS_PER_ACCOUNT + worker)
           WORKER_NAMES=$(printf '%s,' "${ALL_NAMES[@]}" | sed 's/,$//')
-          echo ">>>>>> WORKER_NAMES (100): $WORKER_NAMES"
+          echo ">>>>>> WORKER_NAMES ($N_TOTAL): $WORKER_NAMES"
 
           # ── Job Summary 预览 ─────────────────────────────────────
-          echo "## FT Worker Identities (100 = 10 accounts × 10 workers)" >> $GITHUB_STEP_SUMMARY
+          echo "## FT Worker Identities ($N_TOTAL = $ACTIVE_ACCOUNTS accounts × $WORKERS_PER_ACCOUNT workers)" >> $GITHUB_STEP_SUMMARY
           echo "| account | worker | Worker Name | Subdomain |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
           idx=0
-          for account in $(seq 1 10); do
+          for account in $(seq 1 "$ACTIVE_ACCOUNTS"); do
             ACC2=$(printf "%02d" "$account")
-            for worker in $(seq 1 10); do
+            for worker in $(seq 1 "$WORKERS_PER_ACCOUNT"); do
               NM="${ALL_NAMES[$idx]}"
               echo "| $account | $worker | $NM | $worker.f$ACC2.cc.cd |" >> $GITHUB_STEP_SUMMARY
               idx=$((idx+1))
@@ -268,13 +296,13 @@ jobs:
   # 仿 n-vless deploy (sync-deploy.yml:389-795). 每 matrix 实例 = 1 账号 1 Worker.
   # ════════════════════════════════════════════════════════════════════
   deploy:
-    needs: gate
+    needs: [gate, gen-names]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: |
       always() &&
       needs.gate.result == 'success' &&
-      needs.gate.outputs.gen_names != '1' &&
+      (needs.gate.outputs.gen_names != '1' || needs.gate.outputs.reorg == '1') &&
       needs.gate.outputs.publish_only != '1' &&
       needs.gate.outputs.proceed == 'true'
     strategy:
@@ -292,6 +320,7 @@ jobs:
           CF_ACCOUNT_IDS: ${{ secrets.CF_ACCOUNT_IDS }}
           CF_API_TOKENS:  ${{ secrets.CF_API_TOKENS }}
           WORKER_NAMES:   ${{ vars.WORKER_NAMES }}
+          WORKERS_PER_ACCOUNT: ${{ needs.gate.outputs.wpa }}
           MATRIX_ACCOUNT: ${{ matrix.account }}
           MATRIX_WORKER:  ${{ matrix.worker }}
         run: |
@@ -307,15 +336,16 @@ jobs:
           fi
           echo "skip=false" >> $GITHUB_OUTPUT
 
-          # Worker 名平铺取: pos = (account-1)*10 + worker
-          POS=$(( (MATRIX_ACCOUNT - 1) * 10 + MATRIX_WORKER ))
+          # Worker 名平铺取: pos = (account-1)*WORKERS_PER_ACCOUNT + worker
+          WORKERS_PER_ACCOUNT="${WORKERS_PER_ACCOUNT:-3}"
+          POS=$(( (MATRIX_ACCOUNT - 1) * WORKERS_PER_ACCOUNT + MATRIX_WORKER ))
           WNAME=$(echo "$WORKER_NAMES" | cut -d',' -f$POS)
           if [ -z "$WNAME" ]; then
             echo "ERROR: WORKER_NAMES empty at pos $POS. Run PRESET=gen first."
             exit 1
           fi
 
-          # 域名派生: {worker 1-10}.f{account 01-10}.cc.cd (圣上定, 非 n-vless %10 循环)
+          # 域名派生: {worker 1-N}.f{account 01-N}.cc.cd (圣上定, 非 n-vless %10 循环)
           ACC2=$(printf "%02d" "$MATRIX_ACCOUNT")
           WSUB="$MATRIX_WORKER.f$ACC2.cc.cd"
 
@@ -363,7 +393,7 @@ jobs:
             done
           elif [ "$DELETE_MODE" = "3" ]; then
             # Mode 3: 删账号下所有 Worker 唯保留现役 WORKER_NAMES 名单内的 (清旧/孤儿/过时词基)
-            # WORKER_NAMES = 全 100 名平铺逗号串 (现役名单); 列账号全 Worker → 不在名单内则删
+            # WORKER_NAMES = 全 N×M 名平铺逗号串 (现役名单); 列账号全 Worker → 不在名单内则删
             echo ">>> Mode 3: deleting all workers EXCEPT those in WORKER_NAMES (stale cleanup)"
             if [ -z "$WORKER_NAMES" ]; then
               echo ">>> ERROR: WORKER_NAMES Variable empty. Run PRESET=gen first to populate active roster."
@@ -564,9 +594,9 @@ jobs:
 
   # ── publish-endpoints: 派生 worker-major endpoint.json 传 HF Dataset (圣上令自动回填) ─
   # 两路跑 (always() 因 deploy 可能 skipped):
-  #   ① PRESET=publish 场景: deploy 跳 (省 16m 100 格), 仅 publish 直跑无须重部 Worker
+  #   ① PRESET=publish 场景: deploy 跳 (省 16m N×M 格), 仅 publish 直跑无须重部 Worker
   #   ② daily/first 场景: deploy 成后跑 (secrets/gen 场景跳: URL 未变无须重传)
-  # 读 GitHub Variable WORKER_NAMES 100 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 nonoke/omn-logic
+  # 读 GitHub Variable WORKER_NAMES N×M 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 nonoke/omn-logic
   # 不涉 secret 真值 (HF_TOKEN_NONOKE Action 自动打码; URL 非 secret)
   publish-endpoints:
     needs: [gate, deploy]
@@ -582,30 +612,35 @@ jobs:
       - name: Derive worker-major endpoint.json + upload Dataset
         env:
           WORKER_NAMES: ${{ vars.WORKER_NAMES }}
+          WORKERS_PER_ACCOUNT: ${{ needs.gate.outputs.wpa }}
           HF_TOKEN_NONOKE: ${{ secrets.HF_TOKEN_NONOKE }}
         run: |
           pip install -q huggingface_hub 2>/dev/null || true
           python3 << 'PYEOF'
           import json, os, sys
           names_str = os.environ.get('WORKER_NAMES', '').strip()
+          wpa = int(os.environ.get('WORKERS_PER_ACCOUNT', '3') or '3')
           if not names_str:
               print('ERROR: WORKER_NAMES Variable empty. Run PRESET=gen first.')
               sys.exit(1)
           names = [n.strip() for n in names_str.split(',') if n.strip()]
           n_total = len(names)
-          if n_total == 0 or n_total % 10 != 0:
-              print(f'ERROR: WORKER_NAMES count {n_total} not multiple of 10')
+          if n_total == 0 or n_total % wpa != 0:
+              print(f'ERROR: WORKER_NAMES count {n_total} not multiple of WORKERS_PER_ACCOUNT ({wpa})')
               sys.exit(1)
-          # worker-major 派生: newidx → (worker 0-9, account 0-9) → old account-major idx = a*10 + w
-          # account-major WORKER_NAMES 格: [acc1 w1..w10, acc2 w1..w10, ...]
-          # worker-major 排: 先 worker1 各账号, 再 worker2 各账号, ... worker10 各账号
+          n_accounts = n_total // wpa
+          # worker-major 派生: newidx → (worker 0-(n_accounts-1), account 0-(wpa-1)) → old account-major idx = a*wpa + w
+          # account-major WORKER_NAMES 格: [acc1 w1..wN, acc2 w1..wN, ...]
+          # worker-major 排: 先 worker1 各账号, 再 worker2 各账号, ... workerN 各账号
+          # 关键: w = newidx // n_accounts (外层 worker 慢变, 0..wpa-1), a = newidx % n_accounts (内层 account 快变, 0..n_accounts-1).
+          # 不得用 //wpa %wpa — 那仅在 n_accounts==wpa (旧 10×10 恰好相等) 才碰对; 账号数≠worker 数时越界/错排.
           eps = []
           for newidx in range(n_total):
-              w = newidx // 10        # worker 0-9
-              a = newidx % 10         # account 0-9
-              old = a * 10 + w        # account-major WORKER_NAMES index
+              w = newidx // n_accounts   # worker 0-(wpa-1) (n_total = n_accounts*wpa, 故 w 上限 wpa-1 不越界)
+              a = newidx % n_accounts    # account 0-(n_accounts-1)
+              old = a * wpa + w          # account-major WORKER_NAMES index
               name = names[old]
-              wn = w + 1              # worker 1-10
+              wn = w + 1                 # worker 1-N
               acc2 = f"{a+1:02d}"
               url = f"https://{wn}.f{acc2}.cc.cd"
               eps.append({"name": name, "url": url})

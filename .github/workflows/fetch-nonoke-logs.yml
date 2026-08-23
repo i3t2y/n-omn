@@ -17,9 +17,6 @@
 name: Fetch HF Space logs → evidence (dev nonoke)
 
 on:
-  schedule:
-    # HF 免费 Space 日志可见窗口约 30min, 30min 一帧作 archival 用, 不作实时监控
-#   - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       log_type:

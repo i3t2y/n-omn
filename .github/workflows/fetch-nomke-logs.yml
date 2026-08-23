@@ -14,9 +14,6 @@
 name: Fetch HF Space logs → evidence (prod nomke)
 
 on:
-  schedule:
-    # 与 dev 版 (整/半点) 错峰: 每小时 07/37 分
-#   - cron: '7,37 * * * *'
   workflow_dispatch:
     inputs:
       log_type:

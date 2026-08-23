@@ -579,7 +579,7 @@ fname = parts[2]
 **查证 (外部搜索实源)**: 同一账号下多个 worker **不提供独立出口 IP** (CF 出口 Anycast 172.64.0.0/13 共享 + colocation 就近分散, 非按 worker 分配; 2020 社区实测同 IP / 2022 InfoQ 官宣 Soft-unicast 共享出口)。每账号每日 100K 请求**账号级共享** (非每 worker), 建多 worker 不增总配额, 只把请求拆给更多 colo 出口。**单 CF 账号建 2-3 worker 收益最大** (吞吐承载满足 + colo 出口分散达甜点 + 100K 配额不浪费); 继续堆 worker 数无 IP 增益。**扩 IP 多样性 + 总吞吐的真杠杆是加账号数非加每账号 worker 数** (10-20 账号 × 2-3 worker = 独立出口池 + 独立配额 >> 10 账号 × 10 worker 同池冗余)。
 
 **实现 (deploy-ft-workers.yml 全链)**:
-- **新增 `WORKERS_PER_ACCOUNT` 变量 (默认 3, 甜点)**, 账号数用现有 `ACTIVE_ACCOUNTS` (默认 4)。**两端全可配**。
+- **新增 `WORKERS_PER_ACCOUNT` 变量 (默认 3, 甜点)**, 账号数用现有 `ACTIVE_ACCOUNTS` (**全账号都用上**: Variable 已设 10=f01~f10 全 zone; 默认 4 仅当 Variable 未设时的兜底)。**两端全可配**。
 - gate env/默认值加 `WORKERS_PER_ACCOUNT` + `REORG` + 输出 `act_accts`/`wpa`; 矩阵 `WORKER_MATRIX` 从写死 `[1-10]` 改 `seq 1 $WORKERS_PER_ACCOUNT` 动态
 - gen-names 每账号 worker 数从写死 10 改 `$WORKERS_PER_ACCOUNT`; `N_TOTAL = ACTIVE_ACCOUNTS × WORKERS_PER_ACCOUNT` 全动态
 - deploy POS 从 `(account-1)*10+worker` 改 `(account-1)*WORKERS_PER_ACCOUNT+worker`
@@ -592,8 +592,8 @@ fname = parts[2]
 - deploy job `needs: [gate, gen-names]`, gate 条件 `(gen_names != '1' || reorg == '1')` 允许 reorg 时 deploy 在 gen 后跑
 - **清旧原理**: 拓扑收缩 (10→N×3) 后旧的 4-10.fXX 不在新 WORKER_NAMES, `delete:o` (DELETE_MODE=3) 遍历账号下所有 worker 不在名单则删 → 自动清掉孤儿
 
-**worker-major 派生 bug 修复 (关键)**: 原代码 `w = newidx//10; a = newidx%10` 在 10×10 时碰对 (账号数=worker 数=10 恰好相等)。新拓扑账号数≠worker 数时照搬 `//wpa %wpa` 会越界/错排。**正确公式**: `w = newidx // n_accounts; a = newidx % n_accounts; old = a * wpa + w` (worker 外层慢变, 账号内层快变; w 上限恒 wpa-1 不越界)。**普适验证全绿**: 4×3 (当前) / 10×3 (全账号扩满) / 10×10 (旧拓扑不回归) / 6×4 (账号≠worker 极端) 全 CORRECT。
+**worker-major 派生 bug 修复 (关键)**: 原代码 `w = newidx//10; a = newidx%10` 在 10×10 时碰对 (账号数=worker 数=10 恰好相等)。新拓扑账号数≠worker 数时照搬 `//wpa %wpa` 会越界/错排。**正确公式**: `w = newidx // n_accounts; a = newidx % n_accounts; old = a * wpa + w` (worker 外层慢变, 账号内层快变; w 上限恒 wpa-1 不越界)。**普适验证全绿**: 10×3 (全账号=当前) / 10×10 (旧拓扑不回归) / 6×4 (账号≠worker 极端) / 4×3 (测试样本) 全 CORRECT。n_accounts 自动=WORKER_NAMES 全部账号 (ACTIVE_ACCOUNTS×WORKERS_PER_ACCOUNT), 全账号都用上。
 
 **验证 (全绿)**: YAML 语法通过 / 10 个 bash run 块 `bash -n` 通过 / publish-endpoints Python 语法通过 (YAML 去缩进后) / worker-major 派生模拟 4 情形全 CORRECT / 每账号端点数正确。
 
-**默认零风险**: 不设 `WORKERS_PER_ACCOUNT` = 默认 3 (甜点), 设 10 回归旧拓扑。运行时 entrypoint 从 endpoints.json 轮换 worker, 天然支持任意池大小, 无需改。待圣上定推 HF Dataset + 真启用。
+**默认零风险**: 不设 `WORKERS_PER_ACCOUNT` = 默认 3 (甜点), 设 10 回归旧拓扑。账号数全用 (ACTIVE_ACCOUNTS=10 全 zone)。运行时 entrypoint 从 endpoints.json 轮换 worker, 天然支持任意池大小, 无需改。待圣上定推 HF Dataset + 真启用。触发 reorg 后拓扑收缩为 **10×3 (全账号 × 每账号 3 worker)**。

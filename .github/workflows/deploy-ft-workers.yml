@@ -97,7 +97,8 @@ jobs:
           SECRETS_ONLY="${SECRETS_ONLY:-0}"
           PUBLISH_ONLY="${PUBLISH_ONLY:-0}"
           REORG="${REORG:-0}"
-          # 现役启 4 账号 (圣上前轮裁先 4 zone). 后续扩 f05~f10 改此 Variables 即可.
+          # 账号数 = 实际启用账号数 (全账号都用上; GitHub Variable 已设 ACTIVE_ACCOUNTS=10=f01~f10 全 zone).
+          # 默认 4 仅当 Variable 未设时的兜底 (旧裁先 4 zone). 扩/缩 zone 改此 Variable 即自动跟随.
           ACTIVE_ACCOUNTS="${ACTIVE_ACCOUNTS:-4}"
           # 每账号 worker 数默认 3 (甜点: 吞吐承载 + colo 出口分散, 共享配额不浪费).
           # 全链动态跟随: 矩阵维 / gen-names / deploy POS / publish worker-major 派生均用此值.
@@ -240,6 +241,7 @@ jobs:
           # 理由: 障缝性 (跨账号同名易顺藤摸) + 封禁隔离 (1 账号封仅砍该账号词基).
           ACTIVE_ACCOUNTS="${ACTIVE_ACCOUNTS:-4}"
           WORKERS_PER_ACCOUNT="${WORKERS_PER_ACCOUNT:-3}"
+          # 全账号都用上: N_TOTAL = 实际账号数 × 每账号 worker 数 (Variable ACTIVE_ACCOUNTS 已设 10=全 zone)
           N_TOTAL=$(( ACTIVE_ACCOUNTS * WORKERS_PER_ACCOUNT ))
           ALL_NAMES=()
           for account in $(seq 1 "$ACTIVE_ACCOUNTS"); do

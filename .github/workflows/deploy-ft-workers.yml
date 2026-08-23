@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       preset:
-        description: 'PRESET 场景 (gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o, 留空用 Variables)'
+        description: 'PRESET 场景 (gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg, 留空用 Variables)'
         required: false
         default: ''
 

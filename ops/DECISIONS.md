@@ -597,3 +597,9 @@ fname = parts[2]
 **验证 (全绿)**: YAML 语法通过 / 10 个 bash run 块 `bash -n` 通过 / publish-endpoints Python 语法通过 (YAML 去缩进后) / worker-major 派生模拟 4 情形全 CORRECT / 每账号端点数正确。
 
 **默认零风险**: 不设 `WORKERS_PER_ACCOUNT` = 默认 3 (甜点), 设 10 回归旧拓扑。账号数全用 (ACTIVE_ACCOUNTS=10 全 zone)。运行时 entrypoint 从 endpoints.json 轮换 worker, 天然支持任意池大小, 无需改。待圣上定推 HF Dataset + 真启用。触发 reorg 后拓扑收缩为 **10×3 (全账号 × 每账号 3 worker)**。
+
+**2026-08-23 真触发排障: 私库 GitHub Actions 额度耗尽 + reorg 全量重建 bug (commit 8685740)** —
+- **根因① 私库 Actions 额度耗尽 (billing 非代码)**: 圣上触发 reorg 后 workflow run 秒败 (5 秒, steps=0, job 未分配 runner, 日志空 zip). 诊断发现该 workflow 从 08-16 (run#12) 起所有 run 全 failure (含正常 daily schedule run#14-19), 非代码 bug 而是 **私库 GitHub Actions 免费分钟数用尽** 致 job 无法启动. 圣上改仓库公开 (公开库 Actions 分钟不限额) 后恢复, run 正常启动 (run#22 成功). 排障教训: 快速失败 + steps=0 + 多日 schedule 全败 → 先查 billing/quota 非查代码.
+- **根因② reorg 全量重建 bug**: run#22 公开后正常跑, 但 deploy 只建 1 个 worker (账号1 worker1). gate 日志 `>>> Matrix: placeholder (gen-names mode)` 暴露根因: reorg case 设 `GEN_NAMES=1` 使 gate 走 gen-names 占位分支 (matrix={account:[1],worker:[1]}), deploy 用占位矩阵只建 1 个; 且 publish 因 gen_names=1 跳过, endpoint.json 未重新派生 30 个新 worker.
+  - **修法 (commit 8685740, 三处)**: ① reorg case `GEN_NAMES=1→0` (gate 走 DEPLOY_SCOPE=2 完整矩阵 10 账号×3 worker=30 格) ② gen-names job `if: gen_names == '1'` 改 `if: gen_names == '1' || reorg == '1'` (reorg 时 gen_names=0 仍触发 gen-names 重生成名写新 WORKER_NAMES) ③ publish-endpoints 因 GEN_NAMES=0 后 gen_names≠1 + deploy success 自然恢复, reorg 后重新派生 30 个新 endpoint 传 Dataset.
+  - 流程: gate→gen-names(串行写新名, deploy needs gen-names)→deploy(等 gen-names 完成, 30 格删旧+双 pass 建新)→publish(needs deploy, 等 30 实例全成, 派生新 endpoint). YAML+bash-n 全过. 真触发 run#23 验 10×3 收缩 + 30 worker + 新 endpoint.

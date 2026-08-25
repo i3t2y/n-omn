@@ -78,6 +78,82 @@
 
 > ⚠️ 这些 env 空 → init 跳过对应 provider, 不影响 NVIDIA 现役路径。已实装 init-nim-keys.sh PROVIDERS 配置表。
 
+## 六.七、具体填值实操表 (2026-08-25 圣上要求: 讲清怎么填, 非沿用概览)
+
+### A. FT 桥
+
+| 变量 | 怎么填 | 填什么 |
+|------|--------|--------|
+| `FT_WORKER_COUNT` | **不用设** | 轮换池上限闸 (轮换=min(FT_WORKER_COUNT, 桥workers数))。桥实际 worker 由 flaretunnel_bridges.json 定。**留空=用满全部 worker (最优, 8-16)。** |
+| `FT_CA_DIR` | **不用设** | FT 自签 MITM CA 目录。entrypoint 启动自动生成, init 读。**留空=默认路径 (/data/ft-ca)。** |
+
+### B. 探活调参 (全有默认, 不用设也能跑)
+
+| 变量 | 填什么 | 说明 |
+|------|--------|------|
+| `NIM_PROBE_ENABLED` | `1` | 探活总闸. `1`=每boot并发验证key; `0`=跳过(省启动, 死key靠运行时兜底). **首boot用1验证, 稳定后改0加速.** |
+| `NIM_PROBE_CONCURRENCY` | `3` | 并发数(1-3). 3最快不触发风控. **不用改.** |
+| `NIM_PROBE_TIMEOUT_S` | `15` | 每key超时(秒). 网络差可调30. |
+| `NIM_PROBE_RETRY_ENABLED` | `0` | `0`=000直接判活(快, 冷启热身不算死); `1`=二次30s重试判真死. **建议保持0.** |
+| `NIM_PROBE_VERBOSE` | `0` | `1`=打印curl -v诊断(脱敏), 排障用. **平时0.** |
+
+### C. 模型分组 (通用多provider后基本不用填)
+
+> ⚠️ 通用多provider方案(commit 5e333e9)已让 NVIDIA 模型自动从 /v1/models 动态枚举, **这几个模型分组 env 可留空**. 除非强制覆盖 NVIDIA 进池模型.
+
+| 变量 | 说明 |
+|------|------|
+| `NIM_POOL_MODELS` | 默认池. 不设=内置TIER. |
+| `NIM_CODEX_MODELS` | Codex池. 不设=内置. |
+| `NIM_FAST_MODELS` | 快速档. 不设=内置. |
+| `NIM_EXTRA_MODELS` | 额外补充. 不设=内置. |
+
+### D. 限速/等待 (自动算, 别填)
+
+| 变量 | 填什么 | 说明 |
+|------|--------|------|
+| `NIM_PER_KEY_RPM` | **不设** | 每key每分钟上限. 脚本按key数自动算(alive*35封顶300). 填了会覆盖自动计算. |
+| `NIM_PER_KEY_CONCURRENT` | **不设** | 每key并发. 脚本自动算. |
+| `NIM_MAX_WAIT_MS` | **不设** | 排队最大等待(ms). 脚本有默认. |
+
+### E. 杂项 (有默认, 别填)
+
+| 变量 | 填什么 | 说明 |
+|------|--------|------|
+| `NIM_COMPRESS_THRESHOLD` | **不设** | 上下文压缩阈值. 脚本有默认. |
+| `NIM_REQUEST_BODY_LIMIT` | **不设** | 请求体上限(MB). 脚本有默认(4MB). |
+| `NIM_DEBUG_LOG_KEEP` | **不设** | 调试日志保留. 脚本有默认. |
+
+### F. 运行态
+
+| 变量 | 填什么 | 说明 |
+|------|--------|------|
+| `OMN_PERSIST_WRITE` | `1` | **持久写开关**. `1`=运行态写R2(litestream持久化). **填1** (要数据持久必须1). |
+
+### G. WORKERS_PER_ACCOUNT
+
+| 变量 | 填什么 | 说明 |
+|------|--------|------|
+| `WORKERS_PER_ACCOUNT` | **不在runtime Secret** | **deploy-ft-workers.yml (CF Worker部署 workflow) 的变量, 非 omn 容器 runtime 读**. 控每CF账号建多少Worker(FT出口池, 合理值3). **配在 GitHub Actions Variable, 不是 xnexus Space Secret.** |
+
+### H. 一句话速配 (照抄)
+
+**必须设 (runtime Secret):**
+- `INTERNAL_PSK`/`INITIAL_PASSWORD`/`OMN_MANAGE_TOKEN` = 各 `openssl rand -hex 24`
+- `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET=omn-data` = 生产复制
+- `NIM_KEYS` = 生产复制
+- `HF_TOKEN` = xnexus 账号生成(write scope)
+- `LOGIC_BUCKET_REPO` = xnexus/logic
+- `OMN_PERSIST_WRITE` = `1`
+- `GATE_ADMIN_ENABLED` = `0`(或删)
+- `FLARETUNNEL_ENABLED` = `1`(要FT桥)
+
+**别设 (有默认, 留空):**
+- `FT_WORKER_COUNT`/`FT_CA_DIR`, 所有 NIM_PROBE_*, NIM_*_MODELS, NIM_PER_KEY_*, NIM_MAX_WAIT_MS, NIM_COMPRESS_THRESHOLD, NIM_REQUEST_BODY_LIMIT, NIM_DEBUG_LOG_KEEP
+
+**配在别处 (非 runtime Secret):**
+- `WORKERS_PER_ACCOUNT` → GitHub Actions Variable
+
 ## 七、不变量/护栏
 
 - **§2 秘钥**: 以上 token 值零入会话/git/文档, 只在 xnexus Space Secrets 设。

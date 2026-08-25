@@ -27,7 +27,7 @@ exec > >(tee -a "$_EP_LOG_RAW") 2>&1
 echo "[entrypoint] boot 编排日志 tee -> $_EP_LOG_RAW (_raw → capture_loop entrypoint 源 → omn_redact → save/entrypoint/)"
 DB_PATH="$DATA_DIR/storage.sqlite"
 DB_TMP="$DATA_DIR/.storage.sqlite.restore.$$"   # 临时恢复路径 (原子保护)
-LOCK_FILE="$DATA_DIR/.omniroute.lock"
+LOCK_FILE="$DATA_DIR/.omn.lock"
 # 版本校验：硬编码已驱逐，改读 EXPECTED_VERSION env（未设则只记录不比对）。
 # 值放 Space Variable 与 BASE_IMAGE 同步更新，三文件永久免改。
 EXPECTED_VER="${EXPECTED_VERSION:-}"

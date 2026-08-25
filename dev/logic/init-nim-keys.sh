@@ -46,16 +46,16 @@ unset OMNIROUTE_RELAY_BACKEND BIFROST_BASE_URL 2>/dev/null || true
 BASE_URL="http://127.0.0.1:$OMNIROUTE_PORT"
 INIT_MARKER="/data/.init-done"
 OR_API_KEY_FILE="/data/.or-api-key"
-COOKIE_FILE="/tmp/omniroute-cookie.txt"
+COOKIE_FILE="/tmp/omn-cookie.txt"
 
-LOGIN_RESP_FILE="$(_resp omniroute-login.json)"
-KEY_RESP_FILE="$(_resp omniroute-key-response.json)"
-PROVIDERS_FILE="$(_resp omniroute-providers.json)"
-RESILIENCE_RESP_FILE="$(_resp omniroute-resilience.json)"
-SETTINGS_RESP_FILE="$(_resp omniroute-settings.json)"
-COMPRESS_RESP_FILE="$(_resp omniroute-compress.json)"
-COMBO_RESP_FILE="$(_resp omniroute-combo.json)"
-VERSION_FILE="$(_resp omniroute-version.json)"
+LOGIN_RESP_FILE="$(_resp omn-login.json)"
+KEY_RESP_FILE="$(_resp omn-key-response.json)"
+PROVIDERS_FILE="$(_resp omn-providers.json)"
+RESILIENCE_RESP_FILE="$(_resp omn-resilience.json)"
+SETTINGS_RESP_FILE="$(_resp omn-settings.json)"
+COMPRESS_RESP_FILE="$(_resp omn-compress.json)"
+COMBO_RESP_FILE="$(_resp omn-combo.json)"
+VERSION_FILE="$(_resp omn-version.json)"
 
 REGISTERED=0; SKIPPED=0; FAILED=0
 
@@ -73,7 +73,7 @@ TIER_FAST=(
 TIER_STABLE=(
   "nvidia/nemotron-3-super-120b-a12b"
   # "openai/gpt-oss-120b"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-codex 笔1 101s 超时 priority 命中 gpt-oss-120b 挂无 fallback; 亦在 NIM_CODEX_MODELS 行89 同步删). 圣上裁决矛盾二取 ii
-  # "qwen/qwen3.5-397b-a17b"  # 2026-07-25 Task D 移除: catalog 可查≠可服务, POST /v1/chat/completions 上游返 function-not-found 404 (omniroute 真转发 NVIDIA 后被上游拒)
+  # "qwen/qwen3.5-397b-a17b"  # 2026-07-25 Task D 移除: catalog 可查≠可服务, POST /v1/chat/completions 上游返 function-not-found 404 (omn 真转发 NVIDIA 后被上游拒)
   # "mistralai/mistral-small-4-119b-2603"  # 2026-08-12 圣上令删: DEPRECATED (NVIDIA 目录无)
   "google/gemma-4-31b-it"
 )
@@ -135,7 +135,7 @@ upsert_combo() {
   # select 加 `type=="object"` 守卫防对非对象值(数组值)取 .name 抛错 — 兼两种响应结构 + 空库首跑。
   CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
         | jq -r --arg n "$NAME" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
-  F="$(_resp omniroute-combo-$NAME.json)"
+  F="$(_resp omn-combo-$NAME.json)"
   if [ -n "$CID" ]; then
     CODE=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" \
       -X PUT "$BASE_URL/api/combos/$CID" -H "Content-Type: application/json" -d "$BODY")
@@ -160,7 +160,7 @@ upsert_combo() {
 # 删除走批量 DELETE /api/providers {ids:[]} 一次调用 (≤100/批)。幂等(再跑无待删)。
 gc_stale_providers() {
   local _GC_FILE _GC_HTTP _NIM_TOTAL _DEL_JSON _DEL_COUNT _CLEAN_IDS
-  _GC_FILE="$(_resp omniroute-providers-gc.json)"
+  _GC_FILE="$(_resp omn-providers-gc.json)"
   _GC_HTTP=$(curl -s -o "$_GC_FILE" -w "%{http_code}" -b "$COOKIE_FILE" "$BASE_URL/api/providers")
   if [ "$_GC_HTTP" != "200" ]; then
     echo "[init] gc_stale: GET /api/providers HTTP $_GC_HTTP 跳过 GC"; return 0
@@ -188,7 +188,7 @@ gc_stale_providers() {
   fi
   _CLEAN_IDS=$(printf '%s' "$_DEL_JSON" | jq -c '{ids: .}')
   local _DEL_HTTP _DEL_BODY
-  _DEL_BODY="$(_resp omniroute-providers-del.json)"
+  _DEL_BODY="$(_resp omn-providers-del.json)"
   _DEL_HTTP=$(curl -s -o "$_DEL_BODY" -w "%{http_code}" -b "$COOKIE_FILE" \
     -X DELETE "$BASE_URL/api/providers" -H "Content-Type: application/json" -d "$_CLEAN_IDS")
   echo "[init] gc_stale: 删除 $_DEL_COUNT 个僵尸/重复 nvidia 连接 (批量 DELETE /api/providers HTTP $_DEL_HTTP, 上限 max=$_NIM_TOTAL)"
@@ -208,7 +208,7 @@ clear_stale_nim_errors() {
     echo "[init] clear_stale: OMN_CLEAR_STALE!=1 跳过清陈旧错态"; return 0
   fi
   local _AP_FILE _AP_HTTP
-  _AP_FILE="$(_resp omniroute-autopilot.json)"
+  _AP_FILE="$(_resp omn-autopilot.json)"
   _AP_HTTP=$(curl -s -o "$_AP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
     "$BASE_URL/api/providers/health-autopilot?provider=nvidia&includeHealthy=false&includeActions=true")
   if [ "$_AP_HTTP" != "200" ]; then
@@ -938,7 +938,7 @@ while IFS= read -r RAW_KEY; do
   KEY=$(printf '%s' "$RAW_KEY" | tr -d '' | xargs)
   [ -z "$KEY" ] && continue
   NAME=$(printf "nim-%02d" "$INDEX")
-  RESP_FILE="$(_resp omniroute-provider-$INDEX.json)"
+  RESP_FILE="$(_resp omn-provider-$INDEX.json)"
   # auth_dead 跳注册: INDEX 照常递增编号不塌 (nim-XX 编号缺口=死 key 位置, K3 可定位)
   if _is_auth_dead "$KEY"; then
     echo "[init] $NAME skip (probe AUTH_DEAD, 不注册)"
@@ -1259,7 +1259,7 @@ except Exception as e:
         print("[init] snapshot: WARN 403 Forbidden — HF_TOKEN 缺 write 权限, 检查 Space Secret E 项 HF_TOKEN scope (需 dataset-write)")
 PYEOF
 
-  # ── omniroute 插件静态包推公开 Bucket (路③可选件) 已移出 ──
+  # ── omn 插件静态包推公开 Bucket (路③可选件) 已移出 ──
   #   omn_bucket_sync.py + 本调用段 2026-07-31 移除 (圣上裁插件包可选件状态, 非现役链).
   #   恢复路径: git 历史检出 + Dataset 根回推. 见 ops/DECISIONS.md 2026-07-31 移除决策条.
 }
@@ -1290,7 +1290,7 @@ check_nim_model_health
 
 echo "[init] Registering models..."
 register_model() {
-  local MODEL_ID="$1" F="$(_resp omniroute-model-$(echo "$1" | tr '/' '-').json)" C
+  local MODEL_ID="$1" F="$(_resp omn-model-$(echo "$1" | tr '/' '-').json)" C
   C=$(curl -s -o "$F" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-models" \
     -H "Content-Type: application/json" -d "$(jq -n --arg provider "nvidia" --arg modelId "$MODEL_ID" '{provider:$provider, modelId:$modelId}')")
   if [ "$C" = "200" ] || [ "$C" = "201" ]; then echo "[init] model $MODEL_ID OK"
@@ -1315,7 +1315,7 @@ hf_snapshot || true
 
 touch "$INIT_MARKER"
 echo "[init] Final health check..."
-HEALTH_FILE="$(_resp omniroute-final-health.json)"
+HEALTH_FILE="$(_resp omn-final-health.json)"
 HEALTH_HTTP=$(curl -s -o "$HEALTH_FILE" -w "%{http_code}" "$BASE_URL/api/monitoring/health" 2>/dev/null || echo "000")
 [ "$HEALTH_HTTP" = "200" ] && echo "[init]   Status: $(jq -r '.status // "unknown"' "$HEALTH_FILE") / $(jq -r '.version // "unknown"' "$HEALTH_FILE")"
 echo "[init] Done (first-init). v4.3.2"

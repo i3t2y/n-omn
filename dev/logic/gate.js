@@ -40,7 +40,7 @@ const FT_BRIDGES = FT_PORTS_LIST.length > 0 ? FT_PORTS_LIST : [8080];  // FT 未
 
 // ── #4 context guard 配置 (2026-07-25 裁 b): 单阈值字节硬拦 ──────────────────
 // 斩病链首环: 400-context-overflow → N×round-robin fallback 同体转发 → heap OOM → Space shutdown.
-// 病链根因: omniroute 计数偏 NVIDIA 实测 ~40% (自认 212813 vs 实测 297040); 200000 软限+压缩(仅省3%)
+// 病链根因: omn 计数偏 NVIDIA 实测 ~40% (自认 212813 vs 实测 297040); 200000 软限+压缩(仅省3%)
 //   数学上不防 400 → real_context 降级为"压缩 Governor"非"防400盾"; 改上游 src 拓扑上需双部署重建
 //   (生产官方镜像+http-proxy-middleware gate, dev 自建GHCR+手写http gate, auth.ts 是 Next.js 打包产物)
 //   故改 gate 自有代码(§5零风险, dev Dataset push+Restart 即生效).

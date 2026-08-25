@@ -42,4 +42,5 @@ __pycache__/
 
 # FlareTunnel 静态二进制产物 (源入库, 产物出局经 Dataset nonoke/omn-logic 根同步, 路3)
 /flaretunnel/flaretunnel
+/flaretunnel/flaretunnel.bak.*
 

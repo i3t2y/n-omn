@@ -599,8 +599,8 @@ jobs:
   # 两路跑 (always() 因 deploy 可能 skipped):
   #   ① PRESET=publish 场景: deploy 跳 (省 16m N×M 格), 仅 publish 直跑无须重部 Worker
   #   ② daily/first 场景: deploy 成后跑 (secrets/gen 场景跳: URL 未变无须重传)
-  # 读 GitHub Variable WORKER_NAMES N×M 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 nonoke/omn-logic
-  # 不涉 secret 真值 (HF_TOKEN_NONOKE Action 自动打码; URL 非 secret)
+  # 读 GitHub Variable WORKER_NAMES N×M 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 xnexus/logic Bucket
+  # 不涉 secret 真值 (HF_TOKEN_XNEXUS Action 自动打码; URL 非 secret)
   publish-endpoints:
     needs: [gate, deploy]
     if: |
@@ -616,7 +616,7 @@ jobs:
         env:
           WORKER_NAMES: ${{ vars.WORKER_NAMES }}
           WORKERS_PER_ACCOUNT: ${{ needs.gate.outputs.wpa }}
-          HF_TOKEN_NONOKE: ${{ secrets.HF_TOKEN_NONOKE }}
+          HF_TOKEN_XNEXUS: ${{ secrets.HF_TOKEN_XNEXUS }}
         run: |
           pip install -q huggingface_hub 2>/dev/null || true
           python3 << 'PYEOF'
@@ -649,15 +649,13 @@ jobs:
               eps.append({"name": name, "url": url})
           with open('/tmp/flaretunnel_endpoints.json', 'w') as f:
               json.dump(eps, f, indent=2)
-          from huggingface_hub import HfApi
-          api = HfApi(token=os.environ.get('HF_TOKEN_NONOKE'))
-          api.upload_file(
-              path_or_fileobj='/tmp/flaretunnel_endpoints.json',
-              path_in_repo='flaretunnel_endpoints.json',
-              repo_id='nonoke/omn-logic',
-              repo_type='dataset'
+          from huggingface_hub import batch_bucket_files
+          batch_bucket_files(
+              'xnexus/logic',
+              add=[('/tmp/flaretunnel_endpoints.json', 'flaretunnel_endpoints.json')],
+              token=os.environ.get('HF_TOKEN_XNEXUS')
           )
-          print(f'>>> publish-endpoints: upload {len(eps)} worker-major URLs to nonoke/omn-logic/flaretunnel_endpoints.json')
+          print(f'>>> publish-endpoints: upload {len(eps)} worker-major URLs to xnexus/logic/flaretunnel_endpoints.json')
           print(f'>>> first 3: {eps[:3]}')
           print(f'>>> last 1: {eps[-1]}')
           PYEOF

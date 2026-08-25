@@ -1,0 +1,95 @@
+name: Sync dev logic to HF Bucket (xnexus)
+
+# 三层解耦 · 逻辑层同步 (低风险: 推 Bucket 不触 Rebuild, 圣上手动 Restart 才生效)
+# 2026-08-25 新建 (圣上批 B 换 Bucket): nonoke 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
+#   xnexus/omn = 唯一 Space (非oke 9/22 删, nomke 废弃), 逻辑层源 = xnexus/logic (Bucket).
+# 目标: Bucket xnexus/logic 仓内平铺 (entrypoint.sh / gate.js / ... 根目录 + manifest.json).
+# 版本钉补回 atomic 锁: Bucket 非版本化无 commit_id → manifest.json 手工钉回.
+#   manifest 记 n-omn@SHA + 每文件 sha256; 推序 = 先业务文件, 最后 manifest (提交点).
+#   boot 拉 manifest + 逐文件校验 sha256 = 同点全件, 竞速面被哈希抓住 (start.sh §3).
+# 逐字节血缘: 上传后立即 download_bucket_files 读回 + sha256 cmp, 不过 CI 直接红.
+# 触发: dev/logic/** 任意改动 (高频低风险, 不触 build 冻)。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dev/logic/**'
+      - '.github/workflows/sync-logic-xnexus.yml'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Upload logic files to Bucket (8 files, flat layout) + write manifest
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_XNEXUS }}
+          BUCKET_ID: xnexus/logic
+        run: |
+          pip install -q "huggingface_hub>=1.0,<2.0"
+          python3 - <<'EOF'
+          import hashlib, json, os, sys
+          from huggingface_hub import batch_bucket_files
+          bucket = os.environ["BUCKET_ID"]
+          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
+                   "helper.sh","omn_redact.py","omn_scheduler.py"]
+          # 1. 先上传 8 件业务文件
+          batch_bucket_files(bucket, add=[(f"dev/logic/{f}", f) for f in files],
+                             token=os.environ["HF_TOKEN"])
+          # 2. 读回已传文件算 sha256 (血缘: 校验的是 bucket 里实际存的字节)
+          from huggingface_hub import download_bucket_files
+          os.makedirs("/tmp/readback", exist_ok=True)
+          download_bucket_files(bucket, files=[(f, f"/tmp/readback/{f}") for f in files],
+                                token=os.environ["HF_TOKEN"])
+          manifest = {"n-omn": os.environ["GITHUB_SHA"], "files": {}}
+          for f in files:
+              h = hashlib.sha256(open(f"/tmp/readback/{f}","rb").read()).hexdigest()
+              manifest["files"][f] = h
+          manifest["ts"] = __import__("datetime").datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          # 3. 最后写 manifest.json (提交点, atomic 锁)
+          import tempfile
+          tmpf = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+          json.dump(manifest, tmpf); tmpf.close()
+          batch_bucket_files(bucket, add=[(tmpf.name, "manifest.json")],
+                             token=os.environ["HF_TOKEN"])
+          print(f"[upload] {len(files)} 文件 + manifest.json 到 {bucket} (n-omn@{os.environ['GITHUB_SHA'][:7]})")
+          EOF
+
+      - name: Verify sha256 readback (逐字节血缘验证)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_XNEXUS }}
+          BUCKET_ID: xnexus/logic
+        run: |
+          python3 - <<'EOF'
+          import hashlib, json, os, sys
+          from huggingface_hub import download_bucket_files
+          bucket = os.environ["BUCKET_ID"]
+          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
+                   "helper.sh","omn_redact.py","omn_scheduler.py"]
+          os.makedirs("/tmp/verify", exist_ok=True)
+          # 拉 manifest + 8 件 (对齐 boot 拉取路径, 验的是 boot 会看到的同一份)
+          download_bucket_files(bucket, files=[("manifest.json","/tmp/verify/manifest.json")] + [(f, f"/tmp/verify/{f}") for f in files],
+                                token=os.environ["HF_TOKEN"])
+          manifest = json.load(open("/tmp/verify/manifest.json"))
+          mfiles = manifest.get("files", {})
+          bad = []
+          for f in files:
+              if f not in mfiles:
+                  print(f"[FATAL] manifest 缺 {f}"); bad.append(f); continue
+              h = hashlib.sha256(open(f"/tmp/verify/{f}","rb").read()).hexdigest()
+              if h != mfiles[f]:
+                  bad.append(f)
+          if bad:
+              print(f"[FATAL] {len(bad)} 文件 sha256 与 manifest 不一致 {bad} — Bucket↔git 血缘断裂")
+          print(f"[verify] n-omn@{manifest.get('n-omn','?')[:7]} {len(files)} 件 sha256 全对" if not bad else f"[verify] {len(bad)} MISMATCH")
+          raise SystemExit(1 if bad else 0)
+          EOF

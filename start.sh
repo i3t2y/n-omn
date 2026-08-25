@@ -52,58 +52,80 @@ fi
 [ -n "$LOGIC_BUCKET_REPO" ] || {
   echo "[start] FATAL: 缺 LOGIC_BUCKET_REPO"; exit 1; }
 
-# ── 3. 拉取逻辑层（stderr 落盘回放脱敏，保留真实退出码） ──
-#     竞速根治(2026-07-26 K3 硬化案): hf download 默认按 main HEAD resolve,
-#     内容取决于 boot 时刻 vs sync-logic-dev push 完成时刻竞速 + HF resolve 端缓存浮动.
-#     boot#4 15:30Z 拉出 8 员旧池(sync 15:48Z 迟 18min 抢跑旧 HEAD)即此病.
-#     治法: 拉前先取 Dataset HEAD commit_id, 按 commit id 拉取 = 锁定 atomic 同 commit
-#     全件, 竞速根除. fetch HEAD 失败 fail-open 回退空 (走 main HEAD) 不阻塞 boot.
-echo "[start] 同步 Dataset: $LOGIC_BUCKET_REPO"
+# ── 3. 拉取逻辑层（Bucket 源, manifest 版本钉补回 atomic 锁） ──
+#     2026-08-25 换 Bucket (圣上批 B): nonoke 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
+#     Bucket 非版本化无 commit_id/revision → 无 atomic 快照. 竞速根治手工补回:
+#       manifest.json = 提交点 (记 n-omn@SHA + 每文件 sha256), 由 CI 推文件后最后写.
+#       boot 先拉 manifest + 8 件, 逐文件校验 sha256 与 manifest 一致 = 同点全件.
+#       不一致 (manifest 旧文件新 或 文件旧 manifest 新) = 撞到 push 窗口 → fail 退出,
+#       下个 boot 重拉自愈 (push 完成 manifest 更新后再拉即对). 竞速面被哈希抓住.
+echo "[start] 同步 Bucket: $LOGIC_BUCKET_REPO"
 mkdir -p /tmp/logic
 
-# 3.1 取 Dataset HEAD commit_id (HF_HOME token 自动, 值零落会话)
-_rev=""
-_rev_err=/tmp/.rev.err; : > "$_rev_err"
+_logic_err=/tmp/.logic.err; : > "$_logic_err"
+# 3.1 拉 manifest + 8 件 + 校验 sha256 (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
 if command -v python3 >/dev/null 2>&1; then
-  _rev=$(LOGIC_BUCKET_REPO="$LOGIC_BUCKET_REPO" python3 -c '
-import os
+  if LOGIC_BUCKET_REPO="$LOGIC_BUCKET_REPO" python3 -c '
+import os, hashlib, json, sys
+from huggingface_hub import download_bucket_files
+repo = os.environ["LOGIC_BUCKET_REPO"]
+files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
+         "helper.sh","omn_redact.py","omn_scheduler.py"]
+local = "/tmp/logic"
 try:
-    os.environ.setdefault("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    from huggingface_hub import HfApi
-    cid = next(iter(HfApi().list_repo_commits(os.environ["LOGIC_BUCKET_REPO"], repo_type="dataset"))).commit_id
-    print(cid)
+    download_bucket_files(repo, files=[("manifest.json", f"{local}/manifest.json")] + [(f, f"{local}/{f}") for f in files])
 except Exception as e:
-    pass  # fail-open 静默, 走 main HEAD
-' 2>"$_rev_err") || true
-  [ -n "$_rev" ] && echo "[start] Dataset HEAD 锁定 revision=$(printf %.12s "$_rev") (竞速根治: atomic 同点拉取)" \
-                || { echo "[start] WARN: 取 HEAD commit_id 失败, 回退 main HEAD (竞速面未根治)"; [ -s "$_rev_err" ] && { [ -n "$HF_TOKEN" ] && sed "s/$HF_TOKEN/[REDACTED]/g" "$_rev_err" >&2 || cat "$_rev_err" >&2; }; }
-fi
-
-_dl() {
-  _err=/tmp/.dl.err; : > "$_err"
-  _tk=""; [ -n "$HF_TOKEN" ] && _tk="--token $HF_TOKEN"
-  _rev_arg=""; [ -n "$_rev" ] && _rev_arg="--revision $_rev"
-  if command -v hf >/dev/null 2>&1; then
-    hf download "$LOGIC_BUCKET_REPO" --repo-type dataset --local-dir /tmp/logic $_tk $_rev_arg --quiet 2>"$_err"
+    print(f"[start] FATAL: 拉取 Bucket 失败: {type(e).__name__}", file=sys.stderr); sys.exit(1)
+mp = f"{local}/manifest.json"
+if not os.path.isfile(mp):
+    print("[start] FATAL: 缺 manifest.json (Bucket 未初始化或拉取窗口)", file=sys.stderr); sys.exit(1)
+manifest = json.load(open(mp))
+mfiles = manifest.get("files", {})
+bad = []
+for f in files:
+    if f not in mfiles:
+        print(f"[start] FATAL: manifest 缺 {f}", file=sys.stderr); sys.exit(1)
+    fp = f"{local}/{f}"
+    if not os.path.isfile(fp):
+        bad.append(f); continue
+    h = hashlib.sha256(open(fp, "rb").read()).hexdigest()
+    if h != mfiles[f]:
+        bad.append(f)
+if bad:
+    print(f"[start] FATAL: {len(bad)} 文件 sha256 与 manifest 不一致 {bad} — 撞到 push 窗口, 下个 boot 自愈", file=sys.stderr); sys.exit(1)
+_n = str(manifest.get("n-omn", "?"))[:7]
+print(f"[start] Bucket 校验通过 (n-omn@{_n} {len(files)} 件 sha256 全对)")
+' 2>"$_logic_err"; then
+    :
   else
-    huggingface-cli download --repo-type dataset "$LOGIC_BUCKET_REPO" --local-dir /tmp/logic $_tk $_rev_arg --quiet 2>"$_err"
+    if [ -n "$HF_TOKEN" ]; then sed "s/$HF_TOKEN/[REDACTED]/g" "$_logic_err" >&2; else cat "$_logic_err" >&2; fi
+    echo "[start] FATAL: 拉取逻辑层失败 (manifest 校验未过)"; exit 1
   fi
-  _rc=$?
-  if [ -s "$_err" ]; then
-    if [ -n "$HF_TOKEN" ]; then sed "s/$HF_TOKEN/[REDACTED]/g" "$_err" >&2; else cat "$_err" >&2; fi
-  fi
-  return $_rc
-}
-
-if _dl; then
-  # 全量注入：逻辑层增删文件无需改动本脚本
-  mkdir -p /logic
-  cp -a /tmp/logic/. /logic/
-  chmod +x /logic/*.sh 2>/dev/null || true
-  echo "[start] 逻辑注入完成"
 else
-  echo "[start] FATAL: Dataset 拉取失败"; exit 1
+  echo "[start] FATAL: 缺 python3 无法拉 Bucket"; exit 1
 fi
+
+# 3.2 FT Worker 端点 (独立写入者: deploy-ft-workers CI, 非 sync-logic manifest 管)
+#     另拉 flaretunnel_endpoints.json — 可选件 (entrypoint 缺则跳 FT, 非阻断).
+#     不进 manifest 版本钉: 由 deploy-ft-workers 独立写, 与 dev/logic 8 件不同写入者不同节奏.
+if command -v python3 >/dev/null 2>&1; then
+  LOGIC_BUCKET_REPO="$LOGIC_BUCKET_REPO" python3 -c '
+import os, sys
+from huggingface_hub import download_bucket_files
+repo = os.environ["LOGIC_BUCKET_REPO"]
+try:
+    download_bucket_files(repo, files=[("flaretunnel_endpoints.json", "/tmp/logic/flaretunnel_endpoints.json")])
+except Exception as e:
+    print(f"[start] WARN: 拉 flaretunnel_endpoints.json 失败 (FT 未用则忽略): {type(e).__name__}", file=sys.stderr)
+' 2>"$_logic_err" || true
+  [ -s "$_logic_err" ] && { if [ -n "$HF_TOKEN" ]; then sed "s/$HF_TOKEN/[REDACTED]/g" "$_logic_err" >&2; else cat "$_logic_err" >&2; fi; }
+fi
+
+# 全量注入：逻辑层增删文件无需改动本脚本
+mkdir -p /logic
+cp -a /tmp/logic/. /logic/
+chmod +x /logic/*.sh 2>/dev/null || true
+echo "[start] 逻辑注入完成"
 
 rm -rf /tmp/logic
 echo "[start] 移交控制权给逻辑层"

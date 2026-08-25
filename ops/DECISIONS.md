@@ -603,3 +603,29 @@ fname = parts[2]
 - **根因② reorg 全量重建 bug**: run#22 公开后正常跑, 但 deploy 只建 1 个 worker (账号1 worker1). gate 日志 `>>> Matrix: placeholder (gen-names mode)` 暴露根因: reorg case 设 `GEN_NAMES=1` 使 gate 走 gen-names 占位分支 (matrix={account:[1],worker:[1]}), deploy 用占位矩阵只建 1 个; 且 publish 因 gen_names=1 跳过, endpoint.json 未重新派生 30 个新 worker.
   - **修法 (commit 8685740, 三处)**: ① reorg case `GEN_NAMES=1→0` (gate 走 DEPLOY_SCOPE=2 完整矩阵 10 账号×3 worker=30 格) ② gen-names job `if: gen_names == '1'` 改 `if: gen_names == '1' || reorg == '1'` (reorg 时 gen_names=0 仍触发 gen-names 重生成名写新 WORKER_NAMES) ③ publish-endpoints 因 GEN_NAMES=0 后 gen_names≠1 + deploy success 自然恢复, reorg 后重新派生 30 个新 endpoint 传 Dataset.
   - 流程: gate→gen-names(串行写新名, deploy needs gen-names)→deploy(等 gen-names 完成, 30 格删旧+双 pass 建新)→publish(needs deploy, 等 30 实例全成, 派生新 endpoint). YAML+bash-n 全过. 真触发 run#23 验 10×3 收缩 + 30 worker + 新 endpoint.
+
+## §11 逻辑层换源 Bucket 方案 (2026-08-24 圣上令深挖, 2026-08-25 批走 B 实施中, 只增不改)
+
+圣上 2026-08-24 令"换 Bucket 深挖"批走 (B) 换 Bucket 源。背景: nonoke HF 账号 ToS 违规锁 → boot 拉 nonoke/omni-logic Dataset 403 FATAL。完整设计: docs/logic-switch-bucket-design.md。
+
+**关键认知 (圣上点破, 修正旧判)**: 四件武器(版控/PR/血缘/K3 commit_id 锁/git show 历史)全绑私库 n-omn, 不绑 Dataset。换源不丢四件。唯一真成本 = 丢 Dataset 白送的 `--revision` atomic 快照锁。
+
+**现役链路 (已核实)**: 源=dev/logic 八件→n-omn git; 推送=CI `hf upload` 逐文件(每文件一 commit)+readback sha256; boot 拉=start.sh L87 `hf download --revision <cid>` 锁 atomic →/tmp/logic→cp -a /logic(ephemeral 不 mount); 执行=exec /logic/entrypoint.sh。
+
+**xnexus/logic 不存在 (404)** — 换必须先建。
+
+**atomic 锁必须手工补 (manifest 版本钉)**: Bucket 非版本化无 commit_id, 逐文件 PUT 窗口内 boot 拉到半新半旧=竞速复活。`batch_bucket_files` 仍非真原子(逐个对象)。**唯一可靠路径 = manifest.json 版本钉**: Bucket 根 manifest 记 n-omn SHA + 每文件 sha256; boot 先拉 manifest 校验每文件哈希, 不匹配 fail 重试, 全对才 cp 到 /logic。
+
+**改动清单 (2026-08-25 代码侧已落, 三块 + FT 端点 = 四块)**:
+- ① sync-logic CI: 新建 sync-logic-xnexus.yml (batch_bucket_files 上传 8 件→写 manifest→readback 校验), 替代 nonoke 版
+- ② start.sh §3: S3 拉 + manifest 校验 + 另拉 flaretunnel_endpoints.json (**破 §1 三件定态铁律, 圣上已显令批**)
+- ③ 执行零改 (/logic cp 固化)
+- ④ **deploy-ft-workers.yml publish-endpoints: FT 端点改推 xnexus/logic Bucket (新发现依赖)** — entrypoint L216/231 读 /logic/flaretunnel_endpoints.json, 原推 nonoke/omn-logic (Dataset 已 403 锁), 不迁则 FT 桥全断。此文件由 deploy-ft-workers 独立写 (非 sync-logic 8 件), start.sh §3.2 单独拉 (不进 manifest)
+
+**代价**: 破 §1 铁律(已批) / 改 sync CI(已落) / 建 xnexus/logic Bucket(手动, 须圣上 UI 或 `hf buckets create`) / 丢 atomic 快照(manifest 补回) / HF_TOKEN 换 xnexus / S3 读一致性(低, 低写频可忽略)。
+
+**执行序 (已批 2026-08-25, 代码侧 ①②④ 已落)**: 1 建 Bucket(圣上)⏳ 2 ✅ sync CI 3 ✅ start.sh §3 4 ✅ deploy-ft-workers 5 ⏳ 首次推 8 件+manifest(须 xnexus HF_TOKEN) 6 ⏳ 本地 mock 验(已过)+boot 真验(须 xnexus Space 在线) 7 SSOT 文档落 8 圣上批 commit→push→切 xnexus/omn Space。
+
+**护栏**: §1 xnexus/omn 唯一 Space, xnexus/logic 是 Bucket 源非 Space(不新建 Space); §2 xnexus HF_TOKEN 值零入会话; §5 git 一律 ask。
+
+出处: docs/logic-switch-bucket-design.md + docs/xnexus-deploy-checklist.md (commit 待圣上批)。关联: ops/DECISIONS.md §7 (R2 副本), docs/ft-health-aware-rotation.md (同型"待批实施"设计文档先例)。

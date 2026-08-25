@@ -1,4 +1,4 @@
-# OmniRoute 永续节点 · 环境层（版本无关设计）
+# omn 永续节点 · 环境层（版本无关设计）
 # ─────────────────────────────────────────────
 # 双轨切换机制 (2026-07-28 圣上调, 回应官方文档语义):
 #   - ARG BASE_IMAGE = 文档占位符 + 默认值兜底 (HF 不注入 Variable 时退回 :stable 也能构建)
@@ -13,7 +13,7 @@
 #   或是改 Variable 值未真 Rebuild, 非官方语义为假。本双轨方案默认值改回 :stable 占位,
 #   dev/prod 各设 BASE_IMAGE Variable 覆盖 ARG 升级路径 (待圣上手动设置两 Space)。
 #
-# 升级 OmniRoute 的两种路径 (2026-07-28 双轨):
+# 升级 omn 的两种路径 (2026-07-28 双轨):
 #   A. 日常路径 (推荐): GHCR 侧推新版镜像到 `:stable` tag → dev/prod Space Rebuild 即拉新版,
 #      ARG 默认值不动, Dashboard 看 Space Variable 也不动 (零 git 变更)
 #   B. 钉 digest 路径 (备选): 改 ARG 默认值钉 <新标签>@sha256:<digest> → git commit + push
@@ -21,9 +21,9 @@
 #      触 sync-space-nomke.yml 同步 prod
 #   回滚: 路径 A `:stable` 重推旧 digest 即回; 路径 B `git revert` + push + Rebuild
 #
-# dev/prod 隔离: sync-space-nonoke.yml (dev) push paths[Dockerfile] 自动触;
-#   sync-space-nomke.yml (prod) 仅 workflow_dispatch (圣上显令点火) 非 push 自动触发。
-ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable
+# dev/prod 隔离: sync-space-xnexus.yml (唯一 Space) push paths[Dockerfile] 自动触;
+#   (xnexus=唯一 Space, nomke 废弃 nonoke 9/22 删, 无第二个 Space, 故无 prod 隔离流程)
+ARG BASE_IMAGE=ghcr.io/i3t2y/omn-base:stable
 FROM ${BASE_IMAGE}
 
 # root 是永久需求而非过渡：上游 runner 永远 USER node 且永远缺工具，

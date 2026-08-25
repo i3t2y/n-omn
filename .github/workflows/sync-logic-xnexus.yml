@@ -42,14 +42,24 @@ jobs:
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
                    "helper.sh","omn_redact.py","omn_scheduler.py"]
-          # 1. 先上传 8 件业务文件
-          batch_bucket_files(bucket, add=[(f"dev/logic/{f}", f) for f in files],
-                             token=os.environ["HF_TOKEN"])
-          # 2. 读回已传文件算 sha256 (血缘: 校验的是 bucket 里实际存的字节)
+          # 1. 上传 8 件业务文件 + 读回算 sha256 (血缘: 校验 bucket 实际存的字节)
+          # HF bucket 写后读最终一致, BlobNotFound 可能出现在上传阶段或读回阶段 → 整体重试
           from huggingface_hub import download_bucket_files
+          import time
           os.makedirs("/tmp/readback", exist_ok=True)
-          download_bucket_files(bucket, files=[(f, f"/tmp/readback/{f}") for f in files],
-                                token=os.environ["HF_TOKEN"])
+          for _att in range(8):
+              try:
+                  batch_bucket_files(bucket, add=[(f"dev/logic/{f}", f) for f in files],
+                                     token=os.environ["HF_TOKEN"])
+                  download_bucket_files(bucket, files=[(f, f"/tmp/readback/{f}") for f in files],
+                                        token=os.environ["HF_TOKEN"])
+                  break
+              except Exception as _e:
+                  if _att == 7:
+                      print(f"[upload+readback] FAILED after 8 attempts: {_e}")
+                      raise
+                  print(f"[upload+readback] attempt {_att+1}: {_e}, retry in 5s...")
+                  time.sleep(5)
           manifest = {"n-omn": os.environ["GITHUB_SHA"], "files": {}}
           for f in files:
               h = hashlib.sha256(open(f"/tmp/readback/{f}","rb").read()).hexdigest()

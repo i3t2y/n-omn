@@ -600,7 +600,7 @@ jobs:
   #   ① PRESET=publish 场景: deploy 跳 (省 16m N×M 格), 仅 publish 直跑无须重部 Worker
   #   ② daily/first 场景: deploy 成后跑 (secrets/gen 场景跳: URL 未变无须重传)
   # 读 GitHub Variable WORKER_NAMES N×M 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 xnexus/logic Bucket
-  # 不涉 secret 真值 (HF_TOKEN_XNEXUS Action 自动打码; URL 非 secret)
+  # 不涉 secret 真值 (HF_TOKEN Action 自动打码; URL 非 secret)
   publish-endpoints:
     needs: [gate, deploy]
     if: |

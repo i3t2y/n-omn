@@ -616,7 +616,7 @@ jobs:
         env:
           WORKER_NAMES: ${{ vars.WORKER_NAMES }}
           WORKERS_PER_ACCOUNT: ${{ needs.gate.outputs.wpa }}
-          HF_TOKEN_XNEXUS: ${{ secrets.HF_TOKEN_XNEXUS }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pip install -q huggingface_hub 2>/dev/null || true
           python3 << 'PYEOF'
@@ -653,7 +653,7 @@ jobs:
           batch_bucket_files(
               'xnexus/logic',
               add=[('/tmp/flaretunnel_endpoints.json', 'flaretunnel_endpoints.json')],
-              token=os.environ.get('HF_TOKEN_XNEXUS')
+              token=os.environ.get('HF_TOKEN')
           )
           print(f'>>> publish-endpoints: upload {len(eps)} worker-major URLs to xnexus/logic/flaretunnel_endpoints.json')
           print(f'>>> first 3: {eps[:3]}')

@@ -2,8 +2,8 @@
 # 圣上 2026-07-25 令: 抓取 Space 日志用 GitHub Actions, 直接放私库。
 # 2026-08-25 xnexus 化: fetch-nonoke-logs.yml → fetch-xnexus-logs.yml (nonoke 9/22 删, nomke 废弃, xnexus=唯一 Space)。
 #   xnexus/omn = 唯一 Space (§1), 抓 xnexus/omn Space 日志 → n-omn evidence 分支。
-#   token = HF_TOKEN_XNEXUS (xnexus 账号, 已设定)。
-# 定位: CI 侧证据采集, 非逻辑层, 不受 ② 零变更约束, 阻塞仅 push + HF_TOKEN_XNEXUS secret。
+#   token = HF_TOKEN (xnexus 账号, 已设定)。
+# 定位: CI 侧证据采集, 非逻辑层, 不受 ② 零变更约束, 阻塞仅 push + HF_TOKEN secret。
 # 与 P0-tee 互补: P0-tee=容器内持久落盘(战后), 本通道=HF 可见窗口仓内归档(现在)。
 # 下游: claude-code-action 异步解读层未来从此 evidence 分支消费。
 # 出处: SEE DECISIONS.md "HF Space 日志抓取通道" 条 (2026-07-25) + "workflow 六件命名规约" 条 (2026-07-26)。
@@ -50,7 +50,7 @@ jobs:
       - name: 抓取 HF Space 日志 (xnexus/omn)
         id: fetch
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_XNEXUS }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -euo pipefail
           LOG_TYPE="${{ inputs.log_type || 'run' }}"

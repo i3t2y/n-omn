@@ -32,7 +32,7 @@ jobs:
 
       - name: Upload logic files to Bucket (8 files, flat layout) + write manifest
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_XNEXUS }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           BUCKET_ID: xnexus/logic
         run: |
           pip install -q "huggingface_hub>=1.0,<2.0"
@@ -66,7 +66,7 @@ jobs:
 
       - name: Verify sha256 readback (逐字节血缘验证)
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_XNEXUS }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           BUCKET_ID: xnexus/logic
         run: |
           python3 - <<'EOF'

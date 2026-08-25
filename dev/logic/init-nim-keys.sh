@@ -1368,7 +1368,8 @@ for _pcfg in "${PROVIDERS[@]}"; do
     _nresp="$(_resp omn-provider-node-${_pid}.json)"
     _nhttp=$(curl -s -o "$_nresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-nodes" \
       -H "Content-Type: application/json" -d "$_nbody" 2>/dev/null || echo "000")
-    _nid=$(jq -r '.id // empty' "$_nresp" 2>/dev/null)
+    # 创建响应是 {node:{id,...}} (providers/route.ts POST 包装) — 取 .node.id 而非顶层 .id
+    _nid=$(jq -r '.node.id // empty' "$_nresp" 2>/dev/null)
     case "$_nhttp" in
       200|201) [ -n "$_nid" ] && echo "[init]     $_pid: node $_pnode 建 ✓ (id=$_nid)" || echo "[init]     $_pid: node POST 成功但无 id, WARN" ;;
       *) echo "[init]     $_pid: node POST HTTP $_nhttp ($(head -c 200 "$_nresp" 2>/dev/null)); 跳此 provider."; continue ;;

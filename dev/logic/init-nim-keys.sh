@@ -77,7 +77,8 @@ declare -a PROVIDERS=(
   "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100"
   "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20"
-  "amd|amd-node|amd|${AMD_BASE_URL:-https://developer.amd.com.cn/radeon/api/v1}|AMD_KEYS|20"
+  # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
+  "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20"
 )
 # 全部 provider 族 (含 nvidia), 供 FT 桥 bulk-assign 绑族与单桥回退遍历.
 declare -a ALL_FT_FAMILIES=()
@@ -1378,8 +1379,10 @@ _register_multi_provider() {
         _models_json="$_mj"; _models_key="$_rk"; break
       fi
     done <<< "$_keys"
-    if [ -z "$_models_json" ] && [ -f "/tmp/ft-ca/flaretunnel_ca.crt" ]; then
-      # 裸 curl 全失败 → 回退 FT 桥 (复用第一个非空 key, 无则首 key)
+    if [ -z "$_models_key" ] && [ -f "/tmp/ft-ca/flaretunnel_ca.crt" ]; then
+      # 裸 curl 未取到有效模型列表 (_models_key 空) → 回退 FT 桥. 判 _models_key 而非 _models_json:
+      #   google/amd 裸 curl 失败返回非空错误 body (28B, 无 data[].id), _models_json 非空但 _models_key 空,
+      #   若判 body 空则错误 body 会跳过 FT 回退 (boot 2026-08-26 实证 google 卡此). (复用第一个非空 key, 无则首 key)
       _px="${FT_PROXY_PORT:-8080}"
       _fk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
       _models_json=$(curl -s --max-time 25 -x "http://127.0.0.1:${_px}" \

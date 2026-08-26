@@ -1294,6 +1294,109 @@ PYEOF
   #   恢复路径: git 历史检出 + Dataset 根回推. 见 ops/DECISIONS.md 2026-07-31 移除决策条.
 }
 
+# ── 通用多 provider 注册函数 (NIM_KEYS 多 key 模式推广: gemini/openrouter/sensenova/mistral/amd) ──
+# 2026-08-26 提升: 原仅 first-init 跑 (L1349 内联), 增量 boot 直接 exit 0 跳过 → 免费 provider 永不再注册.
+#   改成函数后 **增量+first-init 都跑**, 幂等 (node 已存在复用 id, 连接 POST 409 跳过, 模型 409 幂等)。
+# 每 provider:
+#   1) 建 openai-compatible 节点定 base_url (POST /api/provider-nodes, 幂等: 已存在则复用 id)
+#   2) 遍历 ${env_keys_var} 每 key 建连接 (POST /api/providers, provider=<node.id> → 路由自动 providerSpecificData.baseUrl=node.baseUrl)
+#   3) GET {base_url}/models 动态枚举模型 → 过滤 embedding → 截 max_models → 前缀 prefix/ 注册
+#   4) upsert_combo "${prefix}-pool" 含该 provider 全部存活模型
+#   5) FT 桥绑定 (ALL_FT_FAMILIES 已含本 provider 族, _ft_register_proxy 单桥/多桥都会绑)
+# 向后兼容: env 变量空 → 跳过该 provider, 不影响 NVIDIA 现役路径。
+# 注: 本函数在脚本顶层 (非函数内函数), 变量不用 local (同 NVIDIA 循环); set -e 下顶层 local 会非零退出崩 init。
+_register_multi_provider() {
+  echo "[init] General multi-provider registration..."
+  for _pcfg in "${PROVIDERS[@]}"; do
+    IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax <<< "$_pcfg"
+    # 取该 provider 的多行 keys (间接引用 env 变量名), 空则跳过
+    _keys=""
+    _keys=$(eval "printf '%s' \"\${$_penvv}\"" 2>/dev/null || true)
+    [ -z "$(printf '%s' "$_keys" | tr -d '[:space:]')" ] && { echo "[init]   $_pid: env $_penvv 空, 跳过."; continue; }
+    echo "[init]   $_pid: 建节点+连接+枚举模型 (base=${_pburl}, max=${_pmax})..."
+
+    # ── 1) 建 provider-node (幂等: 存在则查复用) ──
+    # 先查现有节点, 命中则取 id (避免重名 POST 400). GET /api/provider-nodes?type= 或按 name 查.
+    _nid=""
+    _nodes_resp="$(_resp omn-provider-nodes-${_pid}.json)"
+    curl -s -o "$_nodes_resp" -b "$COOKIE_FILE" "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || true
+    # 按 name 匹配现有节点 (name 唯一每 provider)
+    _nid=$(jq -r --arg n "$_pnode" '.. | objects | select(.name? == $n) | .id // empty' "$_nodes_resp" 2>/dev/null | head -n1)
+    if [ -z "$_nid" ]; then
+      _nbody=$(jq -n --arg name "$_pnode" --arg prefix "$_ppre" --arg baseUrl "$_pburl" \
+        '{name:$name, prefix:$prefix, apiType:"chat", type:"openai-compatible", baseUrl:$baseUrl}')
+      _nresp="$(_resp omn-provider-node-${_pid}.json)"
+      _nhttp=$(curl -s -o "$_nresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-nodes" \
+        -H "Content-Type: application/json" -d "$_nbody" 2>/dev/null || echo "000")
+      # 创建响应是 {node:{id,...}} (providers/route.ts POST 包装) — 取 .node.id 而非顶层 .id
+      _nid=$(jq -r '.node.id // empty' "$_nresp" 2>/dev/null)
+      case "$_nhttp" in
+        200|201) [ -n "$_nid" ] && echo "[init]     $_pid: node $_pnode 建 ✓ (id=$_nid)" || echo "[init]     $_pid: node POST 成功但无 id, WARN" ;;
+        *) echo "[init]     $_pid: node POST HTTP $_nhttp ($(head -c 200 "$_nresp" 2>/dev/null)); 跳此 provider."; continue ;;
+      esac
+    else
+      echo "[init]     $_pid: node $_pnode 已存在, 复用 id=$_nid"
+    fi
+
+    # ── 2) 逐 key 建连接 (POST /api/providers, provider=<node.id> 走 openai-compatible 路由) ──
+    _kc=0 _reg=0 _skip=0 _fail=0
+    while IFS= read -r _rawk; do
+      _k=$(printf '%s' "$_rawk" | tr -d '[:space:]')
+      [ -z "$_k" ] && continue
+      _kc=$((_kc+1))
+      _cname=$(printf '%s-%02d' "$_ppre" "$_kc")
+      # auth_dead (NVIDIA probe 已收集) 跳注册: 编号缺口即死 key 位置
+      if _is_auth_dead "$_k"; then echo "[init]     $_pid/$_cname skip (probe AUTH_DEAD, 不注册)"; _skip=$((_skip+1)); continue; fi
+      _cbody=$(jq -n --arg provider "$_nid" --arg apiKey "$_k" --arg name "$_cname" \
+        '{provider:$provider, apiKey:$apiKey, name:$name, priority:1, testStatus:"unknown"}')
+      _cresp="$(_resp omn-provider-${_pid}-${_kc}.json)"
+      _chttp=$(curl -s -o "$_cresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/providers" \
+        -H "Content-Type: application/json" -d "$_cbody" 2>/dev/null || echo "000")
+      case "$_chttp" in
+        201|200) echo "[init]     $_pid/$_cname OK"; _reg=$((_reg+1)) ;;
+        409) echo "[init]     $_pid/$_cname exists"; _skip=$((_skip+1)) ;;
+        *) echo "[init]     $_pid/$_cname HTTP $_chttp ($(head -c 120 "$_cresp" 2>/dev/null))"; _fail=$((_fail+1)) ;;
+      esac
+    done <<< "$_keys"
+    echo "[init]     $_pid: $_kc keys → $_reg registered, $_skip skipped, $_fail failed"
+
+    # ── 3) 动态枚举模型 (GET {base_url}/models, 过滤 embedding, 截 max) ──
+    # 用第一个 key 鉴权; 失败则 fail-open 降级 (不阻塞本 provider, 模型集空则 combo 跳过)
+    _firstk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
+    _models_json=$(curl -s --max-time 15 -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
+    # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
+    _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
+      | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
+      | head -n "$_pmax" || true)
+    _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
+    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax)"
+    # 前缀化 + 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert)
+    if [ "$_mcount" -gt 0 ]; then
+      _prefixed=()
+      while IFS= read -r _mm; do
+        [ -z "$_mm" ] && continue
+        _prefixed+=("${_ppre}/${_mm}")
+      done <<< "$_model_ids"
+      _strat="${_POOL_STRATEGY:-weighted}"
+      _is_valid_strat "$_strat" || _strat="round-robin"
+      # 逐一注册模型到 provider 节点 (provider=<node.id>, modelId 带 prefix)
+      for _regm in "${_prefixed[@]}"; do
+        _mresp="$(_resp omn-model-${_pid}-$(echo "$_regm" | tr '/' '-').json)"
+        _mhttp=$(curl -s -o "$_mresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-models" \
+          -H "Content-Type: application/json" -d "$(jq -n --arg provider "$_nid" --arg modelId "$_regm" '{provider:$provider, modelId:$modelId}')" 2>/dev/null || echo "000")
+        case "$_mhttp" in
+          200|201|409) : ;;
+          *) echo "[init]     $_pid model $_regm WARN $_mhttp"; cat "$_mresp" 2>/dev/null || true ;;
+        esac
+      done
+      upsert_combo "${_ppre}-pool" "$_strat" "${_prefixed[@]}"
+    else
+      echo "[init]     $_pid: 无模型可注册, combo ${_ppre}-pool 跳过."
+    fi
+  done
+  echo "[init] General multi-provider registration done."
+}
+
 # ── 增量模式（⑧ 增量门放宽：任一 nim-* combo 或 INIT_MARKER 存在）──
 if [ -f "$_DB_PATH" ]; then
   COMBO_COUNT=$(sqlite3 "$_DB_PATH" "SELECT COUNT(*) FROM combos WHERE name IN ('nim-pool','nim-codex');" 2>/dev/null || echo 0)
@@ -1308,6 +1411,8 @@ if [ -f "$_DB_PATH" ]; then
     upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
     upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
     context_accumulator_update
+    # 增量也跑通用多 provider 注册 (幂等, 2026-08-26 提升: 原仅 first-init 跑跳增量)
+    _register_multi_provider
     hf_snapshot
     echo "[init] Done (incremental). v4.3.2"
     exit 0
@@ -1338,103 +1443,8 @@ upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
 upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
 
 # ══ 通用多 provider 注册（NIM_KEYS 多 key 模式推广: gemini/openrouter/sensenova/mistral/amd）═══
-# 仅在 first-init 跑 (与 NVIDIA 键/模型注册同窗)。每 provider:
-#   1) 建 openai-compatible 节点定 base_url (POST /api/provider-nodes, 幂等: 已存在则复用 id)
-#   2) 遍历 ${env_keys_var} 每 key 建连接 (POST /api/providers, provider=<node.id> → 路由自动 providerSpecificData.baseUrl=node.baseUrl)
-#   3) GET {base_url}/models 动态枚举模型 → 过滤 embedding → 截 max_models → 前缀 prefix/ 注册
-#   4) upsert_combo "${prefix}-pool" 含该 provider 全部存活模型
-#   5) FT 桥绑定 (ALL_FT_FAMILIES 已含本 provider 族, _ft_register_proxy 单桥/多桥都会绑)
-# 向后兼容: env 变量空 → 跳过该 provider, 不影响 NVIDIA 现役路径。
-# 注: 本段在脚本顶层 (非函数内), 变量不用 local (同 NVIDIA 循环); set -e 下顶层 local 会非零退出崩 init。
-echo "[init] General multi-provider registration..."
-for _pcfg in "${PROVIDERS[@]}"; do
-  IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax <<< "$_pcfg"
-  # 取该 provider 的多行 keys (间接引用 env 变量名), 空则跳过
-  _keys=""
-  _keys=$(eval "printf '%s' \"\${$_penvv}\"" 2>/dev/null || true)
-  [ -z "$(printf '%s' "$_keys" | tr -d '[:space:]')" ] && { echo "[init]   $_pid: env $_penvv 空, 跳过."; continue; }
-  echo "[init]   $_pid: 建节点+连接+枚举模型 (base=${_pburl}, max=${_pmax})..."
-
-  # ── 1) 建 provider-node (幂等: 存在则查复用) ──
-  # 先查现有节点, 命中则取 id (避免重名 POST 400). GET /api/provider-nodes?type= 或按 name 查.
-  _nid=""
-  _nodes_resp="$(_resp omn-provider-nodes-${_pid}.json)"
-  curl -s -o "$_nodes_resp" -b "$COOKIE_FILE" "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || true
-  # 按 name 匹配现有节点 (name 唯一每 provider)
-  _nid=$(jq -r --arg n "$_pnode" '.. | objects | select(.name? == $n) | .id // empty' "$_nodes_resp" 2>/dev/null | head -n1)
-  if [ -z "$_nid" ]; then
-    _nbody=$(jq -n --arg name "$_pnode" --arg prefix "$_ppre" --arg baseUrl "$_pburl" \
-      '{name:$name, prefix:$prefix, apiType:"chat", type:"openai-compatible", baseUrl:$baseUrl}')
-    _nresp="$(_resp omn-provider-node-${_pid}.json)"
-    _nhttp=$(curl -s -o "$_nresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-nodes" \
-      -H "Content-Type: application/json" -d "$_nbody" 2>/dev/null || echo "000")
-    # 创建响应是 {node:{id,...}} (providers/route.ts POST 包装) — 取 .node.id 而非顶层 .id
-    _nid=$(jq -r '.node.id // empty' "$_nresp" 2>/dev/null)
-    case "$_nhttp" in
-      200|201) [ -n "$_nid" ] && echo "[init]     $_pid: node $_pnode 建 ✓ (id=$_nid)" || echo "[init]     $_pid: node POST 成功但无 id, WARN" ;;
-      *) echo "[init]     $_pid: node POST HTTP $_nhttp ($(head -c 200 "$_nresp" 2>/dev/null)); 跳此 provider."; continue ;;
-    esac
-  else
-    echo "[init]     $_pid: node $_pnode 已存在, 复用 id=$_nid"
-  fi
-
-  # ── 2) 逐 key 建连接 (POST /api/providers, provider=<node.id> 走 openai-compatible 路由) ──
-  _kc=0 _reg=0 _skip=0 _fail=0
-  while IFS= read -r _rawk; do
-    _k=$(printf '%s' "$_rawk" | tr -d '[:space:]')
-    [ -z "$_k" ] && continue
-    _kc=$((_kc+1))
-    _cname=$(printf '%s-%02d' "$_ppre" "$_kc")
-    # auth_dead (NVIDIA probe 已收集) 跳注册: 编号缺口即死 key 位置
-    if _is_auth_dead "$_k"; then echo "[init]     $_pid/$_cname skip (probe AUTH_DEAD, 不注册)"; _skip=$((_skip+1)); continue; fi
-    _cbody=$(jq -n --arg provider "$_nid" --arg apiKey "$_k" --arg name "$_cname" \
-      '{provider:$provider, apiKey:$apiKey, name:$name, priority:1, testStatus:"unknown"}')
-    _cresp="$(_resp omn-provider-${_pid}-${_kc}.json)"
-    _chttp=$(curl -s -o "$_cresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/providers" \
-      -H "Content-Type: application/json" -d "$_cbody" 2>/dev/null || echo "000")
-    case "$_chttp" in
-      201|200) echo "[init]     $_pid/$_cname OK"; _reg=$((_reg+1)) ;;
-      409) echo "[init]     $_pid/$_cname exists"; _skip=$((_skip+1)) ;;
-      *) echo "[init]     $_pid/$_cname HTTP $_chttp ($(head -c 120 "$_cresp" 2>/dev/null))"; _fail=$((_fail+1)) ;;
-    esac
-  done <<< "$_keys"
-  echo "[init]     $_pid: $_kc keys → $_reg registered, $_skip skipped, $_fail failed"
-
-  # ── 3) 动态枚举模型 (GET {base_url}/models, 过滤 embedding, 截 max) ──
-  # 用第一个 key 鉴权; 失败则 fail-open 降级 (不阻塞本 provider, 模型集空则 combo 跳过)
-  _firstk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
-  _models_json=$(curl -s --max-time 15 -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
-  # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
-  _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
-    | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
-    | head -n "$_pmax" || true)
-  _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
-  echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax)"
-  # 前缀化 + 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert)
-  if [ "$_mcount" -gt 0 ]; then
-    _prefixed=()
-    while IFS= read -r _mm; do
-      [ -z "$_mm" ] && continue
-      _prefixed+=("${_ppre}/${_mm}")
-    done <<< "$_model_ids"
-    _strat="${_POOL_STRATEGY:-weighted}"
-    _is_valid_strat "$_strat" || _strat="round-robin"
-    # 逐一注册模型到 provider 节点 (provider=<node.id>, modelId 带 prefix)
-    for _regm in "${_prefixed[@]}"; do
-      _mresp="$(_resp omn-model-${_pid}-$(echo "$_regm" | tr '/' '-').json)"
-      _mhttp=$(curl -s -o "$_mresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-models" \
-        -H "Content-Type: application/json" -d "$(jq -n --arg provider "$_nid" --arg modelId "$_regm" '{provider:$provider, modelId:$modelId}')" 2>/dev/null || echo "000")
-      case "$_mhttp" in
-        200|201|409) : ;;
-        *) echo "[init]     $_pid model $_regm WARN $_mhttp"; cat "$_mresp" 2>/dev/null || true ;;
-      esac
-    done
-    upsert_combo "${_ppre}-pool" "$_strat" "${_prefixed[@]}"
-  else
-    echo "[init]     $_pid: 无模型可注册, combo ${_ppre}-pool 跳过."
-  fi
-done
-echo "[init] General multi-provider registration done."
+# 已抽为函数 _register_multi_provider() 定义于增量模式段前 — 增量+first-init 都调 (2026-08-26).
+_register_multi_provider
 
 context_accumulator_update
 # C2 fail-open 双保险: hf_snapshot 内 python upload 异常已 try/except 降级 WARN exit 0;

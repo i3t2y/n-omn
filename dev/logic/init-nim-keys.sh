@@ -141,7 +141,9 @@ build_all_models() {
   printf '%s
 ' "${NIM_POOL_MODELS[@]}" "${NIM_CODEX_MODELS[@]}" "${NIM_EXTRA_MODELS[@]}" | awk '!seen[$0]++'
 }
-models_to_json() { printf '%s\n' "$@" | sed 's/^/nvidia\//' | jq -R '{model: .}' | jq -s -c .; }
+# 强加 provider 前缀 (默认 nvidia 兼容 NVIDIA 主路径; 多 provider 传 node.id 路由到 openai-compatible 连接).
+# 模型名保留 (含自身前缀, 如 moonshotai/kimi-k3): 只加 provider 前缀做连接路由.
+models_to_json() { local _pre="${1:-nvidia}"; shift; printf '%s\n' "$@" | sed "s|^|${_pre}/|" | jq -R '{model: .}' | jq -s -c .; }
 
 # ══ combo 策略白名单（3.8.43 实测合法枚举，不含 quota-share）═════
 _VALID_STRATS="priority weighted round-robin fill-first p2c random least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized fusion"
@@ -150,12 +152,12 @@ _is_valid_strat() { printf '%s' "$_VALID_STRATS" | grep -qw -- "$1"; }
 
 # ══ 【⑦ 】幂等 upsert：存在则 PUT，不存在才 POST ═══════════════
 upsert_combo() {
-  local NAME="$1" STRAT="$2"; shift 2; local MODELS=("$@")
+  local NAME="$1" STRAT="$2" PREFIX="${3:-nvidia}"; shift 3; local MODELS=("$@")
   _is_valid_strat "$STRAT" || { echo "[init] upsert_combo: '$STRAT' 非法 -> round-robin"; STRAT="round-robin"; }
   [ "${#MODELS[@]}" -eq 0 ] && { echo "[init] upsert_combo: $NAME 无存活模型，跳过。"; return 0; }
   local BODY CID CODE F
   BODY=$(jq -n --arg name "$NAME" --arg strat "$STRAT" \
-               --argjson models "$(models_to_json "${MODELS[@]}")" \
+               --argjson models "$(models_to_json "$PREFIX" "${MODELS[@]}")" \
                '{name:$name, strategy:$strat, models:$models}')
   # R3+ Restart A (i′ 方案)→ Task C1 终态 (圣上源码 v3.8.43@b729a8f 实证裁决):
   # 旧式 `.combos[]? // .[]? | select(.name==$n)` 两病: ① `//` 优先级低于 `|` 失控
@@ -1397,17 +1399,20 @@ _register_multi_provider() {
       | head -n "$_pmax" || true)
     _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
     echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B, key=$([ -n "$_models_key" ] && echo ok || echo none))"
-    # 前缀化 + 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert)
+    # 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert).
+    # combo 条目 = <node.id>/<裸模型ID>: 前缀用 node.id 匹配连接 provider 字段
+    # (getRawProviderConnections EXACT match; node name 前缀匹配不到 → "无 active credentials").
+    # 模型注册 modelId 用裸 ID (OmniRoute 自动加 provider 前缀显示), provider=<node.id>.
     if [ "$_mcount" -gt 0 ]; then
-      _prefixed=()
+      _modids=()
       while IFS= read -r _mm; do
         [ -z "$_mm" ] && continue
-        _prefixed+=("${_ppre}/${_mm}")
+        _modids+=("$_mm")
       done <<< "$_model_ids"
       _strat="${_POOL_STRATEGY:-weighted}"
       _is_valid_strat "$_strat" || _strat="round-robin"
-      # 逐一注册模型到 provider 节点 (provider=<node.id>, modelId 带 prefix)
-      for _regm in "${_prefixed[@]}"; do
+      # 逐一注册模型到 provider 节点 (modelId 裸 ID, provider=<node.id>)
+      for _regm in "${_modids[@]}"; do
         _mresp="$(_resp omn-model-${_pid}-$(echo "$_regm" | tr '/' '-').json)"
         _mhttp=$(curl -s -o "$_mresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-models" \
           -H "Content-Type: application/json" -d "$(jq -n --arg provider "$_nid" --arg modelId "$_regm" '{provider:$provider, modelId:$modelId}')" 2>/dev/null || echo "000")
@@ -1416,7 +1421,7 @@ _register_multi_provider() {
           *) echo "[init]     $_pid model $_regm WARN $_mhttp"; cat "$_mresp" 2>/dev/null || true ;;
         esac
       done
-      upsert_combo "${_ppre}-pool" "$_strat" "${_prefixed[@]}"
+      upsert_combo "${_ppre}-pool" "$_strat" "$_nid" "${_modids[@]}"
     else
       echo "[init]     $_pid: 无模型可注册, combo ${_ppre}-pool 跳过."
     fi

@@ -63,14 +63,16 @@ echo "[start] 同步 Bucket: $LOGIC_BUCKET_REPO"
 mkdir -p /tmp/logic
 
 _logic_err=/tmp/.logic.err; : > "$_logic_err"
-# 3.1 拉 manifest + 8 件 + 校验 sha256 (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
+# 3.1 拉 manifest + 9 件 (8 业务 + flaretunnel 二进制) + 校验 sha256 (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
+#     flaretunnel 二进制 = 逻辑层资产 (entrypoint L217 注释), 源 flaretunnel/FlareTunnel.go 编译,
+#     与 8 件同批上传同 manifest 校验 (9/22 nonoke 删后迁 Bucket 时未随迁, boot WARN 跳 FT 根因).
 if command -v python3 >/dev/null 2>&1; then
   if LOGIC_BUCKET_REPO="$LOGIC_BUCKET_REPO" python3 -c '
 import os, hashlib, json, sys
 from huggingface_hub import download_bucket_files
 repo = os.environ["LOGIC_BUCKET_REPO"]
 files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
-         "helper.sh","omn_redact.py","omn_scheduler.py"]
+         "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
 local = "/tmp/logic"
 try:
     download_bucket_files(repo, files=[("manifest.json", f"{local}/manifest.json")] + [(f, f"{local}/{f}") for f in files])

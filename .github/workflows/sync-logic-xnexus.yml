@@ -30,7 +30,22 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Upload logic files to Bucket (8 files, flat layout) + write manifest
+      - name: Setup Go (FlareTunnel 静态二进制编译)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build FlareTunnel binary (第 9 件 Bucket 资产, 产物不入 git)
+        # 源 flaretunnel/FlareTunnel.go 已在 git (SSOT); 二进制 .gitignore 排除.
+        # 编译产物 flaretunnel/flaretunnel → 上传为 Bucket 平铺名 flaretunnel.
+        # 节奏: 二进制是逻辑层资产 (entrypoint L217 注释), 迁 Bucket 后随 8 件一起同步.
+        run: |
+          cd flaretunnel
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o flaretunnel FlareTunnel.go
+          echo "built: $(ls -la flaretunnel | awk '{print $5, $9}') sha256=$(sha256sum flaretunnel | cut -d' ' -f1)"
+          test -x flaretunnel
+
+      - name: Upload logic files to Bucket (9 files + flaretunnel binary, flat layout) + write manifest
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           BUCKET_ID: xnexus/logic
@@ -41,7 +56,10 @@ jobs:
           from huggingface_hub import batch_bucket_files
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
-                   "helper.sh","omn_redact.py","omn_scheduler.py"]
+                   "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
+          # flaretunnel 二进制源在 repo 根 flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余 8 件在 dev/logic/
+          def src_path(f):
+              return "flaretunnel/flaretunnel" if f == "flaretunnel" else f"dev/logic/{f}"
           # 1. 上传 8 件业务文件 + 读回算 sha256 (血缘: 校验 bucket 实际存的字节)
           # HF bucket 写后读最终一致, BlobNotFound 可能出现在上传阶段或读回阶段 → 整体重试
           from huggingface_hub import download_bucket_files
@@ -49,7 +67,7 @@ jobs:
           os.makedirs("/tmp/readback", exist_ok=True)
           for _att in range(8):
               try:
-                  batch_bucket_files(bucket, add=[(f"dev/logic/{f}", f) for f in files],
+                  batch_bucket_files(bucket, add=[(src_path(f), f) for f in files],
                                      token=os.environ["HF_TOKEN"])
                   download_bucket_files(bucket, files=[(f, f"/tmp/readback/{f}") for f in files],
                                         token=os.environ["HF_TOKEN"])
@@ -84,7 +102,7 @@ jobs:
           from huggingface_hub import download_bucket_files
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
-                   "helper.sh","omn_redact.py","omn_scheduler.py"]
+                   "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
           os.makedirs("/tmp/verify", exist_ok=True)
           # 拉 manifest + 8 件 (对齐 boot 拉取路径, 验的是 boot 会看到的同一份)
           download_bucket_files(bucket, files=[("manifest.json","/tmp/verify/manifest.json")] + [(f, f"/tmp/verify/{f}") for f in files],

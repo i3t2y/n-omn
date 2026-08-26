@@ -75,9 +75,9 @@ declare -a PROVIDERS=(
   "nvidia|nvidia-node|nvidia|${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com}|NIM_KEYS|20"
   "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20"
   "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100"
-  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn|SENSENOVA_KEYS|20"
+  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20"
-  "amd|amd-node|amd|${AMD_BASE_URL:-https://developer.amd.com.cn/radeon/api}|AMD_KEYS|20"
+  "amd|amd-node|amd|${AMD_BASE_URL:-https://developer.amd.com.cn/radeon/api/v1}|AMD_KEYS|20"
 )
 # 全部 provider 族 (含 nvidia), 供 FT 桥 bulk-assign 绑族与单桥回退遍历.
 declare -a ALL_FT_FAMILIES=()
@@ -1361,25 +1361,37 @@ _register_multi_provider() {
     echo "[init]     $_pid: $_kc keys → $_reg registered, $_skip skipped, $_fail failed"
 
     # ── 3) 动态枚举模型 (GET {base_url}/models, 过滤 embedding, 截 max) ──
-    # 用第一个 key 鉴权; 失败则 fail-open 降级 (不阻塞本 provider, 模型集空则 combo 跳过).
+    # 遍历 keys 找第一个能返回模型列表的 key 鉴权 (多 key 中首个可能无效, 如 google);
+    # 全部失败则 fail-open 降级 (模型集空则 combo 跳过, 不阻塞本 provider).
     # 双路: 先裸 curl 直连公网 (枚举无风控出口需求); 空则走 FT 桥 + 信任 FT MITM CA
     # (容器直连部分 provider 出站失败时, FT Worker 出口换 IP 可达, 须 --cacert 否则 MITM 握手失败).
     # 2026-08-26 实证: 裸 curl 全 0B (容器出站面窄); -x FT 无 --cacert 也全 0B (MITM CA 不信任).
+    # sensenova/amd 缺 /v1 base_url 致 404 (PROVIDERS 表已修). google key 无效致 400 (遍历 keys 解).
     # 打 body 字节数诊断.
-    _firstk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
-    _models_json=$(curl -s --max-time 20 -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
-    if [ -z "$(printf '%s' "$_models_json" | tr -d '[:space:]')" ] && [ -f "/tmp/ft-ca/flaretunnel_ca.crt" ]; then
+    _models_json=""
+    _models_key=""
+    while IFS= read -r _rk; do
+      _rk=$(printf '%s' "$_rk" | tr -d '[:space:]')
+      [ -z "$_rk" ] && continue
+      _mj=$(curl -s --max-time 20 -H "Authorization: Bearer ${_rk}" "${_pburl}/models" 2>/dev/null || echo "")
+      if [ -n "$(printf '%s' "$_mj" | jq -r '.data[]?.id // empty' 2>/dev/null | head -n1)" ]; then
+        _models_json="$_mj"; _models_key="$_rk"; break
+      fi
+    done <<< "$_keys"
+    if [ -z "$_models_json" ] && [ -f "/tmp/ft-ca/flaretunnel_ca.crt" ]; then
+      # 裸 curl 全失败 → 回退 FT 桥 (复用第一个非空 key, 无则首 key)
       _px="${FT_PROXY_PORT:-8080}"
+      _fk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
       _models_json=$(curl -s --max-time 25 -x "http://127.0.0.1:${_px}" \
         --cacert /tmp/ft-ca/flaretunnel_ca.crt \
-        -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
+        -H "Authorization: Bearer ${_fk}" "${_pburl}/models" 2>/dev/null || echo "")
     fi
     # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
     _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
       | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
       | head -n "$_pmax" || true)
     _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
-    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B)"
+    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B, key=$([ -n "$_models_key" ] && echo ok || echo none))"
     # 前缀化 + 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert)
     if [ "$_mcount" -gt 0 ]; then
       _prefixed=()

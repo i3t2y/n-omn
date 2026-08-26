@@ -73,7 +73,9 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 # NVIDIA 保留现役 NIM_KEYS/nim-pool/nim-codex 专属路径不动, 仅额外走通用表再挂 FT 族.
 declare -a PROVIDERS=(
   "nvidia|nvidia-node|nvidia|${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com}|NIM_KEYS|20"
-  "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20"
+  # google: 注释停用 (boot 2026-08-26 定谳: google 免费层对数据中心出站 IP 地理风控 "User location is not supported",
+  #   HF 容器/FT Worker 数据中心 IP 直接拒 (28B), 本机家宽 IP 才通. 非脚本 bug, 保留配置待出站解决可恢复.
+  # "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20"
   "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100"
   "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20"

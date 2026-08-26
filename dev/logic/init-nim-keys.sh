@@ -1361,15 +1361,18 @@ _register_multi_provider() {
     echo "[init]     $_pid: $_kc keys → $_reg registered, $_skip skipped, $_fail failed"
 
     # ── 3) 动态枚举模型 (GET {base_url}/models, 过滤 embedding, 截 max) ──
-    # 用第一个 key 鉴权; 失败则 fail-open 降级 (不阻塞本 provider, 模型集空则 combo 跳过)
+    # 用第一个 key 鉴权; 失败则 fail-open 降级 (不阻塞本 provider, 模型集空则 combo 跳过).
+    # 走 FT 桥 (与 key 注册同路径, 2026-08-26 修: 裸 curl 直连容器出站失败 → 4 provider 枚举 0).
     _firstk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
-    _models_json=$(curl -s --max-time 15 -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
+    _px="${FT_PROXY_PORT:-8080}"
+    _models_json=$(curl -s --max-time 20 -x "http://127.0.0.1:${_px}" \
+      -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
     # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
     _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
       | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
       | head -n "$_pmax" || true)
     _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
-    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax)"
+    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (via FT :${_px}, body $(printf '%s' "$_models_json" | wc -c)B)"
     # 前缀化 + 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert)
     if [ "$_mcount" -gt 0 ]; then
       _prefixed=()

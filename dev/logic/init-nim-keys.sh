@@ -1362,17 +1362,24 @@ _register_multi_provider() {
 
     # ── 3) 动态枚举模型 (GET {base_url}/models, 过滤 embedding, 截 max) ──
     # 用第一个 key 鉴权; 失败则 fail-open 降级 (不阻塞本 provider, 模型集空则 combo 跳过).
-    # 走 FT 桥 (与 key 注册同路径, 2026-08-26 修: 裸 curl 直连容器出站失败 → 4 provider 枚举 0).
+    # 双路: 先裸 curl 直连公网 (枚举无风控出口需求); 空则走 FT 桥 + 信任 FT MITM CA
+    # (容器直连部分 provider 出站失败时, FT Worker 出口换 IP 可达, 须 --cacert 否则 MITM 握手失败).
+    # 2026-08-26 实证: 裸 curl 全 0B (容器出站面窄); -x FT 无 --cacert 也全 0B (MITM CA 不信任).
+    # 打 body 字节数诊断.
     _firstk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
-    _px="${FT_PROXY_PORT:-8080}"
-    _models_json=$(curl -s --max-time 20 -x "http://127.0.0.1:${_px}" \
-      -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
+    _models_json=$(curl -s --max-time 20 -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
+    if [ -z "$(printf '%s' "$_models_json" | tr -d '[:space:]')" ] && [ -f "/tmp/ft-ca/flaretunnel_ca.crt" ]; then
+      _px="${FT_PROXY_PORT:-8080}"
+      _models_json=$(curl -s --max-time 25 -x "http://127.0.0.1:${_px}" \
+        --cacert /tmp/ft-ca/flaretunnel_ca.crt \
+        -H "Authorization: Bearer ${_firstk}" "${_pburl}/models" 2>/dev/null || echo "")
+    fi
     # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
     _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
       | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
       | head -n "$_pmax" || true)
     _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
-    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (via FT :${_px}, body $(printf '%s' "$_models_json" | wc -c)B)"
+    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B)"
     # 前缀化 + 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert)
     if [ "$_mcount" -gt 0 ]; then
       _prefixed=()

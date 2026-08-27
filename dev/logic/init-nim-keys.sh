@@ -1346,7 +1346,19 @@ _register_multi_provider() {
         *) echo "[init]     $_pid: node POST HTTP $_nhttp ($(head -c 200 "$_nresp" 2>/dev/null)); 跳此 provider."; continue ;;
       esac
     else
-      echo "[init]     $_pid: node $_pnode 已存在, 复用 id=$_nid"
+      # 复用旧 node 时 PUT 刷新 baseUrl. 早期 boot (base_url 缺 /v1 时) 建的 node 存了无 /v1 旧值,
+      # 枚举走表值(带 /v1)能通但推理走 node.baseUrl(旧值) → executor 发无 /v1 URL → 上游 404.
+      # PUT 同步 baseUrl/prefix/apiType 为当前表值, 消除枚举/推理 split-brain. (PUT route 对
+      # openai-compatible 节点强制 apiType ∈ validApiTypes, 故 body 必带 apiType:"chat".)
+      _nbody=$(jq -n --arg name "$_pnode" --arg prefix "$_ppre" --arg apiType "chat" --arg baseUrl "$_pburl" \
+        '{name:$name, prefix:$prefix, apiType:$apiType, baseUrl:$baseUrl}')
+      _nuresp="$(_resp omn-provider-node-up-${_pid}.json)"
+      _nhttp=$(curl -s -o "$_nuresp" -w "%{http_code}" -b "$COOKIE_FILE" -X PUT "$BASE_URL/api/provider-nodes/$_nid" \
+        -H "Content-Type: application/json" -d "$_nbody" 2>/dev/null || echo "000")
+      case "$_nhttp" in
+        200) echo "[init]     $_pid: node $_pnode 复用 id=$_nid (baseUrl 已刷新=$_pburl)" ;;
+        *) echo "[init]     $_pid: node $_pnode 复用 id=$_nid (PUT 刷 baseUrl HTTP $_nhttp, 忽略)" ;;
+      esac
     fi
 
     # ── 2) 逐 key 建连接 (POST /api/providers, provider=<node.id> 走 openai-compatible 路由) ──

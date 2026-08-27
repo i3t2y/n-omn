@@ -97,21 +97,17 @@ done
 
 # ══ 模型分档 SSOT（对齐现行 NVIDIA 目录）═══════════════════════
 TIER_FAST=(
-  "z-ai/glm-5.2"
-  "moonshotai/kimi-k3"
-  "qwen/qwen3.8-max-preview"
-  "nvidia/llama-3.1-nemotron-nano-8b-v1"
-  "nvidia/nemotron-3-nano-30b-a3b"
-  # "meta/llama-3.3-70b-instruct"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-pool 笔2 101s 超时 gpt-oss-120b + llama-3.3-70b 路由慢挂, check_nim_model_health 探 NVIDIA 目录有=available 不标 deprecated, filter_alive 不剔, 每 boot combo PUT 回冲; 落源不落库方能切除). 圣上裁决矛盾二取 ii (主池+codex 同步删 gpt-oss-120b)
-  # "deepseek-ai/deepseek-v4-flash"  # 2026-08-12 圣上令删: DEPRECATED (NVIDIA 目录无)
-  # "deepseek-ai/deepseek-v4-pro"    # 2026-08-12 圣上令删: DEPRECATED (NVIDIA 目录无)
+  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 圣上清单: 编码/Agent 高吞吐首选 (17M 调用/月)
+  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 圣上清单: 速度/成本效率之王 (8/11 新增)
+  "minimaxai/minimax-m3"  # 2026-08-27 圣上清单: 多模态 MoE
+  # 移除(下架/非最出色, 2026-08-27): z-ai/glm-5.2 / qwen/qwen3.8-max-preview / nvidia/llama-3.1-nemotron-nano-8b-v1 / nvidia/nemotron-3-nano-30b-a3b
 )
 TIER_STABLE=(
-  "nvidia/nemotron-3-super-120b-a12b"
-  # "openai/gpt-oss-120b"  # 2026-07-25 Task E 移除: route-slow (boot#3 matrix nim-codex 笔1 101s 超时 priority 命中 gpt-oss-120b 挂无 fallback; 亦在 NIM_CODEX_MODELS 行89 同步删). 圣上裁决矛盾二取 ii
-  # "qwen/qwen3.5-397b-a17b"  # 2026-07-25 Task D 移除: catalog 可查≠可服务, POST /v1/chat/completions 上游返 function-not-found 404 (omn 真转发 NVIDIA 后被上游拒)
-  # "mistralai/mistral-small-4-119b-2603"  # 2026-08-12 圣上令删: DEPRECATED (NVIDIA 目录无)
-  "google/gemma-4-31b-it"
+  "deepseek-ai/deepseek-v4-pro-0813"  # 2026-08-27 圣上清单: 智能上限最高 (~56 分, 1.6T MoE)
+  "nvidia/nemotron-3-ultra-550b-a55b"  # 2026-08-27 圣上清单: 综合最强可靠 (Frontier 级, 52M 调用/月, 1M 上下文)
+  "moonshotai/kimi-k3"  # 2026-08-27 圣上清单: 新上架 404 不稳定, 待观察潜在新王
+  "zhipuai/glm-5.3"  # 2026-08-27 圣上清单: 等待中 (权重 8/28 开放未上架, filter_alive 探目录无会剔出 combo)
+  # 移除(下架/非最出色, 2026-08-27): nvidia/nemotron-3-super-120b-a12b / google/gemma-4-31b-it
 )
 TIER_RESTRICTED=(
   "moonshotai/kimi-k2.6"
@@ -128,20 +124,17 @@ esac
 echo "[init] NIM_PROFILE=$_PROFILE -> pool 意向 ${#NIM_POOL_MODELS[@]} 个模型"
 
 NIM_CODEX_MODELS=(
-  "z-ai/glm-5.2"
-  "moonshotai/kimi-k3"
-  "qwen/qwen3.8-max-preview"
-  "nvidia/llama-3.1-nemotron-nano-8b-v1"
-  "nvidia/nemotron-3-nano-30b-a3b"
+  "deepseek-ai/deepseek-v4-pro-0813"  # 2026-08-27 圣上清单: codex 用最强 pro
+  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 圣上清单: 编码高吞吐首选
+  "nvidia/nemotron-3-ultra-550b-a55b"  # 2026-08-27 圣上清单: 综合最强可靠
+  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 圣上清单: 速度/成本之王
 )
 NIM_FAST_MODELS=(
-  "google/gemma-4-31b-it"
-  "moonshotai/kimi-k3"
-  "qwen/qwen3.8-max-preview"
-  "nvidia/llama-3.1-nemotron-nano-8b-v1"
-  "nvidia/nemotron-3-nano-30b-a3b"
+  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 圣上清单: 编码高吞吐
+  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 圣上清单: 速度之王
+  "minimaxai/minimax-m3"  # 2026-08-27 圣上清单: 多模态 MoE
 )
-NIM_EXTRA_MODELS=( "moonshotai/kimi-k3" "qwen/qwen3.8-max-preview" "nvidia/llama-3.1-nemotron-nano-8b-v1" "nvidia/nemotron-3-nano-30b-a3b" )
+NIM_EXTRA_MODELS=()  # 2026-08-27 圣上清单: 原 kimi-k3/qwen3.8-max/nano-8b-v1/nemotron-3-nano-30b 全入 TIER 或下架, 清空
 
 build_all_models() {
   printf '%s
@@ -933,12 +926,16 @@ probe_nim_keys_real() {
   echo "[init] probe 汇总: alive=$_PROBE_ALIVE dead=$_PROBE_DEAD (auth_dead 跳 ${#AUTH_DEAD_KEYS[@]} 个注册, POST $_probe_model, 并发$_probe_concurrency)"
 }
 
-# X4 (2026-07-31): NIM_PROBE_ENABLED 总闸. 默1=跑 probe 并发探活 (X2); =0=整跳 (register-and-go 哲学,
-#   同 FT 代理 Diff4 register-and-go; 死 key 入池, runtime LocalHealthCheck 60s tick + PROXY_ALIVE_PREDICATE
-#   兜底标死 p2c 轮换). 省 32 key 最坏 5.5 分起轨时间. 圣上首 boot 验活后切 ENV=0 后续 Restart 0 秒起.
+# X4 (2026-07-31): NIM_PROBE_ENABLED 总闸. 2026-08-28 改默认 0=关探活, 对齐 miztertea/nim-proxy + omniroute
+#   惰性检测哲学: NIM 免费层唯一硬限 = RPM 40/换, 无限额, 最怕 key 被官方风控标记. boot 主动探活既不解决
+#   风控(反而增加请求频率暴露), 也不省额度(无限), 只占 boot 时间. 两个参考系统默认都不探活 key:
+#   - miztertea/nim-proxy: key 只在 first-run 验一次, 之后靠运行时 failover(429/5xx 换 key) + 模型压力自适应退避
+#   - omniroute: LocalHealthCheck 60s 心跳只查 node /models 连通(res.ok||401), 不判 key 死; key 死靠 executor
+#     请求 401/403 惰性 failover + combo 404 熔断
+#   register-and-go: 死 key 入池, runtime 惰性兜底. 保留 ENV=1 排障临时开.
 _PROBE_SKIP=0
-if [ "${NIM_PROBE_ENABLED:-1}" != "1" ]; then
-  echo "[init] NIM_PROBE_ENABLED=0 → 跳 probe (register-and-go; runtime LocalHealthCheck 兜底死 key)"
+if [ "${NIM_PROBE_ENABLED:-0}" != "1" ]; then
+  echo "[init] NIM_PROBE_ENABLED=${NIM_PROBE_ENABLED:-0} → 跳 probe (register-and-go; 对齐 miztertea/omniroute 惰性检测, runtime LocalHealthCheck+executor failover 兜底死 key)"
   _PROBE_SKIP=1
 else
   probe_nim_keys_real

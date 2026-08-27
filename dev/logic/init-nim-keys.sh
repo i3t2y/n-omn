@@ -60,32 +60,36 @@ VERSION_FILE="$(_resp omn-version.json)"
 REGISTERED=0; SKIPPED=0; FAILED=0
 
 # ══ 通用多 provider 配置表（NIM_KEYS 多 key 模式推广到免费提供商）═══════
-#   id|node_name|prefix|base_url|env_keys_var|max_models
+#   id|node_name|prefix|base_url|env_keys_var|max_models|model_prefix
 #   id          = OmniRoute 连接 provider 值 (须 isOpenAICompatibleProvider 识别, 走 openai-compatible 节点路)
 #   node_name   = provider-node 名称 (POST /api/provider-nodes {name})
 #   prefix      = 模型名前缀 (combo 引用名 = ${prefix}/${modelId}; executor 用它拼请求)
 #   base_url    = OpenAI 兼容端点 (探活 + 动态枚举 /v1/models + executor 上游 URL)
 #   env_keys_var= 该 provider 的多 key env 变量名 (每行一个 key, NIM_KEYS 式; 空则跳过该 provider)
 #   max_models  = 动态枚举模型数上限 (防 OpenRouter 上千模型撑爆 combo)
+#   model_prefix= 枚举模型名前缀 (给裸模型 ID 加前缀; 空=枚举原样, 非空=provider/裸名).
+#                 xnexus /v1/models 实测 (2026-08-27): sensenova 上游要 sensenova/deepseek-v4-flash (双层),
+#                 amd 要 amd/DeepSeek-V4-Flash; mistral 认裸名 devstral-2512, openrouter 枚举即 org/model (都空).
+#                 中国云 (商汤/AMD) 枚举返裸名但调用要 provider/裸名, 海外枚举即调用格式 → per-provider 差异.
 # 每 provider 建 1 个 openai-compatible 节点定 base_url, 再按 key 建 N 个连接指同节点
 # (providers/route.ts:125-143 建连接时自动 providerSpecificData.baseUrl=node.baseUrl,
 #  executor default.ts:150-155 读 providerSpecificData.baseUrl 覆盖每连接上游 URL).
 # NVIDIA 保留现役 NIM_KEYS/nim-pool/nim-codex 专属路径不动, 仅额外走通用表再挂 FT 族.
 declare -a PROVIDERS=(
-  "nvidia|nvidia-node|nvidia|${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com}|NIM_KEYS|20"
+  "nvidia|nvidia-node|nvidia|${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com}|NIM_KEYS|20|"
   # google: 注释停用 (boot 2026-08-26 定谳: google 免费层对数据中心出站 IP 地理风控 "User location is not supported",
   #   HF 容器/FT Worker 数据中心 IP 直接拒 (28B), 本机家宽 IP 才通. 非脚本 bug, 保留配置待出站解决可恢复.
-  # "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20"
-  "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100"
-  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20"
-  "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20"
+  # "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20|"
+  "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100|"
+  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20|sensenova"
+  "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20|"
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
-  "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20"
+  "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|amd"
 )
 # 全部 provider 族 (含 nvidia), 供 FT 桥 bulk-assign 绑族与单桥回退遍历.
 declare -a ALL_FT_FAMILIES=()
 for _pcfg in "${PROVIDERS[@]}"; do
-  IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax <<< "$_pcfg"
+  IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre <<< "$_pcfg"
   ALL_FT_FAMILIES+=("$_ppre")
 done
 
@@ -1313,7 +1317,7 @@ PYEOF
 _register_multi_provider() {
   echo "[init] General multi-provider registration..."
   for _pcfg in "${PROVIDERS[@]}"; do
-    IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax <<< "$_pcfg"
+    IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre <<< "$_pcfg"
     # 取该 provider 的多行 keys (间接引用 env 变量名), 空则跳过
     _keys=""
     _keys=$(eval "printf '%s' \"\${$_penvv}\"" 2>/dev/null || true)
@@ -1400,18 +1404,21 @@ _register_multi_provider() {
     _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
     echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B, key=$([ -n "$_models_key" ] && echo ok || echo none))"
     # 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert).
-    # combo 条目 = <node.id>/<裸模型ID>: 前缀用 node.id 匹配连接 provider 字段
+    # combo 条目 = <node.id>/<模型名>: 前缀用 node.id 匹配连接 provider 字段
     # (getRawProviderConnections EXACT match; node name 前缀匹配不到 → "无 active credentials").
-    # 模型注册 modelId 用裸 ID (OmniRoute 自动加 provider 前缀显示), provider=<node.id>.
+    # 模型名 = ${_mpre:+${_mpre}/}${裸模型ID}: 中国云 (sensenova/amd) 枚举返裸名但上游调用要
+    #   provider/裸名 (xnexus /v1/models 实测 sensenova/deepseek-v4-flash, amd/DeepSeek-V4-Flash);
+    #   海外 (mistral/openrouter) 枚举即调用格式, _mpre 空 = 枚举原样.
+    # 模型注册 modelId 同 combo 模型名 (带 _mpre 前缀, provider=<node.id>).
     if [ "$_mcount" -gt 0 ]; then
       _modids=()
       while IFS= read -r _mm; do
         [ -z "$_mm" ] && continue
-        _modids+=("$_mm")
+        _modids+=("${_mpre:+${_mpre}/}${_mm}")
       done <<< "$_model_ids"
       _strat="${_POOL_STRATEGY:-weighted}"
       _is_valid_strat "$_strat" || _strat="round-robin"
-      # 逐一注册模型到 provider 节点 (modelId 裸 ID, provider=<node.id>)
+      # 逐一注册模型到 provider 节点 (modelId 带 _mpre 前缀, provider=<node.id>)
       for _regm in "${_modids[@]}"; do
         _mresp="$(_resp omn-model-${_pid}-$(echo "$_regm" | tr '/' '-').json)"
         _mhttp=$(curl -s -o "$_mresp" -w "%{http_code}" -b "$COOKIE_FILE" -X POST "$BASE_URL/api/provider-models" \

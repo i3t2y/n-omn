@@ -68,9 +68,11 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 #   env_keys_var= 该 provider 的多 key env 变量名 (每行一个 key, NIM_KEYS 式; 空则跳过该 provider)
 #   max_models  = 动态枚举模型数上限 (防 OpenRouter 上千模型撑爆 combo)
 #   model_prefix= 枚举模型名前缀 (给裸模型 ID 加前缀; 空=枚举原样, 非空=provider/裸名).
-#                 xnexus /v1/models 实测 (2026-08-27): sensenova 上游要 sensenova/deepseek-v4-flash (双层),
-#                 amd 要 amd/DeepSeek-V4-Flash; mistral 认裸名 devstral-2512, openrouter 枚举即 org/model (都空).
-#                 中国云 (商汤/AMD) 枚举返裸名但调用要 provider/裸名, 海外枚举即调用格式 → per-provider 差异.
+#                 实测 (2026-08-27 圣上直连上游 4 测铁证): sensenova 认自带前缀裸名
+#                 (sensenova-u1.5-lite → 200, body model=deepseek-v4-flash 聚合路由), 不认双层
+#                 (sensenova/sensenova-u1.5-lite → 404 model not found); amd 双层 amd/DeepSeek-V4-Flash
+#                 也 404. → 双层前缀理论**证伪**, sensenova/amd model_prefix 设空 = 枚举原样.
+#                 mistral 认裸名 devstral-2512, openrouter 枚举即 org/model. 全 provider 枚举原样即可.
 # 每 provider 建 1 个 openai-compatible 节点定 base_url, 再按 key 建 N 个连接指同节点
 # (providers/route.ts:125-143 建连接时自动 providerSpecificData.baseUrl=node.baseUrl,
 #  executor default.ts:150-155 读 providerSpecificData.baseUrl 覆盖每连接上游 URL).
@@ -81,7 +83,7 @@ declare -a PROVIDERS=(
   #   HF 容器/FT Worker 数据中心 IP 直接拒 (28B), 本机家宽 IP 才通. 非脚本 bug, 保留配置待出站解决可恢复.
   # "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20|"
   "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100|"
-  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20|sensenova"
+  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20|"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20|"
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|amd"
@@ -1406,9 +1408,10 @@ _register_multi_provider() {
     # 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert).
     # combo 条目 = <node.id>/<模型名>: 前缀用 node.id 匹配连接 provider 字段
     # (getRawProviderConnections EXACT match; node name 前缀匹配不到 → "无 active credentials").
-    # 模型名 = ${_mpre:+${_mpre}/}${裸模型ID}: 中国云 (sensenova/amd) 枚举返裸名但上游调用要
-    #   provider/裸名 (xnexus /v1/models 实测 sensenova/deepseek-v4-flash, amd/DeepSeek-V4-Flash);
-    #   海外 (mistral/openrouter) 枚举即调用格式, _mpre 空 = 枚举原样.
+    # 模型名 = ${_mpre:+${_mpre}/}${裸模型ID}: 实测 (2026-08-27) 双层前缀理论证伪 —
+    #   sensenova 认自带前缀裸名 (sensenova-u1.5-lite→200), 不认双层 (sensenova/sensenova-u1.5-lite→404),
+    #   故 sensenova _mpre 空 = 枚举原样; mistral/openrouter 枚举即调用格式同样空.
+    #   amd 待圣上直连实测上游格式 (不同公司, 不照搬 sensenova 结论) 再定 _mpre.
     # 模型注册 modelId 同 combo 模型名 (带 _mpre 前缀, provider=<node.id>).
     if [ "$_mcount" -gt 0 ]; then
       _modids=()

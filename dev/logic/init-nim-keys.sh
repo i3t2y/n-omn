@@ -68,10 +68,10 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 #   env_keys_var= 该 provider 的多 key env 变量名 (每行一个 key, NIM_KEYS 式; 空则跳过该 provider)
 #   max_models  = 动态枚举模型数上限 (防 OpenRouter 上千模型撑爆 combo)
 #   model_prefix= 枚举模型名前缀 (给裸模型 ID 加前缀; 空=枚举原样, 非空=provider/裸名).
-#                 实测 (2026-08-27 圣上直连上游 4 测铁证): sensenova 认自带前缀裸名
-#                 (sensenova-u1.5-lite → 200, body model=deepseek-v4-flash 聚合路由), 不认双层
-#                 (sensenova/sensenova-u1.5-lite → 404 model not found); amd 双层 amd/DeepSeek-V4-Flash
-#                 也 404. → 双层前缀理论**证伪**, sensenova/amd model_prefix 设空 = 枚举原样.
+#                 实测 (2026-08-27 圣上直连上游铁证): 两家都认**裸名** (枚举原样), 不认双层前缀.
+#                 sensenova: 认自带前缀裸名 (sensenova-u1.5-lite→200), 不认双层 (sensenova/sensenova-u1.5-lite→404);
+#                 amd: 认裸名 (DeepSeek-V4-Flash→200), 不认双层 (amd/DeepSeek-V4-Flash→404 "Provider amd not found").
+#                 → 双层前缀理论**证伪**, sensenova/amd model_prefix 空 = 枚举原样.
 #                 mistral 认裸名 devstral-2512, openrouter 枚举即 org/model. 全 provider 枚举原样即可.
 # 每 provider 建 1 个 openai-compatible 节点定 base_url, 再按 key 建 N 个连接指同节点
 # (providers/route.ts:125-143 建连接时自动 providerSpecificData.baseUrl=node.baseUrl,
@@ -86,7 +86,7 @@ declare -a PROVIDERS=(
   "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20|"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20|"
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
-  "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|amd"
+  "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
 )
 # 全部 provider 族 (含 nvidia), 供 FT 桥 bulk-assign 绑族与单桥回退遍历.
 declare -a ALL_FT_FAMILIES=()
@@ -1408,10 +1408,10 @@ _register_multi_provider() {
     # 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert).
     # combo 条目 = <node.id>/<模型名>: 前缀用 node.id 匹配连接 provider 字段
     # (getRawProviderConnections EXACT match; node name 前缀匹配不到 → "无 active credentials").
-    # 模型名 = ${_mpre:+${_mpre}/}${裸模型ID}: 实测 (2026-08-27) 双层前缀理论证伪 —
-    #   sensenova 认自带前缀裸名 (sensenova-u1.5-lite→200), 不认双层 (sensenova/sensenova-u1.5-lite→404),
-    #   故 sensenova _mpre 空 = 枚举原样; mistral/openrouter 枚举即调用格式同样空.
-    #   amd 待圣上直连实测上游格式 (不同公司, 不照搬 sensenova 结论) 再定 _mpre.
+    # 模型名 = ${_mpre:+${_mpre}/}${裸模型ID}: 实测 (2026-08-27) 双层前缀理论彻底证伪 — 两家都认裸名:
+    #   sensenova 认自带前缀裸名 (sensenova-u1.5-lite→200) 或裸名 (deepseek-v4-flash), 不认双层 (→404);
+    #   amd 认裸名 (DeepSeek-V4-Flash→200, used_provider=radeon-deepseek), 不认双层 (amd/→404 "Provider amd not found").
+    #   → 全 provider _mpre 空 = 枚举原样. mistral/openrouter 枚举即调用格式同样空.
     # 模型注册 modelId 同 combo 模型名 (带 _mpre 前缀, provider=<node.id>).
     if [ "$_mcount" -gt 0 ]; then
       _modids=()

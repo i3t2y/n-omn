@@ -763,8 +763,8 @@ fi
 # probe 端点: NVIDIA 集成 API /v1/chat/completions (POST max_tokens=1, 串行单发, 不并发).
 #   端点选择硬律: 必须 POST 推理端, 不能 GET /v1/models — 2026-07-21 事件签名正是
 #   "GET 目录 200 而 POST 推理 403"(账户级死亡 key 鉴权链断在推理层). GET /v1/models 测不出
-#   POST 鉴权死, 会把死 key 全判 alive 放进池, M3 设计前提会塌. 探活模型默认 z-ai/glm-5.2
-#   (与 v4.2.3 nim_probe 同款, 池内已知稳定; env NIM_PROBE_MODEL 可换).
+#   POST 鉴权死, 会把死 key 全判 alive 放进池, M3 设计前提会塌. 探活模型默认 deepseek-v4-flash-0731
+#   (在架快模型, NIM_PROBE_ENABLED=1 临时排障时用; env NIM_PROBE_MODEL 可换).
 #   最坏启动耗时 = 15s × 最多 25 key = 375s (POST 推理冷启动偏慢, 与 health wait 同量级).
 #   K3 题9(已定案·硬伤3): _ALIVE_KEYS 初值=行147 配置层预取(NIM_KEYS 全量); probe(在此函数后调)早于注册循环;
 #            probe 判死后行611-633 重算段排除 auth_dead 重算 _ALIVE_KEYS 并重跑 M1 三式+策略对齐 —
@@ -782,7 +782,7 @@ _is_auth_dead() {
   return 1
 }
 probe_nim_keys_real() {
-  local _probe_model="${NIM_PROBE_MODEL:-z-ai/glm-5.2}"
+  local _probe_model="${NIM_PROBE_MODEL:-deepseek-ai/deepseek-v4-flash-0731}"
   # X2 (2026-07-31): 并发探活. 串行 7key×30s 重试慢启 5 分钟; 改并发 ≤3 分批 (速率准则 §5,防风控).
   #   32 key 最坏 (全 000 重试 30s) = 11 批 × 30s ≈ 5.5 分钟 (vs 串行 16 分钟). 活 key 200 则主动秒返不占满超时.
   #   临时结果经隔离文件传 idx+http+verbose 段, 主循环串行收判 case (避并发竞写 AUTH_DEAD_KEYS 数组).

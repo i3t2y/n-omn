@@ -83,7 +83,13 @@ declare -a PROVIDERS=(
   #   HF 容器/FT Worker 数据中心 IP 直接拒 (28B), 本机家宽 IP 才通. 非脚本 bug, 保留配置待出站解决可恢复.
   # "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20|"
   "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100|"
-  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20|"
+  # sensenova: 第 8 字段 = builtin → 走内置 provider (不建 provider-node, 连接/模型/combo/dpv4 全挂
+  #   provider=sensenova 内置名, 短名通, 与 nvidia 同模式). 内置 baseUrl 现成
+  #   (config/providers/registry/sensenova/index.ts: https://token.sensenova.cn/v1/chat/completions),
+  #   executor 直接用它当上游不拼 path. 2026-08-28 圣上令: sensenova 全部走内置.
+  #   字段序 = id|node_name|prefix|base_url|env_keys_var|max_models|model_prefix(空)|mode
+  #   (第 7 字段 model_prefix 须保留空位, builtin 须放第 8 字段, 否则 _mpre 错位吞掉 mode.)
+  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20|"
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
@@ -1319,16 +1325,23 @@ _register_multi_provider() {
   # 把 "${_nid}/${模型名}" (node.id 前缀绕内置名遮蔽, §8.1) 追加进 _DPV4_ENTRIES, 末尾建 dpv4flash-pool.
   _DPV4_ENTRIES=()
   for _pcfg in "${PROVIDERS[@]}"; do
-    IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre <<< "$_pcfg"
+    IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre _mode <<< "$_pcfg"
+    # mode=builtin → 走内置 provider 名 (sensenova). 连接/模型/combo 前缀/dpv4 前缀全用 _pid 内置名,
+    # 与 nvidia 同模式 (nvidia 内置名下有连接 → 短名通; §8.1 遮蔽只影响自定义节点, 不影响内置名挂连接).
+    _is_builtin=0; [ "$_mode" = "builtin" ] && _is_builtin=1
     # 取该 provider 的多行 keys (间接引用 env 变量名), 空则跳过
     _keys=""
     _keys=$(eval "printf '%s' \"\${$_penvv}\"" 2>/dev/null || true)
     [ -z "$(printf '%s' "$_keys" | tr -d '[:space:]')" ] && { echo "[init]   $_pid: env $_penvv 空, 跳过."; continue; }
-    echo "[init]   $_pid: 建节点+连接+枚举模型 (base=${_pburl}, max=${_pmax})..."
+    echo "[init]   $_pid: 建节点+连接+枚举模型 (base=${_pburl}, max=${_pmax}, mode=$([ "$_is_builtin" = 1 ] && echo builtin || echo node))..."
 
-    # ── 1) 建 provider-node (幂等: 存在则查复用) ──
-    # 先查现有节点, 命中则取 id (避免重名 POST 400). GET /api/provider-nodes?type= 或按 name 查.
+    # ── 1) 建 provider-node (幂等: 存在则查复用) — builtin 模式跳过 (走内置 provider 名) ──
     _nid=""
+    if [ "$_is_builtin" = 1 ]; then
+      _nid="$_pid"
+      echo "[init]     $_pid: builtin 模式, 不建 node, _nid=$_nid (短名)"
+    else
+    # 先查现有节点, 命中则取 id (避免重名 POST 400). GET /api/provider-nodes?type= 或按 name 查.
     _nodes_resp="$(_resp omn-provider-nodes-${_pid}.json)"
     curl -s -o "$_nodes_resp" -b "$COOKIE_FILE" "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || true
     # 按 name 匹配现有节点 (name 唯一每 provider)
@@ -1360,8 +1373,10 @@ _register_multi_provider() {
         *) echo "[init]     $_pid: node $_pnode 复用 id=$_nid (PUT 刷 baseUrl HTTP $_nhttp, 忽略)" ;;
       esac
     fi
+    fi   # builtin else (node 建立段)
 
     # ── 2) 逐 key 建连接 (POST /api/providers, provider=<node.id> 走 openai-compatible 路由) ──
+    # builtin 模式: provider=<sensenova> 挂内置名下, 与 nvidia 同模式 (短名通).
     _kc=0 _reg=0 _skip=0 _fail=0
     while IFS= read -r _rawk; do
       _k=$(printf '%s' "$_rawk" | tr -d '[:space:]')

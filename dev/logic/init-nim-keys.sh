@@ -1432,8 +1432,10 @@ _register_multi_provider() {
         _modids+=("${_mpre:+${_mpre}/}${_mm}")
         # 跨 provider 同模型 (dpv4flash) 收集: 枚举模型名匹配 [Dd]eep[Ss]eek+[Ff]lash 变体 →
         # 追加 "${_nid}/${_mm}" 进全局 _DPV4_ENTRIES (node.id 前缀 = combo 条目, 绕 sensenova 内置名遮蔽).
+        # 2026-08-28 圣上令: 严格三提供商 (nvidia+sensenova+amd), 排除 openrouter
+        # (boot 02:45 实证 openrouter 枚举含 3 个 deepseek/deepseek-v4-flash-* 变体, 误收进池).
         case "$_mm" in
-          *[Dd]eep[Ss]eek*[Ff]lash*) _DPV4_ENTRIES+=("${_nid}/${_mm}") ;;
+          *[Dd]eep[Ss]eek*[Ff]lash*) [ "$_pid" = "openrouter" ] || _DPV4_ENTRIES+=("${_nid}/${_mm}") ;;
         esac
       done <<< "$_model_ids"
       _strat="${_POOL_STRATEGY:-weighted}"

@@ -87,9 +87,12 @@ declare -a PROVIDERS=(
   #   provider=sensenova 内置名, 短名通, 与 nvidia 同模式). 内置 baseUrl 现成
   #   (config/providers/registry/sensenova/index.ts: https://token.sensenova.cn/v1/chat/completions),
   #   executor 直接用它当上游不拼 path. 2026-08-28 圣上令: sensenova 全部走内置.
-  #   字段序 = id|node_name|prefix|base_url|env_keys_var|max_models|model_prefix(空)|mode
+  #   字段序 = id|node_name|prefix|base_url|env_keys_var|max_models|model_prefix(空)|mode|static_models
   #   (第 7 字段 model_prefix 须保留空位, builtin 须放第 8 字段, 否则 _mpre 错位吞掉 mode.)
-  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin"
+  #   第 9 字段 static_models = 静态模型白名单 (空格分隔). 非空 → 跳过动态枚举上游 /models,
+  #   直接用白名单注册 (方案A: sensenova 模型少且明确, 避免上游 /models 带回 u1-fast 图片模型误入 chat).
+  #   2026-08-28 圣上令方案A: 白名单 = 内置 registry 3 个 chat 模型 (sensenova-6.7-flash-lite/deepseek-v4-flash/glm-5.2).
+  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite deepseek-v4-flash glm-5.2"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20|"
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
@@ -1325,10 +1328,12 @@ _register_multi_provider() {
   # 把 "${_nid}/${模型名}" (node.id 前缀绕内置名遮蔽, §8.1) 追加进 _DPV4_ENTRIES, 末尾建 dpv4flash-pool.
   _DPV4_ENTRIES=()
   for _pcfg in "${PROVIDERS[@]}"; do
-    IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre _mode <<< "$_pcfg"
+    IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre _mode _static_models <<< "$_pcfg"
     # mode=builtin → 走内置 provider 名 (sensenova). 连接/模型/combo 前缀/dpv4 前缀全用 _pid 内置名,
     # 与 nvidia 同模式 (nvidia 内置名下有连接 → 短名通; §8.1 遮蔽只影响自定义节点, 不影响内置名挂连接).
     _is_builtin=0; [ "$_mode" = "builtin" ] && _is_builtin=1
+    # 第 9 字段 static_models = 静态白名单 (空格分隔). 非空 → 方案A: 跳过动态枚举, 直接注册白名单.
+    _static_models=$(printf '%s' "$_static_models" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')
     # 取该 provider 的多行 keys (间接引用 env 变量名), 空则跳过
     _keys=""
     _keys=$(eval "printf '%s' \"\${$_penvv}\"" 2>/dev/null || true)
@@ -1398,40 +1403,46 @@ _register_multi_provider() {
     done <<< "$_keys"
     echo "[init]     $_pid: $_kc keys → $_reg registered, $_skip skipped, $_fail failed"
 
-    # ── 3) 动态枚举模型 (GET {base_url}/models, 过滤 embedding, 截 max) ──
-    # 遍历 keys 找第一个能返回模型列表的 key 鉴权 (多 key 中首个可能无效, 如 google);
-    # 全部失败则 fail-open 降级 (模型集空则 combo 跳过, 不阻塞本 provider).
-    # 双路: 先裸 curl 直连公网 (枚举无风控出口需求); 空则走 FT 桥 + 信任 FT MITM CA
-    # (容器直连部分 provider 出站失败时, FT Worker 出口换 IP 可达, 须 --cacert 否则 MITM 握手失败).
-    # 2026-08-26 实证: 裸 curl 全 0B (容器出站面窄); -x FT 无 --cacert 也全 0B (MITM CA 不信任).
-    # sensenova/amd 缺 /v1 base_url 致 404 (PROVIDERS 表已修). google key 无效致 400 (遍历 keys 解).
-    # 打 body 字节数诊断.
-    _models_json=""
-    _models_key=""
-    while IFS= read -r _rk; do
-      _rk=$(printf '%s' "$_rk" | tr -d '[:space:]')
-      [ -z "$_rk" ] && continue
-      _mj=$(curl -s --max-time 20 -H "Authorization: Bearer ${_rk}" "${_pburl}/models" 2>/dev/null || echo "")
-      if [ -n "$(printf '%s' "$_mj" | jq -r '.data[]?.id // empty' 2>/dev/null | head -n1)" ]; then
-        _models_json="$_mj"; _models_key="$_rk"; break
+    # ── 3) 模型注册来源: 静态白名单 (方案A) 或 动态枚举上游 /models ──
+    # 方案A (2026-08-28 圣上令): 第 9 字段 static_models 非空 → 跳过动态枚举, 直接用白名单注册.
+    #   目的: sensenova 模型少且明确 (内置 registry 3 个 chat 模型), 避免上游 /models 带回
+    #   u1-fast 图片模型 (上游不标 supportedEndpoints → catalog 默认按 chat, 误入 chat 列表).
+    # 默认: 动态枚举 (GET {base_url}/models, 过滤 embedding, 截 max) — 对模型数大/需自动发现上游的
+    #   provider (openrouter/mistral/amd/nvidia) 保留. 遍历 keys 找第一个能返回列表的 key; 全部失败
+    #   fail-open 降级. 双路: 先裸 curl 直连公网; 空则走 FT 桥 + 信任 FT MITM CA (须 --cacert).
+    if [ -n "$_static_models" ]; then
+      # 方案A: 静态白名单, 每行一个模型 (原样, 不 grep 不过滤 — 白名单本身已筛好 chat 模型)
+      _model_ids=$(printf '%s\n' $_static_models | sed '/^$/d')
+      _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
+      echo "[init]     $_pid: 静态白名单 $_mcount 个模型 (方案A, 不枚举上游)"
+    else
+      _models_json=""
+      _models_key=""
+      while IFS= read -r _rk; do
+        _rk=$(printf '%s' "$_rk" | tr -d '[:space:]')
+        [ -z "$_rk" ] && continue
+        _mj=$(curl -s --max-time 20 -H "Authorization: Bearer ${_rk}" "${_pburl}/models" 2>/dev/null || echo "")
+        if [ -n "$(printf '%s' "$_mj" | jq -r '.data[]?.id // empty' 2>/dev/null | head -n1)" ]; then
+          _models_json="$_mj"; _models_key="$_rk"; break
+        fi
+      done <<< "$_keys"
+      if [ -z "$_models_key" ] && [ -f "/tmp/ft-ca/flaretunnel_ca.crt" ]; then
+        # 裸 curl 未取到有效模型列表 (_models_key 空) → 回退 FT 桥. 判 _models_key 而非 _models_json:
+        #   google/amd 裸 curl 失败返回非空错误 body (28B, 无 data[].id), _models_json 非空但 _models_key 空,
+        #   若判 body 空则错误 body 会跳过 FT 回退 (boot 2026-08-26 实证 google 卡此). (复用第一个非空 key, 无则首 key)
+        _px="${FT_PROXY_PORT:-8080}"
+        _fk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
+        _models_json=$(curl -s --max-time 25 -x "http://127.0.0.1:${_px}" \
+          --cacert /tmp/ft-ca/flaretunnel_ca.crt \
+          -H "Authorization: Bearer ${_fk}" "${_pburl}/models" 2>/dev/null || echo "")
       fi
-    done <<< "$_keys"
-    if [ -z "$_models_key" ] && [ -f "/tmp/ft-ca/flaretunnel_ca.crt" ]; then
-      # 裸 curl 未取到有效模型列表 (_models_key 空) → 回退 FT 桥. 判 _models_key 而非 _models_json:
-      #   google/amd 裸 curl 失败返回非空错误 body (28B, 无 data[].id), _models_json 非空但 _models_key 空,
-      #   若判 body 空则错误 body 会跳过 FT 回退 (boot 2026-08-26 实证 google 卡此). (复用第一个非空 key, 无则首 key)
-      _px="${FT_PROXY_PORT:-8080}"
-      _fk=$(printf '%s\n' "$_keys" | head -n1 | tr -d '[:space:]')
-      _models_json=$(curl -s --max-time 25 -x "http://127.0.0.1:${_px}" \
-        --cacert /tmp/ft-ca/flaretunnel_ca.crt \
-        -H "Authorization: Bearer ${_fk}" "${_pburl}/models" 2>/dev/null || echo "")
+      # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
+      _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
+        | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
+        | head -n "$_pmax" || true)
+      _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
+      echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B, key=$([ -n "$_models_key" ] && echo ok || echo none))"
     fi
-    # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
-    _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
-      | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
-      | head -n "$_pmax" || true)
-    _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
-    echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B, key=$([ -n "$_models_key" ] && echo ok || echo none))"
     # 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert).
     # combo 条目 = <node.id>/<模型名>: 前缀用 node.id 匹配连接 provider 字段
     # (getRawProviderConnections EXACT match; node name 前缀匹配不到 → "无 active credentials").
@@ -1466,6 +1477,28 @@ _register_multi_provider() {
         esac
       done
       upsert_combo "${_ppre}-pool" "$_strat" "$_nid" "${_modids[@]}"
+      # 方案A: 静态白名单模式下, 清该 provider 下白名单之外的旧枚举残留 (幂等).
+      # 历史 boot 动态枚举注册的模型 (如 sensenova-u1-fast 图片模型误入) 不在白名单内,
+      # 换成白名单后旧残留仍挂 /v1/models, 须显式删. 只删白名单外, 不动白名单内 (combo 引用).
+      # modelId 可能带 provider 前缀 (如 sensenova/sensenova-6.7-flash-lite) 或裸名, 剥前缀后比对白名单.
+      if [ -n "$_static_models" ]; then
+        local _prf _prid _prlist _pm _pmbase
+        _prf="$(_resp omn-provider-models-prune-${_pid}.json)"
+        curl -s -o "$_prf" -b "$COOKIE_FILE" "$BASE_URL/api/provider-models?provider=$_nid" 2>/dev/null || true
+        _prlist=$(jq -r '.models[]? | .id // empty' "$_prf" 2>/dev/null \
+          | awk -v wl="$_static_models" '{ n=$0; sub(/^[^/]*\//,"",n); if ((" " wl " ") !~ (" " n " ")) print }' \
+          || true)
+        if [ -n "$_prlist" ]; then
+          while IFS= read -r _pm; do
+            [ -z "$_pm" ] && continue
+            _ph=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+              -X DELETE "$BASE_URL/api/provider-models?provider=$_nid&model=$_pm" 2>/dev/null || echo "000")
+            echo "[init]     $_pid: 清白名单外残留模型 $_pm HTTP $_ph"
+          done <<< "$_prlist"
+        else
+          echo "[init]     $_pid: 无白名单外残留, 跳过"
+        fi
+      fi
     else
       echo "[init]     $_pid: 无模型可注册, combo ${_ppre}-pool 跳过."
     fi

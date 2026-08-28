@@ -1413,7 +1413,9 @@ _register_multi_provider() {
     if [ -n "$_static_models" ]; then
       # 方案A: 静态白名单, 每行一个模型 (原样, 不 grep 不过滤 — 白名单本身已筛好 chat 模型)
       _model_ids=$(printf '%s\n' $_static_models | sed '/^$/d')
-      _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
+      # 命令替换剥尾随换行 → wc -l 按换行符计数会少 1 (2026-08-28 实证 3 模型误显示 2).
+      # 补 printf '%s\n' 给末行补换行再数, 空串经 sed '/^$/d' 归 0.
+      _mcount=$(printf '%s\n' "$_model_ids" | sed '/^$/d' | wc -l)
       echo "[init]     $_pid: 静态白名单 $_mcount 个模型 (方案A, 不枚举上游)"
     else
       _models_json=""
@@ -1440,7 +1442,7 @@ _register_multi_provider() {
       _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
         | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
         | head -n "$_pmax" || true)
-      _mcount=$(printf '%s' "$_model_ids" | sed '/^$/d' | wc -l)
+      _mcount=$(printf '%s\n' "$_model_ids" | sed '/^$/d' | wc -l)
       echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B, key=$([ -n "$_models_key" ] && echo ok || echo none))"
     fi
     # 建 combo (每 provider 自己的 ${prefix}-pool, 幂等 upsert).

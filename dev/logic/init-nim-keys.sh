@@ -1471,6 +1471,8 @@ _register_multi_provider() {
     fi
   done
   upsert_dpv4flash_pool
+  # sensenova 已改内置, 清旧自定义节点残留 (幂等; 无残留则 no-op)
+  _cleanup_legacy_sensenova_node
   echo "[init] General multi-provider registration done."
 }
 
@@ -1521,6 +1523,55 @@ upsert_dpv4flash_pool() {
     echo "[init] ✗ upsert dpv4flash-pool: 非 2xx (HTTP $_CODE) — fail-closed."
     cat "$_F" 2>/dev/null || true
     return 1
+  fi
+}
+
+# ── sensenova 改内置后, 清理旧自定义节点 (sensenova-node) 及其残留 ──
+# 2026-08-28: sensenova 已改走内置 provider (provider=sensenova, 短名通). 旧的自定义
+# provider-node (name=sensenova-node, id=openai-compatible-chat-<UUID>) 及挂其下的连接/模型
+# 注册成为孤儿残留 (无 combo 引用, 但污染 /v1/models 与 providers 列表). 本函数幂等清理:
+#   1) 删 provider-node name=sensenova-node (DELETE /api/provider-nodes/<id> 级联删连接+别名)
+#   2) 删该 node 下模型注册 (DELETE /api/provider-models?provider=<nodeid>&all=true, 兜底)
+#   3) 删 provider=sensenova 下双重前缀残留 modelId (sensenova/sensenova/... 历史叠加)
+# 幂等: 无旧节点/无残留则 no-op. 只删精确匹配, 不动正确短名 (sensenova/<模型>).
+_cleanup_legacy_sensenova_node() {
+  # ── 1) 找并删旧 provider-node (name=sensenova-node) ──
+  local _ONF _ONID _ONHTTP
+  _ONF="$(_resp omn-provider-nodes-legacy.json)"
+  curl -s -o "$_ONF" -b "$COOKIE_FILE" "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || true
+  _ONID=$(jq -r --arg n "sensenova-node" '.. | objects | select(.name? == $n) | .id // empty' "$_ONF" 2>/dev/null | head -n1)
+  if [ -n "$_ONID" ]; then
+    _ONHTTP=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X DELETE "$BASE_URL/api/provider-nodes/$_ONID" 2>/dev/null || echo "000")
+    echo "[init] cleanup sensenova: 删旧 provider-node sensenova-node (id=$_ONID) HTTP $_ONHTTP (级联删连接+别名)"
+    # 删 node 后其下模型注册可能残留 (provider-models 表独立), 显式清
+    _ONHTTP=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X DELETE "$BASE_URL/api/provider-models?provider=$_ONID&all=true" 2>/dev/null || echo "000")
+    echo "[init] cleanup sensenova: 清旧 node 下模型注册 (provider=$_ONID) HTTP $_ONHTTP"
+  else
+    echo "[init] cleanup sensenova: 无旧 provider-node sensenova-node, 跳过节点清理"
+  fi
+
+  # ── 2) 删 provider=sensenova 下双重前缀残留 (modelId 以 sensenova/sensenova/ 开头) ──
+  # 历史 boot (自定义节点时代前缀叠加) 注册的错误 modelId, 挂在 provider=sensenova 下污染列表.
+  # 只删双重及以上前缀, 不动正确短名 (sensenova/<裸模型名>).
+  local _MMF _MMLIST _mm
+  _MMF="$(_resp omn-provider-models-sensenova.json)"
+  curl -s -o "$_MMF" -b "$COOKIE_FILE" "$BASE_URL/api/provider-models?provider=sensenova" 2>/dev/null || true
+  # GET 响应结构 = {models:[{id,...}], modelCompatOverrides:[...]} (3.8.49 route.ts).
+  # 双重前缀残留 = modelId 以 sensenova/sensenova/ 开头的错误条目 (自定义节点时代前缀叠加),
+  # 挂在 provider=sensenova 下污染列表. 只删双重及以上前缀, 不动正确短名 (sensenova/<裸模型名>).
+  _MMLIST=$(jq -r '.models[]? | .id // empty' "$_MMF" 2>/dev/null \
+    | grep -E '^sensenova/sensenova/' || true)
+  if [ -n "$_MMLIST" ]; then
+    while IFS= read -r _mm; do
+      [ -z "$_mm" ] && continue
+      _ONHTTP=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+        -X DELETE "$BASE_URL/api/provider-models?provider=sensenova&model=$_mm" 2>/dev/null || echo "000")
+      echo "[init] cleanup sensenova: 删双重前缀模型 $_mm HTTP $_ONHTTP"
+    done <<< "$_MMLIST"
+  else
+    echo "[init] cleanup sensenova: 无双重前缀残留, 跳过"
   fi
 }
 

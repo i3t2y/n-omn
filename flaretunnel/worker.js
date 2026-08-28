@@ -5,7 +5,11 @@
 //   须与 HF Space Secret RELAY_AUTH 同值 (Worker 鉴权 ↔ 桥 RELAY_AUTH 铁律).
 //   旧钥 OmniRouteFlareTunnelSecret2026 已在对话明文多次出现, 作废必换.
 //   fail-closed: env.RELAY_AUTH 缺 (undefined/null/空串) 必在 fetch 入口硬拒, 不裸奔开放代理.
-const ALLOWED_HOSTS = new Set(["integrate.api.nvidia.com"]); // 只放行 NIM, 防被当开放代理
+const ALLOWED_HOSTS = new Set([
+  "integrate.api.nvidia.com",   // NVIDIA NIM (主)
+  "token.sensenova.cn",         // SenseNova Token Plan (sensenova 内置走 FT 出口, 2026-08-28 圣上令方案B)
+  "api.sensenova.cn",           // SenseNova 传统 API (3.8.4x registry 可能沿用, 一并放行防 host 拒)
+]); // 只放行白名单 host, 防被当开放代理
 
 const DROP_REQ = new Set([
   "host", "connection", "content-length", "transfer-encoding",

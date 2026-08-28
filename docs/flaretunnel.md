@@ -105,7 +105,11 @@ CF Dashboard → `blue-bird-5cf0` → 编辑代码 → 全选删除 → 粘贴�
 ```javascript
 // ===== FlareTunnel 改造版 Worker：全量透传 + 鉴权 + 域名收敛 + SSE 友好 =====
 const AUTH_KEY = "OmniRouteFlareTunnelSecret2026";
-const ALLOWED_HOSTS = new Set(["integrate.api.nvidia.com"]); // 只放行 NIM，防被当开放代理
+const ALLOWED_HOSTS = new Set([
+  "integrate.api.nvidia.com",   // NVIDIA NIM (主)
+  "token.sensenova.cn",         // SenseNova Token Plan (sensenova 内置走 FT 出口, 2026-08-28 方案B)
+  "api.sensenova.cn",           // SenseNova 传统 API (3.8.4x registry 可能沿用, 一并放行防 host 拒)
+]); // 只放行白名单 host，防被当开放代理
 
 const DROP_REQ = new Set([
   "host", "connection", "content-length", "transfer-encoding",

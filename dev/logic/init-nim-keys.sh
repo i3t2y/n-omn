@@ -1544,6 +1544,16 @@ upsert_dp4f_pool() {
   # 幂等: CID 查询 + PUT(存在)/POST(新建) — 同 upsert_combo 修正式裁决 (§7)
   _CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
         | jq -r --arg n "dp4f-pool" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
+  # 旧名清理: dp4f-pool 前身 dpv4flash-pool (R2 DB 持久化残留, 改名后旧 combo 变孤儿). 幂等, 无则跳过.
+  _OLD=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
+        | jq -r --arg n "dpv4flash-pool" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
+  if [ -n "$_OLD" ]; then
+    _OC=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
+      -X DELETE "$BASE_URL/api/combos/$_OLD")
+    echo "[init] dp4f-pool: 旧名 dpv4flash-pool 清理 → DELETE combos/$_OLD HTTP $_OC"
+  else
+    echo "[init] dp4f-pool: 无旧名 dpv4flash-pool 残留, 跳过"
+  fi
   _F="$(_resp omn-combo-dp4f-pool.json)"
   if [ -n "$_CID" ]; then
     _CODE=$(curl -s -o "$_F" -w "%{http_code}" -b "$COOKIE_FILE" \

@@ -1324,8 +1324,8 @@ PYEOF
 # 注: 本函数在脚本顶层 (非函数内函数), 变量不用 local (同 NVIDIA 循环); set -e 下顶层 local 会非零退出崩 init。
 _register_multi_provider() {
   echo "[init] General multi-provider registration..."
-  # 跨 provider 同模型 (dpv4flash) 聚合池收集: 循环内每 provider 枚举命中 deepseek+flash 变体时,
-  # 把 "${_nid}/${模型名}" (node.id 前缀绕内置名遮蔽, §8.1) 追加进 _DPV4_ENTRIES, 末尾建 dpv4flash-pool.
+  # 跨 provider 同模型 (dp4f) 聚合池收集: 循环内每 provider 枚举命中 deepseek+flash 变体时,
+  # 把 "${_nid}/${模型名}" (node.id 前缀绕内置名遮蔽, §8.1) 追加进 _DPV4_ENTRIES, 末尾建 dp4f-pool.
   _DPV4_ENTRIES=()
   for _pcfg in "${PROVIDERS[@]}"; do
     IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre _mode _static_models <<< "$_pcfg"
@@ -1458,7 +1458,7 @@ _register_multi_provider() {
       while IFS= read -r _mm; do
         [ -z "$_mm" ] && continue
         _modids+=("${_mpre:+${_mpre}/}${_mm}")
-        # 跨 provider 同模型 (dpv4flash) 收集: 枚举模型名匹配 [Dd]eep[Ss]eek+[Ff]lash 变体 →
+        # 跨 provider 同模型 (dp4f) 收集: 枚举模型名匹配 [Dd]eep[Ss]eek+[Ff]lash 变体 →
         # 追加 "${_nid}/${_mm}" 进全局 _DPV4_ENTRIES (node.id 前缀 = combo 条目, 绕 sensenova 内置名遮蔽).
         # 2026-08-28 圣上令: 严格三提供商 (nvidia+sensenova+amd), 排除 openrouter
         # (boot 02:45 实证 openrouter 枚举含 3 个 deepseek/deepseek-v4-flash-* 变体, 误收进池).
@@ -1505,22 +1505,22 @@ _register_multi_provider() {
       echo "[init]     $_pid: 无模型可注册, combo ${_ppre}-pool 跳过."
     fi
   done
-  upsert_dpv4flash_pool
+  upsert_dp4f_pool
   # sensenova 已改内置, 清旧自定义节点残留 (幂等; 无残留则 no-op)
   _cleanup_legacy_sensenova_node
   echo "[init] General multi-provider registration done."
 }
 
-# ── dpv4flash 跨 provider 同模型聚合池 (nvidia + sensenova + amd → dpv4flash-pool) ──
+# ── dp4f 跨 provider 同模型聚合池 (nvidia + sensenova + amd → dp4f-pool) ──
 # 2026-08-28 圣上令: 把 deepseek-v4-flash 在 nvidia/sensenova/amd 三家的实现合并进一个跨 provider 池,
-# 调用 dpv4flash-pool 时 executor 按 p2c 逐条路由 (A 家挂 → fallback B → C).
+# 调用 dp4f-pool 时 executor 按 p2c 逐条路由 (A 家挂 → fallback B → C).
 # combo 的 models 字段原生支持混合前缀条目 (每条 "前缀/模型" 独立路由到对应 provider):
 #   nvidia 条目  = nvidia/<完整模型名>        (内置 provider id 即前缀, 天然对)
 #   sensenova    = <node.id>/<裸模型名>       (node.id UUID 前缀精确匹配连接, 绕 §8.1 内置名遮蔽)
 #   amd          = <node.id>/<裸模型名>
 # 模型名不硬编码: sensenova/amd 枚举时已在循环内按 [Dd]eep[Ss]eek+[Ff]lash 匹配收集进 _DPV4_ENTRIES,
 # 本函数只补 nvidia 条目 (nvidia 通用枚举失败, 条目须从 POOL_ALIVE/filter_alive 取).
-upsert_dpv4flash_pool() {
+upsert_dp4f_pool() {
   local _al _strat="${_POOL_STRATEGY:-p2c}"
   _is_valid_strat "$_strat" || _strat="round-robin"
   # nvidia 条目: 从 NIM_POOL_MODELS 存活结果 (filter_alive) grep dpv4 变体 → "nvidia/<完整模型名>"
@@ -1532,30 +1532,30 @@ upsert_dpv4flash_pool() {
   # 去重 (同一模型名可能被多 provider 收集或 nvidia 条目撞)
   mapfile -t _DPV4_ENTRIES < <(printf '%s\n' "${_DPV4_ENTRIES[@]}" | awk '!seen[$0]++')
   if [ "${#_DPV4_ENTRIES[@]}" -lt 2 ]; then
-    echo "[init] dpv4flash-pool: 命中 ${#_DPV4_ENTRIES[@]} 家 (<2), 跳过 (无跨 provider 轮询意义)."
+    echo "[init] dp4f-pool: 命中 ${#_DPV4_ENTRIES[@]} 家 (<2), 跳过 (无跨 provider 轮询意义)."
     return 0
   fi
   # 混合前缀 body (models_to_json 单前缀不适用, 手动构造 models 数组)
   local _jmodels _body _CID _CODE _F
   _jmodels=$(printf '%s\n' "${_DPV4_ENTRIES[@]}" | jq -R '{model:.}' | jq -s -c . 2>/dev/null || echo "[]")
-  _body=$(jq -n --arg name "dpv4flash-pool" --arg strat "$_strat" --argjson models "$_jmodels" \
+  _body=$(jq -n --arg name "dp4f-pool" --arg strat "$_strat" --argjson models "$_jmodels" \
     '{name:$name, strategy:$strat, models:$models}')
-  echo "[init] dpv4flash-pool: 跨 provider 条目 ${#_DPV4_ENTRIES[@]} 条 → ${_DPV4_ENTRIES[*]}"
+  echo "[init] dp4f-pool: 跨 provider 条目 ${#_DPV4_ENTRIES[@]} 条 → ${_DPV4_ENTRIES[*]}"
   # 幂等: CID 查询 + PUT(存在)/POST(新建) — 同 upsert_combo 修正式裁决 (§7)
   _CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
-        | jq -r --arg n "dpv4flash-pool" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
-  _F="$(_resp omn-combo-dpv4flash-pool.json)"
+        | jq -r --arg n "dp4f-pool" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
+  _F="$(_resp omn-combo-dp4f-pool.json)"
   if [ -n "$_CID" ]; then
     _CODE=$(curl -s -o "$_F" -w "%{http_code}" -b "$COOKIE_FILE" \
       -X PUT "$BASE_URL/api/combos/$_CID" -H "Content-Type: application/json" -d "$_body")
-    echo "[init] upsert dpv4flash-pool: existed -> PUT combos/$_CID HTTP $_CODE"
+    echo "[init] upsert dp4f-pool: existed -> PUT combos/$_CID HTTP $_CODE"
   else
     _CODE=$(curl -s -o "$_F" -w "%{http_code}" -b "$COOKIE_FILE" \
       -X POST "$BASE_URL/api/combos" -H "Content-Type: application/json" -d "$_body")
-    echo "[init] upsert dpv4flash-pool: new -> POST HTTP $_CODE"
+    echo "[init] upsert dp4f-pool: new -> POST HTTP $_CODE"
   fi
   if [ "$_CODE" != "200" ] && [ "$_CODE" != "201" ]; then
-    echo "[init] ✗ upsert dpv4flash-pool: 非 2xx (HTTP $_CODE) — fail-closed."
+    echo "[init] ✗ upsert dp4f-pool: 非 2xx (HTTP $_CODE) — fail-closed."
     cat "$_F" 2>/dev/null || true
     return 1
   fi

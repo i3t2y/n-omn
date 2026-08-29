@@ -10,18 +10,19 @@
 - 输出纪律: 改代码只输出 diff 或定点替换, 禁整文件重写; 全量文件由
   git 出货, 不经会话即兴生成。
 
-## §1 拓扑铁律(2026-08-19 修订: 单源单Space, 圣上令撤 nomke)
+## §1 拓扑铁律(2026-08-19 修订: 单源单Space, 圣上令撤 nomke; 2026-08-29 增: xnexus 改名 o + nonoke 恢复)
 - n-omn 私库 = 唯一血统。根目录=生产血统; dev/logic/=dev逻辑层镜像
-  (实物在 Dataset nonoke/omn-logic, 改动须 git 先行再 push);
+  (实物在 xnexus/logic Bucket, 改动须 git 先行再 push);
   dev/base/=基镜像血缘; ops/=运营层(永不进Space, 不同步)。
-- **xnexus = 唯一 Space**(2026-08-24 圣上令: nonoke 9/22 删 + nomke 旧废弃, 双 Space 不复存在, 迁 xnexus 单 Space)。
-  nomke/omn 废弃(旧生产 Space, 不动不写); nonoke/omn 到期删除中(9/22 自动删, 资源迁 xnexus); omn-v2 第三 Space 撤销。
+- **xnexus/o = 唯一 Space**(2026-08-24 圣上令迁 xnexus 单 Space; 2026-08-29 圣上令 Space 名 omn→o 去指纹, HF 已改)。
+  nonoke/omn 废弃(旧生产 Space, 已删内容; **账号 2026-08-28 恢复**, 圣上承诺不跑代理仅个人用途, 不再承载生产);
+  nomke/omn 废弃(旧生产 Space, 不动不写); omn-v2 第三 Space 撤销。
   全程不新建任何 Space。
 - R2 bucket = **omn-data**(单 Space 单桶; omniroute-data 旧生产桶不动存历史)。
   单 Space 无双写问题, 旧"R2 bucket 永不双写"双 Space 铁律随 nomke 撤失效。
 - upstream/ 两树只读; 机制结论须 file:line 双版本对照;
   基座 3.8.43 + 4.2.3 行为参数 + 3.8.49 定点移植。
-- **🔴 omn 命名红线 (2026-08-24 圣上令, 去网关指纹防 HF 风控)**: 代码/注释/文件/包名一律用 `omn`, **禁用 `omniroute` 字样 (含注释)**。落点 dev/logic 源码 (为迁移新账号准备干净无网关指纹源, 非抢救 nonoke)。例外保留: 真实上游仓库名 `diegosouzapw/omniroute`(Dockerfile/start.sh 注释) + 旧 R2 桶名 `omniroute-data`(历史资源, fetch-*.yml 守卫正则) + upstream/ 两树只读。违反 = 红线, 一律拒。
+- **🔴 omn 命名红线 (2026-08-24 圣上令, 去网关指纹防 HF 风控; 2026-08-29 延伸: Space 名含 omn 已入官方视野)**: 代码/注释/文件/包名/评论一律用 `omn`, **禁用 `omniroute`/`nomke`/`nonoke` 字样 (含注释, 2026-08-29 圣上令)**。落点 dev/logic 源码 + 骨架件(Dockerfile/start.sh/README.md) + workflows (进 HF/Bucket 的一切)。例外保留: 真实上游仓库名 `diegosouzapw/omniroute`(Dockerfile/start.sh 注释) + 旧 R2 桶名 `omniroute-data`(历史资源, fetch-*.yml 守卫正则) + upstream/ 两树只读 + ops/DECISIONS 等历史决策(只增不改, 不回改). 违反 = 红线, 一律拒。
 
 ## §2 Secrets 纪律
 - secret/token 值零入会话、零入文档、零入 git; 记录只写位置。

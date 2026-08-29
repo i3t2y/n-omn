@@ -236,7 +236,7 @@ gc_stale_providers() {
 
 # ══ Task C3: 清 OmniRoute Health Autopilot 陈旧错态 (clear_stale_connection_error) ══
 # 病: OmniRoute 冷却(60s)过期回活后 lastError/testStatus 不自动清 → Autopilot 检 stale_connection_error
-#      → 回活 account 被路由偏置绕开。dev nonoke/omn ephemeral (R2 无副本每 boot 空库) → external
+#      → 回活 account 被路由偏置绕开。dev Space ephemeral (R2 无副本每 boot 空库) → external
 #      manage key 不持久, 无法走 dev/scripts/clear-stale-nim-errors.sh; 故 init boot 自清 (cookie 鉴权)。
 # 源: 3.8.48 src/app/api/providers/health-autopilot/{route.ts GET, actions/route.ts POST}
 #      + src/lib/monitoring/providerHealthAutopilot.ts executeProviderHealthAutopilotAction
@@ -323,7 +323,7 @@ _count_alive_keys() { printf '%s
 _ALIVE_KEYS=$(_count_alive_keys)
 # v4.3.2 [M1]: 限流随存活 Key 数动态推导(替换 v4.3.1 固定档 28/3/2200 — 故障原型根因).
 #   固定档不随 alive 伸缩 = 2026-07-21 事件设计根因: alive 变而限流不随动.
-#   三式逐字对齐 baseline-4.2.3 (nomke 25 key 健康运行即正解证据):
+#   三式逐字对齐 baseline-4.2.3 (旧生产 25 key 健康运行即正解证据):
 #     _RPM            = alive * NIM_PER_KEY_RPM(默35)      封顶 300 (硬上限, 防超 API 限)
 #     _CONCURRENT     = alive * NIM_PER_KEY_CONCURRENT(默3) 保底 3  (单 key 也有并发槽)
 #     _MIN_INTERVAL_MS = 60000 / _RPM                      (整数截断; _RPM>0 守卫, 下界 200ms)
@@ -935,16 +935,16 @@ probe_nim_keys_real() {
   echo "[init] probe 汇总: alive=$_PROBE_ALIVE dead=$_PROBE_DEAD (auth_dead 跳 ${#AUTH_DEAD_KEYS[@]} 个注册, POST $_probe_model, 并发$_probe_concurrency)"
 }
 
-# X4 (2026-07-31): NIM_PROBE_ENABLED 总闸. 2026-08-28 改默认 0=关探活, 对齐 miztertea/nim-proxy + omniroute
+# X4 (2026-07-31): NIM_PROBE_ENABLED 总闸. 2026-08-28 改默认 0=关探活, 对齐 miztertea/nim-proxy + 上游
 #   惰性检测哲学: NIM 免费层唯一硬限 = RPM 40/换, 无限额, 最怕 key 被官方风控标记. boot 主动探活既不解决
 #   风控(反而增加请求频率暴露), 也不省额度(无限), 只占 boot 时间. 两个参考系统默认都不探活 key:
 #   - miztertea/nim-proxy: key 只在 first-run 验一次, 之后靠运行时 failover(429/5xx 换 key) + 模型压力自适应退避
-#   - omniroute: LocalHealthCheck 60s 心跳只查 node /models 连通(res.ok||401), 不判 key 死; key 死靠 executor
+#   - 上游: LocalHealthCheck 60s 心跳只查 node /models 连通(res.ok||401), 不判 key 死; key 死靠 executor
 #     请求 401/403 惰性 failover + combo 404 熔断
 #   register-and-go: 死 key 入池, runtime 惰性兜底. 保留 ENV=1 排障临时开.
 _PROBE_SKIP=0
 if [ "${NIM_PROBE_ENABLED:-0}" != "1" ]; then
-  echo "[init] NIM_PROBE_ENABLED=${NIM_PROBE_ENABLED:-0} → 跳 probe (register-and-go; 对齐 miztertea/omniroute 惰性检测, runtime LocalHealthCheck+executor failover 兜底死 key)"
+  echo "[init] NIM_PROBE_ENABLED=${NIM_PROBE_ENABLED:-0} → 跳 probe (register-and-go; 对齐 miztertea 惰性检测, runtime LocalHealthCheck+executor failover 兜底死 key)"
   _PROBE_SKIP=1
 else
   probe_nim_keys_real

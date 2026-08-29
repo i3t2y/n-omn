@@ -97,9 +97,9 @@ Bucket 非版本化、无 commit_id/revision → **无 atomic 快照**。若也�
 5. ⏳ 首次手动推 8 件 + manifest 到 xnexus/logic（须 xnexus HF_TOKEN）
 6. ⏳ 验证: 本地 mock 测 manifest 校验五态(已过) + boot 真验(须 xnexus Space 在线)
 7. SSOT 文档落（HANDOFF 待办 + DECISIONS 加段）
-8. 圣上批准 commit → push → 切 xnexus/omn Space
+8. 圣上批准 commit → push → 切 xnexus/o Space
 
-> 代码侧 2/3/4 已落本会话. 阻塞项 1/5/6 全在 xnexus 写凭据 + xnexus/omn 在线确认.
+> 代码侧 2/3/4 已落本会话. 阻塞项 1/5/6 全在 xnexus 写凭据 + xnexus/o 在线确认.
 
 ## 八、不变量/护栏
 

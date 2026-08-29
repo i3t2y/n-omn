@@ -17,12 +17,10 @@
 #   A. 日常路径 (推荐): GHCR 侧推新版镜像到 `:stable` tag → dev/prod Space Rebuild 即拉新版,
 #      ARG 默认值不动, Dashboard 看 Space Variable 也不动 (零 git 变更)
 #   B. 钉 digest 路径 (备选): 改 ARG 默认值钉 <新标签>@sha256:<digest> → git commit + push
-#      → sync-space-nonoke.yml 自动同步 dev + 触 Rebuild → dev 24h 绿 → 圣上 workflow_dispatch
-#      触 sync-space-nomke.yml 同步 prod
+#      → sync-space-xnexus.yml 自动同步 + 触 Rebuild → boot 全绿
 #   回滚: 路径 A `:stable` 重推旧 digest 即回; 路径 B `git revert` + push + Rebuild
 #
-# dev/prod 隔离: sync-space-xnexus.yml (唯一 Space) push paths[Dockerfile] 自动触;
-#   (xnexus=唯一 Space, nomke 废弃 nonoke 9/22 删, 无第二个 Space, 故无 prod 隔离流程)
+# 唯一 Space: sync-space-xnexus.yml (xnexus/o) push paths[Dockerfile] 自动触 Rebuild.
 ARG BASE_IMAGE=ghcr.io/i3t2y/omn-base:stable
 FROM ${BASE_IMAGE}
 

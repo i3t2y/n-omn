@@ -624,8 +624,8 @@ fname = parts[2]
 
 **代价**: 破 §1 铁律(已批) / 改 sync CI(已落) / 建 xnexus/logic Bucket(手动, 须圣上 UI 或 `hf buckets create`) / 丢 atomic 快照(manifest 补回) / HF_TOKEN 换 xnexus / S3 读一致性(低, 低写频可忽略)。
 
-**执行序 (已批 2026-08-25, 代码侧 ①②④ 已落)**: 1 建 Bucket(圣上)⏳ 2 ✅ sync CI 3 ✅ start.sh §3 4 ✅ deploy-ft-workers 5 ⏳ 首次推 8 件+manifest(须 xnexus HF_TOKEN) 6 ⏳ 本地 mock 验(已过)+boot 真验(须 xnexus Space 在线) 7 SSOT 文档落 8 圣上批 commit→push→切 xnexus/omn Space。
+**执行序 (已批 2026-08-25, 代码侧 ①②④ 已落)**: 1 建 Bucket(圣上)⏳ 2 ✅ sync CI 3 ✅ start.sh §3 4 ✅ deploy-ft-workers 5 ⏳ 首次推 8 件+manifest(须 xnexus HF_TOKEN) 6 ⏳ 本地 mock 验(已过)+boot 真验(须 xnexus Space 在线) 7 SSOT 文档落 8 圣上批 commit→push→切 xnexus/o Space。
 
-**护栏**: §1 xnexus/omn 唯一 Space, xnexus/logic 是 Bucket 源非 Space(不新建 Space); §2 xnexus HF_TOKEN 值零入会话; §5 git 一律 ask。
+**护栏**: §1 xnexus/o 唯一 Space, xnexus/logic 是 Bucket 源非 Space(不新建 Space); §2 xnexus HF_TOKEN 值零入会话; §5 git 一律 ask。
 
 出处: docs/logic-switch-bucket-design.md + docs/xnexus-deploy-checklist.md (commit 待圣上批)。关联: ops/DECISIONS.md §7 (R2 副本), docs/ft-health-aware-rotation.md (同型"待批实施"设计文档先例)。

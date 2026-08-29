@@ -2,18 +2,18 @@ name: Sync Space skeleton to xnexus Space
 
 # 三层解耦 · 骨架同步 (高风险: push Space 触 HF 自动 Rebuild)
 #
-# 2026-08-25 xnexus 化: sync-space-nonoke.yml → sync-space-xnexus.yml (nonoke 9/22 删, nomke 废弃)。
-#   xnexus/omn = 唯一 Space (§1), 全程不新建任何 Space。
-#   命名空间隔离铁律: 本件零生产/nomke/nonoke Space 引用, 单 token 命名空间 (HF_TOKEN)。
+# 2026-08-25 xnexus 化: sync-space-xnexus.yml (旧 Space 废弃, xnexus/o 唯一)。
+#   xnexus/o = 唯一 Space (§1), 全程不新建任何 Space。
+#   命名空间隔离铁律: 本件零旧 Space 引用, 单 token 命名空间 (HF_TOKEN)。
 #
 # 新拓扑 (2026-07-25 撤销 omn-v2 第三个 Space, 见 DECISIONS):
-#   HF 免费层 2026-07 关闭新建 Docker Space 通道, xnexus/omn 是祖父条款保护稀缺资产。
+#   HF 免费层 2026-07 关闭新建 Docker Space 通道, xnexus/o 是祖父条款保护稀缺资产。
 #   逻辑层源已迁 xnexus/logic Bucket (2026-08-25 圣上批 B, 见 sync-logic-xnexus.yml)。
 #
 # 首投前 BASE_IMAGE Variable 由圣上手动钉锚 digest 9c9aecf (见 DECISIONS),
 #   跨过整个"浮动 tag Rebuild 错误基座"风险类; T6 base-image.yml 建后此锚自动化。
 #
-# Token: HF_TOKEN — 写 xnexus/omn (唯一 Space) + xnexus/logic Bucket (见 sync-logic-xnexus.yml)
+# Token: HF_TOKEN — 写 xnexus/o (唯一 Space) + xnexus/logic Bucket (见 sync-logic-xnexus.yml)
 #   (xnexus 账号生成的 token, 已设定)
 # 触发: 仅 Space 骨架四件变更才跑 (低频, 防高频 Rebuild 触 HF 7/16+ build 冻/风控)。
 
@@ -42,10 +42,10 @@ jobs:
           for f in Dockerfile start.sh README.md .gitattributes; do
             cp "$f" /tmp/hf-sync/
           done
-          echo "---- files to sync to xnexus/omn ----"
+          echo "---- files to sync to xnexus/o ----"
           ls -la /tmp/hf-sync
 
-      - name: Push to HF Space (xnexus/omn)
+      - name: Push to HF Space (xnexus/o)
         env:
           T: ${{ secrets.HF_TOKEN }}
         run: |
@@ -57,5 +57,5 @@ jobs:
           # commit 带 n-omn 源 SHA: Space 侧每次构建可一眼对回 n-omn 血统
           git commit -qm "sync: n-omn@${GITHUB_SHA::7}" || echo "No changes to commit"
           git branch -M main
-          git remote add hf "https://oauth2:${T}@huggingface.co/spaces/xnexus/omn"
+          git remote add hf "https://oauth2:${T}@huggingface.co/spaces/xnexus/o"
           git push --force hf main

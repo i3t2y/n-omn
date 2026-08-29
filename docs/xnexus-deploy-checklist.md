@@ -1,8 +1,8 @@
-# xnexus/omn 部署变量 + Token 完整清单
+# xnexus/o 部署变量 + Token 完整清单
 
-> 圣上 2026-08-24 令"去做好准备" — xnexus/omn 起来所需的全部 env/token。
+> 圣上 2026-08-24 令"去做好准备" — xnexus/o 起来所需的全部 env/token。
 > 来源: start.sh + dev/logic 8 件实际读取 (已逐项核实缺省行为, 非臆测)。
-> 状态: **供圣上在 xnexus/omn Space Secrets/Variables 配置**。
+> 状态: **供圣上在 xnexus/o Space Secrets/Variables 配置**。
 > ⚠️ nonoke 已封(8/23) 生产宕机, xnexus 立即顶替。
 > ✅ 逻辑层源已定: **B. Bucket** (2026-08-25 圣上批, 见 docs/logic-switch-bucket-design.md)。
 >    即 `LOGIC_BUCKET_REPO` = **xnexus/logic** (Bucket 源), 非 Dataset。
@@ -159,7 +159,7 @@
 - **§2 秘钥**: 以上 token 值零入会话/git/文档, 只在 xnexus Space Secrets 设。
 - **沿用生产值**: INTERNAL_PSK/NIM_KEYS/R2_*/OMNIROUTE_API_KEY/INITIAL_PASSWORD 等**必须沿用**, 改则客户端/备份断。
 - **换 xnexus**: 仅 HF_TOKEN/LOGIC_BUCKET_REPO/OMN_DATASET_REPO 换 xnexus 的。
-- **xnexus/omn = 唯一 Space** (§1), 不新建任何 Space。
+- **xnexus/o = 唯一 Space** (§1), 不新建任何 Space。
 - 逻辑层源 xnexus/logic 须建 (Dataset 或 Bucket, 见 docs/logic-switch-bucket-design.md)。
 
 ### 手动生成 token 统一方式 (2026-08-25 圣上裁决)

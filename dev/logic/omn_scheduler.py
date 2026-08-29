@@ -207,7 +207,7 @@ def _start_schedulers():
     s1 = CommitScheduler(
         repo_id=OMN_DATASET_REPO, repo_type="dataset",
         folder_path=str(STDOUT_STAGING),
-        path_in_repo="save",  # 摊平, .log/.json 直放 save/根 (Dataset nonoke/omn-logic/save)
+        path_in_repo="save",  # 摊平, .log/.json 直放 save/根 (Dataset save/ 根)
         every=SCHED_EVERY, token=HF_TOKEN, squash_history=True,
     )
     _SCHEDULERS.extend([s1])
@@ -259,7 +259,7 @@ def _do_archive():
     铁闸: 推归档库成功 (或查证已归档) 后才 delete_files 删原库件. 任一步失败 -> 跳过该 prefix 该日不删.
     幂等: 推前列归档库查 archive/<prefix>/<date>.tar.gz 已存在 -> 跳推只删原件 (已归档证).
     """
-    src_api = HfApi(token=HF_TOKEN)        # 原库连接 (圣上现役 nonoke/omn-logic)
+    src_api = HfApi(token=HF_TOKEN)        # 原库连接 (圣上现役)
     dst_api = HfApi(token=ARCHIVE_TOKEN)   # 新私库连接 (圣上新账号, 独立 token)
     # 列原库全件 (list_repo_files 返 rfilename 全路径如 save/app/xxx.log); 网络错 -> return 不盲删
     try:

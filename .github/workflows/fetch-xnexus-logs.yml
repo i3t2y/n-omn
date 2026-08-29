@@ -1,7 +1,7 @@
 # Fetch HF Space logs → n-omn evidence 分支 (xnexus 唯一 Space)
 # 圣上 2026-07-25 令: 抓取 Space 日志用 GitHub Actions, 直接放私库。
-# 2026-08-25 xnexus 化: fetch-nonoke-logs.yml → fetch-xnexus-logs.yml (nonoke 9/22 删, nomke 废弃, xnexus=唯一 Space)。
-#   xnexus/omn = 唯一 Space (§1), 抓 xnexus/omn Space 日志 → n-omn evidence 分支。
+# 2026-08-25 xnexus 化: fetch-xnexus-logs.yml (xnexus/o 唯一 Space)。
+#   xnexus/o = 唯一 Space (§1), 抓 xnexus/o Space 日志 → n-omn evidence 分支。
 #   token = HF_TOKEN (xnexus 账号, 已设定)。
 # 定位: CI 侧证据采集, 非逻辑层, 不受 ② 零变更约束, 阻塞仅 push + HF_TOKEN secret。
 # 与 P0-tee 互补: P0-tee=容器内持久落盘(战后), 本通道=HF 可见窗口仓内归档(现在)。
@@ -47,7 +47,7 @@ jobs:
           # 落盘后被 checkout clean 删 → evidence 步 out/*.log 空 → "无新快照 skip commit").
           fetch-depth: 0
 
-      - name: 抓取 HF Space 日志 (xnexus/omn)
+      - name: 抓取 HF Space 日志 (xnexus/o)
         id: fetch
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           LOG_TYPE="${{ inputs.log_type || 'run' }}"
           TS=$(date -u '+%Y%m%d-%H%M')
-          SPACE="xnexus/omn"
+          SPACE="xnexus/o"
           mkdir -p out
           fetch_one() {
             local kind="$1"
@@ -157,8 +157,8 @@ jobs:
             git checkout --orphan "$BRANCH"
             git rm -rf . 2>/dev/null || true
           fi
-          # 落文件: logs/xnexus--omn/YYYYMMDD-HHMM-{kind}.log 单文件时间戳
-          DEST_DIR="logs/xnexus--omn"
+          # 落文件: logs/xnexus--o/YYYYMMDD-HHMM-{kind}.log 单文件时间戳
+          DEST_DIR="logs/xnexus--o"
           mkdir -p "$DEST_DIR"
           for f in out/*.log; do
             [ -f "$f" ] || continue
@@ -175,7 +175,7 @@ jobs:
               -m "chore(evidence): HF $LOG_TYPE logs ${TS} [skip ci]" \
               -m "快照语义: 积压+实时窗 (boot 至今全量历史 + 60s 实时窗), rc=28 60s 兜底正常非失败" \
               -m "字节即证据 — 142KB+ 单次即覆盖完整 boot 叙事" \
-              -m "出处: .github/workflows/fetch-xnexus-logs.yml rc 分账补丁 (2026-08-25 xnexus 化, 原 fetch-nonoke-logs.yml)"
+              -m "出处: .github/workflows/fetch-xnexus-logs.yml rc 分账补丁 (2026-08-25 xnexus 化, 原旧 workflow)"
             git push origin "$BRANCH"
             echo "pushed=true" >> "$GITHUB_OUTPUT"
           fi

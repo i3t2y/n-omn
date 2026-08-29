@@ -1,5 +1,5 @@
 ---
-title: omn
+title: o
 emoji: 🚀
 colorFrom: blue
 colorTo: indigo

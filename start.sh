@@ -1,5 +1,5 @@
 #!/bin/sh
-# OmniRoute 永续节点 · 自适应引导 v3.0（版本无关）
+# nexus 永续节点 · 自适应引导 v3.0（版本无关）
 # 与逻辑层的唯一契约：Dataset 根目录必须存在 entrypoint.sh。
 # 其余一切文件名、目录结构均由逻辑层自定义，本脚本不感知。
 set -e
@@ -31,7 +31,7 @@ if [ "$_need_install" = "1" ]; then
   # [cli] extra 自 1.x 起不存在, CLI 内建主包。
   pip3 install --no-cache-dir --break-system-packages "huggingface_hub${HF_HUB_RANGE:->=1.0,<2.0}"
   if ! command -v litestream >/dev/null 2>&1; then
-    # 镜像 A 路径补全 (BASE_IMAGE 直指裸上游 diegosouzapw/omniroute 无 litestream 时触发)。
+    # 镜像 A 路径补全 (BASE_IMAGE 直指裸上游 无 litestream 时触发)。
     # 日常路径走 GHCR base (本地 tar COPY 预装) 不触发此分支。
     # 版本号驱逐自 ENV (Dockerfile ARG LITESTREAM_VERSION + ENV 转存, 永不再改三件):
     #   升 litestream 改 Dockerfile ARG 默认值 / HF Variable buildtime 覆盖, 此处零改。
@@ -53,7 +53,7 @@ fi
   echo "[start] FATAL: 缺 LOGIC_BUCKET_REPO"; exit 1; }
 
 # ── 3. 拉取逻辑层（Bucket 源, manifest 版本钉补回 atomic 锁） ──
-#     2026-08-25 换 Bucket (圣上批 B): nonoke 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
+#     2026-08-25 换 Bucket (圣上批 B): 旧 Space 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
 #     Bucket 非版本化无 commit_id/revision → 无 atomic 快照. 竞速根治手工补回:
 #       manifest.json = 提交点 (记 n-omn@SHA + 每文件 sha256), 由 CI 推文件后最后写.
 #       boot 先拉 manifest + 8 件, 逐文件校验 sha256 与 manifest 一致 = 同点全件.
@@ -65,7 +65,7 @@ mkdir -p /tmp/logic
 _logic_err=/tmp/.logic.err; : > "$_logic_err"
 # 3.1 拉 manifest + 9 件 (8 业务 + flaretunnel 二进制) + 校验 sha256 (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
 #     flaretunnel 二进制 = 逻辑层资产 (entrypoint L217 注释), 源 flaretunnel/FlareTunnel.go 编译,
-#     与 8 件同批上传同 manifest 校验 (9/22 nonoke 删后迁 Bucket 时未随迁, boot WARN 跳 FT 根因).
+#     与 8 件同批上传同 manifest 校验 (旧 Space 删后迁 Bucket 时未随迁, boot WARN 跳 FT 根因).
 if command -v python3 >/dev/null 2>&1; then
   if LOGIC_BUCKET_REPO="$LOGIC_BUCKET_REPO" python3 -c '
 import os, hashlib, json, sys

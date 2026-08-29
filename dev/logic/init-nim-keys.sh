@@ -1631,8 +1631,8 @@ if [ -f "$_DB_PATH" ]; then
     # ⑦ 增量也走幂等 upsert（同时修复 deprecated 与撞名）
     mapfile -t POOL_ALIVE  < <(filter_alive "${NIM_POOL_MODELS[@]}")
     mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
-    upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
-    upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
+    upsert_combo "nim-pool"  "$_POOL_STRATEGY" "nvidia" "${POOL_ALIVE[@]}"
+    upsert_combo "nim-codex" "$_CODEX_STRATEGY" "nvidia" "${CODEX_ALIVE[@]}"
     context_accumulator_update
     # 增量也跑通用多 provider 注册 (幂等, 2026-08-26 提升: 原仅 first-init 跑跳增量)
     _register_multi_provider
@@ -1662,8 +1662,8 @@ mapfile -t POOL_ALIVE  < <(filter_alive "${NIM_POOL_MODELS[@]}")
 mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
 
 # ⑦ first-init 也走幂等 upsert（根治 R2 restore 后撞名）
-upsert_combo "nim-pool"  "$_POOL_STRATEGY"  "${POOL_ALIVE[@]}"
-upsert_combo "nim-codex" "$_CODEX_STRATEGY" "${CODEX_ALIVE[@]}"
+upsert_combo "nim-pool"  "$_POOL_STRATEGY" "nvidia" "${POOL_ALIVE[@]}"
+upsert_combo "nim-codex" "$_CODEX_STRATEGY" "nvidia" "${CODEX_ALIVE[@]}"
 
 # ══ 通用多 provider 注册（NIM_KEYS 多 key 模式推广: gemini/openrouter/sensenova/mistral/amd）═══
 # 已抽为函数 _register_multi_provider() 定义于增量模式段前 — 增量+first-init 都调 (2026-08-26).

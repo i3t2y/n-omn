@@ -26,7 +26,7 @@ FROM ${BASE_IMAGE}
 
 # root 是永久需求而非过渡：上游 runner 永远 USER node 且永远缺工具，
 # start 的运行时自愈需要写权限。同时保证 BASE_IMAGE 可直接指向上游
-# 官方标签（diegosouzapw/omniroute:X.Y.Z）也能起——不依赖自建镜像。
+# 官方上游镜像标签（:X.Y.Z）也能起——不依赖自建镜像。
 USER root
 
 # 作用域硬规则 (2026-07-28 首席架构师裁 + 官方文档 docs.docker.com/reference/dockerfile/#scope):
@@ -39,7 +39,7 @@ ENV BASE_IMAGE=${BASE_IMAGE}
 
 # litestream 版本驱逐 (2026-07-28 圣上令, 版本号不残留三件内):
 #   ARG LITESTREAM_VERSION = build 期值 + ENV 转存 runtime; start.sh 镜像 A 路径补全
-#   分支 (BASE_IMAGE 直指裸上游 diegosouzapw/omniroute 无 litestream 时触发) 读此 env
+#   分支 (BASE_IMAGE 直指裸上游官方镜像, 无 litestream 时触发) 读此 env
 #   curl 拉取。日常路径走 GHCR base (本地 tar COPY 预装) 不触发此分支。
 #   升 litestream: 改此 ARG 默认值 + GHCR base (omn-ops/ghcr/Dockerfile:43) 同步 + push
 #   Rebuild, 或 HF Variable "LITESTREAM_VERSION" buildtime 覆盖 (官方义 build-arg 透传)。

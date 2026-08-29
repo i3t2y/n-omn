@@ -1,18 +1,18 @@
 // gate.js — v4.3 candidate (Stage D)
-// OmniRoute PSK 出口 Proxy (HF Space :7860 -> 127.0.0.1:20128)
-// 唯一出口代理, 经 OmniRoute 直连, 无外部 Relay / cf-worker / context-relay.
+// 上游 PSK 出口 Proxy (HF Space :7860 -> 127.0.0.1:20128)
+// 唯一出口代理, 经 上游 直连, 无外部 Relay / cf-worker / context-relay.
 //
 // 暴露面 (单布尔开关后台 GATE_ADMIN_ENABLED === '1'):
 //   关 (未设/非 '1'): 后台关闭, 外网仅 GET /healthz + /v1 + /v1/*; 其余全 404 (门藏).
-//   开 (=== '1'): 后台全路径**无闸**直透传 OmniRoute (无 Basic Auth 框/无凭据验/无 cookie);
-//     后台自身的写执行鉴权全交 OmniRoute 自身 INITIAL_PASSWORD(bcrypt) + loginGuard(IP 锁) + JWT session.
+//   开 (=== '1'): 后台全路径**无闸**直透传 上游 (无 Basic Auth 框/无凭据验/无 cookie);
+//     后台自身的写执行鉴权全交 上游 自身 INITIAL_PASSWORD(bcrypt) + loginGuard(IP 锁) + JWT session.
 // 三类入口分离: /healthz(免认证) | /v1,/v1/*(INTERNAL_PSK) | 其余全路径(GATE_ADMIN_ENABLED 开时直透传, 关时 404).
 //   互不回退, PSK 不访问后台, 后台路径不走 PSK.
 // gate 层不做入口认证 (砍 Basic Auth: 浏览器原生框反复弹弊大于利); Gate 不注入 Session, 不伪造 Cookie.
 // 红线 (PSK): 缺失/格式错/长度不同/内容不同 → 401; crypto.timingSafeEqual 常量时间; 长度不等不退字符串比较.
 // SSE: 逐块转发 (不聚合), 不 text/json 读流, 尊重背压, 客户端断开取消上游, 清理监听/定时器/流.
 // 进程: SIGTERM/SIGINT 自处理优雅关 (entrypoint.sh trap 亦转发).
-// 无第二套限流: 28 RPM/1 并发/2200ms 由 OmniRoute requestQueue 执行, 本文件零限流代码.
+// 无第二套限流: 28 RPM/1 并发/2200ms 由 上游 requestQueue 执行, 本文件零限流代码.
 // IP/CIDR 限制: 不默认实现 (HF 代理拓扑未验证, 无 L1 证据 trust proxy); 预留能力默认关, KNOWN-UNVERIFIED 记.
 
 const express = require('express');
@@ -209,7 +209,7 @@ app.use('/v1', (req, res, next) => {
   next();
 });
 
-// ── #4 context guard: 超阈 body 在 gate 直拒 413, 不进 OmniRoute 堆 ──
+// ── #4 context guard: 超阈 body 在 gate 直拒 413, 不进 上游 堆 ──
 // 斩断病链首环: 400-context-overflow → N×round-robin fallback 同体转发 → heap OOM → Space shutdown.
 // 仅判 content-length 字节, 不缓冲 body (零内存开销, 不扰 SSE 流式); chunked 无 content-length 放行.
 // 插入点在 PSK 校验后 (未认证请求已在 PSK 层 401, 不消耗本检查), proxyV1 前 (不进上游堆).
@@ -412,7 +412,7 @@ function proxyAdmin(req, res) {
   const headers = { ...req.headers };
   delete headers.host;
   headers.host = `127.0.0.1:${OR_PORT}`;
-  // Authorization 已在 Basic Auth 中间件 delete; OmniRoute 自身认证 (Cookie/Session) 原样上行.
+  // Authorization 已在 Basic Auth 中间件 delete; 上游 自身认证 (Cookie/Session) 原样上行.
 
   const upstreamReq = http.request({
     host: '127.0.0.1',

@@ -2,7 +2,7 @@
 set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────
-# NIM OmniRoute initializer  v4.3.2（基于 v4.2.3；v4.3.1 固定档限流故障后修正）
+# NIM 上游 initializer  v4.3.2（基于 v4.2.3；v4.3.1 固定档限流故障后修正）
 # v4.3.2 [M1-M5 改造]: M1 限流随存活数动态推导(逐字对齐 baseline-4.2.3) / M2 maxWait 四字段读回断言 /
 #                      M3 probe_nim_keys_real 真探活 + auth_dead 跳注册 / M4 压缩全局关闭 / M5 横幅版本对齐.
 #   v4.3.1 固定档 28/3/2200 不随 alive 伸缩 = 2026-07-21 账户级封根因; v4.3.2 驱逐之.
@@ -61,7 +61,7 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 
 # ══ 通用多 provider 配置表（NIM_KEYS 多 key 模式推广到免费提供商）═══════
 #   id|node_name|prefix|base_url|env_keys_var|max_models|model_prefix
-#   id          = OmniRoute 连接 provider 值 (须 isOpenAICompatibleProvider 识别, 走 openai-compatible 节点路)
+#   id          = 上游 连接 provider 值 (须 isOpenAICompatibleProvider 识别, 走 openai-compatible 节点路)
 #   node_name   = provider-node 名称 (POST /api/provider-nodes {name})
 #   prefix      = 模型名前缀 (combo 引用名 = ${prefix}/${modelId}; executor 用它拼请求)
 #   base_url    = OpenAI 兼容端点 (探活 + 动态枚举 /v1/models + executor 上游 URL)
@@ -234,8 +234,8 @@ gc_stale_providers() {
   echo "[init] gc_stale: 删除 $_DEL_COUNT 个僵尸/重复 nvidia 连接 (批量 DELETE /api/providers HTTP $_DEL_HTTP, 上限 max=$_NIM_TOTAL)"
 }
 
-# ══ Task C3: 清 OmniRoute Health Autopilot 陈旧错态 (clear_stale_connection_error) ══
-# 病: OmniRoute 冷却(60s)过期回活后 lastError/testStatus 不自动清 → Autopilot 检 stale_connection_error
+# ══ Task C3: 清 上游 Health Autopilot 陈旧错态 (clear_stale_connection_error) ══
+# 病: 上游 冷却(60s)过期回活后 lastError/testStatus 不自动清 → Autopilot 检 stale_connection_error
 #      → 回活 account 被路由偏置绕开。dev Space ephemeral (R2 无副本每 boot 空库) → external
 #      manage key 不持久, 无法走 dev/scripts/clear-stale-nim-errors.sh; 故 init boot 自清 (cookie 鉴权)。
 # 源: 3.8.48 src/app/api/providers/health-autopilot/{route.ts GET, actions/route.ts POST}
@@ -328,7 +328,7 @@ _ALIVE_KEYS=$(_count_alive_keys)
 #     _CONCURRENT     = alive * NIM_PER_KEY_CONCURRENT(默3) 保底 3  (单 key 也有并发槽)
 #     _MIN_INTERVAL_MS = 60000 / _RPM                      (整数截断; _RPM>0 守卫, 下界 200ms)
 #   双层并发槽澄清(承 v4.3 注释):
-# (A) 上游: OmniRoute requestQueue.concurrentRequests (本 init PATCH /api/resilience 落定) — 上述 _CONCURRENT 主力杠杆.
+# (A) 上游: 上游 requestQueue.concurrentRequests (本 init PATCH /api/resilience 落定) — 上述 _CONCURRENT 主力杠杆.
 # (B) gate 本地: 现役 gate.js(本稿 [3/7], 520L)零限流代码 — 头注"无第二套限流"为真, 限流唯一杠杆=上游 requestQueue.
 #   (谱系注: 旧变体 gate.v43-merged.js 曾有 tryAcquire 判拒自发 429 retry-after:3, §四第①步 5并诊断实证出自该旧变体;
 #    现役 gate.js 无此路径, 端到端限流=上游单杠杆.)
@@ -390,7 +390,7 @@ _res_validate_int() {
 }
 
 # FlareTunnel 档位A: 一本地桥(127.0.0.1:8080) + N Worker round-robin 出口.
-#   OmniRoute 表中只须注册一行代理(host=127.0.0.1 port=8080), 全 nvidia provider 走桥 → 桥内轮换 8 Worker.
+#   上游 表中只须注册一行代理(host=127.0.0.1 port=8080), 全 nvidia provider 走桥 → 桥内轮换 8 Worker.
 #   指派 scope='provider' scopeId=<任一 nvidia PROVIDER_ID> (upstream resolveProxyForConnection 按 scope 解析,
 #   nvidia 全 provider 连接共享一行代理 = 全瑾 Worker 轮换; 非 32 桥×N 方案需 32 行注册).
 # 测活时序决策(2026-07-30 查证官方): 注册时 NOT 探活, status='active' 默认, 交上游 runtime 接管:
@@ -706,19 +706,19 @@ context_accumulator_update() {
 }
 
 # ══════════════════════════════════════════════════════════════
-echo "[init] Starting NIM OmniRoute initializer v4.3.2 (profile=$_PROFILE, mode=$NIM_MODE) on node $(node -v 2>/dev/null || echo unknown)..."
+echo "[init] Starting NIM 上游 initializer v4.3.2 (profile=$_PROFILE, mode=$NIM_MODE) on node $(node -v 2>/dev/null || echo unknown)..."
 echo "[init] BASE_URL=$BASE_URL"
 
 [ -z "$INITIAL_PASSWORD" ] && { echo "[init] ERROR: INITIAL_PASSWORD required"; exit 1; }
 [ -z "$NIM_KEYS" ] && { echo "[init] ERROR: NIM_KEYS required"; exit 1; }
 
-echo "[init] Waiting for OmniRoute..."
+echo "[init] Waiting for 上游..."
 HWAIT=0
 until curl -sf "$BASE_URL/api/monitoring/health" > /dev/null 2>&1; do
   sleep 3; HWAIT=$((HWAIT + 3))
   [ "$HWAIT" -ge 180 ] && { echo "[init] FATAL: not ready within 180s"; exit 1; }
 done
-echo "[init] OmniRoute up (after ${HWAIT}s)."
+echo "[init] 上游 up (after ${HWAIT}s)."
 
 VERSION_HTTP=$(curl -s -o "$VERSION_FILE" -w "%{http_code}" "$BASE_URL/api/monitoring/health" 2>/dev/null || echo "000")
 [ "$VERSION_HTTP" = "200" ] && echo "[init] version: $(jq -r '.version // "unknown"' "$VERSION_FILE" 2>/dev/null)"
@@ -745,7 +745,7 @@ elif [ -f "$OR_API_KEY_FILE" ] && [ -s "$OR_API_KEY_FILE" ]; then
   OR_KEY="$(cat "$OR_API_KEY_FILE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   echo "[init] OR_API_KEY file exists."
 else
-  echo "[init] Creating OmniRoute API Key..."
+  echo "[init] Creating 上游 API Key..."
   KEY_BODY=$(jq -n --arg name "gate-internal" '{name: $name, expiresAt: null}')
   KEY_HTTP=$(curl -s -o "$KEY_RESP_FILE" -w "%{http_code}" -b "$COOKIE_FILE" \
     -X POST "$BASE_URL/api/keys" -H "Content-Type: application/json" -d "$KEY_BODY")
@@ -953,7 +953,7 @@ fi
 # ── v4.3.2 [M3 补丁·硬伤3修正]: probe 后按实际 alive 重算限流三字段 (防 RPM 配额虚高) ──
 # 病灶: M1 公式(行165-171)在 probe(行609)之前跑过, _ALIVE_KEYS 当时=NIM_KEYS 全量(含死 key).
 #        probe 判死 auth_dead 后, 若不重算 → 死 key 的 per_key 配额被幽灵占用, 实际 alive key
-#        拿不到应有配额上限, 限流虚高 → OmniRoute 按原 RPM 节奏往活 key 上压, 单 key 负载超设计 → 触发 429.
+#        拿不到应有配额上限, 限流虚高 → 上游 按原 RPM 节奏往活 key 上压, 单 key 负载超设计 → 触发 429.
 #        例: 25 key 死 9, 真实 alive=16, 然 RPM 仍按 25×35=875→cap300 算; 死 key 9×35=315 配额被占.
 # 修正: probe 完成后排除 auth_dead 重算 _ALIVE_KEYS, 并重跑 M1 三式(与行165-170 逐字同款),
 #        下界守卫(单 key 保底)防 alive=0 时除零. 9 key 全死场景降级 alive=1 单 key 模式, 比假象健康.
@@ -1009,7 +1009,7 @@ echo "[init] Keys: $REGISTERED registered, $SKIPPED skipped, $FAILED failed. (pr
 # Task C2: 注册完 Key 后, Fetching provider IDs 前, GC 僵尸(编号>NIM_KEYS 数)/重复(POST 无查重累积)连接.
 gc_stale_providers
 
-# Task C3: GC 后清 OmniRoute Health Autopilot 陈旧错态 (冷却回活后残留 lastError, 致回活 account 被路由偏置绕开).
+# Task C3: GC 后清 上游 Health Autopilot 陈旧错态 (冷却回活后残留 lastError, 致回活 account 被路由偏置绕开).
 clear_stale_nim_errors
 
 echo "[init] Fetching provider IDs..."
@@ -1096,7 +1096,7 @@ if [ "$RESILIENCE_CODE" = "200" ] || [ "$RESILIENCE_CODE" = "201" ]; then
   if [ "$res_get_rc" -ne 0 ] || [ -z "$_RB" ]; then
     echo "[init] ✗ Resilience GET 读回 transport-error: curl_rc=$res_get_rc err=${_res_get_err:-<empty>}"
     echo "[init]   abort_source: $( [ "$res_get_rc" = 28 ] && echo 'request_timeout' || ([ "$res_get_rc" = 7 ] && echo 'get_connect_failure' || echo 'get_unknown') )"
-    echo "[init]   CF-4 约束: 写必须读回. 读回失败 → init 失败 (OmniRoute resilience 未确认达预期限流)."
+    echo "[init]   CF-4 约束: 写必须读回. 读回失败 → init 失败 (上游 resilience 未确认达预期限流)."
     return 1 2>/dev/null || exit 1
   fi
   _RB_RPM=$(echo "$_RB" | jq -r '.requestQueue.requestsPerMinute // "null"' 2>/dev/null || echo "jq_fail")

@@ -40,7 +40,7 @@ out/
 __pycache__/
 *.pyc
 
-# FlareTunnel 静态二进制产物 (源入库, 产物出局经 Dataset nonoke/omn-logic 根同步, 路3)
+# FlareTunnel 静态二进制产物 (源入库, 产物出局经 sync-logic-xnexus.yml 推 xnexus/logic Bucket, 路3)
 /flaretunnel/flaretunnel
 /flaretunnel/flaretunnel.bak.*
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clear-stale-nim-errors.sh — 批量清 OmniRoute provider health autopilot 陈旧错态
+# clear-stale-nim-errors.sh — 批量清 上游 provider health autopilot 陈旧错态
 #
 # 病: NIM account 风暴期冷却 (60s) 过期回活后 lastError/testStatus 不自动清
 #      → Health Autopilot 检 "stale_connection_error" → 路由偏置或绕开本已回活 account
@@ -8,9 +8,9 @@
 # 源: executeProviderHealthAutopilotAction() providerHealthAutopilot.ts:670
 #      updateProviderConnection(id, buildConnectionClearPatch())
 #
-# === 圣上侧跑 (§1 nomke/omn 生产无 Supreme 令不动, §2 secret 真值零入脚本) ===
+# === 圣上侧跑 (§1 旧生产无 Supreme 令不动, §2 secret 真值零入脚本) ===
 #   1. export OMN_MANAGE_TOKEN="<manage-scope API key 或 oma_ access token>"  # §2 圣上侧填, 禁入 git
-#   2. export OMN_BASE_URL="https://<dev 或 prod Space>.hf.space"             # 候圣上定 dev(nonoke-omn) / prod(nomke/omn)
+#   2. export OMN_BASE_URL="https://<dev 或 prod Space>.hf.space"             # 候圣上定 Space
 #   3. bash dev/scripts/clear-stale-nim-errors.sh
 #   4. bash dev/scripts/clear-stale-nim-errors.sh --dry-run  # 先空跑看会清哪些 (不改)
 #
@@ -28,7 +28,7 @@ DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 
 : "${OMN_MANAGE_TOKEN:?§2 须圣上侧 export OMN_MANAGE_TOKEN (manage-scope API key / oma_ token), 禁入 git}"
-: "${OMN_BASE_URL:?须 export OMN_BASE_URL (Space URL, 例 https://nonoke-omn.hf.space dev / prod 候圣上定)}"
+: "${OMN_BASE_URL:?须 export OMN_BASE_URL (Space URL, 例 https://<space>.hf.space)}"
 
 PROVIDER="nvidia"
 API="/api/providers/health-autopilot"

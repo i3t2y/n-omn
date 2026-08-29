@@ -1,6 +1,6 @@
-// test-chain.mjs · FlareTunnel × OmniRoute × NIM 全链最小验 (1:1 模拟 OmniRoute undici 路径)
+// test-chain.mjs · FlareTunnel × 上游 × NIM 全链最小验 (1:1 模拟 上游 undici 路径)
 // 验三件事 (Step4 真装门):
-//   1. undici ProxyAgent proxyTunnel 经 FT 桥 CONNECT 隧道 — 同 OmniRoute 实跑路径
+//   1. undici ProxyAgent proxyTunnel 经 FT 桥 CONNECT 隧道 — 同 上游 实跑路径
 //   2. NODE_EXTRA_CA_CERTS 注 FT 自签 CA 进 Node 根 CA → undici buildConnector 默认可信 (机制真, 非臆测)
 //   3. 桥按请求 hostname 签 host 证 + SAN 匹配 (ERR_TLS_CERT_ALTNAME_INVALID 不出现)
 //
@@ -8,13 +8,13 @@
 //       Worker 已部署改造版 (Worker AUTH_KEY == RELAY_AUTH)
 //
 // 跑法:
-//   npm i undici            # 或用 Space 内 omniroute 自带 undici
+//   npm i undici            # 或用 Space 内上游自带 undici
 //   export NIM_KEY=nvapi-xxx
 //   export RELAY_AUTH=<与 Worker AUTH_KEY 同值>
 //   NODE_EXTRA_CA_CERTS=./flaretunnel_ca.crt node test-chain.mjs
 //
 // 判定:
-//   status: 200 + 模型列表 JSON  → 三环全通, OmniRoute 侧必然能通, 最大风险消化, 可进 Step5
+//   status: 200 + 模型列表 JSON  → 三环全通, 上游 侧必然能通, 最大风险消化, 可进 Step5
 //   自签证书错 (self-signed/ALTNAME)  → CA 链断, 停, 不带雷进 Space (回头核两前提: 启动前导出/勿显式传 ca)
 //   无 Worker 错 (Worker 401/超时)     → 桥+CA 三环已通, Worker 端未就绪 (本脚本仍证 TLS 链真)
 
@@ -35,7 +35,7 @@ if (!process.env.NODE_EXTRA_CA_CERTS) {
   console.error("[test-chain] ⚠ 缺 NODE_EXTRA_CA_CERTS — 仍发请求, 预期挂 self-signed (对照 CA 真生效)");
 }
 
-// 1:1 模拟 OmniRoute: ProxyAgent + proxyTunnel (CONNECT 隧道), 不显式传 requestTls.ca
+// 1:1 模拟 上游: ProxyAgent + proxyTunnel (CONNECT 隧道), 不显式传 requestTls.ca
 // (显式 ca 触发 builtin+extra 全旁路 → 公网 HTTPS 崩; 空 NODE_EXTRA_CA_CERTS 走标准 ENV 路才正解)
 const dispatcher = new ProxyAgent({ uri: PROXY, proxyTunnel: true, bodyTimeout: 0, headersTimeout: 0 });
 
@@ -56,7 +56,7 @@ try {
   console.log("[test-chain] ✓ status:", r.status);
   console.log("[test-chain] body (前 300 字符):", text.slice(0, 300));
   if (r.status === 200) {
-    console.log("\n[test-chain] ★ ZERO-RISK-PASSED: 三环全通 (CA信任+SAN匹配+签发者链), OmniRoute 侧必通, 可进 Step5");
+    console.log("\n[test-chain] ★ ZERO-RISK-PASSED: 三环全通 (CA信任+SAN匹配+签发者链), 上游 侧必通, 可进 Step5");
     process.exit(0);
   } else {
     console.log(`\n[test-chain] 非 200 (${r.status}): 看 body 区分 — unauthorized=桥没注入/Worker AUTH_KEY 不匹配; NVIDIA 格式=链通但鉴权/参数错`);

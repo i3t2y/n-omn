@@ -3,7 +3,7 @@
 //   (旧手搓法: CF Dashboard → 编辑代码 → 全选删除 → 粘贴本文件 → 部署; 已退役自动化取代)
 // AUTH_KEY = env.RELAY_AUTH (wrangler secret put 注入, §2 零入 git/会话);
 //   须与 HF Space Secret RELAY_AUTH 同值 (Worker 鉴权 ↔ 桥 RELAY_AUTH 铁律).
-//   旧钥 OmniRouteFlareTunnelSecret2026 已在对话明文多次出现, 作废必换.
+//   旧钥 FlareTunnelSecret2026 已在对话明文多次出现, 作废必换.
 //   fail-closed: env.RELAY_AUTH 缺 (undefined/null/空串) 必在 fetch 入口硬拒, 不裸奔开放代理.
 const ALLOWED_HOSTS = new Set([
   "integrate.api.nvidia.com",   // NVIDIA NIM (主)

@@ -1,6 +1,6 @@
 #!/bin/bash
 # FlareTunnel 静态二进制编译脚本 (nomn 私库 SSOT, 与上游 MorDavid/FlareTunnel 同哲学)
-# 产物 flaretunnel 须 push HF Dataset nonoke/omn-logic 根 (Space 启动态资产).
+# 产物 flaretunnel 由 sync-logic-xnexus.yml 编译推 xnexus/logic Bucket (Space 启动态资产, 第9件).
 # 卷 1: go build 静态二进制 (无 CGO 依赖, alpine 兼容)
 # 卷 2: sha256 校验 (与已验证 digest fd010e60 比对前提)
 # 编译环境须 Go 1.23+ (见 FlareTunnel.go go.mod 要求; alpine/容器内均可).

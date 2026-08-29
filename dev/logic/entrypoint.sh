@@ -207,10 +207,10 @@ else
 fi
 
 # ── 1.5 FlareTunnel 本地桥 (2026-07-30, 档位A: 单桥 :8080 round-robin N Worker) ──
-# 拓扑: OmniRoute undici → HTTP CONNECT 127.0.0.1:8080 → 桥 MITM → CF Worker 池 → NIM.
+# 拓扑: 上游 undici → HTTP CONNECT 127.0.0.1:8080 → 桥 MITM → CF Worker 池 → NIM.
 #   目的 = 换 NIM 出口 IP (CF 172.64.0.0/13 出口段动态轮换), 与旧 relay 三故障不同代码路径.
-#   拓扑关键: OmniRoute 只见 1 条桥代理 (flaretunnel-8080 → provider scope), Worker 池是
-#   桥内部实现细节 — 桥 round-robin 轮分 N Worker 出口, OmniRoute 不感知 N (设计如此).
+#   拓扑关键: 上游 只见 1 条桥代理 (flaretunnel-8080 → provider scope), Worker 池是
+#   桥内部实现细节 — 桥 round-robin 轮分 N Worker 出口, 上游 不感知 N (设计如此).
 # 开关: FLARETUNNEL_ENABLED=1 (Space Variable) 才启; 未设/0 = 全段零副作用
 #   (AB 双轨同哲学: 默认路径行为不变, 启用路径自举, 回滚 = 删 Variable + Restart).
 # 资产: /logic/flaretunnel (静态二进制) + /logic/flaretunnel_endpoints.json (Worker 池, 数由 jp 真读),
@@ -220,7 +220,7 @@ fi
 #     复用不重签 → §7 看门狗重启桥不换 CA, 上游已载证书不失效, 无须连带重启);
 #   ② export NODE_EXTRA_CA_CERTS 须在 §2 上游 node server.js 启动前 (Node 仅启动时读,
 #     运行中 process.env 设无效; 文件缺则 Node 警告忽略 = CA 未载 = nvidia TLS 必崩);
-#   ③ OmniRoute undici 源码实证 buildConnector 不注 ca → 默认根 CA 自动含 extra, 无须改上游.
+#   ③ 上游 undici 源码实证 buildConnector 不注 ca → 默认根 CA 自动含 extra, 无须改上游.
 # fail-open: FT 是增强层非地基 — 资产缺/桥起不来 → WARN 跳过全段, 不 FATAL 不 brick Space.
 #   (注意降级语义: 若 proxy_enabled 已注册为 1 而桥缺, nvidia 路径停, 日志明示, 人工修资产
 #    或关 FLARETUNNEL_ENABLED 后 Restart.)
@@ -233,7 +233,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
   if [ "$_ft_ok" = 1 ]; then
     chmod +x /logic/flaretunnel 2>/dev/null || true   # start.sh 仅 chmod /logic/*.sh, 二进制此处自举
     FT_CA_DIR="${FT_CA_DIR:-/tmp/ft-ca}"
-    FT_PORT="${FT_PORT:-8080}"                        # 须与 OmniRoute 后台注册代理端口一致 (Step 6)
+    FT_PORT="${FT_PORT:-8080}"                        # 须与 上游 后台注册代理端口一致 (Step 6)
     FT_LOG="${DATA_DIR}/omn-raw/flaretunnel.log"   # 落 omn-raw 临时区 (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
     mkdir -p "$FT_CA_DIR" "$(dirname "$FT_LOG")" 2>/dev/null || true
     # 单点启动函数: 本段首启 + §7 看门狗重启共用同一命令 (不分叉, "改也为以后不改")
@@ -394,7 +394,7 @@ fi
 if [ "$has_r2" = 1 ] && [ -f /logic/litestream.yml ]; then
   # OMN_PERSIST_WRITE 闸 (2026-08-10 圣上令): 控本次启动后改动是否写回 R2.
   #   1 (默认/开) = litestream replicate 照跑, 在线改 (后台加 key/改设置) 推 R2 → 持久保存.
-  #   0 (关)      = replicate 不启 → 本次改动不写回 R2 (不保存). OmniRoute 在线读写本地 SQLite 照常(本次 boot 可见).
+  #   0 (关)      = replicate 不启 → 本次改动不写回 R2 (不保存). 上游 在线读写本地 SQLite 照常(本次 boot 可见).
   #   语义: 此闸只控"写回 R2"一物, 不删任何东西, 不动 restore 读. 开=保存, 关=不保存. 回滚 = 删 Variable + Restart.
   #   (restore L136 仍跑不受此闸控 — 关态只阻写回不阻读档.)
   _LS_LOG_RAW="${DATA_DIR}/omn-raw/litestream.log"

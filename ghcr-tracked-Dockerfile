@@ -2,7 +2,7 @@
 # 防单机 single-copy 机器挂时重建环境层定义失传。不含密钥 (仅 ARG 上游 ref + RUN 装依赖)。
 # 改真源后须同步本副本; upstream_check.sh 预构建只用真源 ~/omn-ops/ghcr/Dockerfile。
 
-# ── OmniRoute 永续节点 · 环境层 GHCR 预构建镜像 ──────────────────────
+# ── omn 永续节点 · 环境层 GHCR 预构建镜像 ──────────────────────
 # 三层解耦: 环境层 (本镜像, GHCR) + 逻辑层 (ho/site repo Dockerfile FROM ${BASE_IMAGE} + COPY bootstrap.sh)
 # 职责边界: 本镜像仅装"上游镜像 + 运行前置依赖 + 跨版防御 env + /data 软链";
 #           不 COPY 任何 gate.js/entrypoint.sh/init/litestream.yml/bootstrap.sh (逻辑层, 走 HF repo build 时 COPY)。

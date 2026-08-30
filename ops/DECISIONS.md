@@ -629,3 +629,27 @@ fname = parts[2]
 **护栏**: §1 xnexus/o 唯一 Space, xnexus/logic 是 Bucket 源非 Space(不新建 Space); §2 xnexus HF_TOKEN 值零入会话; §5 git 一律 ask。
 
 出处: docs/logic-switch-bucket-design.md + docs/xnexus-deploy-checklist.md (commit 待圣上批)。关联: ops/DECISIONS.md §7 (R2 副本), docs/ft-health-aware-rotation.md (同型"待批实施"设计文档先例)。
+
+## §12 升 3.8.50 全链路 (2026-08-30 圣上批"整体升 3.8.50", #39-#42, 只增不改)
+
+圣上 2026-08-30 批"整体升 3.8.50"。五步: #39 拉上游树(upstream/ 只读) → #40 migration 审计(序列 001-162, 断号 026/055/121 与 3.8.49 全同) → #41 撞点映射(API 注册面/透传层/启动编排零破坏性撞点; monitoring/health 鉴权化对 init 零影响, init 只认 http_code 不解析 body) → #42 dev 构建(环境层 omn-base:3.8.50 本地 build rc=0 + push attempt5 大 layer 续传 + manifest HTTP 200 确认) → 生产切换(待圣上执行)。
+
+**GHCR 镜像**: `ghcr.io/i3t2y/omn-base:3.8.50`, RepoDigest `sha256:db9037a7...` (上游 `@sha256:085c57...`)。闸门纪律: 预构建只推 `:3.8.50` 具体 tag, 不推 `:stable` (stable=生产指针, 升级获批 boot 全绿后记账式移动)。
+
+**升级路径定案: Variable 钉 digest (非 Dockerfile ARG)** — `sync-space-xnexus.yml` L13 铁证 xnexus/o 的 BASE_IMAGE 现役即 **Variable** (圣上首投手动锚 9c9aecf), 覆盖 Dockerfile 浮动 `:stable` ARG 默认。此实证 STATUS.md 2026-07-28 双轨回归"Variable 覆盖 ARG 待真验" = Variable 路已真运行。3.8.50 同路, 零新机制。
+
+**批准执行命令 (唯一触 HF build 队列动作, 须 xnexus HF_TOKEN, 圣上执行)**:
+```
+SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py upgrade 3.8.50 ghcr.io/i3t2y/omn-base@sha256:db9037a71379569fa3a86b0760df972fd8413cc07f0a58b64e575bbf28a1718b
+```
+
+**待验 (切后回贴判九段)**: build 日志 (`space_ctl.py build logs`) → boot 九段回显 → `init rc=0`。⚠️ 此操作为生产切换 (xnexus/o 唯一 Space 兼生产), build 冻/风控 兜底契约同 §11 (变量已改镜像未滚时 entrypoint "告警不 exit").
+
+**实测观察 (2026-08-30 boot 全绿, 非致命留痕, 非回退理由)**:
+- `版本不齐 实跑=unknown 期望=3.8.50`: 上游 internal 版本串惯例 unknown, 迁移自动前滚, entrypoint "告警不 exit" 兜底 (§11 契约)。正常。
+- `CredentialHealth ❌ Endpoint /models unavailable` (14 连接, failure #1/600s): 3.8.50 新增健康检查服务, 对 openai-compatible 节点用 /models 探测失败 (提示用 Model ID 走 /chat/completions)。探测噪音, 不阻断实际路由 (同节点业务 200)。观察是否持续。
+- `Cleanup: no such table compression_run_telemetry`: 上游 3.8.50 cleanup 引了 migration 未建/非默认建的表, skip 0 deleted 非致命。
+- `nvidia 枚举 0 模型 (body 0B, key=none)`: 仅致自动 nvidia-pool 跳过, 不影响 nim-pool/dp4f-pool 主路径 (业务 200)。
+- 32 `ProxyEgress status=success` + `[ProxyHealth] 36 blocked by target`: 探活被上游拒=已知惰性检测设计, 业务不受影响。
+
+出处: `old/new/omn-ops/exchange/upgrade-3.8.50-20260830.txt` + memory `v3.8.50-collision-map-zero-2026-08-30`。关联: §11 (xnexus/logic Bucket 拓扑), §7 (R2 副本)。

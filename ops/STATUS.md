@@ -1,6 +1,32 @@
-# ops/STATUS.md · omn dev 部署态快照
+# ops/STATUS.md · omn 部署态快照
 
-> 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。生产态见 §1 禁触, 此处只记 dev。
+> 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。§1 拓扑(2026-08-24/29 修订): 单 Space 单桶, xnexus/o = 唯一 Space 兼生产, R2 bucket = omn-data, 此处记生产态。旧 nomke/nonoke 两 Space 段历史存档不改不回。
+
+## 2026-08-30 · 3.8.50 生产切换落地 (xnexus/o 唯一 Space 兼生产) — A/B/C/M 四段 checklist 全绿
+
+圣上 2026-08-30 批"整体升 3.8.50"。切换 = xnexus/o Variable `BASE_IMAGE` 钉 digest `ghcr.io/i3t2y/omn-base@sha256:db9037a7...` (覆盖 Dockerfile 浮动 `:stable` ARG), 零新建 Space。commit HEAD = `3d1ede6` (本地生产血统, sync-space-xnexus 推送 xnexus/logic Bucket)。
+
+### 三证判全绿 (§4 只认日志签名)
+- **A 段 boot 九段**: `Keys: 32 registered, 0 skipped, 0 failed` → `gc_stale 无待删` → `Provider IDs: 32` → `Resilience PATCH HTTP 200` + 读回 `RPM=300 minMs=200 concurrent=96 maxWaitMs=300000` → 7 combo upsert 全 PUT 200 → `override: 7 applied, 0 failed` → `HF Dataset uploaded` → `init 已退出 rc=0` ✅
+- **B 段请求面**: B1 业务 200 (`/v1/messages | dp4f-pool` terminal 200) + B2 >1.5MB body gate 413 三防伪 (`context_length_exceeded` 签名, 1.2MB 放行穿透) + B3 长思考 574s 完整流 (GATE_UPSTREAM_TIMEOUT_MS=180000 生效) + B4 池矩阵 nim-pool×2 + nim-codex×1 全 200 (真实 Claude Code UA; 测试 UA python-urllib 撞 NVIDIA CF 1010 是工具工件非池病) ✅
+- **C 段持久化**: litestream 存活 (capture_loop 每分钟抓) + R2 副本实时推进 (litestream.log `compaction level=1 txid 0x0a18→0x0a34` + `replicating to type=s3 bucket=omn-data`) ✅
+- **M 段迁移日**: M2 限流双层 (init Resilience 300/200/96/300000 + requestQueue PATCH 200) + M3 风暴特征串计数=0 (gate 日志 0 命中 `ALL_ACCOUNTS_INACTIVE`/`Preserving last upstream error`) ✅
+
+### 已知非致命留痕 (§12 观察, 非回退理由)
+- 版本不齐 `实跑=unknown 期望=3.8.50` (上游内部版本串惯例 unknown) / CredentialHealth /models 探测噪音 / Cleanup 无 compression 表 / nvidia 枚举 0 / ProxyHealth blocked。详见 DECISIONS §12.
+
+### 切换五步态 (2026-08-30 落地重写, 旧 2026-07-25 nomke 五步作废)
+- ① 单 Space 单桶收敛 ✅ (xnexus/o + omn-data, 无双写)
+- ② dev 构建 3.8.50 + boot 全绿 ✅ (build rc=0 + push attempt5 + FROM digest 实证 Variable 覆盖 ARG)
+- ③ xnexus/o 生产切换 ✅ (Variable 钉 digest + space_ctl upgrade + 重启, 三证全绿)
+- ④ 生产副本验证数据连续 ✅ (litestream R2 实时推进, 业务写→复制→compaction 链闭环)
+- ⑤ 金丝雀放量, 旧 nomke 冻结 (非承载, 圣上承诺个人用途; 全程不新建任何 Space)
+
+### 待办
+- [x] 生产切换 boot 全绿 + A/B/C/M 四段 checklist 全绿 (本段)
+- [ ] DECISIONS §12 未 commit 提交 (工作树已改, 待圣上批 commit)
+- [ ] STATUS.md 本段 commit (同批)
+- [ ] 旧环境冻结期: nomke/omn + nonoke/omn 两旧 Space 不写不跑生产 (2026-08-28 账号已恢复圣上个人用途, 不承载代理)
 
 ## 2026-08-12 · FT Worker GitHub Actions 自控部署 (三件本地改完待 commit+push) — 仿 n-edget 手搓→自动 + fail-closed 鉴权根除
 

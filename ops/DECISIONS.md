@@ -8,6 +8,22 @@
 
 ---
 
+## 2026-08-31 · 日志查询分级授权 (HF_TOKEN / PSK / manage 三层)
+
+**决策**: 查模型 429/502 日志与 FT 代理实时计数**不需要 omniroute manage key**——HF_TOKEN 读 Dataset (`save/gate/` `save/app/` `save/ft/`) 即可；FT 用 INTERNAL_PSK 查 gate `/v1/ft/metrics` 反代；manage key (OMN_MANAGE_TOKEN) 仅用于 `/api/*` 运行时状态 (health/providers/models/combo)，且必须用 **xnexus/o Space Secrets 真值**（本地 dev 值 AUTH_001 无效, 实测 403）。
+
+**理由**: manage key 泄露面收敛——日常日志查询走 HF_TOKEN (只面 Dataset) 不触真 manage key；HF Dataset 三层日志已覆盖 429/502、ProxyFetch、桥转发全貌。模型维度分布需注意：gate 请求行无模型字段，须用 app HTTP/ROUTING 行 + 时间窗 ±60s 关联 (低并发可靠, 高并发同秒可能错配)；FT metrics failures 是累计计数口径, 单看不下结论 (须对照 save/app ProxyFetch 行复核真实业务转发)。落地工具: `ops/omn-log-query.py` (commit f9900eb, 八子命令统一入口, key 进程内读零落盘)。
+
+---
+
+## 2026-08-31 · HF Dataset tree API 分页规范 = Link rel=next cursor (禁 after)
+
+**决策**: HF tree API (`GET /api/datasets/{repo}/tree/{rev}/{sub}?recursive=true&limit=1000`) 分页**一律解析响应头 `Link: <url&cursor=<base64>>; rel="next"`** 拉 next URL, 循环到无 next 即全量; **禁用 `after` 请求参数**。
+
+**理由**: 实测坐实——`after` 参数变体 (编码全路径/仅文件名/原名) 均被 API 静默忽略, 恒返回首页前 1000 项 (status 200 无报错)；真游标在 `Link` 头。此坑导致 `save/app` 目录 1617 文件截断在 09:51 (分页失效只拿首 1000, 假象"数据停更")。修复后全量拉取, 时间窗与 `save/gate` 同秒重叠。落地: `ops/omn-log-query.py` `ds_tree()` L35 起已按此实现; 同类递归列表 (models/datasets 枚举) 疑同构, 留下次验证。
+
+---
+
 ## 2026-08-12 · FT Worker GitHub Actions 自控部署 (仿 n-edget 手搓→自动) + worker.js 鉴权 fail-closed 红线
 
 **背景**: 圣上令 "参考 github.com/i3t2y/n-vless、i3t2y/n-edget, 用 GitHub 控制 CF 账号建设 Worker"。落 `ops/DECISIONS.md` 2026-08-10 段 + `docs/flaretunnel.md:39` 自述的运维负债: 现役 = "手工建 Worker → CF Dashboard 全选删除粘贴 worker.js → 部署 → 手填真实 URL 进 `flaretunnel_endpoints.json` 喂本地桥"; `flaretunnel/worker.js:5` `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` 占位圣上手填, 换 AUTH_KEY 钥须逐 Worker 手改 → 密钥漏面大 + 运维负债重。

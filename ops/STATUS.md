@@ -2,6 +2,15 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。§1 拓扑(2026-08-24/29 修订): 单 Space 单桶, xnexus/o = 唯一 Space 兼生产, R2 bucket = omn-data, 此处记生产态。旧 nomke/nonoke 两 Space 段历史存档不改不回。
 
+## 2026-08-31 · ops/omn-log-query.py 日志查询工具落地 — commit f9900eb push 通 nomn
+
+圣上问"如何用 omniroute key 查日志了解 429/502 与 FT 代理"。裁定: **查日志不需要 omniroute key** — gate/app/ft 三层日志经 HF Dataset 用 HF_TOKEN 只读; FT 实时计数走 gate `/v1/ft/metrics` (INTERNAL_PSK); manage key 仅 `/api/*` 运行时状态且须 xnexus/o Space Secrets 真值 (本地 dev 值 AUTH_001, 实测)。
+
+- **工具**: `ops/omn-log-query.py` (ops/ 层不进 Space) 八子命令 `gate [N]`/`gate <模型>`/`app [N]`/`ft`/`storm [N]`/`health`/`providers`/`models`/`combo`; key 从 ~/.omn-secrets 进程内读零落盘。
+- **模型级 429/502 聚合**: gate 行无模型字段 (仅 requestId/path/httpStatus), 模型名在 save/app 的 HTTP/ROUTING 行; 聚合 = app 行拿模型 + 时间窗 ±60s 关联 gate httpStatus。实测 dp4f 9 请求全 200。
+- **HF tree API 分页修复**: `after` 参数被 API 静默忽略 (恒返首 1000, save/app 1617 文件曾截断 09:51), 真游标 = 响应头 `Link: rel="next"` 的 cursor。修复后 save/app 全量拉到 2026-08-31 与 gate 同秒重叠。
+- **本轮观测**: FT metrics 全池 30 Worker 累计成功率 ~8% (failures 2295/2485, 自 boot 累计 + 桥日志只写自签 CA 噪音) — 单看不下结论, 须对照 save/app ProxyFetch 行; gate 17 请求全 200 (3×403=manage key 无效探测非攻击); storm 首 24h 窗 M3 特征串 = 0 PASS。
+
 ## 2026-08-30 · 3.8.50 生产切换落地 (xnexus/o 唯一 Space 兼生产) — A/B/C/M 四段 checklist 全绿
 
 圣上 2026-08-30 批"整体升 3.8.50"。切换 = xnexus/o Variable `BASE_IMAGE` 钉 digest `ghcr.io/i3t2y/omn-base@sha256:db9037a7...` (覆盖 Dockerfile 浮动 `:stable` ARG), 零新建 Space。commit HEAD = `3d1ede6` (本地生产血统, sync-space-xnexus 推送 xnexus/logic Bucket)。

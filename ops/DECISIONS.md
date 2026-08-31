@@ -8,6 +8,18 @@
 
 ---
 
+## 2026-08-31 · dp4f-pool 选择机制 = 两层 per-request 健康选择 (provider 顺序可配 / key 粒度不可配)
+
+**决策**: dp4f-pool (combo: nvidia/deepseek-v4-flash + sensenova-node.id/... + amd-node.id/...) 的流量选择是**两层 per-request 选择**, 不是顺序轮询。①**combo 层挑 provider**: 候选按**每条 combo 条目**构建 (非按连接展开), 策略默认 `p2c` = 每请求随机抽 2 条 target 按健康评分取优作首选, 其余按原序跟随后 fallback。②**provider 内挑 key**: 选定 provider 后执行层按其活跃连接池 (connectionPoolSize) 走 **accountFallback 健康退避** (backoffLevel/lastError/rateLimitedUntil 打分 + lockDown 轮换), 非顺序轮询。③**fallback 链**: 单请求 for 循环逐 target 尝试, **该 provider 内所有 key 试完 → 下一 provider** — 即"整个 provider 的所有 key 轮完再下一个"仅存在于 fallback 语义, 不是主选顺序。
+
+**可配维度 (provider 间顺序)**: combo `.strategy` 字段, init 白名单 16 策略 (`fill-first`=固定条目序 nvidia→sensenova→amd / `round-robin`=每请求换 provider / `p2c`=随机+健康 / `priority`/`random`/`least-used`/`cost-optimized` 等)。改法二选一: `NIM_POOL_STRATEGY` env (**须 reboot**, init 读它) 或直改 combo 记录 `PUT /api/combos/:id` 改 `.strategy` (**即时生效**, strategy 每请求从 combo 记录读)。
+
+**不可配维度**: ①provider 内 key 轮换固定健康退避, 无"严格顺序轮 key"选项; ②**per-key 粒度**无法靠策略选 — combo 候选粒度 = 条目非连接, 想 per-key 轮询必须改池结构 (每 key 独立 provider-node 或 connectionId 钉死, 使 combo.models 条目数 = key 数)。`accountSelector.ts` 的 `selectAccountP2C` 是 dead code (除自身外无 import), 执行层 key 选择真源在 `accountFallback.ts`。
+
+**理由**: 2026-08-31 读 diff 双版本对照 upstream 3.8.50 坐实——`combo.ts` candidates = `fingerprintExpandedTargets.map(...)` 按条目构建 + 每条带 `connectionPoolSize`; p2c 排序 `combo/targetSorters.ts:142 orderTargetsByPowerOfTwoChoices` + 评分 `getP2CTargetScore` (成功率+时延, breaker OPEN=-∞); 分发 `combo/applyStrategyOrdering.ts:131` `else if (strategy === "p2c")`; fallback 循环 `combo.ts:L1184/L1643` 逐 `orderedTargets[i]`; key 健康 `services/accountFallback.ts:2175 getAccountHealth` + `lockDown`。加入点: `dev/logic/init-nim-keys.sh:157 _VALID_STRATS` + `:349 _POOL_STRATEGY` 默认 p2c + `upsert_dp4f_pool` L1514。关联 [[dp4f-pool-rename-orphan-cleanup]], [[dpv4flash-cross-provider-pool-landed]], [[nim-multikey-miztertea-vs-omniroute-comparison]]。
+
+---
+
 ## 2026-08-31 · manage key 真变量 = OMNIROUTE_API_KEY (OMN_MANAGE_TOKEN 是 ops 层误造名, 废弃)
 
 **决策**: omniroute 管理面 `/api/*` (provider-nodes/providers/combos/models/health/keys/settings-export) 的 manage key **真变量 = `OMNIROUTE_API_KEY`** (xnexus/o Space Secret → init-nim-keys.sh L735-758 种 DB `apiKeys` 表, 写 `/data/.or-api-key`)。**废弃 `OMN_MANAGE_TOKEN` 这个命名**——它只在 ops 层/记忆/工具里出现, 上游源码无此 env; 在 xnexus/o Space 设 `OMN_MANAGE_TOKEN` 无效, 拿它打 `/api/*` 恒 `AUTH_001`。

@@ -8,6 +8,41 @@
 
 ---
 
+## 2026-08-31 · 双轨更正: openrouter/mistral = 内置轨 (更正上条误分类) + 全 provider 纳入内置迁移 + pool 必要性判据
+
+**更正 (上条"nvidia 双轨收敛"分类误判)**: 上条把 **openrouter/mistral 归于自定义轨** (建 provider-node, 连接挂 UUID), 经源码坐实 **错误** — 二者皆上游 **内置 API-key provider**:
+- `gateways.ts:89-101`: openrouter = `{id:"openrouter", passthroughModels:true, hasFree:true}` ✅ 内置
+- `frontier-labs.ts:117-128`: mistral = `{id:"mistral", hasFree:true}` ✅ 内置
+- 各有 `open-sse/config/providers/registry/{openrouter,mistral}/index.ts` 完整 baseUrl (buildUrl L330 直用 `this.config.baseUrl`) + `hasFree` + combo 建议逻辑。
+
+**修正后两轨 (第一性: 每 provider 只走一条)**:
+- **内置轨** (连接挂 `provider=<内置名>`, 短名通, 不建 node) = **nvidia + sensenova + openrouter + mistral**
+- **自定义轨** (建 provider-node, 连接挂 `provider=<node_uuid>`) = **amd 仅** (registry 两版本均无 → 唯一非内置)
+
+**决策: openrouter/mistral 并入 sensenova 那批内置迁移** (mode=builtin, 同一 `_register_multi_provider` 内置分支, 连接注册 `provider=openrouter` / `provider=mistral`)。PROVIDERS 表两行改 8/9 字段: openrouter = `mode=builtin` + **static_models 空** (保留动态枚举, passthroughModels:true, max=100 不变); mistral = `mode=builtin` + **方案A static_models 5 chat 模型** (避开 mistral-embed/codestral-embed 污染 chat 列表)。清理函数 `_cleanup_legacy_node(nvidia/openrouter/mistral)` + `_cleanup_sensenova_double_prefix` 幂等清旧 node 残留。env `ALL_FT_FAMILIES` 前缀族不变, FT 绑 `provider` 字段不受影响。mock 验证 (ops/mock-omr-register.sh) 全绿: nvidia skip / openrouter 动态枚举短名 / mistral 白名单不枚举 / amd node 分支 / dp4f 三 provider 排除 openrouter / 4 家旧 node cleanup。
+
+**pool 必要性判据 (圣上问"为什么每个提供商都要一个 pool"时的定谳)**:
+- pool (= combo) = **上游唯一的多 key 聚合/容错机制**, 请求 `model=<pool名>` 走 `chatHelpers.ts:193 getComboForModel` → combo.ts `strategy` (p2c/round-robin/weighted) + `checkFallbackError` 失败换 key/provider; 裸 `provider/model` 只挑一条连接, 无轮询无 fallback。
+- **多 key provider 必须有 pool 才有跨 key 负载均衡 + 429/403 fallback** — 这是 NIM 25 key 不崩不风控的地基, 也是上游默认设计 (每个 apikey provider 自带 hasFree/comboSuggestions)。
+- `${provider}-pool` (单 provider 内部聚合) 与 `dp4f-pool` (跨 provider 同模型聚合) 是第三维 (聚合维), 与内置/自定义轨正交 — 每 provider 不管走哪轨都要有自己那层 pool。
+- **过度设计的反方向才是值得警惕的**: 现在 mistral/sensenova/amd 各 1 key, pool 是单元素 (无聚合价值但无害)。**保持统一 (每 provider 都建 pool) 比按 key 数特判跳过更简单** — 不做特判, 随 key 增多自动变有用, 与 nvidia 25-key 结构对齐。
+
+**关联**: [[sensenova-builtin-ft-whitelist-cleanup-landed]], [[dpv4flash-cross-provider-pool-landed]], [[dp4f-pool-rename-orphan-cleanup]], [[nim-multikey-miztertea-vs-omniroute-comparison]], [[omniroute-gateway-goal-and-risks]]。
+
+---
+
+## 2026-08-31 · nvidia 双轨收敛 = 单轨内置 (通用循环跳过 nvidia, 禁改 builtin 防撞名)
+
+**决策**: nvidia 从双轨收敛为**单轨内置**。**通用 `_register_multi_provider` 循环跳过 nvidia** (连接/模型/combo/FT 全由 legacy NIM_KEYS 内置轨独占: `nim-01..32`@provider=nvidia + nim-pool/nim-codex/dp4f 全锚其上)。**禁把 nvidia 行 mode 改 builtin**——那会让通用循环以 `provider=nvidia` 再注册一套 `nvidia-01..32`, 与 legacy `nim-01..32` 同 provider 撞成 64 条, 是更脏的双轨。分两路第一性: **内置轨** (连接挂 provider=<内置名>, 短名通) = nvidia + sensenova; **自定义轨** (建 provider-node, 连接挂 provider=<node_uuid>) = openrouter/mistral/amd。
+
+**关键证据 (FT 绑定锚 provider 字段非前缀, 2026-08-31 源码坐实)**: `resolveProxyForConnection` (upstream 3.8.50 `src/lib/db/settings.ts:656-665` Step6) 请求时 `resolveProxyForScopeFromRegistry("provider", connectionProvider)` — 匹配键 = **连接 `provider` 字段**。FT bulk-assign (init L478 `ALL_FT_FAMILIES` 前缀族名 → `proxies.ts:819` → `assignProxyToScope` L496) 只把 scopeId 原样写 `proxy_assignments.scope_id`, 不按前缀展开连接。故: legacy `nim-01..32`@provider=nvidia 匹配 FT `scope_id=nvidia` ✅; node 套件 `nvidia-01..32`@provider=openai-compatible-chat-404a636c 匹配 `scope_id=UUID` 无此行 ❌ **从未拿到 FT**。node 套件=纯死配置 (无 combo 消费/无 FT/无短名路由/baseUrl 缺 /v1 引 CredentialHealth 404 噪音)。
+
+**改动**: `dev/logic/init-nim-keys.sh` `_register_multi_provider` 循环首段加 `[ "$_pid" = "nvidia" ] && continue` (注释: legacy 内置轨独占, 通用表跳过; PROVIDERS 表 nvidia 行保留仅供 `ALL_FT_FAMILIES` 收前缀绑 FT)。顺带清残留 nvidia-node (复用 `_cleanup_legacy_sensenova_node` 同款幂等模式)。dp4f nvidia 条目不受影响 — 来自 `upsert_dp4f_pool` 的 `filter_alive(NIM_POOL_MODELS)` (独立于通用循环)。
+
+**理由**: 圣上令第一性原理——按上游默认最小改动, 统一所有提供商或分明两路 (内置/自定义), 不做过度设计; 双轨必然跑空/多 bug。nvidia 早是内置轨 (legacy 即 provider=nvidia), 通用循环再当自定义节点处理一套 = 双轨漏。关联 [[dpf-pool-rename-orphan-cleanup]], [[dpv4flash-cross-provider-pool-landed]], [[sensenova-builtin-ft-whitelist-cleanup-landed]]。
+
+---
+
 ## 2026-08-31 · dp4f-pool 选择机制 = 两层 per-request 健康选择 (provider 顺序可配 / key 粒度不可配)
 
 **决策**: dp4f-pool (combo: nvidia/deepseek-v4-flash + sensenova-node.id/... + amd-node.id/...) 的流量选择是**两层 per-request 选择**, 不是顺序轮询。①**combo 层挑 provider**: 候选按**每条 combo 条目**构建 (非按连接展开), 策略默认 `p2c` = 每请求随机抽 2 条 target 按健康评分取优作首选, 其余按原序跟随后 fallback。②**provider 内挑 key**: 选定 provider 后执行层按其活跃连接池 (connectionPoolSize) 走 **accountFallback 健康退避** (backoffLevel/lastError/rateLimitedUntil 打分 + lockDown 轮换), 非顺序轮询。③**fallback 链**: 单请求 for 循环逐 target 尝试, **该 provider 内所有 key 试完 → 下一 provider** — 即"整个 provider 的所有 key 轮完再下一个"仅存在于 fallback 语义, 不是主选顺序。

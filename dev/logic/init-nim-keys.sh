@@ -82,7 +82,10 @@ declare -a PROVIDERS=(
   # google: 注释停用 (boot 2026-08-26 定谳: google 免费层对数据中心出站 IP 地理风控 "User location is not supported",
   #   HF 容器/FT Worker 数据中心 IP 直接拒 (28B), 本机家宽 IP 才通. 非脚本 bug, 保留配置待出站解决可恢复.
   # "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20|"
-  "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100|"
+  # openrouter: 2026-08-31 圣上令 — 内置 provider (gateways.ts:89 id:"openrouter" + registry baseUrl 现成),
+  #   第 8 字段 builtin 同 sensenova. 保持动态枚举 (passthroughModels:true, 全模型透传, max=100 不变);
+  #   第 9 字段 static_models 留空 → 走默认枚举, 与改内置前 node 套件行为一致 (仅换短名前缀).
+  "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100||builtin|"
   # sensenova: 第 8 字段 = builtin → 走内置 provider (不建 provider-node, 连接/模型/combo/dpv4 全挂
   #   provider=sensenova 内置名, 短名通, 与 nvidia 同模式). 内置 baseUrl 现成
   #   (config/providers/registry/sensenova/index.ts: https://token.sensenova.cn/v1/chat/completions),
@@ -93,7 +96,10 @@ declare -a PROVIDERS=(
   #   直接用白名单注册 (方案A: sensenova 模型少且明确, 避免上游 /models 带回 u1-fast 图片模型误入 chat).
   #   2026-08-28 圣上令方案A: 白名单 = 内置 registry 3 个 chat 模型 (sensenova-6.7-flash-lite/deepseek-v4-flash/glm-5.2).
   "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite deepseek-v4-flash glm-5.2"
-  "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20|"
+  # mistral: 2026-08-31 圣上令 — 内置 provider (frontier-labs.ts:117 id:"mistral" + registry baseUrl 现成).
+  #   第 8 字段 builtin 同 sensenova; 第 9 字段 static_models = registry 5 个 chat 模型 (方案A,
+  #   模型少且明确, 避免上游 /models 带回 mistral-embed/codestral-embed 嵌入模型误入 chat).
+  "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20||builtin|mistral-large-latest mistral-medium-3-5 mistral-small-latest devstral-latest codestral-latest"
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
 )
@@ -1338,6 +1344,12 @@ _register_multi_provider() {
     _keys=""
     _keys=$(eval "printf '%s' \"\${$_penvv}\"" 2>/dev/null || true)
     [ -z "$(printf '%s' "$_keys" | tr -d '[:space:]')" ] && { echo "[init]   $_pid: env $_penvv 空, 跳过."; continue; }
+    # nvidia: legacy NIM_KEYS 内置轨独占 (nim-01..32@provider=nvidia + nim-pool/nim-codex/dp4f
+    # 全锚其上, FT 绑 provider=nvidia 字段), 通用表跳过 — 不建 node 套件, 防双轨.
+    # 禁把 mode 改 builtin: 那会让本循环以 provider=nvidia 再注册 nvidia-01..32, 与 nim-01..32
+    # 同 provider 撞成 64 条 (2026-08-31 圣上令第一性: 分两路 内置/自定义, 每 provider 只走一条).
+    # PROVIDERS 表 nvidia 行保留, 仅供 ALL_FT_FAMILIES 收前缀绑 FT 族.
+    [ "$_pid" = "nvidia" ] && { echo "[init]   nvidia: legacy 内置轨独占, 通用表跳过 (双轨收敛单轨)"; continue; }
     echo "[init]   $_pid: 建节点+连接+枚举模型 (base=${_pburl}, max=${_pmax}, mode=$([ "$_is_builtin" = 1 ] && echo builtin || echo node))..."
 
     # ── 1) 建 provider-node (幂等: 存在则查复用) — builtin 模式跳过 (走内置 provider 名) ──
@@ -1506,8 +1518,13 @@ _register_multi_provider() {
     fi
   done
   upsert_dp4f_pool
-  # sensenova 已改内置, 清旧自定义节点残留 (幂等; 无残留则 no-op)
-  _cleanup_legacy_sensenova_node
+  # 内置化后清旧自定义节点残留 (幂等; 无残留则 no-op). 2026-08-31 四家全内置化:
+  #   sensenova(08-28) + nvidia/openrouter/mistral(08-31). 顺序: 先注册新内置路径 (循环内), 后清旧 node.
+  _cleanup_legacy_node "sensenova-node" "sensenova"
+  _cleanup_sensenova_double_prefix
+  _cleanup_legacy_node "nvidia-node" "nvidia"
+  _cleanup_legacy_node "openrouter-node" "openrouter"
+  _cleanup_legacy_node "mistral-node" "mistral"
   echo "[init] General multi-provider registration done."
 }
 
@@ -1579,33 +1596,40 @@ upsert_dp4f_pool() {
 #   2) 删该 node 下模型注册 (DELETE /api/provider-models?provider=<nodeid>&all=true, 兜底)
 #   3) 删 provider=sensenova 下双重前缀残留 modelId (sensenova/sensenova/... 历史叠加)
 # 幂等: 无旧节点/无残留则 no-op. 只删精确匹配, 不动正确短名 (sensenova/<模型>).
-_cleanup_legacy_sensenova_node() {
-  # ── 1) 找并删旧 provider-node (name=sensenova-node) ──
-  local _ONF _ONID _ONHTTP
-  _ONF="$(_resp omn-provider-nodes-legacy.json)"
+# ── 内置化后清理旧自定义节点 (通用, 幂等) ──
+# 2026-08-28~31: sensenova/nvidia/openrouter/mistral 全部改走内置 provider (provider=<短名>, 短名通).
+# 旧的自定义 provider-node (name=<节点名>, id=openai-compatible-chat-<UUID>) 及挂其下的连接/模型
+# 注册成为孤儿残留 (无 combo 消费/无 FT 绑定/provider 字段 UUID 匹配不到 proxy_assignments scope_id=<短名>).
+# 本函数幂等清理 (参数: 节点名 + 日志标签):
+#   1) 删 provider-node name=<节点名> (DELETE /api/provider-nodes/<id> 级联删连接+别名)
+#   2) 删该 node 下模型注册 (DELETE /api/provider-models?provider=<nodeid>&all=true, 兜底)
+# 幂等: 无旧节点/无残留则 no-op. 只删精确匹配, 不动内置名下连接 (provider=<短名>).
+_cleanup_legacy_node() {
+  local _node="$1" _label="$2" _ONF _ONID _ONHTTP
+  _ONF="$(_resp omn-provider-nodes-legacy-${_label}.json)"
   curl -s -o "$_ONF" -b "$COOKIE_FILE" "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || true
-  _ONID=$(jq -r --arg n "sensenova-node" '.. | objects | select(.name? == $n) | .id // empty' "$_ONF" 2>/dev/null | head -n1)
+  _ONID=$(jq -r --arg n "$_node" '.. | objects | select(.name? == $n) | .id // empty' "$_ONF" 2>/dev/null | head -n1)
   if [ -n "$_ONID" ]; then
     _ONHTTP=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
       -X DELETE "$BASE_URL/api/provider-nodes/$_ONID" 2>/dev/null || echo "000")
-    echo "[init] cleanup sensenova: 删旧 provider-node sensenova-node (id=$_ONID) HTTP $_ONHTTP (级联删连接+别名)"
+    echo "[init] cleanup $_label: 删旧 provider-node $_node (id=$_ONID) HTTP $_ONHTTP (级联删连接+别名)"
     # 删 node 后其下模型注册可能残留 (provider-models 表独立), 显式清
     _ONHTTP=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
       -X DELETE "$BASE_URL/api/provider-models?provider=$_ONID&all=true" 2>/dev/null || echo "000")
-    echo "[init] cleanup sensenova: 清旧 node 下模型注册 (provider=$_ONID) HTTP $_ONHTTP"
+    echo "[init] cleanup $_label: 清旧 node 下模型注册 (provider=$_ONID) HTTP $_ONHTTP"
   else
-    echo "[init] cleanup sensenova: 无旧 provider-node sensenova-node, 跳过节点清理"
+    echo "[init] cleanup $_label: 无旧 provider-node $_node, 跳过节点清理"
   fi
+}
 
-  # ── 2) 删 provider=sensenova 下双重前缀残留 (modelId 以 sensenova/sensenova/ 开头) ──
-  # 历史 boot (自定义节点时代前缀叠加) 注册的错误 modelId, 挂在 provider=sensenova 下污染列表.
-  # 只删双重及以上前缀, 不动正确短名 (sensenova/<裸模型名>).
-  local _MMF _MMLIST _mm
+# ── sensenova 专有: 删 provider=sensenova 下双重前缀残留 (modelId 以 sensenova/sensenova/ 开头) ──
+# 历史 boot (自定义节点时代前缀叠加) 注册的错误 modelId, 挂在 provider=sensenova 下污染列表.
+# 只删双重及以上前缀, 不动正确短名 (sensenova/<裸模型名>). openrouter/mistral/nvidia 无此叠加史.
+_cleanup_sensenova_double_prefix() {
+  local _MMF _MMLIST _mm _ONHTTP
   _MMF="$(_resp omn-provider-models-sensenova.json)"
   curl -s -o "$_MMF" -b "$COOKIE_FILE" "$BASE_URL/api/provider-models?provider=sensenova" 2>/dev/null || true
   # GET 响应结构 = {models:[{id,...}], modelCompatOverrides:[...]} (3.8.49 route.ts).
-  # 双重前缀残留 = modelId 以 sensenova/sensenova/ 开头的错误条目 (自定义节点时代前缀叠加),
-  # 挂在 provider=sensenova 下污染列表. 只删双重及以上前缀, 不动正确短名 (sensenova/<裸模型名>).
   _MMLIST=$(jq -r '.models[]? | .id // empty' "$_MMF" 2>/dev/null \
     | grep -E '^sensenova/sensenova/' || true)
   if [ -n "$_MMLIST" ]; then
@@ -1619,6 +1643,8 @@ _cleanup_legacy_sensenova_node() {
     echo "[init] cleanup sensenova: 无双重前缀残留, 跳过"
   fi
 }
+
+# nvidia 清理已并入 _cleanup_legacy_node 泛化 (2026-08-31): 调用点见 _register_multi_provider 末尾.
 
 # ── 增量模式（⑧ 增量门放宽：任一 nim-* combo 或 INIT_MARKER 存在）──
 if [ -f "$_DB_PATH" ]; then

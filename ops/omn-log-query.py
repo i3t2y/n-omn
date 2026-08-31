@@ -7,15 +7,15 @@
   python3 ops/omn-log-query.py gate <模型名> # 按模型聚合: app 路由行拿模型 + 时间窗关联 gate 状态 (模型级 429/502)
   python3 ops/omn-log-query.py app [N]      # 查上游 app 日志: errorCode/ProxyFetch/limit 签名
   python3 ops/omn-log-query.py ft           # 查 FT 代理实时计数 (/v1/ft/metrics, PSK) + 桥日志错误签名
-  python3 ops/omn-log-query.py health       # 查运行时连接健康 (需 xnexus/o 真 OMN_MANAGE_TOKEN, 本地无效则 403)
-  python3 ops/omn-log-query.py combo        # 查 combo 池配置 (需真 manage key)
+  python3 ops/omn-log-query.py health       # 查运行时连接健康 (manage key = OMNIROUTE_API_KEY, ~/.omn-secrets 已真值)
+  python3 ops/omn-log-query.py combo        # 查 combo 池配置 (同 manage key)
   python3 ops/omn-log-query.py storm [N]    # M3 口径: 风暴特征串计数 (gate+app 日志, 应=0)
 
 日志来源:
   - gate 请求日志: Dataset xnexus/logic save/gate/  (scheduler 每~10s 抓增量, 每请求一行 JSON)
   - 上游 app 日志: Dataset xnexus/logic save/app/   (含 errorCode / ProxyFetch / 上游限流)
   - FT 桥日志:     Dataset xnexus/logic save/ft/    (自签 CA 提示居多, 非错误)
-  - manage 状态:   gate /api/* (xnexus/o 真 manage key, 非本地 dev key)
+  - manage 状态:   gate /api/* (manage key = ~/.omn-secrets 的 OMNIROUTE_API_KEY, 非 OMN_MANAGE_TOKEN)
 """
 import re, os, sys, json, socket, collections, bisect, datetime, urllib.request, urllib.error, urllib.parse
 socket.setdefaulttimeout(25)
@@ -29,7 +29,8 @@ def getval(name):
 BASE = getval('OMN_XNEXUS_URL')
 PSK  = getval('INTERNAL_PSK')
 HF   = getval('HF_TOKEN')
-MGR  = getval('OMN_MANAGE_TOKEN')
+# manage key 真变量 = OMNIROUTE_API_KEY (init 种 DB apiKeys; OMN_MANAGE_TOKEN 是 ops 层误造名, 上游无此 env)
+MGR  = getval('OMNIROUTE_API_KEY')
 DS   = "xnexus/logic"
 
 # ── Dataset 读取 (HF_TOKEN 即可, 无需 omniroute key) ─────────────────
@@ -205,10 +206,10 @@ def q_ft():
     if len(re.findall('certificate', alltxt, re.I)) and not re.search(r'fail|error|refused|429|502|503|timeout', alltxt, re.I):
         print("  (仅自签 CA 提示, 无真实错误)")
 
-# ── manage 状态 (需 xnexus/o 真 manage key) ─────────────────────────
+# ── manage 状态 (manage key = OMNIROUTE_API_KEY) ────────────────────────
 def q_manage(path, label, depth=400):
     if not BASE or not MGR:
-        print(f"[{label}] 缺 OMN_MANAGE_TOKEN (本地值对 xnexus/o 无效, 须 xnexus/o Space Secrets 真值)"); return
+        print(f"[{label}] 缺 OMNIROUTE_API_KEY (~/.omn-secrets 无此值)"); return
     req = urllib.request.Request(f"{BASE}{path}", headers={"Authorization": f"Bearer {MGR}", "Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=25) as r:

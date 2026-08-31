@@ -8,6 +8,14 @@
 
 ---
 
+## 2026-08-31 · manage key 真变量 = OMNIROUTE_API_KEY (OMN_MANAGE_TOKEN 是 ops 层误造名, 废弃)
+
+**决策**: omniroute 管理面 `/api/*` (provider-nodes/providers/combos/models/health/keys/settings-export) 的 manage key **真变量 = `OMNIROUTE_API_KEY`** (xnexus/o Space Secret → init-nim-keys.sh L735-758 种 DB `apiKeys` 表, 写 `/data/.or-api-key`)。**废弃 `OMN_MANAGE_TOKEN` 这个命名**——它只在 ops 层/记忆/工具里出现, 上游源码无此 env; 在 xnexus/o Space 设 `OMN_MANAGE_TOKEN` 无效, 拿它打 `/api/*` 恒 `AUTH_001`。
+
+**理由**: 2026-08-31 实测——本地 `~/.omn-secrets` 的 `OMN_MANAGE_TOKEN` 打 xnexus-o `/api/*` 恒 403 AUTH_001; 改用 `OMNIROUTE_API_KEY` 立即 200 通 (实测 `/api/provider-nodes?type=openai-compatible` 200, 据此定位 `404a636c`=nvidia-node)。`grep -rn "OMN_MANAGE_TOKEN" upstream/…/src/` 全树无此名, 坐实是自造。落地: `ops/omn-log-query.py` 已改 `MGR=getval('OMNIROUTE_API_KEY')` (commit a8a56af), `health/providers/models/combo` 子命令本地即通, 不需另取 Space 真值。关联 [[omn-log-query-tool-landed]], [[manage-token-omn-manage-location-2026-08-21]]。
+
+---
+
 ## 2026-08-31 · 日志查询分级授权 (HF_TOKEN / PSK / manage 三层)
 
 **决策**: 查模型 429/502 日志与 FT 代理实时计数**不需要 omniroute manage key**——HF_TOKEN 读 Dataset (`save/gate/` `save/app/` `save/ft/`) 即可；FT 用 INTERNAL_PSK 查 gate `/v1/ft/metrics` 反代；manage key (OMN_MANAGE_TOKEN) 仅用于 `/api/*` 运行时状态 (health/providers/models/combo)，且必须用 **xnexus/o Space Secrets 真值**（本地 dev 值 AUTH_001 无效, 实测 403）。

@@ -2,6 +2,12 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。§1 拓扑(2026-08-24/29 修订): 单 Space 单桶, xnexus/o = 唯一 Space 兼生产, R2 bucket = omn-data, 此处记生产态。旧 nomke/nonoke 两 Space 段历史存档不改不回。
 
+## 2026-08-31 · manage key 真变量修正 = OMNIROUTE_API_KEY — commit a8a56af push 通 nomn
+
+定位 CredentialHealth `/models` 报错时纠出重大命名错——**`OMN_MANAGE_TOKEN` 是 ops 层误造名** (上游源码无此 env), 拿它打 `/api/*` 恒 403 `AUTH_001`。真 manage key = **`OMNIROUTE_API_KEY`** (Space Secret → init L735-758 种 DB apiKeys), 本地 `~/.omn-secrets` 已有真值, 改用即 200 通。`ops/omn-log-query.py` 已改 `MGR=getval('OMNIROUTE_API_KEY')`, `health/providers/models/combo` 子命令本地直接可用 (不需另取 Space 真值)。**在 xnexus/o Space 不需要设 `OMN_MANAGE_TOKEN`**。
+
+- **顺带定位真因**: `openai-compatible-chat-404a636c` (CredentialHealth 报错节点) = **nvidia-node**, baseUrl `https://integrate.api.nvidia.com` **缺 `/v1`** → 探活拼 `/models`=404 (真实 `/v1/models`=200) → 上游 T25 fallback 报 "Endpoint /models unavailable"。业务不受影响 (nvidia 推理走 NIM 专属 `/v1` 硬编码路径照常 200; CredentialHealth cache 只被 monitoring 展示消费, 不参与路由/filter_alive/combo) → **纯噪音, 无需修正**。
+
 ## 2026-08-31 · ops/omn-log-query.py 日志查询工具落地 — commit f9900eb push 通 nomn
 
 圣上问"如何用 omniroute key 查日志了解 429/502 与 FT 代理"。裁定: **查日志不需要 omniroute key** — gate/app/ft 三层日志经 HF Dataset 用 HF_TOKEN 只读; FT 实时计数走 gate `/v1/ft/metrics` (INTERNAL_PSK); manage key 仅 `/api/*` 运行时状态且须 xnexus/o Space Secrets 真值 (本地 dev 值 AUTH_001, 实测)。

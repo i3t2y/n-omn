@@ -1,0 +1,29 @@
+name: deploy-ho-proxy
+
+# 反代 Worker (sonoke → xnexus gate) 部署 · tag-driven (仿 deploy-ft-workers.yml)
+# 触发: push `deploy-ho-*` tag 或 workflow_dispatch 手动
+# Secrets: HO_CF_TOKEN (CF API token, 4 权限最小集) + Variable: HO_CF_ACCOUNT_ID
+on:
+  push:
+    tags:
+      - "deploy-ho-*"
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "wrangler command (deploy/delete)"
+        required: false
+        default: "deploy"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy ho-proxy Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.HO_CF_TOKEN }}
+          accountId: ${{ vars.HO_CF_ACCOUNT_ID }}
+          workingDirectory: workers/ho-proxy
+          command: ${{ inputs.command || 'deploy' }}

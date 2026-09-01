@@ -1,0 +1,16 @@
+# ho-proxy: sonoke → xnexus gate 入站反代 · wrangler 配置
+# 部署: .github/workflows/deploy-ho-proxy.yml → wrangler-action `wrangler deploy`
+# ⚠️ 必须绑自定义域 (workers_dev=false), 勿用 *.workers.dev — HF 容器出站 SNI 黑名单拦 workers.dev
+name = "ho-proxy"
+main = "src/index.js"
+compatibility_date = "2026-04-26"
+workers_dev = false
+
+[[routes]]
+pattern = "h-o.cc.cd"
+custom_domain = true
+
+# 反代总开关: "1"=启用, "0"/删除=拒(503). 默认关(fail-closed), 部署后显式置 "1" 启用
+# 切换如不重部署: CF Dashboard → ho-proxy → Settings → Variables → 改 HO_PROXY_ENABLED → 新版生效
+[vars]
+HO_PROXY_ENABLED = "0"

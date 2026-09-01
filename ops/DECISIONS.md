@@ -8,6 +8,23 @@
 
 ---
 
+## 2026-09-01 · k3 上游 bug 查证三档闭环 (3.8.50 已含全部修复) + claudecode 自动停 = k3 不适配 agent loop (非上游 bug)
+
+**查证 (圣上问 omniroute 官方 kimi-k3 调用有无 bug)**: GitHub Search API + 本地 3.8.50 树 (浅克隆仅 1 commit, 不能 git log -S, 用 CHANGELOG 分段 + 代码双证; 版本段边界 3.8.50=L92-1625 / 3.8.49=L1626)。三档:
+- ✅ **已修复且 3.8.50 已含**: #9496 K3 reasoning 保留 (`kimi.ts:151 backfillKimiReasoningContent` + `schemaCoercion.ts:463`); #9053 K3 拒 `xhigh` 400 → 透传 literal max (`reasoningEffort.ts:169 isMoonshotK3=/^kimi-k3$/` + L399, 单测 `moonshot-k3.test.ts`); #9005 tool message 回填; #9000 reasoning.encrypted_content 保留+日志脱敏; #9338 只涉 kimi-web 与我们 NIM 无涉
+- ⚠️ **上游未结但 NIM 路径不触发**: #9771 (reasoning replay 跨 provider) / #11875 (deferred 3.8.52 max effort 钳制) 只作用于 MoonshotExecutor (provider=`moonshot|kimi`, `executors/index.ts:200-201`); 我们走 nvidia|openai-compatible → DefaultExecutor → `base.ts:886 sanitizeReasoningEffortForProvider`
+- 🟢 **结构确认**: `nvidia/moonshotai/kimi-k3` 经 `getGlobalModel` (`providerModels.ts:114/120` 剥前缀+子串) 解析到全局 `kimi-k3` → `isMoonshotK3` 命中 → 与裸 kimi-k3 同 effort-sanitize 路径, xhigh→max 修复生效
+
+**决策**: 生产再遇 K3 400 `invalid reasoning value: 'xhigh'` → 三档上游 bug 已排除, 判我们自身层 (gate 透传出处 / NIM 端 modelSeg), 直接查 sanitizer `reasoningEffort.ts:169/399`。3.8.50 树浅克隆无 git 历史, 验修复别 grep PR 号, 用 CHANGELOG.md 分段定位。
+
+**claudecode 用 k3 总自动停 (Thought for 2m 9s) 定谳**: **200 OK ≠ 正常轮次**。后台两条 200 (17-20s, input 58K, output 46/334 token, `reasoning: 不适用`) = **成功但退化** — k3 只吐 46-token `finish_stop` 短答, **无 tool_use** → agent 循环断链 → 自动停; `reasoning: 不适用` = 思考被剥/请求未带 thinking/effort。**不自动切模型** (claudecode 失败只重试同一模型, 每轮卡死至人工干预)。**决策: k3 定位单轮深思考问答, 不用作 agent loop 主力** (长期 agent 工作换 `deepseek-v4-flash`/`glm-5.2`)。待查两事: ① `STREAM_READINESS_TIMEOUT_MS` 180s 是否被 dev/prod Space env 的 r3 80s 覆盖 (致长思考首 token 竞态超时); ② gateway 是否把 Claude thinking/effort 透传给 K3 原生 reasoning (`X-Kimi-Effort`/max_effort_tokens)。
+
+**快照**: `audit/2026-09-01-k3-verify-autostop.md` (两条 memory 合并快照入血统)。
+
+**关联**: 记忆 `kimi-k3-upstream-bug-verification-2026-09-01` + `k3-autostop-agent-loop-unfit-2026-09-01`。
+
+---
+
 ## 2026-08-31 · 双轨更正: openrouter/mistral = 内置轨 (更正上条误分类) + 全 provider 纳入内置迁移 + pool 必要性判据
 
 **更正 (上条"nvidia 双轨收敛"分类误判)**: 上条把 **openrouter/mistral 归于自定义轨** (建 provider-node, 连接挂 UUID), 经源码坐实 **错误** — 二者皆上游 **内置 API-key provider**:

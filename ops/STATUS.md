@@ -2,6 +2,16 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。§1 拓扑(2026-08-24/29 修订): 单 Space 单桶, xnexus/o = 唯一 Space 兼生产, R2 bucket = omn-data, 此处记生产态。旧 nomke/nonoke 两 Space 段历史存档不改不回。
 
+## 2026-09-02 · xnexus-o 私有化 + 反代注入 token + cron-job 探活 — 执行计划归档 (ops/private-space-proxy-plan.md)
+
+圣上令归档。方案 = xnexus-o 改私有 → 带 token 入站脱离匿名池 (官方 rate-limits 双档: Anonymous per-IP 500 vs Free user 1000/5min) → 反代 CF 侧持 HF token 出站注入 → cron-job.org 带 PSK 探反代。三重收益: 焊死 PSK 泄露直连绕过 + 甩开匿名池入站 429 + 探活走用户真实路径。
+
+**待办** (执行顺序见 ops/private-space-proxy-plan.md 四阶段):
+- [ ] 阶段1 圣上 HF: xnexus-o 改 Private + curl 实测 X-Api-Key vs Bearer 头名 (决定反代注入用哪个头)
+- [ ] 阶段2 改 pages/ho-proxy/functions/[[path]].js 出站注入 HF_TOKEN (等 1.3 头名定案再改)
+- [ ] 阶段3 cron-job.org 建每分钟探活, 自定义头 Bearer PSK (不带 HF token)
+- [ ] 阶段4 sonoke 全链路 200 + 双轨回归 + 决策入 DECISIONS
+
 ## 2026-08-31 · manage key 真变量修正 = OMNIROUTE_API_KEY — commit a8a56af push 通 nomn
 
 定位 CredentialHealth `/models` 报错时纠出重大命名错——**`OMN_MANAGE_TOKEN` 是 ops 层误造名** (上游源码无此 env), 拿它打 `/api/*` 恒 403 `AUTH_001`。真 manage key = **`OMNIROUTE_API_KEY`** (Space Secret → init L735-758 种 DB apiKeys), 本地 `~/.omn-secrets` 已有真值, 改用即 200 通。`ops/omn-log-query.py` 已改 `MGR=getval('OMNIROUTE_API_KEY')`, `health/providers/models/combo` 子命令本地直接可用 (不需另取 Space 真值)。**在 xnexus/o Space 不需要设 `OMN_MANAGE_TOKEN`**。

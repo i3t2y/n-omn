@@ -1,0 +1,12 @@
+# ho-proxy (Page 版): sonoke → xnexus gate 入站反代 · Cloudflare Pages 配置
+# 与 workers/ho-proxy (Worker 版) 并列并存, 任选其一指向 sonoke, 另一即热备
+# 拓扑: sonoke → proxy.360710.xyz (CF Pages) → xnexus-o.hf.space
+#
+# 🔴 INTERNAL_PSK = gate.js 同源常量值 (PSK)。此值经 `wrangler pages secret put INTERNAL_PSK`
+#    或 CF Dashboard → 该项目 → Settings → Variables → Secrets 注入, 不落 git/本 toml。
+#    functions/[[path]].js 前置校验 "Bearer $INTERNAL_PSK", 缺省即 fail-closed 拒。
+#
+# 自定义域: CF Dashboard → Pages 项目 → Custom Domains → Add `proxy.360710.xyz`
+#   (先 dashboard 关联, 后往 360710.xyz zone 加 CNAME `proxy → <site>.pages.dev`, 否则 522)
+name = "ho-proxy-pages"
+compatibility_date = "2026-04-26"

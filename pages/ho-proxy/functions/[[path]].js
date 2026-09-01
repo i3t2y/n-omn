@@ -1,9 +1,10 @@
 // ===== ho-proxy (Page 版): sonoke → xnexus gate 入站反代 · Cloudflare Pages =====
 // 拓扑: sonoke → proxy.360710.xyz (CF Pages 边缘, 前置 PSK 校验) → xnexus-o.hf.space
 //   (CF 边缘公网出站, 不经 HF 容器出站 *.hf.space 基础设施层拦截, 解 space-to-space 429)
-// 鉴权: 边缘前置校验 Authorization Bearer == INTERNAL_PSK (与 gate.js 同源常量值)
-//       缺/错 → 401 fail-closed; INTERNAL_PSK 未注入 → 503; 对 → 原样透传 Bearer 给 gate
-//       前置只验不改, 不新增第二把 key: 一把 PSK 走全链路, sonoke 零改动
+// 鉴权(双层, 两个不同头, 互不冲突):
+//   sonoke 带的  Authorization: Bearer <PSK>  → 边缘前置 safeEqual 校验 + 原样透传给 gate 应用层
+//   CF 注入的     X-Api-Key: <HF_TOKEN>          → HF 平台层 (xnexus-o 私有 Space 门票)
+//   INTERNAL_PSK 未注入 → 503; Bearer 缺/错 → 401 fail-closed; HF_TOKEN 未注入 → 不注(公开 Space 兼容)
 // 安全: 目标 host 写死固定, 无 ?url= 开放代理洞; 应用鉴权在 gate, 此处仅边缘前置拦截
 const TARGET = "https://xnexus-o.hf.space";
 
@@ -49,6 +50,9 @@ export async function onRequest(context) {
   for (const [k, v] of request.headers) {
     if (!DROP_REQ.has(k.toLowerCase())) headers.set(k, v);
   }
+  // 注入 HF 平台层 token (私有 Space 门票, 只存 CF env 不落 git):
+  // X-Api-Key 与 Authorization 是两个不同头, 与 gate 的 PSK 共存互不冲突
+  if (env.HF_TOKEN) headers.set("x-api-key", env.HF_TOKEN);
 
   // 流式转发, SSE body 不缓冲
   const upstream = await fetch(targetURL.toString(), {

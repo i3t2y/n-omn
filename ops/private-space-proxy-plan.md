@@ -6,28 +6,28 @@
 
 ---
 
-## 阶段 1：Space 私有化 + 头名实测（**圣上操作 HF，先决条件**）
+## 阶段 1：Space 私有化 + 注入头定案（**圣上操作 HF；头名已由查证定案，跳过 curl 实测**）
+
+> **2026-09-02 修订**：原"先私有化 + curl 实测 X-Api-Key vs Bearer 头名"的串行测试被圣上否（令"不用搞这个测试，加变量直接上"）。头名直接定案 **`X-Api-Key`**（HF 平台层通读；与透传 `Authorization: Bearer <PSK>` 分属两个头、互不冲突，零改 gate）。私有化须与 token 注入**同拍落地**——单独改私有而不注入 token，sonoke 通道即断（"我就不法和你说话了"）。
 
 | # | 操作 | 位置 | 成功判据 |
 |---|---|---|---|
 | 1.1 | xnexus-o 改 **Private** | HF Dashboard → xnexus-o → Settings | 公开访问变 401/404 |
-| 1.2 | 无 token 直连 `https://xnexus-o.hf.space/` | curl | **失败**(401/404) = 门已焊 ✅ |
-| 1.3 | 带 `X-Api-Key: <token>` 直连同端点 | curl | **200** = 头名成立 |
-| 1.4 | 带 `Authorization: Bearer <token>` 直连（备用验证） | curl | 200 或 401（**决定反代注入用哪个头**） |
-| 1.5 | 带 token 持续访问数窗 | curl/日志 | 观察匿名 429 是否消失（对照私有化前） |
+| 1.2 | 反代已注 `X-Api-Key: <HF_TOKEN>` → 私有 Space 200 | 反代探活；业务 | 200 = 私有化+注入同拍闭环 ✅ |
 
-> **1.3/1.4 的实测输出 = 阶段 2 反代该注入哪个头的唯一依据**，先钉死再写代码。
+> 头名测试已取消；唯一不确定点 = HF 私有 Space 是否认 `X-Api-Key`（极小概率，若部署后业务 401 再走"迁 PSK 升级路"——见阶段 2 预案）。
 
-## 阶段 2：反代（CF 侧）注入 HF token（**唯一代码改动，待 1.3 定头名**）
+## 阶段 2：反代（CF 侧）注入 HF token（**代码已完成 + mock 全绿，剩 CF 侧 Secret + 部署**）
 
 | # | 操作 | 位置 | 判据 |
 |---|---|---|---|
 | 2.1 | CF Pages 项目加 **Secret `HF_TOKEN`**（xnexus-o 账号 token，不落 git） | CF Dashboard → 该项目 → Settings → Secrets | 值已注入，代码 `env.HF_TOKEN` 可读 |
-| 2.2 | 改 `pages/ho-proxy/functions/[[path]].js`：出站 fetch 加阶段 1 实测的头（`X-Api-Key` 或 `Bearer`） | 仓库代码 | 五态 mock 追加"注入头"断言全绿 |
+| 2.2 | `pages/ho-proxy/functions/[[path]].js` 出站 fetch 注入 `X-Api-Key: <HF_TOKEN>` | 仓库代码 | ✅ 已改，六态 mock **14/14 全绿**（4d/5c 注入断言 + 6c 无 token 不注入） |
 | 2.3 | 多 token 变量预案：`HF_TOKEN`（业务）+ 可选 `HF_TOKEN_MON`（探活/备用）——**同一账号，仅职责分离/备份，无扩容意义** | CF Secrets | 冗余，可选 |
-| 2.4 | sonoke → 反代 → 私有 Space 真业务 200 | sonoke | 全链路通 ✅ |
+| 2.4 | 部署 Pages 项目（wrangler push / GH Actions） | CF 侧 | `proxy.360710.xyz` 可访问 |
+| 2.5 | sonoke → 反代 → 私有 Space 真业务 200 | sonoke | 全链路通 ✅ |
 
-> 当前 `pages/ho-proxy/functions/[[path]].js` **尚无注入逻辑**（已含前置 PSK 校验 fail-closed 三态）——唯一要动的代码，**等 1.3 头名定案再改**，避免改错头返工。
+> **升级预案（仅当 X-Api-Key 不被 HF 私有层认，业务 401 时启用）**：PSK 迁 `X-Gate-PSK` 头出站 + `Authorization` 让位给 `Bearer <HF_TOKEN>`（HF 标准）+ gate.js 加一行 fallback 读 `X-Gate-PSK`——代价是动 gate，万不得已才走。
 
 ## 阶段 3：cron-job.org 探活（**圣上操作 cron-job.org**）
 

@@ -7,7 +7,8 @@
 #   3) mistral:   连接 provider=mistral, 无 node POST, 静态白名单 5 模型不枚举上游, combo mistral-pool
 #   4) amd:       走 node 分支 (有 name=amd-node POST), 连接 provider= 空 (mock node 无 id)
 #   5) dp4f:      收集含 sensenova/deepseek-v4-flash, 不含 openrouter/ (2026-08-28 圣上令排除)
-#   6) cleanup:   4 家旧节点清理调用 (sensenova/nvidia/openrouter/mistral)
+#   6) cleanup:   5 家旧节点清理调用 (sensenova/nvidia/openrouter/mistral/google)
+#   7) gemini:    连接 provider=gemini, 无 node POST, 静态白名单 7 模型不枚举上游, combo gemini-pool
 # 说明: 只测循环控制流, 内部 helper 全 mock (helper 本身已 boot 验证). 从 init-nim-keys.sh 原样提取函数定义。
 set -u
 SRC=/home/laisi/omn-merge/dev/logic/init-nim-keys.sh
@@ -22,6 +23,7 @@ declare -a PROVIDERS=(
   "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100||builtin|"
   "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite deepseek-v4-flash glm-5.2"
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20||builtin|mistral-large-latest mistral-medium-3-5 mistral-small-latest devstral-latest codestral-latest"
+  "gemini|gemini-node|gemini|https://generativelanguage.googleapis.com/v1beta/models|GEMINI_KEYS|20||builtin|gemini-3.7-flash gemini-3.1-pro-preview gemini-3.1-flash-lite gemini-3-flash-preview gemini-2.5-pro gemini-2.5-flash gemini-2.5-flash-lite"
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
 )
 # 合成 keys (§2 Secrets 纪律: 测试用合成串, $'...' 保证真换行 = 多 key)
@@ -29,6 +31,7 @@ NIM_KEYS=$'nvisyn0001\nnvisyn0002'
 OPENROUTER_KEYS=$'orsyn0001\norsyn0002'
 SENSENOVA_KEYS=$'sssyn0001'
 MISTRAL_KEYS=$'misyyn0001'
+GEMINI_KEYS=$'gmsyn0001'
 AMD_KEYS=$'amdsyn0001'
 _VALID_STRATS="fill-first round-robin random priority weighted p2c least-used cost-optimized reset-aware reset-window headroom strict-random auto lkgp context-optimized cache-optimized context-relay fusion pipeline"
 _POOL_STRATEGY="p2c"
@@ -108,6 +111,10 @@ chk_out "sensenova 静态白名单 3 模型" 'sensenova: 静态白名单 3 个�
 chk_out "mistral builtin 短名 (不建 node)" 'mistral: builtin 模式, 不建 node, _nid=mistral' 1
 chk_out "mistral 静态白名单 5 模型" 'mistral: 静态白名单 5 个模型' 1
 chk_out "mistral 不枚举上游 (方案A)" 'mistral: 枚举' 0
+# 4b) gemini: builtin 短名, 静态白名单 7 模型, 不枚举上游, 旧 google-node 清理
+chk_out "gemini builtin 短名 (不建 node)" 'gemini: builtin 模式, 不建 node, _nid=gemini' 1
+chk_out "gemini 静态白名单 7 模型" 'gemini: 静态白名单 7 个模型' 1
+chk_out "gemini 不枚举上游 (方案A)" 'gemini: 枚举' 0
 # 5) amd: 自定义轨 node 分支 (mode=node)
 chk_out "amd 走 node 分支 (mode=node)" 'amd: 建节点+连接+枚举模型 (base=.*mode=node)' 1
 chk_out "amd 建 node POST" 'amd: node POST 成功但无 id, WARN' 1
@@ -115,6 +122,7 @@ chk_out "amd 建 node POST" 'amd: node POST 成功但无 id, WARN' 1
 chk_calls "openrouter-pool combo (prefix=openrouter)" 'MOCK upsert_combo name=openrouter-pool strat=p2c prefix=openrouter' 1
 chk_calls "mistral-pool combo (prefix=mistral)" 'MOCK upsert_combo name=mistral-pool strat=p2c prefix=mistral' 1
 chk_calls "sensenova-pool combo (prefix=sensenova)" 'MOCK upsert_combo name=sensenova-pool strat=p2c prefix=sensenova' 1
+chk_calls "gemini-pool combo (prefix=gemini)" 'MOCK upsert_combo name=gemini-pool strat=p2c prefix=gemini' 1
 chk_calls "amd-pool combo 建" 'MOCK upsert_combo name=amd-pool' 1
 # 7) dp4f: 含 sensenova/deepseek-v4-flash, 不含 openrouter/ (2026-08-28 圣上令严格三提供商)
 #    注意: 全文件含 openrouter/grok-3 模型名 (openrouter-pool 模型注册), 断言须限定 dp4f 行.
@@ -122,11 +130,11 @@ chk_calls "dp4f 池建 (upsert_dp4f_pool 调)" 'MOCK upsert_dp4f_pool entries=' 
 _dp4f_line=$(grep 'MOCK upsert_dp4f_pool' "$CALLS")
 printf '%s\n' "$_dp4f_line" | grep -q 'sensenova/deepseek-v4-flash' && echo "PASS: dp4f 含 sensenova/deepseek-v4-flash" || { echo "FAIL: dp4f 缺 sensenova/deepseek-v4-flash"; fail=1; }
 printf '%s\n' "$_dp4f_line" | grep -q 'openrouter/' && { echo "FAIL: dp4f 误含 openrouter/"; fail=1; } || echo "PASS: dp4f 排除 openrouter/ (2026-08-28 圣上令)"
-# 8) cleanup: 4 家旧节点清理 + sensenova double-prefix
-chk_calls "4 家旧节点 cleanup" 'MOCK cleanup node=' 4
+# 8) cleanup: 5 家旧节点清理 + sensenova double-prefix
+chk_calls "5 家旧节点 cleanup" 'MOCK cleanup node=' 5
 chk_calls "sensenova double-prefix 清理" 'MOCK cleanup sensenova double-prefix' 1
 # 9) 连接注册 provider 字段 = 内置短名 (JSON 独立行存在性确认, 非精确计数)
-for p in openrouter sensenova mistral; do
+for p in openrouter sensenova mistral gemini; do
   grep -q "^  \"provider\": \"$p\"," "$CALLS" && echo "PASS: 连接 body provider=$p (短名, 非 UUID)" || { echo "FAIL: 连接 body 缺 provider=$p"; fail=1; }
 done
 

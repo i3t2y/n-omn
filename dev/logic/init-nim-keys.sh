@@ -79,9 +79,18 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 # NVIDIA 保留现役 NIM_KEYS/nim-pool/nim-codex 专属路径不动, 仅额外走通用表再挂 FT 族.
 declare -a PROVIDERS=(
   "nvidia|nvidia-node|nvidia|${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com}|NIM_KEYS|20|"
-  # google: 注释停用 (boot 2026-08-26 定谳: google 免费层对数据中心出站 IP 地理风控 "User location is not supported",
-  #   HF 容器/FT Worker 数据中心 IP 直接拒 (28B), 本机家宽 IP 才通. 非脚本 bug, 保留配置待出站解决可恢复.
-  # "google|google-node|google|https://generativelanguage.googleapis.com/v1beta/openai|GEMINI_KEYS|20|"
+  # gemini: 2026-09-01 圣上令 — 内置 provider (frontier-labs.ts:58 id:"gemini" + registry baseUrl 现成).
+  #   format:"gemini" 原生 generateContent 协议 (buildGeminiGenerateContentUrl, 非 openai 兼容端点).
+  #   registry 内置 8 模型: gemini-3.7-flash / 3.1-pro-preview / 3.1-flash-lite / 3-flash-preview /
+  #   3.1-flash-tts-preview / 2.5-pro / 2.5-flash / 2.5-flash-lite.
+  #   第 9 字段 static_models = registry 7 个 chat 模型 (方案A, 排除 3.1-flash-tts-preview 防 TTS 污染,
+  #   同 sensenova 排除 u1-fast 图片模型/mistral 排除 embed 逻辑).
+  #   历史: 2026-08-26 曾因 google 免费层对数据中心出站 IP 地理风控 "User location is not supported"
+  #   注释停用 (HF 容器/FT Worker 数据中心 IP 直接拒, 本机家宽 IP 才通). 2026-09-01 恢复为内置轨
+  #   统一分类 (双轨归位), 地理风控未解 — 仅分类统一, 路由仍受出站 IP 限制.
+  #   内置 baseUrl (registry) = https://generativelanguage.googleapis.com/v1beta/models (原生协议,
+  #   provider=gemini 连接注册后 executor 直接用它, 与旧 google-node 的 .../v1beta/openai 端点不同).
+  "gemini|gemini-node|gemini|https://generativelanguage.googleapis.com/v1beta/models|GEMINI_KEYS|20||builtin|gemini-3.7-flash gemini-3.1-pro-preview gemini-3.1-flash-lite gemini-3-flash-preview gemini-2.5-pro gemini-2.5-flash gemini-2.5-flash-lite"
   # openrouter: 2026-08-31 圣上令 — 内置 provider (gateways.ts:89 id:"openrouter" + registry baseUrl 现成),
   #   第 8 字段 builtin 同 sensenova. 保持动态枚举 (passthroughModels:true, 全模型透传, max=100 不变);
   #   第 9 字段 static_models 留空 → 走默认枚举, 与改内置前 node 套件行为一致 (仅换短名前缀).
@@ -1525,6 +1534,8 @@ _register_multi_provider() {
   _cleanup_legacy_node "nvidia-node" "nvidia"
   _cleanup_legacy_node "openrouter-node" "openrouter"
   _cleanup_legacy_node "mistral-node" "mistral"
+  # 2026-09-01 圣上令: gemini 内置化, 清旧 google-node 自定义节点 (UUID 轨) + 其下连接/模型.
+  _cleanup_legacy_node "google-node" "google"
   echo "[init] General multi-provider registration done."
 }
 

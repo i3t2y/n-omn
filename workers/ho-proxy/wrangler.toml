@@ -10,7 +10,7 @@ workers_dev = false
 pattern = "h-o.cc.cd"
 custom_domain = true
 
-# 反代总开关: "1"=启用, "0"/删除=拒(503). 默认关(fail-closed), 部署后显式置 "1" 启用
+# 反代总开关: "1"=启用, "0"/删除=拒(503). 已启用 (CF Dashboard runtime 已置 "1", 本 toml 同步同值防重部署覆盖回关)
 # 切换如不重部署: CF Dashboard → ho-proxy → Settings → Variables → 改 HO_PROXY_ENABLED → 新版生效
 [vars]
-HO_PROXY_ENABLED = "0"
+HO_PROXY_ENABLED = "1"

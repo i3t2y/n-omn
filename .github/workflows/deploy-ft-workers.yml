@@ -23,7 +23,7 @@ name: Deploy FlareTunnel Workers
 on:
   push:
     tags:
-      - 'deploy-*'   # 仅 deploy-* tag 推时触部署 (圣上主动 tag 掌触发权, 普通 push 改 workflow 不触全量重部署)
+      - 'deploy-ft-*'   # 仅 deploy-ft-* tag 推时触部署 (圣上主动 tag 掌触发权, 普通 push 改 workflow 不触全量重部署). 2026-09-02 收紧: 原 deploy-* 通配误触 deploy-ho-*/deploy-pages-* 反代 tag (run #37 实证), 反代两 workflow 用独立 tag 不撞 FT
   schedule:
     - cron: '17 2 * * *'   # 日常 daily 预设走此 (UTC 02:17, 避 :00 整点)
   workflow_dispatch:

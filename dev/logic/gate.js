@@ -196,13 +196,16 @@ app.use((req, res, next) => {
 });
 
 // ── /v1 PSK 校验: Internal PSK timing-safe ──
+//   2026-09-02: 私有化后反代出站 authorization 让位给 HF 门票 (Bearer <HF_TOKEN>),
+//   PSK 走 X-Gate-PSK 独立头 (反代透传). 校验顺序: X-Gate-PSK 优先 (新路/经反代),
+//   无则回退 authorization (老路/直连/其他客户端). 门票值永不被当 PSK 校验.
 app.use('/v1', (req, res, next) => {
   const auth = req.headers.authorization || '';
-  if (!auth.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-  const bearer = auth.slice('Bearer '.length).trim();
-  if (!safeEqual(bearer, INTERNAL_PSK)) {
+  const gatePsk = req.headers['x-gate-psk'] || '';
+  const bearer = gatePsk.startsWith('Bearer ')
+    ? gatePsk.slice('Bearer '.length).trim()
+    : auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';
+  if (!bearer || !safeEqual(bearer, INTERNAL_PSK)) {
     return res.status(401).json({ error: 'unauthorized' });
   }
   req.headers.authorization = `Bearer ${OR_API_KEY}`;   // /v1 转发用 OR_API_KEY

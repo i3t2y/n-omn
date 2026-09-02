@@ -6,11 +6,11 @@
 
 圣上令归档。方案 = xnexus-o 改私有 → 带 token 入站脱离匿名池 (官方 rate-limits 双档: Anonymous per-IP 500 vs Free user 1000/5min) → 反代 CF 侧持 HF token 出站注入 → cron-job.org 带 PSK 探反代。三重收益: 焊死 PSK 泄露直连绕过 + 甩开匿名池入站 429 + 探活走用户真实路径。
 
-**待办** (执行顺序见 ops/private-space-proxy-plan.md 四阶段):
-- [ ] 阶段1 圣上 HF: xnexus-o 改 Private + curl 实测 X-Api-Key vs Bearer 头名 (决定反代注入用哪个头)
-- [ ] 阶段2 改 pages/ho-proxy/functions/[[path]].js 出站注入 HF_TOKEN (等 1.3 头名定案再改)
-- [ ] 阶段3 cron-job.org 建每分钟探活, 自定义头 Bearer PSK (不带 HF token)
-- [ ] 阶段4 sonoke 全链路 200 + 双轨回归 + 决策入 DECISIONS
+**执行结果 (2026-09-02 全部完成)**:
+- [x] 阶段1 xnexus-o 已私有化。**实测头名**：HF 私有 Space 只认 `Authorization: Bearer <token>`，`X-Api-Key` 返回 404 → 推翻 X-Api-Key 假设，走升级路
+- [x] 阶段2 反代出站 `authorization` 覆盖为 `Bearer <HF_TOKEN>` 门票 + PSK 改走 `X-Gate-PSK` 独立头，gate.js `/v1` 校验 X-Gate-PSK 优先、回退 authorization。部署三坑闭环（_middleware.js 文件名 / cd+`.` 部署 / `--branch main` 强制 production + secret 在 deploy 前）
+- [x] 阶段3 cron-job.org 每分钟 GET `https://omn.360710.xyz/healthz` + 头 `Authorization: Bearer <PSK>` — 返回 200 `{"ok":true}`（`x-proxied-*` 头证穿透 gate）
+- [x] 阶段4 全链路四态全绿（无/错 PSK→401 边缘、真 PSK→200 gate）+ **双轨并列**：worker 版 `h-o.cc.cd` 热备 / Pages 版 `omn.360710.xyz` 生产；**未决**：sonoke base_url 是否已切 Pages 版（圣上确认）
 
 ## 2026-08-31 · manage key 真变量修正 = OMNIROUTE_API_KEY — commit a8a56af push 通 nomn
 

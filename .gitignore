@@ -38,6 +38,9 @@ out/
 
 # Python 字节码缓存 (运行时产物不入库)
 __pycache__/
+
+# wrangler pages dev 本地状态 (任意层级都忽略)
+.wrangler/
 *.pyc
 
 # FlareTunnel 静态二进制产物 (源入库, 产物出局经 sync-logic-xnexus.yml 推 xnexus/logic Bucket, 路3)

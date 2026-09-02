@@ -49,7 +49,9 @@ jobs:
 
       - name: Deploy ho-proxy Pages (建/更新项目 + 推 functions)
         run: |
-          npx wrangler@latest pages deploy pages/ho-proxy --project-name ho-proxy-pages
+          # 必须 cd 进部署目录跑 `.` : 相对子路径 (deploy pages/ho-proxy) wrangler 4.x 不发现
+          # functions/ → "No Functions" 部署空站 404 (本地三态实证: 子路径❌ / cd+`.`✅ / toml 无关)
+          cd pages/ho-proxy && npx wrangler@latest pages deploy . --project-name ho-proxy-pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
 

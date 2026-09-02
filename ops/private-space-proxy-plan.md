@@ -22,7 +22,7 @@
 | # | 操作 | 位置 | 判据 |
 |---|---|---|---|
 | 2.1 | CF Pages 项目加 **Secret `HF_TOKEN`**（xnexus-o 账号 token，不落 git） | CF Dashboard → 该项目 → Settings → Secrets | 值已注入，代码 `env.HF_TOKEN` 可读 |
-| 2.2 | `pages/ho-proxy/functions/_middleware.js` 出站 fetch 注入 `X-Api-Key: <HF_TOKEN>` | 仓库代码 | ✅ 已改，六态 mock **14/14 全绿**（4d/5c 注入断言 + 6c 无 token 不注入）。**文件名须 `_middleware.js`**：wrangler 4.128 把 `[[path]].js` 的 `[[path]]` 当 glob 吞空（`No Functions`）→ 首部署全站 404；`_middleware.js` 根级中间件拦截全路径等价 catch-all，本地 4.128 `pages dev` 实测 503/401 正确 |
+| 2.2 | `pages/ho-proxy/functions/_middleware.js` 出站 fetch 注入 `X-Api-Key: <HF_TOKEN>` | 仓库代码 | ✅ 已改，六态 mock **14/14 全绿**（4d/5c 注入断言 + 6c 无 token 不注入）。双坑排查闭环：① 文件名须 `_middleware.js`（`[[path]].js` 的 `[[path]]` 被 wrangler 4.128 当 glob 吞空→`No Functions`）；② **部署必须 `cd` 进目录跑 `deploy .`**（相对子路径 `deploy pages/ho-proxy` 不发现 functions→空站 404；cd+`.` 有 toml 也正常，本地三态实证：子路径❌/cd+`.`✅/toml 无关） |
 | 2.3 | 多 token 变量预案：`HF_TOKEN`（业务）+ 可选 `HF_TOKEN_MON`（探活/备用）——**同一账号，仅职责分离/备份，无扩容意义** | CF Secrets | 冗余，可选 |
 | 2.4 | 部署 Pages 项目（wrangler push / GH Actions） | CF 侧 | `proxy.360710.xyz` 可访问 |
 | 2.5 | sonoke → 反代 → 私有 Space 真业务 200 | sonoke | 全链路通 ✅ |

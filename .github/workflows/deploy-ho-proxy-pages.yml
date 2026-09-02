@@ -8,7 +8,7 @@ name: deploy-ho-proxy-pages
 #   CF_API_TOKEN (账号 B) → B_CF_TOKEN   — scope 仅 need: Pages Edit
 #   INTERNAL_PSK (gate.js 同源常量值)     → 边缘前置鉴权 + 出站透传
 #   HF_TOKEN (xnexus-o 账号 HF 平台门票)  → 出站注入 X-Api-Key (私有 Space)
-# Variable (非敏感, 走 vars):
+# Secret (圣上已配在 Secrets 而非 Variables, workflow 据此读 secrets.):
 #   B_CF_ACCOUNT_ID (账号 B 的 account id)
 #
 # 机制: GH Actions 作部署流水线, 从 GH secret 读音, printf|wrangler pages secret put 注入 CF,
@@ -29,7 +29,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.B_CF_ACCOUNT_ID }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.B_CF_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
 

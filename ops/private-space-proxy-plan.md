@@ -17,7 +17,7 @@
 
 > 头名测试已取消；唯一不确定点 = HF 私有 Space 是否认 `X-Api-Key`（极小概率，若部署后业务 401 再走"迁 PSK 升级路"——见阶段 2 预案）。
 
-## 阶段 2：反代（CF 侧）注入 HF token（**代码已完成 + mock 全绿，剩 CF 侧 Secret + 部署**）
+## 阶段 2：反代（CF 侧）注入 HF token（**✅ 完成 2026-09-02，部署全绿**）
 
 | # | 操作 | 位置 | 判据 |
 |---|---|---|---|
@@ -25,7 +25,13 @@
 | 2.2 | `pages/ho-proxy/functions/_middleware.js` 出站 fetch 注入 `X-Api-Key: <HF_TOKEN>` | 仓库代码 | ✅ 已改，六态 mock **14/14 全绿**（4d/5c 注入断言 + 6c 无 token 不注入）。双坑排查闭环：① 文件名须 `_middleware.js`（`[[path]].js` 的 `[[path]]` 被 wrangler 4.128 当 glob 吞空→`No Functions`）；② **部署必须 `cd` 进目录跑 `deploy .`**（相对子路径 `deploy pages/ho-proxy` 不发现 functions→空站 404；cd+`.` 有 toml 也正常，本地三态实证：子路径❌/cd+`.`✅/toml 无关） |
 | 2.3 | 多 token 变量预案：`HF_TOKEN`（业务）+ 可选 `HF_TOKEN_MON`（探活/备用）——**同一账号，仅职责分离/备份，无扩容意义** | CF Secrets | 冗余，可选 |
 | 2.4 | 部署 Pages 项目（wrangler push / GH Actions） | CF 侧 | `proxy.360710.xyz` 可访问 |
-| 2.5 | sonoke → 反代 → 私有 Space 真业务 200 | sonoke | 全链路通 ✅ |
+| 2.5 | sonoke → 反代 → 私有 Space 真业务 200 | sonoke | 待阶段 1 私有化后验证 |
+
+> **生产部署三坑全闭环（wrangler 4.128 + GH Actions tag 触发）**：
+> ① 文件名须 `_middleware.js`（`[[path]].js` 的 `[[path]]` 被当 glob 吞空→`No Functions`）
+> ② 部署须 `cd` 进目录跑 `deploy .`（相对子路径不发现 functions→空站 404）
+> ③ **须 `--branch main` 强制 production**（GH Actions checkout=detached HEAD，`wrangler pages deploy` 默认判 preview 部署；secret 绑 **production** env → preview 读不到 INTERNAL_PSK → 503 "proxy not configured"；且默认 URL `ho-proxy-pages.pages.dev` 无 production 部署一直 404）。`--branch main` 后：无 Bearer→401 / 错 PSK→401 / 真 PSK→透传 gate /v1/models 200 全绿。
+> 部署命令：`cd pages/ho-proxy && npx wrangler@latest pages deploy . --project-name ho-proxy-pages --branch main`（workflow 里 secret-put 须在 deploy **前**，否则新 deployment 读不到）。
 
 > **升级预案（仅当 X-Api-Key 不被 HF 私有层认，业务 401 时启用）**：PSK 迁 `X-Gate-PSK` 头出站 + `Authorization` 让位给 `Bearer <HF_TOKEN>`（HF 标准）+ gate.js 加一行 fallback 读 `X-Gate-PSK`——代价是动 gate，万不得已才走。
 

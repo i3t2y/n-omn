@@ -1,0 +1,54 @@
+name: deploy-ho-proxy-pages
+
+# Page 版反代 (sonoke → xnexus gate) 部署 · tag-driven (仿 deploy-ho-proxy.yml worker 版)
+# 拓扑: sonoke → proxy.360710.xyz (CF Pages 边缘, 前置 PSK 校验 + 注入 HF_TOKEN) → xnexus-o.hf.space
+# 触发: push `deploy-pages-*` tag 或 workflow_dispatch 手动
+#
+# GH Secrets (圣上填值, 值不进 repo/git, workflow 只引用):
+#   CF_API_TOKEN (账号 B) → B_CF_TOKEN   — scope 仅 need: Pages Edit
+#   INTERNAL_PSK (gate.js 同源常量值)     → 边缘前置鉴权 + 出站透传
+#   HF_TOKEN (xnexus-o 账号 HF 平台门票)  → 出站注入 X-Api-Key (私有 Space)
+# Variable (非敏感, 走 vars):
+#   B_CF_ACCOUNT_ID (账号 B 的 account id)
+#
+# 机制: GH Actions 作部署流水线, 从 GH secret 读音, printf|wrangler pages secret put 注入 CF,
+#      再 pages deploy 推函数. 值全程不经会话/repo 明文 (秘密只在 GH 加密库 + CF 运行时).
+
+on:
+  push:
+    tags:
+      - "deploy-pages-*"
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "wrangler pages command (deploy)"
+        required: false
+        default: "deploy"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.B_CF_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy ho-proxy Pages (建/更新项目 + 推 functions)
+        run: |
+          npx wrangler@latest pages deploy pages/ho-proxy --project-name ho-proxy-pages
+        env:
+          CF_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
+
+      - name: 注入 INTERNAL_PSK secret (边缘前置鉴权 + 出站透传导密钥)
+        run: |
+          printf '%s' "${{ secrets.INTERNAL_PSK }}" \
+            | npx wrangler@latest pages secret put INTERNAL_PSK --project-name ho-proxy-pages
+        env:
+          CF_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
+
+      - name: 注入 HF_TOKEN secret (私有 Space 门票 → X-Api-Key)
+        run: |
+          printf '%s' "${{ secrets.HF_TOKEN }}" \
+            | npx wrangler@latest pages secret put HF_TOKEN --project-name ho-proxy-pages
+        env:
+          CF_API_TOKEN: ${{ secrets.B_CF_TOKEN }}

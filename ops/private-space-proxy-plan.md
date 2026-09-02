@@ -33,14 +33,14 @@
 
 > **升级预案（✅ 已启用 2026-09-02，实测触发）**：HF 私有 Space 实测不认 X-Api-Key → PSK 迁 `X-Gate-PSK` 头出站 + `Authorization` 让位给 `Bearer <HF_TOKEN>`（HF 标准）+ gate.js `/v1` 校验 X-Gate-PSK 优先、回退 authorization（dev/logic/gate.js L199-212）。已重启生效，全链路四态全绿。
 
-## 阶段 3：cron-job.org 探活（**圣上操作 cron-job.org**）
+## 阶段 3：cron-job.org 探活（**✅ 完成 2026-09-02**）
 
 | # | 操作 | 位置 | 判据 |
 |---|---|---|---|
-| 3.1 | 建 cron 任务，**每分钟** GET 反代探活端点（如 `https://proxy.360710.xyz/healthz`） | cron-job.org | 任务创建成功 |
-| 3.2 | 配自定义头 `Authorization: Bearer <PSK>`（**只带 PSK，不带 HF token** —— token 只在 CF 侧） | cron-job.org → 任务 → headers | 官方已确认支持任意头 ✅ |
-| 3.3 | 触发一次 | cron-job.org | 返回 200、无告警 |
-| 3.4 | 异常告警配置（连续失败通知） | cron-job.org | 探活反代 = 探用户真实路径，反代挂即报警 |
+| 3.1 | 建 cron 任务，**每分钟** GET 反代探活端点（`https://omn.360710.xyz/healthz`） | cron-job.org | ✅ 任务创建成功 |
+| 3.2 | 配自定义头 `Authorization: Bearer <PSK>`（**只带 PSK，不带 HF token** —— token 只在 CF 侧） | cron-job.org → 任务 → headers | ✅ 官方已确认支持任意头 |
+| 3.3 | 触发一次 | cron-job.org | ✅ 返回 200 `{"ok":true}`（响应头 `x-proxied-host`/`x-proxied-path` 证穿透 gate） |
+| 3.4 | 异常告警配置（连续失败通知） | cron-job.org | ✅ 探活反代 = 探用户真实路径，反代挂即报警 |
 
 > 免费档：任务数不限、每任务 60 次/时——每分钟探活完全够。**探活走反代而非直探 Space**，否则测不到反代挂。
 

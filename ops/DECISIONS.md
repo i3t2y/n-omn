@@ -741,3 +741,12 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - 32 `ProxyEgress status=success` + `[ProxyHealth] 36 blocked by target`: 探活被上游拒=已知惰性检测设计, 业务不受影响。
 
 出处: `old/new/omn-ops/exchange/upgrade-3.8.50-20260830.txt` + memory `v3.8.50-collision-map-zero-2026-08-30`。关联: §11 (xnexus/logic Bucket 拓扑), §7 (R2 副本)。
+
+## 2026-09-02 · xnexus-o 私有化 + 反代注入 token + cron 探活 — 四阶段全闭环 (commit 67ea460 + 6cfe21c + 4b593a8)
+
+- **目标**: xnexus-o 改私有 → 脱离匿名入站池 (官方限流双档: Anonymous 500 vs Free user 1000/5min) → 反代 CF 侧持 HF token 注入 → cron 带 PSK 探反代。三重收益: 焊死 PSK 泄露直连绕过 + 甩开匿名池 429 + 探活走用户真实路径。
+- **实测头名铁证 (推翻 X-Api-Key 假设)**: HF 私有 Space 直连三态 — 无 token→404 / `X-Api-Key`→404 / `Authorization: Bearer`→200。**私有 Space 只认 Bearer 头**。定案: 反代出站 authorization 覆盖为 `Bearer <HF_TOKEN>` 门票, PSK 改走 `X-Gate-PSK` 独立头, gate.js `/v1` 校验 X-Gate-PSK 优先、回退 authorization (L199-212)。
+- **Pages 生产部署三坑 (wrangler 4.128 + GH Actions tag)**: ① 函数文件名须 `_middleware.js` (`[[path]].js` 的 `[[path]]` 被当 glob 吞空→No Functions); ② 部署须 `cd` 进目录跑 `deploy .` (相对子路径不发现 functions→空站 404); ③ 须 `--branch main` 强制 production (GH Actions checkout=detached HEAD 默认判 preview, secret 绑 production env → preview 读不到 INTERNAL_PSK→503; 且默认 URL 无 production 一直 404) + secret-put 须在 deploy 前 (新 deployment 创建时读 secret)。
+- **自定义域名**: `omn.360710.xyz` 已绑 Pages 项目 (无 zone 账号 B 建 page, CNAME 到账号 A zone)。**注意**: 计划文档原写 `proxy.360710.xyz`, 实际圣上绑的是 `omn.360710.xyz`。
+- **cron-job.org 探活**: 每分钟 GET `omn.360710.xyz/healthz` + 头 `Bearer <PSK>` → 200 `{"ok":true}`, 响应头 `x-proxied-host`/`x-proxied-path` 证穿透 gate。探活走反代=探用户真实路径。
+- **双轨并列**: workers 版 `h-o.cc.cd` (热备, 未改, 私有化后无 X-Gate-PSK 覆盖直连会被拒) / Pages 版 `omn.360710.xyz` (生产)。**未决**: sonoke base_url 须切到 Pages 版才走完整新链路。

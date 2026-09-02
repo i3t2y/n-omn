@@ -1,4 +1,8 @@
 // ===== ho-proxy (Page 版): sonoke → xnexus gate 入站反代 · Cloudflare Pages =====
+// 文件名必须 _middleware.js (根级中间件, 拦截全路径含无路由的 404 路径):
+//   wrangler 4.128 把 functions/[[path]].js 的 [[path]] 当 glob 匹配空集 → 整个函数目录被判空
+//   (pages dev 显示 "No Functions") → 部署上去全站 404。改 _middleware.js 后解析正常,
+//   中间件直接 return Response 不调 next(), 即等价全路径 catch-all 反代。
 // 拓扑: sonoke → proxy.360710.xyz (CF Pages 边缘, 前置 PSK 校验) → xnexus-o.hf.space
 //   (CF 边缘公网出站, 不经 HF 容器出站 *.hf.space 基础设施层拦截, 解 space-to-space 429)
 // 鉴权(双层, 两个不同头, 互不冲突):

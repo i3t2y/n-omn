@@ -33,22 +33,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 校验 GH secrets 已配置 (空值即 fail, 防空 secret 注入 CF)
+        run: |
+          : "${INTERNAL_PSK:?INTERNAL_PSK secret 未配置}"
+          : "${HF_TOKEN:?HF_TOKEN secret 未配置}"
+        env:
+          INTERNAL_PSK: ${{ secrets.INTERNAL_PSK }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - name: 确保 Pages 项目存在 (wrangler ≥4 不自动建项目, 已存在则幂等忽略)
+        run: |
+          npx wrangler@latest pages project create ho-proxy-pages --production-branch main || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
+
       - name: Deploy ho-proxy Pages (建/更新项目 + 推 functions)
         run: |
           npx wrangler@latest pages deploy pages/ho-proxy --project-name ho-proxy-pages
         env:
-          CF_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
 
       - name: 注入 INTERNAL_PSK secret (边缘前置鉴权 + 出站透传导密钥)
         run: |
           printf '%s' "${{ secrets.INTERNAL_PSK }}" \
             | npx wrangler@latest pages secret put INTERNAL_PSK --project-name ho-proxy-pages
         env:
-          CF_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
 
       - name: 注入 HF_TOKEN secret (私有 Space 门票 → X-Api-Key)
         run: |
           printf '%s' "${{ secrets.HF_TOKEN }}" \
             | npx wrangler@latest pages secret put HF_TOKEN --project-name ho-proxy-pages
         env:
-          CF_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}

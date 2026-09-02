@@ -65,6 +65,9 @@ jobs:
         run: |
           # 必须 cd 进部署目录跑 `.` : 相对子路径 (deploy pages/ho-proxy) wrangler 4.x 不发现
           # functions/ → "No Functions" 部署空站 404 (本地三态实证: 子路径❌ / cd+`.`✅ / toml 无关)
-          cd pages/ho-proxy && npx wrangler@latest pages deploy . --project-name ho-proxy-pages
+          # 必须 --branch main : GH Actions checkout 是 detached HEAD(tag), 不指定 branch 会被判 preview 部署,
+          #   secret 绑 production env → preview 读不到 INTERNAL_PSK → 503 (默认 URL 也一直 404 = 无 production).
+          #   --branch main 强制 production, 吃到 production secret + 挂上 ho-proxy-pages.pages.dev 默认 URL.
+          cd pages/ho-proxy && npx wrangler@latest pages deploy . --project-name ho-proxy-pages --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}

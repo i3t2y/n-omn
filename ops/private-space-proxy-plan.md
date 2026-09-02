@@ -6,26 +6,24 @@
 
 ---
 
-## 阶段 1：Space 私有化 + 注入头定案（**圣上操作 HF；头名已由查证定案，跳过 curl 实测**）
+## 阶段 1：Space 私有化 + 注入头定案（**✅ 完成 2026-09-02 实测定案**）
 
-> **2026-09-02 修订**：原"先私有化 + curl 实测 X-Api-Key vs Bearer 头名"的串行测试被圣上否（令"不用搞这个测试，加变量直接上"）。头名直接定案 **`X-Api-Key`**（HF 平台层通读；与透传 `Authorization: Bearer <PSK>` 分属两个头、互不冲突，零改 gate）。私有化须与 token 注入**同拍落地**——单独改私有而不注入 token，sonoke 通道即断（"我就不法和你说话了"）。
+> **2026-09-02 实测结论（推翻 X-Api-Key 假设）**：HF 私有 Space **只认 `Authorization: Bearer <HF_TOKEN>`**，`X-Api-Key` 返回 404（直连实测三态：无 token→404 / X-Api-Key→404 / Bearer→200）。定案：反代出站 authorization 覆盖为 `Bearer <HF_TOKEN>` 门票，PSK 改走 `X-Gate-PSK` 独立头透传，gate.js `/v1` 校验 X-Gate-PSK 优先、回退 authorization。私有化与注入**同拍落地**（单独改私有而不注入 token，sonoke 通道即断——"我就不法和你说话了"）。
 
 | # | 操作 | 位置 | 成功判据 |
 |---|---|---|---|
-| 1.1 | xnexus-o 改 **Private** | HF Dashboard → xnexus-o → Settings | 公开访问变 401/404 |
-| 1.2 | 反代已注 `X-Api-Key: <HF_TOKEN>` → 私有 Space 200 | 反代探活；业务 | 200 = 私有化+注入同拍闭环 ✅ |
-
-> 头名测试已取消；唯一不确定点 = HF 私有 Space 是否认 `X-Api-Key`（极小概率，若部署后业务 401 再走"迁 PSK 升级路"——见阶段 2 预案）。
+| 1.1 | xnexus-o 改 **Private** | HF Dashboard → xnexus-o → Settings | ✅ 直连无 token 404（私有化生效） |
+| 1.2 | 反代出站注 `Bearer <HF_TOKEN>` → 私有 Space 200 | 反代探活；业务 | ✅ 直连带门票 200 = 私有化+注入同拍闭环 |
 
 ## 阶段 2：反代（CF 侧）注入 HF token（**✅ 完成 2026-09-02，部署全绿**）
 
 | # | 操作 | 位置 | 判据 |
 |---|---|---|---|
 | 2.1 | CF Pages 项目加 **Secret `HF_TOKEN`**（xnexus-o 账号 token，不落 git） | CF Dashboard → 该项目 → Settings → Secrets | 值已注入，代码 `env.HF_TOKEN` 可读 |
-| 2.2 | `pages/ho-proxy/functions/_middleware.js` 出站 fetch 注入 `X-Api-Key: <HF_TOKEN>` | 仓库代码 | ✅ 已改，六态 mock **14/14 全绿**（4d/5c 注入断言 + 6c 无 token 不注入）。双坑排查闭环：① 文件名须 `_middleware.js`（`[[path]].js` 的 `[[path]]` 被 wrangler 4.128 当 glob 吞空→`No Functions`）；② **部署必须 `cd` 进目录跑 `deploy .`**（相对子路径 `deploy pages/ho-proxy` 不发现 functions→空站 404；cd+`.` 有 toml 也正常，本地三态实证：子路径❌/cd+`.`✅/toml 无关） |
+| 2.2 | `pages/ho-proxy/functions/_middleware.js` 出站 fetch 覆盖 `authorization: Bearer <HF_TOKEN>` 门票 + `X-Gate-PSK: Bearer <PSK>` 独立头 | 仓库代码 | ✅ 已改，mock **7/7 全绿**（新路 gate-psk 优先 / 老路 auth 回退）。双坑排查闭环：① 文件名须 `_middleware.js`（`[[path]].js` 的 `[[path]]` 被 wrangler 4.128 当 glob 吞空→`No Functions`）；② **部署必须 `cd` 进目录跑 `deploy .`**（相对子路径 `deploy pages/ho-proxy` 不发现 functions→空站 404；cd+`.` 有 toml 也正常，本地三态实证：子路径❌/cd+`.`✅/toml 无关） |
 | 2.3 | 多 token 变量预案：`HF_TOKEN`（业务）+ 可选 `HF_TOKEN_MON`（探活/备用）——**同一账号，仅职责分离/备份，无扩容意义** | CF Secrets | 冗余，可选 |
-| 2.4 | 部署 Pages 项目（wrangler push / GH Actions） | CF 侧 | `proxy.360710.xyz` 可访问 |
-| 2.5 | sonoke → 反代 → 私有 Space 真业务 200 | sonoke | 待阶段 1 私有化后验证 |
+| 2.4 | 部署 Pages 项目（GH Actions tag-driven） | CF 侧 | ✅ **自定义域名 `omn.360710.xyz` 已绑定**，全链路四态全绿 |
+| 2.5 | sonoke → 反代 → 私有 Space 真业务 200 | sonoke | ✅ `/v1/models` 200（重启后 gate 加载新逻辑） |
 
 > **生产部署三坑全闭环（wrangler 4.128 + GH Actions tag 触发）**：
 > ① 文件名须 `_middleware.js`（`[[path]].js` 的 `[[path]]` 被当 glob 吞空→`No Functions`）
@@ -33,7 +31,7 @@
 > ③ **须 `--branch main` 强制 production**（GH Actions checkout=detached HEAD，`wrangler pages deploy` 默认判 preview 部署；secret 绑 **production** env → preview 读不到 INTERNAL_PSK → 503 "proxy not configured"；且默认 URL `ho-proxy-pages.pages.dev` 无 production 部署一直 404）。`--branch main` 后：无 Bearer→401 / 错 PSK→401 / 真 PSK→透传 gate /v1/models 200 全绿。
 > 部署命令：`cd pages/ho-proxy && npx wrangler@latest pages deploy . --project-name ho-proxy-pages --branch main`（workflow 里 secret-put 须在 deploy **前**，否则新 deployment 读不到）。
 
-> **升级预案（仅当 X-Api-Key 不被 HF 私有层认，业务 401 时启用）**：PSK 迁 `X-Gate-PSK` 头出站 + `Authorization` 让位给 `Bearer <HF_TOKEN>`（HF 标准）+ gate.js 加一行 fallback 读 `X-Gate-PSK`——代价是动 gate，万不得已才走。
+> **升级预案（✅ 已启用 2026-09-02，实测触发）**：HF 私有 Space 实测不认 X-Api-Key → PSK 迁 `X-Gate-PSK` 头出站 + `Authorization` 让位给 `Bearer <HF_TOKEN>`（HF 标准）+ gate.js `/v1` 校验 X-Gate-PSK 优先、回退 authorization（dev/logic/gate.js L199-212）。已重启生效，全链路四态全绿。
 
 ## 阶段 3：cron-job.org 探活（**圣上操作 cron-job.org**）
 

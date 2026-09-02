@@ -2,7 +2,7 @@ name: deploy-ho-proxy
 
 # 反代 Worker (sonoke → xnexus gate) 部署 · tag-driven (仿 deploy-ft-workers.yml)
 # 触发: push `deploy-ho-*` tag 或 workflow_dispatch 手动
-# Secrets: HO_CF_TOKEN (CF API token, 4 权限最小集) + Variable: HO_CF_ACCOUNT_ID
+# Secrets: HO_CF_TOKEN (CF API token, 4 权限最小集) + HO_CF_ACCOUNT_ID (圣上配在 Secrets 命名空间, 读 secrets.)
 on:
   push:
     tags:
@@ -20,10 +20,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy ho-proxy Worker
+      # 校验 GH secrets 已配置 (空值即 fail, 防空 secret 注入 CF) — 与 Pages 版对齐
+      - name: 校验 GH secrets 已配置
+        run: |
+          : "${INTERNAL_PSK:?INTERNAL_PSK secret 未配置}"
+          : "${HF_TOKEN:?HF_TOKEN secret 未配置}"
+        env:
+          INTERNAL_PSK: ${{ secrets.INTERNAL_PSK }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      # 须在 deploy 前注入 (新 deployment 创建时读 secret; 与 Pages 版对齐)
+      - name: 注入 INTERNAL_PSK secret (出站 X-Gate-PSK 用, 同 gate 常量值)
+        run: |
+          printf '%s' "${{ secrets.INTERNAL_PSK }}" \
+            | npx wrangler@latest secret put INTERNAL_PSK --name ho-proxy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.HO_CF_TOKEN }}
+
+      - name: 注入 HF_TOKEN secret (私有 Space 门票 → 出站 Bearer 覆盖)
+        run: |
+          printf '%s' "${{ secrets.HF_TOKEN }}" \
+            | npx wrangler@latest secret put HF_TOKEN --name ho-proxy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.HO_CF_TOKEN }}
+
+      - name: Deploy ho-proxy Worker (secret 已注入可读)
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.HO_CF_TOKEN }}
-          accountId: ${{ vars.HO_CF_ACCOUNT_ID }}
+          accountId: ${{ secrets.HO_CF_ACCOUNT_ID }}
           workingDirectory: workers/ho-proxy
           command: ${{ inputs.command || 'deploy' }}

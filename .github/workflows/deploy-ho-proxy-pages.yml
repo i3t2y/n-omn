@@ -47,24 +47,24 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
 
-      - name: Deploy ho-proxy Pages (建/更新项目 + 推 functions)
-        run: |
-          # 必须 cd 进部署目录跑 `.` : 相对子路径 (deploy pages/ho-proxy) wrangler 4.x 不发现
-          # functions/ → "No Functions" 部署空站 404 (本地三态实证: 子路径❌ / cd+`.`✅ / toml 无关)
-          cd pages/ho-proxy && npx wrangler@latest pages deploy . --project-name ho-proxy-pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
-
-      - name: 注入 INTERNAL_PSK secret (边缘前置鉴权 + 出站透传导密钥)
+      - name: 注入 INTERNAL_PSK secret (边缘前置鉴权 + 出站透传导密钥)  [须在 deploy 前]
         run: |
           printf '%s' "${{ secrets.INTERNAL_PSK }}" \
             | npx wrangler@latest pages secret put INTERNAL_PSK --project-name ho-proxy-pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
 
-      - name: 注入 HF_TOKEN secret (私有 Space 门票 → X-Api-Key)
+      - name: 注入 HF_TOKEN secret (私有 Space 门票 → X-Api-Key)  [须在 deploy 前]
         run: |
           printf '%s' "${{ secrets.HF_TOKEN }}" \
             | npx wrangler@latest pages secret put HF_TOKEN --project-name ho-proxy-pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}
+
+      - name: Deploy ho-proxy Pages (建/更新项目 + 推 functions, secret 已注入可读)
+        run: |
+          # 必须 cd 进部署目录跑 `.` : 相对子路径 (deploy pages/ho-proxy) wrangler 4.x 不发现
+          # functions/ → "No Functions" 部署空站 404 (本地三态实证: 子路径❌ / cd+`.`✅ / toml 无关)
+          cd pages/ho-proxy && npx wrangler@latest pages deploy . --project-name ho-proxy-pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.B_CF_TOKEN }}

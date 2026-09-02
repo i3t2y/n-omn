@@ -10,7 +10,7 @@
 - [x] 阶段1 xnexus-o 已私有化。**实测头名**：HF 私有 Space 只认 `Authorization: Bearer <token>`，`X-Api-Key` 返回 404 → 推翻 X-Api-Key 假设，走升级路
 - [x] 阶段2 反代出站 `authorization` 覆盖为 `Bearer <HF_TOKEN>` 门票 + PSK 改走 `X-Gate-PSK` 独立头，gate.js `/v1` 校验 X-Gate-PSK 优先、回退 authorization。部署三坑闭环（_middleware.js 文件名 / cd+`.` 部署 / `--branch main` 强制 production + secret 在 deploy 前）
 - [x] 阶段3 cron-job.org 每分钟 GET `https://omn.360710.xyz/healthz` + 头 `Authorization: Bearer <PSK>` — 返回 200 `{"ok":true}`（`x-proxied-*` 头证穿透 gate）
-- [x] 阶段4 全链路四态全绿（无/错 PSK→401 边缘、真 PSK→200 gate）+ **双轨并列**：worker 版 `h-o.cc.cd` 热备 / Pages 版 `omn.360710.xyz` 生产；**未决**：sonoke base_url 是否已切 Pages 版（圣上确认）
+- [x] 阶段4 全链路四态全绿（无/错 PSK→401 边缘、真 PSK→200 gate）+ **Pages 唯一生产**（worker 版已删不重建；旧版不带 HF 门票私有 Space 必拒；源码留仓库作回滚源）；sonoke base_url = `https://omn.360710.xyz/v1`（须带 /v1）
 
 ## 2026-08-31 · manage key 真变量修正 = OMNIROUTE_API_KEY — commit a8a56af push 通 nomn
 

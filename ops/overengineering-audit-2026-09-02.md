@@ -92,7 +92,7 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 
 | # | 动作 | 优先级 |
 |---|---|---|
-| 1 | 3 条死 provider 轨（openrouter/mistral/gemini）从 PROVIDERS 表摘除或标记 disabled，砍 1720 行对应分支 | 高（省 boot 时间 + 日志噪音） |
+| 1 | ~~死 provider 轨（openrouter/mistral/gemini）摘除或标记 disabled~~：**圣上裁"标记 disabled 保留代码"** — 加 `DISABLED_PROVIDERS` 数组（两处禁入：ALL_FT_FAMILIES 绑族 + _register_multi_provider 注册段），删名即复活 | **✅ 已实施（mock 全绿, boot 待验）** |
 | 2 | ~~amd 补绑 FT 桥（A 方向，圣上令 2026-09-03）~~：node 注册后把真实 UUID 绑进 FT proxy，多 key 走桥轮换出口 IP | **✅ 已完成 b67a91f（boot 待验）** |
 | 2b | SQLITE_CORRUPT 排查：连 R2 落库是否一起坏 → 定 Litestream restore 策略 | 高（数据完整性） |
 | 3 | `FT_HEALTH_COOLDOWN` 状态定一面（启用 or 移除），消文档矛盾 | 中 |
@@ -107,4 +107,4 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 - **锁定决策**：无新增（本文件为审计盘点，非决策）
 - **文件变更**：本文件新建；补 ④FT scope 短名盲区 + SQLITE_CORRUPT 复发强化 + 建议表 2/2b
 - **未决**：见「三、下一步建议」表 6 项
-- **下一步**：amd 补绑 FT 桥改码（A 方向已批）→ SQLITE_CORRUPT 排查 → 死 provider 轨摘除 → FT_HEALTH_COOLDOWN 定一面
+- **下一步**：~~amd 补绑 FT 桥改码（A 方向已批）~~✅ → ~~SQLITE_CORRUPT 排查~~✅ → ~~死 provider 轨摘除~~✅(disabled 可逆) → **FT_HEALTH_COOLDOWN 定一面** → PRESET 精简

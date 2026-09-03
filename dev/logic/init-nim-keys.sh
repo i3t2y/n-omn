@@ -112,10 +112,29 @@ declare -a PROVIDERS=(
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
 )
-# 全部 provider 族 (含 nvidia), 供 FT 桥 bulk-assign 绑族与单桥回退遍历.
+# ── 死 provider 轨 disabled 标记 (2026-09-03 圣上令: 标记 disabled 保留代码, 可逆) ──
+# openrouter/mistral/gemini 三条内置轨 key 无效空转 (09-02 审计 CredentialHealth 全 Invalid API key,
+# 完整注册机制每 boot 都跑但交付零请求 = 纯噪音). 但 08-31/09-01 刚下令内置化 → 不删行不砍分支,
+# 仅跳过注册 + FT 绑族; key 复活后从本数组删名即恢复 (可逆, 不推翻内置化令).
+declare -a DISABLED_PROVIDERS=("gemini" "openrouter" "mistral")
+
+# 判定 provider id 是否被禁用 (ALL_FT_FAMILIES 绑族收集 + _register_multi_provider 注册 共用)
+_is_provider_disabled() {
+  local _pid="$1" _d
+  for _d in "${DISABLED_PROVIDERS[@]}"; do
+    [ "$_d" = "$_pid" ] && return 0
+  done
+  return 1
+}
+
+# 全部 provider 族 (含 nvidia, 排除 disabled), 供 FT 桥 bulk-assign 绑族与单桥回退遍历.
 declare -a ALL_FT_FAMILIES=()
 for _pcfg in "${PROVIDERS[@]}"; do
   IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre <<< "$_pcfg"
+  if _is_provider_disabled "$_pid"; then
+    echo "[init]   $_pid: DISABLED (key 无效空转), 跳过 FT 绑族"
+    continue
+  fi
   ALL_FT_FAMILIES+=("$_ppre")
 done
 
@@ -1347,6 +1366,11 @@ _register_multi_provider() {
   _DPV4_ENTRIES=()
   for _pcfg in "${PROVIDERS[@]}"; do
     IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre _mode _static_models <<< "$_pcfg"
+    # disabled 死轨: 跳过整段 (建节点/连接/枚举/pool), 保留代码待 key 复活 (可逆).
+    if _is_provider_disabled "$_pid"; then
+      echo "[init]   $_pid: DISABLED, 跳过注册 (key 无效空转, 保留代码待复活)"
+      continue
+    fi
     # mode=builtin → 走内置 provider 名 (sensenova). 连接/模型/combo 前缀/dpv4 前缀全用 _pid 内置名,
     # 与 nvidia 同模式 (nvidia 内置名下有连接 → 短名通; §8.1 遮蔽只影响自定义节点, 不影响内置名挂连接).
     _is_builtin=0; [ "$_mode" = "builtin" ] && _is_builtin=1

@@ -750,3 +750,17 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **自定义域名**: `omn.360710.xyz` 已绑 Pages 项目 (无 zone 账号 B 建 page, CNAME 到账号 A zone)。**注意**: 计划文档原写 `proxy.360710.xyz`, 实际圣上绑的是 `omn.360710.xyz`。
 - **cron-job.org 探活**: 每分钟 GET `omn.360710.xyz/healthz` + 头 `Bearer <PSK>` → 200 `{"ok":true}`, 响应头 `x-proxied-host`/`x-proxied-path` 证穿透 gate。探活走反代=探用户真实路径。
 - **Pages 唯一生产 (2026-09-02 定案)**: worker 版已删 (h-o.cc.cd 530), 无重建。原因实证: 旧 worker 版出站不带 `Bearer <HF_TOKEN>` 门票, 私有 Space 平台层即拒 (请求进不了容器, 到不了 gate) → **任何不带门票的出站必死**。worker 版源码 + deploy workflow 留仓库作回滚源, 恢复需先改源码注入门票+秘密 (已对齐 Pages 版逻辑, 见 052506e) 再部署。sonoke base_url = `https://omn.360710.xyz/v1` (须带 /v1, 裸路径绕 gate 中间件 401 invalid_api_key)。
+
+## 2026-09-03 · amd 403 根因定谳 (账户级推理权限, 非代码 bug) — 已侦查闭环
+
+- **现象**: 生产 20:56 boot, amd 5 key 全 `Invalid API key` (CredentialHealth) + `Auto-sync failed: 403` ×5。dp4f-pool 中 amd 2 条为死腿, amd-pool 单池仅死 key。此现象与上一会话 (19:46-21:29) amd 403 主失败链同源, 非新病。
+- **直接实测 (合成 key, §2 合规, 禁真 key 入会)** 打 amd 上游 `developer.amd.com.cn/radeon/api/v1`:
+  - 合成 key `GET /v1/models` → `401 Invalid bearer token` (目录层)
+  - 合成 key `POST /v1/chat/completions` → `401 Invalid bearer token` (推理层)
+  - 对照真 key boot 实证: 枚举 `GET /models` = `200 key=ok` (4 模型, 目录层鉴权通); CredentialHealth/Auto-sync 推理 `POST /chat/completions` = **403**
+- **定谳 = init-nim-keys.sh L800-811 记载的 2026-07-21 事件签名**: `GET 目录 200 而 POST 推理 403` = **账户级死亡 key, 鉴权链断在推理层**。5 key 同病 → 同一批 provision 缺陷。
+- **已排除 (都有直接证据)**: baseUrl/路径拼接错 (枚举用同 baseUrl 200) / Bearer 头格式错 (合成 key 返回结构化 401, 说明上游正确解析 Bearer) / 整池连不上 (目录层 200) / egress 或 FT 补绑问题 (b67a91f 后 boot 仍 403) / SENSENOVA & NVIDIA 路 (两家 status=success, 实打实 200)。
+- **根因判断**: amd key 对 chat-completions 推理端点缺 entitlement/scope, 或已过期, 或跨门户签发 (中国区门户 `developer.amd.com.cn` vs 全球 `developer.amd.com` token 互不认, 社区常见 403)。官方文档: [认证](https://developer.amd.com.cn/docs/authentication)、[Chat Completions API](https://developer.amd.com.cn/radeon/api-reference/chat-completions)。
+- **执行前提 (圣上侧, 非代码)**: ① amd 门户重发/续期 5 key, 确认带 chat-completions inference 权限 + 中国门户签发; ② 换好 key 后**临时开 `NIM_PROBE_ENABLED=1` 一 boot**, 让 M3 探活 (POST 推理端, 专切死 key) 直接验证, 别等 runtime CredentialHealth 滞后发现 (现默认 `=0` 跳 probe, 故死 key 照常入池); ③ 若 amd 已不需 → 同 DISABLED 机制从注册循环 + dp4f-pool 摘除 (保留代码), 消死腿。
+- **附带留痕**: 生产周期内另见 `Cleanup: no such table compression_run_telemetry` — 但 quick_check ok, 是**单纯缺表非坏库** (R2 restore 库缺该表, 3.8.50 cleanup 期望它存在, 已容错 skip); 非回退理由。
+- 出处: 本会话 amd 上游合成 key 直测 + boot 20:56 实证 + memory `amd-not-builtin-long-id-expected`。关联: §12 (3.8.50 观察同型 403/"blocked by target"), ops/overengineering-audit-2026-09-02.md ④ (amd 补绑 FT 桥背景)。

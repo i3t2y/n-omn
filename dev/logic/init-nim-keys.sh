@@ -423,6 +423,8 @@ _ft_register_proxy() {
   fi
   local _HOST="${FT_PROXY_HOST:-127.0.0.1}"
   local _BRIDGES_JSON="/logic/flaretunnel_bridges.json"
+  # 全局导出当前 FT proxy id: _register_multi_provider 的 node 模式段用它补绑 UUID (2026-09-03).
+  _FT_PROXY_ID=""
 
   # 内联: 单桥 proxy 注册 (POST 建 + PUT bulk-assign 绑族).
   #   $1=proxy 名, $2=port, $3..=family 数组 (provider 家族名常量串, 如 "nvidia"/"github-models").
@@ -446,6 +448,7 @@ _ft_register_proxy() {
     local _pid=""; _pid=$(jq -r '.id // empty' "$_RESP" 2>/dev/null)
     [ -z "$_pid" ] && { echo "[init] FT proxy ${_nm}: WARN POST body 无 id 字段, 无法绑族. 跳此桥."; return 1; }
     echo "[init] FT proxy ${_nm}: 建 ✓ (host=${_HOST}:${_pt} → id=${_pid}, HTTP $_HTTP)"
+    _FT_PROXY_ID="$_pid"
     if [ "${#_fams[@]}" -gt 0 ]; then
       local _ids_json; _ids_json=$(printf '%s\n' "${_fams[@]}" | jq -R . | jq -s .)
       local _BA _BAR _BAC
@@ -1400,6 +1403,27 @@ _register_multi_provider() {
       esac
     fi
     fi   # builtin else (node 建立段)
+
+    # ── 1.5) node 模式补绑 FT 桥 — 真实 provider 名 = 节点 UUID (2026-09-03, amd 封号防御) ──
+    # 根因: _ft_register_proxy 绑族用字的短名 (scopeIds=[... amd]), 但 node 模式连接挂
+    # provider=<UUID>, 短名匹配不上 → model 直连共享 HF 容器单出口 IP (多 key 同 IP 触风控=封号).
+    # builtin 名 (sensenova 等) 短名即 provider 名, 绑族已覆盖, 本段只处理 node 模式.
+    # 时机: FT 桥注册早于本函数 (全局 var _FT_PROXY_ID 已导出), 节点刚建/复用得真实 _nid.
+    if [ "$_is_builtin" = "0" ] && [ -n "${_FT_PROXY_ID:-}" ] && [ -n "$_nid" ]; then
+      local _nd_ids_json _nd_BA _nd_BAR _nd_BAC _nd_upd
+      _nd_ids_json=$(printf '%s\n' "$_nid" | jq -R . | jq -s .)
+      _nd_BA=$(jq -n --arg s "provider" --argjson ids "$_nd_ids_json" --arg p "$_FT_PROXY_ID" \
+        '{scope:$s, scopeIds:$ids, proxyId:$p}')
+      _nd_BAR="$(_resp ft_bindnode_${_pid}.json)"
+      _nd_BAC=$(curl -s -o "$_nd_BAR" -w "%{http_code}" -b "$COOKIE_FILE" \
+        -X PUT "$BASE_URL/api/v1/management/proxies/bulk-assign" \
+        -H "Content-Type: application/json" -d "$_nd_BA" 2>/dev/null || echo "000")
+      _nd_upd=$(jq -r '.updated // "?"' "$_nd_BAR" 2>/dev/null)
+      case "$_nd_BAC" in
+        200|201) echo "[init]     $_pid: node $_nid 补绑 FT 桥 ✓ (provider scope, updated=${_nd_upd})" ;;
+        *)       echo "[init]     $_pid: node $_nid 补绑 FT 桥 WARN HTTP $_nd_BAC ($(head -c 200 "$_nd_BAR" 2>/dev/null)). 该 provider 将直连." ;;
+      esac
+    fi
 
     # ── 2) 逐 key 建连接 (POST /api/providers, provider=<node.id> 走 openai-compatible 路由) ──
     # builtin 模式: provider=<sensenova> 挂内置名下, 与 nvidia 同模式 (短名通).

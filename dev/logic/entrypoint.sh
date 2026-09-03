@@ -124,11 +124,31 @@ fi
 has_r2=0
 [ -n "${R2_ACCESS_KEY_ID:-}" ] && [ -n "${R2_SECRET_ACCESS_KEY:-}" ] && [ -n "${R2_ACCOUNT_ID:-}" ] && has_r2=1
 
+# ── Litestream restore 判据 ──
+# 2026-09-03 #57 SQLITE_CORRUPT 复发根因闭环: 旧逻辑"本地非空→skip"让坏库永续复用,
+# R2 哪怕有完好副本也救不了 (litestream 每 10s 把坏库推回 R2, 删 R2 即重新污染)。
+# 强化: 本地非空也 quick_check, 通过才 skip (不覆盖有效 DB); 坏则丢弃本地强制走 restore。
+_do_restore=1
 if [ "$has_r2" = 0 ]; then
   echo "[entrypoint] ⚠ R2 凭据未配置 → skip restore, 空库启动 (数据将不可持久, 强烈建议补齐)"
+  _do_restore=0
 elif [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
-  echo "[entrypoint] 本地库非空 ($DB_PATH) → skip restore (不覆盖有效 DB)"
-else
+  echo "[entrypoint] 本地库非空 ($DB_PATH) → 先 quick_check 验损..."
+  if command -v sqlite3 >/dev/null 2>&1; then
+    if sqlite3 "$DB_PATH" "PRAGMA quick_check;" 2>/dev/null | grep -q "^ok$"; then
+      echo "[entrypoint] 本地库非空 ($DB_PATH) → skip restore (quick_check ok, 不覆盖有效 DB)"
+      _do_restore=0
+    else
+      echo "[entrypoint] ⚠ 本地库 quick_check 失败 (损坏) → 丢弃本地文件, 强制走 restore."
+      rm -f "$DB_PATH" "$DB_PATH-wal" "$DB_PATH-shm" 2>/dev/null || true
+    fi
+  else
+    echo "[entrypoint] 本地库非空 ($DB_PATH) → skip restore (sqlite3 不可用, 沿用旧行为不覆盖)"
+    _do_restore=0
+  fi
+fi
+
+if [ "$_do_restore" = 1 ]; then
   # 本地库空或不存在 → restore
   rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm"
   printf '%s' "" > /tmp/ls_restore.err

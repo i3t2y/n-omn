@@ -207,6 +207,9 @@ upsert_combo() {
   # 对数组值取 `.name` 抛 "Cannot index array with string"(4.2.3 生产 14:23 实测, 4.3.2 同病)。
   # 修正式 (数组/对象双容 + 对象守卫): 根为数组直接遍历, 根为对象取 .combos//.data 字段,
   # select 加 `type=="object"` 守卫防对非对象值(数组值)取 .name 抛错 — 兼两种响应结构 + 空库首跑。
+  # ⚠ 2026-09-05 暂缓: 本处判码修复会让 GET 失败时由"盲目 POST"改为 fail-closed return 1,
+  #   属可感知行为变更 (原本侥幸可成功的场景将明确失败). Supreme 裁定本轮只推无行为变更项,
+  #   故此处保持原样, 待 staging 回归后再单独处理.
   CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
         | jq -r --arg n "$NAME" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
   F="$(_resp omn-combo-$NAME.json)"
@@ -1127,11 +1130,25 @@ fi
 #      本段严格断言会误 FATAL 卡死部署. 此为有意识 fail-closed — 限流未达预期不放 ready.
 #      K3 裁: maxWaitMs 断言合保留严格(推荐) / 降级 WARN(若 API 字段保真性存疑).
 if [ "$RESILIENCE_CODE" = "200" ] || [ "$RESILIENCE_CODE" = "201" ]; then
-  _RB=$(curl -s --connect-timeout 5 --max-time 20 -b "$COOKIE_FILE" "$BASE_URL/api/resilience" 2>/tmp/res_get.err)
+  # 判码 (2026-09-05 补): 旧式只取 $? 不取 HTTP 码 — 上游 5xx 时 curl_rc=0 且响应体非空,
+  #   会绕过本段 transport 检查, 直到下游四字段断言才以 "读回不一致 RPM(null!=X)" 形式暴露,
+  #   诊断被误导为"配置未落定"而非"读回请求本身失败". 现先 -w 取码, 非 200 直接在此拦下.
+  #   ⚠ set -e 陷阱 (本段根病原): `VAR=$(cmd)` 退出码取 cmd — curl 失败会在"赋值这一行"即被
+  #     errexit 秒杀, 导致下行 `res_get_rc=$?` 与整个 if 分支成为不可达死代码,
+  #     即原有优雅报错从未真正生效过 (失败表现为无声中止, 无 abort_source 诊断).
+  #     故抬门 set +e 包住 curl + $? 捕获, 再 set -e 恢复, 使错误处理首次真实可达.
+  #     注意: 不能改用 `|| echo "000"`, 那会把 $? 冲成 0 丢掉 curl_rc (供下行 abort_source 判因).
+  _RES_GET_FILE="$(_resp omn-resilience-get.json)"
+  set +eo pipefail
+  _RES_GET_HTTP=$(curl -s -o "$_RES_GET_FILE" -w "%{http_code}" --connect-timeout 5 --max-time 20 -b "$COOKIE_FILE" "$BASE_URL/api/resilience" 2>/tmp/res_get.err)
   res_get_rc=$?
-  _res_get_err=$(cat /tmp/res_get.err 2>/dev/null | head -c 300)
-  if [ "$res_get_rc" -ne 0 ] || [ -z "$_RB" ]; then
-    echo "[init] ✗ Resilience GET 读回 transport-error: curl_rc=$res_get_rc err=${_res_get_err:-<empty>}"
+  set -eo pipefail
+  if [ "$res_get_rc" -ne 0 ]; then _RES_GET_HTTP="000"; fi
+  _res_get_err=$(cat /tmp/res_get.err 2>/dev/null | head -c 300 || true)
+  _RB=$(cat "$_RES_GET_FILE" 2>/dev/null || true)
+  if [ "$res_get_rc" -ne 0 ] || [ "$_RES_GET_HTTP" != "200" ] || [ -z "$_RB" ]; then
+    echo "[init] ✗ Resilience GET 读回失败: curl_rc=$res_get_rc HTTP=${_RES_GET_HTTP:-<empty>} err=${_res_get_err:-<empty>}"
+    head -c 300 "$_RES_GET_FILE" 2>/dev/null || true
     echo "[init]   abort_source: $( [ "$res_get_rc" = 28 ] && echo 'request_timeout' || ([ "$res_get_rc" = 7 ] && echo 'get_connect_failure' || echo 'get_unknown') )"
     echo "[init]   CF-4 约束: 写必须读回. 读回失败 → init 失败 (上游 resilience 未确认达预期限流)."
     return 1 2>/dev/null || exit 1
@@ -1396,7 +1413,16 @@ _register_multi_provider() {
     else
     # 先查现有节点, 命中则取 id (避免重名 POST 400). GET /api/provider-nodes?type= 或按 name 查.
     _nodes_resp="$(_resp omn-provider-nodes-${_pid}.json)"
-    curl -s -o "$_nodes_resp" -b "$COOKIE_FILE" "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || true
+    # 判码 (2026-09-05 补): 旧式无 -w + `|| true` 双吞 — 传输失败与上游 5xx 全静默,
+    #   → 空体/错误体喂 jq → _nid 空 → 误判"不存在" → 转 POST → 重名 400 → 该 provider 被跳过.
+    #   非 200 即跳过本 provider, 不再据不可信响应体决策.
+    _nodes_http=$(curl -s -o "$_nodes_resp" -w "%{http_code}" -b "$COOKIE_FILE" \
+      "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || echo "000")
+    if [ "$_nodes_http" != "200" ]; then
+      echo "[init]     $_pid: ✗ GET /provider-nodes HTTP $_nodes_http — 无法判定节点存在性, 跳过 (避免误建重名/误取错 id)"
+      head -c 200 "$_nodes_resp" 2>/dev/null || true
+      continue
+    fi
     # 按 name 匹配现有节点 (name 唯一每 provider)
     _nid=$(jq -r --arg n "$_pnode" '.. | objects | select(.name? == $n) | .id // empty' "$_nodes_resp" 2>/dev/null | head -n1)
     if [ -z "$_nid" ]; then
@@ -1555,10 +1581,20 @@ _register_multi_provider() {
       if [ -n "$_static_models" ]; then
         local _prf _prid _prlist _pm _pmbase
         _prf="$(_resp omn-provider-models-prune-${_pid}.json)"
-        curl -s -o "$_prf" -b "$COOKIE_FILE" "$BASE_URL/api/provider-models?provider=$_nid" 2>/dev/null || true
+        # 判码 (2026-09-05 补): 旧式无 -w + `|| true` 双吞. _prlist 直接喂 DELETE —
+        #   查询失败时若错误体含 models[] 结构, 会据不可信 id 误删白名单内模型 (不可逆).
+        #   非 200 则置空 _prlist, 走下方"无残留跳过"分支, 只清理被跳过而非误删.
+        _prh=$(curl -s -o "$_prf" -w "%{http_code}" -b "$COOKIE_FILE" \
+          "$BASE_URL/api/provider-models?provider=$_nid" 2>/dev/null || echo "000")
+        if [ "$_prh" != "200" ]; then
+          echo "[init]     $_pid: ✗ GET /provider-models HTTP $_prh — 跳过白名单外清理 (避免据错误体误删)"
+          head -c 200 "$_prf" 2>/dev/null || true
+          _prlist=""
+        else
         _prlist=$(jq -r '.models[]? | .id // empty' "$_prf" 2>/dev/null \
           | awk -v wl="$_static_models" '{ n=$0; sub(/^[^/]*\//,"",n); if ((" " wl " ") !~ (" " n " ")) print }' \
           || true)
+        fi
         if [ -n "$_prlist" ]; then
           while IFS= read -r _pm; do
             [ -z "$_pm" ] && continue
@@ -1618,6 +1654,9 @@ upsert_dp4f_pool() {
     '{name:$name, strategy:$strat, models:$models}')
   echo "[init] dp4f-pool: 跨 provider 条目 ${#_DPV4_ENTRIES[@]} 条 → ${_DPV4_ENTRIES[*]}"
   # 幂等: CID 查询 + PUT(存在)/POST(新建) — 同 upsert_combo 修正式裁决 (§7)
+  # ⚠ 2026-09-05 暂缓 (同 upsert_combo): 本处判码修复含行为变更 — GET 失败时由"盲目 POST"
+  #   改为 fail-closed return 1. 另注意 _OLD 直喂 DELETE /api/combos/$_OLD, 查询失败且错误体
+  #   含同名 name 时存在误删 combo 风险 (不可逆), 待 staging 回归后与 _CID 判码一并处理.
   _CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
         | jq -r --arg n "dp4f-pool" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
   # 旧名清理: dp4f-pool 前身 dpv4flash-pool (R2 DB 持久化残留, 改名后旧 combo 变孤儿). 幂等, 无则跳过.
@@ -1664,9 +1703,18 @@ upsert_dp4f_pool() {
 #   2) 删该 node 下模型注册 (DELETE /api/provider-models?provider=<nodeid>&all=true, 兜底)
 # 幂等: 无旧节点/无残留则 no-op. 只删精确匹配, 不动内置名下连接 (provider=<短名>).
 _cleanup_legacy_node() {
-  local _node="$1" _label="$2" _ONF _ONID _ONHTTP
+  local _node="$1" _label="$2" _ONF _ONID _ONHTTP _ONGET_HTTP
   _ONF="$(_resp omn-provider-nodes-legacy-${_label}.json)"
-  curl -s -o "$_ONF" -b "$COOKIE_FILE" "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || true
+  # 判码 (2026-09-05 补): 旧式无 -w + `|| true` 双吞. 此处为 DELETE 前的查存, 失败方向不对称 —
+  #   查失败时 _ONID 空只会"跳过清理"(幂等, 无害); 但若错误体里恰含同名 name 字段, jq 会取到
+  #   错误 id 去执行 DELETE (级联删连接+别名), 属不可逆破坏. 故非 200 明确跳过, 不据不可信体决策.
+  _ONGET_HTTP=$(curl -s -o "$_ONF" -w "%{http_code}" -b "$COOKIE_FILE" \
+    "$BASE_URL/api/provider-nodes?type=openai-compatible" 2>/dev/null || echo "000")
+  if [ "$_ONGET_HTTP" != "200" ]; then
+    echo "[init] cleanup $_label: GET /provider-nodes HTTP $_ONGET_HTTP — 无法判定旧节点存在性, 跳过清理 (避免据错误体误删)"
+    head -c 200 "$_ONF" 2>/dev/null || true
+    return 0
+  fi
   _ONID=$(jq -r --arg n "$_node" '.. | objects | select(.name? == $n) | .id // empty' "$_ONF" 2>/dev/null | head -n1)
   if [ -n "$_ONID" ]; then
     _ONHTTP=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_FILE" \
@@ -1685,9 +1733,18 @@ _cleanup_legacy_node() {
 # 历史 boot (自定义节点时代前缀叠加) 注册的错误 modelId, 挂在 provider=sensenova 下污染列表.
 # 只删双重及以上前缀, 不动正确短名 (sensenova/<裸模型名>). openrouter/mistral/nvidia 无此叠加史.
 _cleanup_sensenova_double_prefix() {
-  local _MMF _MMLIST _mm _ONHTTP
+  local _MMF _MMH _MMLIST _mm _ONHTTP
   _MMF="$(_resp omn-provider-models-sensenova.json)"
-  curl -s -o "$_MMF" -b "$COOKIE_FILE" "$BASE_URL/api/provider-models?provider=sensenova" 2>/dev/null || true
+  # 判码 (2026-09-05 补): 旧式无 -w + `|| true` 双吞. _MMLIST 喂 DELETE; 查询失败时应明确报
+  #   "跳过清理" 而非 "无双重前缀残留" — 后者会让人误以为已确认过. (本段另有 grep '^sensenova/sensenova/'
+  #   精确前缀过滤, 误删风险本身已较低, 此处主要为诊断准确性与不可逆操作的显式守卫.)
+  _MMH=$(curl -s -o "$_MMF" -w "%{http_code}" -b "$COOKIE_FILE" \
+    "$BASE_URL/api/provider-models?provider=sensenova" 2>/dev/null || echo "000")
+  if [ "$_MMH" != "200" ]; then
+    echo "[init] cleanup sensenova: GET /provider-models HTTP $_MMH — 无法判定残留, 跳过清理"
+    head -c 200 "$_MMF" 2>/dev/null || true
+    return 0
+  fi
   # GET 响应结构 = {models:[{id,...}], modelCompatOverrides:[...]} (3.8.49 route.ts).
   _MMLIST=$(jq -r '.models[]? | .id // empty' "$_MMF" 2>/dev/null \
     | grep -E '^sensenova/sensenova/' || true)

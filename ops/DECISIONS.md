@@ -792,3 +792,23 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **裁决 (折中·留防封应急类)**: **删 3 个纯一次性建池场景 `gen`/`first`/`publish`, 保留 7 场景** (`daily`/`solo:N`/`secrets`/`delete:1`/`delete:v`/`delete:o`/`reorg`)。删的 3 场景能力经 Variables 兜底 (case "" 分支原有): `GEN_NAMES=1` (生名), `PASS_MODE=2`+`DEPLOY_SCOPE=2` (首次双 pass 建), `PUBLISH_ONLY=1` (仅传 endpoint.json)。`gen-names` job / `publish-endpoints` job 保留 (if 条件仍认 gen_names/publish_only 输出)。
 - **改动 (未推)**: ① `.github/workflows/deploy-ft-workers.yml` — case 删 3 分支 + description 更新 + 5 处错误提示/注释改指向变量兜底 (YAML 校验通过, 无残留引用); ② `HANDOFF.md` — PRESET 场景表删 3 行 + 链序步骤 4-5 改变量兜底; ③ `ops/overengineering-audit-2026-09-02.md` — ③行/矩阵行/建议表#4/下一步 4 处标已实施。
 - **生效前提**: 本改动只影响 workflow 代码 (非生产运行态), 提交 push nomn 即生效, 无需 boot 验证。下次建池 (扩 zone/首次) 时用 Variables `GEN_NAMES=1`/`PASS_MODE=2`/`PUBLISH_ONLY=1` 触发, 不再用 PRESET=gen/first/publish。
+
+## 2026-09-04 · 备份处置 + SQLITE_CORRUPT 双 A 裁定 (圣上令, 审计 #62/#63)
+
+- **背景**: 圣上问"备份与 log 归档的目的是否过度设计" (审计 ops/overengineering-audit-2026-09-02.md), 搜索查证后圣上裁"两个 a" — 备份处置与 SQLITE_CORRUPT 各取案 A。
+
+### ① 备份处置 = 案 A (激进停归档) — 已落码
+
+- **审计证据链**: 归档 tar.gz 推新私库的**查错价值 ≈ 0** (7天窗老日志, 实际用不上), 且**自身曾损坏** — parts!=4 病根曾致零归档零删 (2026-08-01 令), 复杂度/收益比差。而真正查错源 = **Dataset save/ 日志** (30min 窗口内抓取, capture 全源) + **R2 全备份** (防配置丢失), 两者都必要 · 非过度。
+- **裁决**: 停 7 天归档循环, 但**保留归档函数代码可回滚**。落点 = `dev/logic/omn_scheduler.py` `ARCHIVE_ENABLED` 默认 `"1"→"0"` (Space 设 `OMN_LOG_ARCHIVE=1` 可显式手动恢复; 不设则默认停)。挂 LOG_TO_DATASET 总闸下的 `_archive_loop` gate 因 ARCHIVE_ENABLED=0 早退, 不抢资源。
+- **诚实权衡 (写死)**: 停归档 = save/ 日志无限增长, **100GB 私库硬限的缓解手段失效**。但按历史圣上已验证**归档从未真正生效过 (零 tar.gz)** 且 save/ 未爆, 权衡已被接受; 若未来 save/ 逼近 100GB 需另行治理 (本会话不越权处理)。_archive_loop/_do_archive (含 tarfile/tempfile/shutil import) 全保留 = 一键回滚。
+
+### ② SQLITE_CORRUPT = 案 A (治标最轻: 可见性 + 调低周期) — 已落码
+
+- **背景**: 生产 boot 多次复发 `database disk image is malformed` (审计 🚨 真问题, 非过度设计)。上游每 interval 跑 `runDbHealthCheck(autoRepair:true)` 但**结果静默** (core.ts 不打日志), 且在上游只读树 → 无可见性判断复发频率。
+- **落点修正 (重要)**: 圣上原审"在 entrypoint 给 runDbHealthCheck 加打印" —— 但 `runDbHealthCheck` 在上游只读 `core.ts`, entrypoint (sh) 加不了上游函数打印。修正 = 改走 **`/api/db/health` 路由探针** — 唯一能拿到健康诊断结果的可见入口 (management 路由, GET=诊断 autoRepair:false / POST=autoRepair:true, 须 manage scope key)。返回 `{isHealthy, issues, repairedCount, backupCreated, autoRepair, checkedAt, driver}`, issues 项 `{type, table?, description, count}`, `integrity_check_failed` 即物理损坏复发。
+- **落码**: `dev/logic/omn_scheduler.py` 加 `_db_health_loop` daemon 线程 — 周期 GET `http://127.0.0.1:$OMNIROUTE_PORT/api/db/health` 带 Bearer `OMNIROUTE_API_KEY`, 解析 issues 打日志 → entrypoint tee → save/entrypoint/ 持久。gate: `OMNIROUTE_API_KEY` 空则 skip (缺 manage 凭证不抢资源), probe fail-open 不 raise。间隔 env `OMN_DB_HEALTH_INTERVAL_MS` 默 3600000 (1h)。
+- **manage key 真名 (写死, 排障纠错)**: 真 manage key = **`OMNIROUTE_API_KEY`** (Space Secret → init L735-758 种进 DB apiKeys, Bearer 打 `/api/*` = 200 通)。**`OMN_MANAGE_TOKEN` 是 ops 误造名** (上游源码无此 env), 拿它打 `/api/*` 恒 403 `AUTH_001` — 见 ops/STATUS.md 2026-09-02 排障纠错。探针读 Space Secret `OMNIROUTE_API_KEY` (圣上既有 `~/.omn-secrets` 真值, 无需另造新 token)。
+- **圣上侧生效前提**: ① 确认 Space 配 `OMNIROUTE_API_KEY` (未配则探针 skip 打提示); ② (可选) 调低上游周期 `OMNIROUTE_DB_HEALTHCHECK_INTERVAL_MS` 从默认 6h → 更频 (治标观测; 探针 1h 是独立观测通道, 两者不冲突)。
+- **治标定位 (写死)**: 本方案**不是自愈** — 只做运行期物理损坏的**可见性观测** (探针 GET) + 拉近上游 autoRepair 周期 (调低 interval)。真正修复物理损坏的 quick_check/restore 策略已闭环于 e7b16b3 (本地非空也验损坏则丢弃强制 restore)。探针让"它又坏了"何时复发可见, 为将来治本 (周期重建库等) 提供观测依据。
+- 出处: 生产 boot 20260904 + audit ops/overengineering-audit-2026-09-02.md 🚨 + 上游 core.ts (只读) + memory `manage-token-omn-manage-location-2026-08-21`。关联: §13 (amd 定谳), e7b16b3 (quick_check 落地)。

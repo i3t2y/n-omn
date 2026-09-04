@@ -50,8 +50,10 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
 
 # ── 归档 ENV (圣上令 2026-08-01: 7天前旧日志按源分四包 tar.gz 推新账号私库, 推成功后删原库腾空间) ──
-# 总闸: 默1 启归档线程; =0 关. 挂在 LOG_TO_DATASET 总闸之下 (私库都关了归档无意义, 不抢资源).
-ARCHIVE_ENABLED = os.environ.get("OMN_LOG_ARCHIVE", "1") == "1"
+# 总闸: 默0 停归档 (2026-09-04 圣上裁定案 A 激进停用, DECISIONS §16: 审计证据 ops/overengineering-audit
+#   —— 归档 7天 tar.gz 推新库的查错价值 ≈ 0 且自身曾损坏(parts!=4 病根), 而 R2 全备份 + Dataset save/
+#   —— 日志才是唯一查错真源; 停归档省 10 步铁闸复杂度). =1 显式手动可恢复. 挂 LOG_TO_DATASET 总闸下.
+ARCHIVE_ENABLED = os.environ.get("OMN_LOG_ARCHIVE", "0") == "1"
 # 新私库 repo_id (圣上新账号, replaceable 满换库只改此 Secret). 空 -> skip 整归档线程.
 ARCHIVE_REPO = os.environ.get("OMN_LOG_ARCHIVE_REPO", "").strip()
 # 新私库 write token (新账号独立 token, 不复用 HF_TOKEN). 空 -> skip.
@@ -348,6 +350,59 @@ def _do_archive():
                     shutil.rmtree(tmp_dir, ignore_errors=True)  # 清临时, 防爆 /tmp
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# 运行期 DB 健康探针 (圣上令 2026-09-04 裁定 SQLITE_CORRUPT 案 A: 治标最轻 = 可见性 + 调低周期)
+# ═══════════════════════════════════════════════════════════════════════
+# 背景: 生产 boot 多次复发 `database disk image is malformed` (audit 🚨 真问题, 非过度设计).
+#   上游每 interval 跑 runDbHealthCheck(autoRepair:true) 但结果静默 (core.ts 不打日志),
+#   且 runDbHealthCheck 在上游只读 core.ts, entrypoint(sh) 加不了打印.
+#   方案 A 落点修正: 改走 /api/db/health 路由探针 —— 唯一能拿到健康诊断结果的可见入口
+#     (management 路由, GET=诊断 autoRepair:false / POST=autoRepair:true, 须 manage scope key).
+#   返回 {isHealthy, issues, repairedCount, backupCreated, autoRepair, checkedAt, driver},
+#     issues 项 {type, table?, description, count}, integrity_check_failed 即物理损坏复发.
+# probe 独立 daemon 线程, 周期 GET 把 issues 打日志 → entrypoint tee → save/entrypoint/ 持久.
+# gate: OMNIROUTE_API_KEY 空 -> skip (真 manage key = Space Secret OMNIROUTE_API_KEY, init 种进 DB apiKeys,
+#   Bearer 打 /api/* = 200 通; OMN_MANAGE_TOKEN 是 ops 误造名, 打 /api/* 必 403 AUTH_001, 见 ops/STATUS.md
+#   2026-09-02 排障纠错). 缺凭证不抢资源; 探针纯观测绝不影响主链.
+#   probe fail-open: 任一异常只打日志, 绝不 raise 出线程.
+def _db_health_loop():
+    """独立 daemon 线程: 周期 GET /api/db/health 探运行期 DB 健康, issues 打日志.
+
+    gate: OMNIROUTE_API_KEY 非空. 空 -> 早退 (探针停, 主链不受影响).
+    间隔: OMN_DB_HEALTH_INTERVAL_MS 毫秒, 默 3600000 (1h; 上游周期检查默认 6h, 调低见 Space env).
+    """
+    token = os.environ.get("OMNIROUTE_API_KEY", "").strip()
+    if not token:
+        print("[db-health] skip: OMNIROUTE_API_KEY 未配 (探针停, 主链不受影响)")
+        return
+    try:
+        import urllib.request
+    except Exception:
+        print("[db-health] skip: urllib.request 不可用")
+        return
+    port = os.environ.get("OMNIROUTE_PORT", "20128")
+    try:
+        interval = int(os.environ.get("OMN_DB_HEALTH_INTERVAL_MS", "3600000")) / 1000.0
+    except ValueError:
+        interval = 3600.0
+    url = f"http://127.0.0.1:{port}/api/db/health"
+    while True:
+        try:
+            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = json.loads(resp.read().decode())
+            issues = body.get("issues") or []
+            if issues:
+                for it in issues:
+                    print(f"[db-health] ISSUE type={it.get('type')} table={it.get('table', '')} "
+                          f"desc={it.get('description', '')} count={it.get('count', '')}")
+            else:
+                print(f"[db-health] healthy checkedAt={body.get('checkedAt', '')}")
+        except Exception as e:
+            print(f"[db-health] probe err: {e}")
+        time.sleep(interval)
+
+
 def _on_signal(signum, frame):
     """SIGTERM/SIGINT -> 三 scheduler __exit__ (最后 upload + stop) -> 主退."""
     for s in _SCHEDULERS:
@@ -366,6 +421,8 @@ def main():
     threading.Thread(target=_capture_loop, daemon=True).start()
     # 归档 daemon (gate 在 _archive_loop 内查: ARCHIVE_ENABLED+LOG_TO_DATASET+repo/token 非空, 缺任一早退)
     threading.Thread(target=_archive_loop, daemon=True).start()
+    # DB 健康探针 daemon (gate 在 _db_health_loop 内查: OMNIROUTE_API_KEY 非空, 空则早退)
+    threading.Thread(target=_db_health_loop, daemon=True).start()
     signal.signal(signal.SIGTERM, _on_signal)
     signal.signal(signal.SIGINT, _on_signal)
     # 主线程挂住 (scheduler 内置 thread upload + capture daemon 尾追)

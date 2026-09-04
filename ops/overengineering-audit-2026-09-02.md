@@ -80,10 +80,10 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 - cron-job 探活：走反代 = 探用户真实路径，免费档够用
 - litestream→R2：48h 休眠冷启丢盘唯一解
 - NIM 32-key pool：真实生产流量承载，非过度
-- 日志归档到 Dataset：HF 免费层 30min 日志丢 + 私库 100GB 硬限，双痛点都真
+- 日志归档到 Dataset：HF 免费层 30min 日志丢 + 私库 100GB 硬限，双痛点都真 —— 注意：归档指 save/ 抓取推送（保留）；**7天窗 tar.gz 推新私库那层已于 2026-09-04 圣上裁案 A 激进停用**（见下 🚨 处置补充）
 
 ### 🚨 真实问题（不是过度设计，是待修 bug）
-- **SQLITE_CORRUPT `database disk image is malformed`**：boot **多次复发**（09-02 14:30 + 15:26 两轮均现：`resolveConversationId failed, continuing without conversation tracking` + `[ProxyHealth] Egress summary skipped` + `Cleanup Error: no such table: compression_run_telemetry`）—— 本地 `/data/storage.sqlite` 持续性损坏，非偶发。**修它优先于 sensenova 内置化**：损害 is conversation tracking 与 proxy egress 总结落库
+- **SQLITE_CORRUPT `database disk image is malformed`**：boot **多次复发**（09-02 14:30 + 15:26 两轮均现：`resolveConversationId failed, continuing without conversation tracking` + `[ProxyHealth] Egress summary skipped` + `Cleanup Error: no such table: compression_run_telemetry`）—— 本地 `/data/storage.sqlite` 持续性损坏，非偶发。**修它优先于 sensenova 内置化**：损害 is conversation tracking 与 proxy egress 总结落库。**2026-09-04 圣上裁案 A（治标最轻：可见性 + 调低周期）已落码**——`omn_scheduler.py` 加 `_db_health_loop` 探针（周期 GET `/api/db/health`→issues 打日志持久，`OMNIROUTE_API_KEY` 空则 skip）；物理损坏修复本体已闭环（e7b16b3 quick_check + 丢弃强制 restore）。探针让复发可见，为治本提供观测依据。见交接块下一步
 - **dp4f-pool 失败链**：`nvidia/deepseek-v4-flash-0731 超时 → 529 Service temporarily overloaded → Model-only lockout → FALLBACK(另一 nvidia key) → 200` —— 主路上游过载，已能同 provider 内 key fallback 自愈（15:29:51 最终 200，36s），备路可靠性 OK；529 为 nvidia 上游过载而非代码缺陷
 
 ---
@@ -99,13 +99,15 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 | 3 | `FT_HEALTH_COOLDOWN` 状态定一面（启用 or 移除），消文档矛盾 | 中 |
 | 4 | ~~deploy-ft-workers.yml 精简 PRESET，保留 daily/secrets~~：**✅ 已实施（2026-09-04, 圣上裁折中: 删 gen/first/publish 3 一次性, 保留 7 场景含防封应急, gen/first/publish 经变量兜底）** | ~~低~~ ✅ |
 | 5 | sensenova 内置化方案（plan 已备好）执行 | 待圣上令 |
+| 6 | ~~备份处置 案 A：归档激进停用（`OMN_LOG_ARCHIVE` 默认 0）~~ | **✅ 已落码（DECISIONS §16①，omn_scheduler.py L54，函数保留可回滚；push 待批）** |
+| 7 | ~~SQLITE_CORRUPT 案 A：治标可见性（`/api/db/health` 探针 + 调低周期）~~ | **✅ 已落码（DECISIONS §16②，omn_scheduler.py `_db_health_loop`；Space 须配 `OMNIROUTE_API_KEY` + 可选调低 `OMNIROUTE_DB_HEALTHCHECK_INTERVAL_MS`）** |
 
 ---
 
 ## 交接块
 
-- **完成**：n-omn 现状汇总 + 过度设计查证（实锤 4 项 / 状态不明 1 项 / 合理保留 5 项 / 真问题 2 项）
-- **锁定决策**：无新增（本文件为审计盘点，非决策）
-- **文件变更**：本文件新建；补 ④FT scope 短名盲区 + SQLITE_CORRUPT 复发强化 + 建议表 2/2b
-- **未决**：见「三、下一步建议」表 6 项
-- **下一步**：~~amd 补绑 FT 桥改码（A 方向已批）~~✅ → ~~SQLITE_CORRUPT 排查~~✅ → ~~死 provider 轨摘除~~✅(disabled 可逆) → ~~FT_HEALTH_COOLDOWN 定一面~~✅(圣上裁启用 env=30, DECISIONS §14) → ~~PRESET 精简~~✅(删 3 一次性, DECISIONS §15 待记)
+- **完成**：n-omn 现状汇总 + 过度设计查证（实锤 4 项 / 状态不明 1 项 / 合理保留 5 项 / 真问题 2 项）+ **2026-09-04 双 A 裁定落码**
+- **锁定决策 (2026-09-04)**：备份处置 A = 归档激进停用（`OMN_LOG_ARCHIVE` 默认 0，DECISIONS §16①）+ SQLITE_CORRUPT A = 治标可见性探针（DECISIONS §16②）—— 均落码 `omn_scheduler.py`，函数保留可回滚，push 待圣上批
+- **文件变更**：本文件新建；补 ④FT scope 短名盲区 + SQLITE_CORRUPT 复发强化 + 建议表 2/2b/6/7 + DECISIONS §16 追加
+- **未决**：见「三、下一步建议」表 5/6/7 生效前提项
+- **下一步**：~~amd 补绑 FT 桥改码（A 方向已批）~~✅ → ~~SQLITE_CORRUPT 排查~~✅ → ~~死 provider 轨摘除~~✅(disabled 可逆) → ~~FT_HEALTH_COOLDOWN 定一面~~✅(圣上裁启用 env=30, DECISIONS §14) → ~~PRESET 精简~~✅(删 3 一次性, DECISIONS §15) → **~~备份处置 A~~✅ + **~~SQLITE_CORRUPT 案 A~~✅ (均落码, DECISIONS §16; push 待批, 生效须圣上侧配 `OMNIROUTE_API_KEY` + 可选调低 interval)**

@@ -764,3 +764,15 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **执行前提 (圣上侧, 非代码)**: ① amd 门户重发/续期 5 key, 确认带 chat-completions inference 权限 + 中国门户签发; ② 换好 key 后**临时开 `NIM_PROBE_ENABLED=1` 一 boot**, 让 M3 探活 (POST 推理端, 专切死 key) 直接验证, 别等 runtime CredentialHealth 滞后发现 (现默认 `=0` 跳 probe, 故死 key 照常入池); ③ 若 amd 已不需 → 同 DISABLED 机制从注册循环 + dp4f-pool 摘除 (保留代码), 消死腿。
 - **附带留痕**: 生产周期内另见 `Cleanup: no such table compression_run_telemetry` — 但 quick_check ok, 是**单纯缺表非坏库** (R2 restore 库缺该表, 3.8.50 cleanup 期望它存在, 已容错 skip); 非回退理由。
 - 出处: 本会话 amd 上游合成 key 直测 + boot 20:56 实证 + memory `amd-not-builtin-long-id-expected`。关联: §12 (3.8.50 观察同型 403/"blocked by target"), ops/overengineering-audit-2026-09-02.md ④ (amd 补绑 FT 桥背景)。
+
+## 2026-09-04 · ⚠️ §13 推翻更正 — amd 403 真根 = FT Worker 白名单漏配, 非账户级死 key
+
+- **§13 定谳错误, 正式推翻**: 当时把 `枚举 200 / 推理 403` 归因为"账户级死亡 key" (07-21 签名), **漏读了 boot 日志的原始错误文本**。圣上追问 "amd的5key全对, 403到底是什么问题?" + "是不是修出问题来了?" 触发复查 → 真根 = **b67a91f (2026-09-03 补绑 FT 桥) 引入的回归, 叠加 Worker 白名单漏配**。
+- **真根因 (证据链)**:
+  1. boot 日志 `[403]: host not allowed` (L499/L543/L559) — 这是 flaretunnel/worker.js L44-45 的**原生错误文本**, 只可能来自 Worker 层白名单 miss, 不是上游 amd 返回 (上游拒 key 是 `401 Invalid bearer token` / 403 body 是别的内容)。
+  2. 5 key 全对: 枚举 `key=ok` 200 (L751) + `amd-01..05 OK` (L729-745) — key 鉴权在目录层通过。
+  3. b67a91f 把 amd node (UUID `openai-compatible-chat-1923f9b3-...`) 绑进 FT proxy → 推理请求改经 FT 桥 → Cloudflare Worker → `ALLOWED_HOSTS` 缺 `developer.amd.com.cn` → 403。**枚举走 init-nim-keys.sh L1495 裸 curl 直连绕过 Worker (故 200), 推理走连接过桥 (故 403)** — 两条路径分离, 枚举 200 不证推理通。
+  4. 对照 sensenova: 5256253 给 Worker 白名单加了 `token/api.sensenova.cn` 所以通; amd 绑定晚了这步。
+- **修复 (3cb5c39, 已 commit)**: flaretunnel/worker.js `ALLOWED_HOSTS` 加 `developer.amd.com.cn` + 注释留痕。**生效须圣上打 `deploy-ft-*` tag 触发 GitHub Actions 重部署 Worker** (deploy-ft-workers.yml, tag 触发权在圣上), 然后重启 Space 使 amd 推理走新白名单。
+- **§13 遗留仍有效的部分**: 换 key 后临时 `NIM_PROBE_ENABLED=1` 一 boot 验证死/活, 此建议保留 (与本次根因无关, 是通用探活手段)。
+- **教训 (写死)**: ① 排障先看**原始错误文本** (`host not allowed` 即 Worker 层签名), 别急着套历史签名模板; ② **枚举与推理路径分离**: 直连枚举 200 ≠ 过桥推理通, 排查 403 要按真实请求路径 (连接→proxy→Worker) 追; ③ 加白名单式改动的回归风险 = 绑定行为已改但白名单没跟上, 补绑定类改动须同步检查 egress 侧 ALLOWED_HOSTS。

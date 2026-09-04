@@ -95,7 +95,7 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 | 1 | ~~死 provider 轨（openrouter/mistral/gemini）摘除或标记 disabled~~：**圣上裁"标记 disabled 保留代码"** — 加 `DISABLED_PROVIDERS` 数组（两处禁入：ALL_FT_FAMILIES 绑族 + _register_multi_provider 注册段），删名即复活 | **✅ 已实施（mock 全绿, boot 待验）** |
 | 2 | ~~amd 补绑 FT 桥（A 方向，圣上令 2026-09-03）~~：node 注册后把真实 UUID 绑进 FT proxy，多 key 走桥轮换出口 IP | **✅ 已完成 b67a91f（boot 待验）** |
 | 2b | ~~SQLITE_CORRUPT 排查~~：e7b16b3 quick_check 落地（本地非空也验损，坏则丢弃强制 restore），堵复发；20:56 boot 实证 `quick_check ok` | **✅ 已闭环（DECISIONS §13）** |
-| 2c | ~~amd 403 根因~~：账户级推理权限（GET 目录 200 / POST 推理 403，07-21 签名），非代码 bug | **✅ 已定谳（DECISIONS §13，圣上侧续 key 待办）** |
+| 2c | ~~amd 403 根因~~：**§13 推翻更正 — 真根 = FT Worker 白名单缺 `developer.amd.com.cn`（b67a91f 补绑 FT 桥后推理过桥被 Worker 拒 403 host not allowed），非账户级死 key**。修复 3cb5c39 已 commit，生效须 `deploy-ft-*` tag 重部署 Worker + 重启 Space | **✅ 已修（DECISIONS 2026-09-04 追加更正，boot 待验）** |
 | 3 | `FT_HEALTH_COOLDOWN` 状态定一面（启用 or 移除），消文档矛盾 | 中 |
 | 4 | deploy-ft-workers.yml 精简 PRESET，保留 daily/secrets | 低 |
 | 5 | sensenova 内置化方案（plan 已备好）执行 | 待圣上令 |

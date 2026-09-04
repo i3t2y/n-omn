@@ -57,9 +57,9 @@ boot 实证: clear_stale: 无陈旧错态（空转）
 ```
 - 当年设计背景 = ephemeral 存储（无 R2 副本每 boot 空库 → catch-22）。**现在 litestream→R2 持久化已落地，该函数每次 boot 空跑**
 
-**③ deploy-ft-workers.yml（661 行）+ 9 PRESET 场景**
+**③ deploy-ft-workers.yml（661 行）+ 9 PRESET 场景（已精简 → 7 场景 + 变量兜底）**
 - 为 30 worker egress 池；但历史裁决（`ft-worker-count-vs-keys-decoupled.md`）铁证 **8~16 worker 最优，32 浪费**，现 30 已超最优上沿
-- PRESET 矩阵（gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg）多为一次性建池操作，日常只用 daily + secrets
+- PRESET 矩阵（gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg）多为一次性建池操作，日常只用 daily + secrets（**2026-09-04 圣上裁折中: 已删 3 一次性 gen/first/publish, 保留 7 场景含防封应急 delete/solo/reorg, gen/first/publish 改经 Variables 兜底**）
 
 **④ FT 桥绑族短名盲区（新增证据 2026-09-02 15:26 boot）**
 ```
@@ -97,7 +97,7 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 | 2b | ~~SQLITE_CORRUPT 排查~~：e7b16b3 quick_check 落地（本地非空也验损，坏则丢弃强制 restore），堵复发；20:56 boot 实证 `quick_check ok` | **✅ 已闭环（DECISIONS §13）** |
 | 2c | ~~amd 403 根因~~：**§13 推翻更正 — 真根 = FT Worker 白名单缺 `developer.amd.com.cn`（b67a91f 补绑 FT 桥后推理过桥被 Worker 拒 403 host not allowed），非账户级死 key**。修复 3cb5c39 已 commit，生效须 `deploy-ft-*` tag 重部署 Worker + 重启 Space | **✅ 已修（DECISIONS 2026-09-04 追加更正，boot 待验）** |
 | 3 | `FT_HEALTH_COOLDOWN` 状态定一面（启用 or 移除），消文档矛盾 | 中 |
-| 4 | deploy-ft-workers.yml 精简 PRESET，保留 daily/secrets | 低 |
+| 4 | ~~deploy-ft-workers.yml 精简 PRESET，保留 daily/secrets~~：**✅ 已实施（2026-09-04, 圣上裁折中: 删 gen/first/publish 3 一次性, 保留 7 场景含防封应急, gen/first/publish 经变量兜底）** | ~~低~~ ✅ |
 | 5 | sensenova 内置化方案（plan 已备好）执行 | 待圣上令 |
 
 ---
@@ -108,4 +108,4 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 - **锁定决策**：无新增（本文件为审计盘点，非决策）
 - **文件变更**：本文件新建；补 ④FT scope 短名盲区 + SQLITE_CORRUPT 复发强化 + 建议表 2/2b
 - **未决**：见「三、下一步建议」表 6 项
-- **下一步**：~~amd 补绑 FT 桥改码（A 方向已批）~~✅ → ~~SQLITE_CORRUPT 排查~~✅ → ~~死 provider 轨摘除~~✅(disabled 可逆) → **FT_HEALTH_COOLDOWN 定一面** → PRESET 精简
+- **下一步**：~~amd 补绑 FT 桥改码（A 方向已批）~~✅ → ~~SQLITE_CORRUPT 排查~~✅ → ~~死 provider 轨摘除~~✅(disabled 可逆) → ~~FT_HEALTH_COOLDOWN 定一面~~✅(圣上裁启用 env=30, DECISIONS §14) → ~~PRESET 精简~~✅(删 3 一次性, DECISIONS §15 待记)

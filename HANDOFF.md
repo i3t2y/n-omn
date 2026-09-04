@@ -89,24 +89,27 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 ### PRESET 场景表 (圣上手工定 deploy 路径)
 | PRESET | 动作 | pass_mode | deploy 格 |
 |--------|------|-----------|----------|
-| `gen` | 生 100 名写 WORKER_NAMES Variable | - | 跳 |
-| `first` | 首次全量建 Worker 双 pass 绕 CF 扫描 | 2 | 100 |
-| `daily` | 日常单 pass 全量重部署 | 1 | 100 (~16m) |
-| `publish` | **仅派生 endpoint.json 传 Dataset, deploy 跳省 16m** | - | 跳 |
-| `solo:N` | 单账号 N 部署 10 Worker | 1 | 10 |
-| `secrets` | 仅更 RELAY_AUTH secret 不重绑域 | - | 100 (deploy 注 secret) |
-| `delete:1` | 删 WORKER_NAMES 对应单 Worker 后重建 | 2 | 100 |
-| `delete:v` | 删账号下全 Worker (全删无滤波) 后重建 | 2 | 100 |
+| `daily` | 日常单 pass 全量重部署 | 1 | N×3 (~16m) |
+| `solo:N` | 单账号 N 部署 3 Worker | 1 | 3 |
+| `secrets` | 仅更 RELAY_AUTH secret 不重绑域 | - | N×3 (deploy 注 secret) |
+| `delete:1` | 删 WORKER_NAMES 对应单 Worker 后重建 | 2 | N×3 |
+| `delete:v` | 删账号下全 Worker (全删无滤波) 后重建 | 2 | N×3 |
 | `delete:o` | 删旧/孤儿/过时词基 Worker 唯保留现役名单, 无部署 | 0 | 跳 |
+| `reorg` | 拓扑重组: 重生成名→删旧→全量建新 (扩缩 ACTIVE_ACCOUNTS/WORKERS_PER_ACCOUNT 专用) | 2 | N×3 |
+
+**一次性建池场景已精简 (2026-09-04, task #60)**: `gen`/`first`/`publish` 不再作 PRESET (一次建池后日常无用), 改经 Variables 兜底:
+- 生名: `GEN_NAMES=1` (gate 输出 gen_names=1 → gen-names job)
+- 首次建: `PASS_MODE=2` + `DEPLOY_SCOPE=2` (双 pass 绕扫)
+- 仅传端点: `PUBLISH_ONLY=1` (deploy 跳, 直跑 publish-endpoints)
 
 ### 链序 (新 zone 扩池)
 1. 圣上 CF 侧加 zone (f05~f10.cc.cd) + 建对应 token (锁该账号+zone)
 2. GitHub Secrets 加 CF_ACCOUNT_IDS/CF_API_TOKENS 该账号位序
 3. GitHub Variable `ACTIVE_ACCOUNTS` 改 N (现 10→N)
-4. `PRESET=gen` 触生名 → `PRESET=first` 触全量建 (双 pass) → Worker+域绑成
-5. `PRESET=publish` 触 (deploy 跳) → endpoint.json 自动传 Dataset (worker-major 重排含新 Worker)
+4. Variables `GEN_NAMES=1` 触生名 → `PASS_MODE=2` 触全量建 (双 pass) → Worker+域绑成
+5. `PUBLISH_ONLY=1` 触 (deploy 跳) → endpoint.json 自动传 Dataset (worker-major 重排含新 Worker)
 6. 圣上 HF UI 改 bridges.json nim `workers:"0-{N*4-1}"` (扩账号扩取前4)
-7. Restart dev Space → boot 真验池 N×10 Worker
+7. Restart dev Space → boot 真验池 N×3 Worker
 
 ### 排障入口
 - **Worker 401 全拒**: RELAY_AUTH 未注或异值 → 查 `PRESET=secrets` run log 印 `Successfully created secret for key: RELAY_AUTH` (workflow Deploy1st/2nd `with.secrets:` 输入须有)
@@ -147,6 +150,6 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 - ✅ gate 加路由暴露 FT 桥 `/metrics` 公网 (commit `ec0712d` 路3-b 落, `GET /v1/ft/metrics` PSK 反代 + `?bridge=N` 选桥; 真路测五态全绿 2026-08-12)
 - FT Worker 100 拓扑已满额全活 (2026-08-12 圣上扩 f05~f10 zone + Variable `ACTIVE_ACCOUNTS=10`)
 - deprecated model 剔: 2026-08-12 圣上令删 deepseek-v4-flash + deepseek-v4-pro + mistral-small-4-119b-2603 (NVIDIA 目录无, 已落 init-nim-keys.sh); 留 kimi-k3 + qwen3.8-max (圣上未命删, deprecated 但待复检)
-- ⏳ **FT 健康感知轮转已落码待启用** (2026-08-23 落码, docs/ft-health-aware-rotation.md + DECISIONS §9): FlareTunnel.go GetWorkerURL 顺序扫跳不健康 worker + entrypoint.sh `FT_HEALTH_COOLDOWN` env 控. 默认关 (不设=纯 RR 不变), 要启用设 `FT_HEALTH_COOLDOWN=30` → Restart. 待圣上定推 HF Dataset + 真启用 (对治慢根①死 worker 照轮打冷端)
+- ✅ **FT 健康感知轮转已落码, 已裁决启用** (2026-08-23 落码, docs/ft-health-aware-rotation.md + DECISIONS §9/§14; 2026-09-04 圣上裁决启用): FlareTunnel.go GetWorkerURL 顺序扫跳不健康 worker + entrypoint.sh `FT_HEALTH_COOLDOWN` env 控. **生效前提 (圣上侧)**: 确认带 flag 二进制已推 Dataset `/logic/flaretunnel` + Space 设 `FT_HEALTH_COOLDOWN=30` → Restart → boot 验证 (kill 一 worker 看它被跳过). 对治慢根①死 worker 照轮打冷端
 - ✅ **FT Worker 拓扑已收缩到 10×3 (全账号 × 每账号 3)** (2026-08-23 圣上触发 `PRESET=reorg` run#23 成功, deploy-ft-workers.yml + DECISIONS §10): 新增 `WORKERS_PER_ACCOUNT` 变量 (默认 3, 甜点) + 账号数 `ACTIVE_ACCOUNTS` (**全账号都用上**: Variable 已设 10=f01~f10 全 zone), **两端全可配**贯穿全链 (矩阵/gen-names/deploy POS/publish worker-major 派生). 新增 `PRESET=reorg` 拓扑重组专用 (先重生成名→删旧 worker→全量建新). 查证结论: 单 CF 账号 2-3 worker 收益最大 (共享 Anycast 出口池 + 共享 100K 配额), 扩 IP 多样性的杠杆是加账号数非加每账号 worker 数. **真触发验证 (run#23)**: 30 个新 worker 名 + 30 个 deploy 全 success (删旧+双 pass 建新) + publish 派生 30 条 worker-major endpoint.json 传 nonoke/omn-logic (first 1.f01/1.f02/1.f03, last 3.f10). **排障教训**: 私库 Actions 额度耗尽致全部 workflow run 秒败 (steps=0), 圣上改公开后恢复 (DECISIONS §10 记). 后续扩/缩拓扑: 只改 GitHub Variable `ACTIVE_ACCOUNTS`/`WORKERS_PER_ACCOUNT` → 输入框选 reorg 触发一次, **永不用改 workflow 代码**
 - ✅ **逻辑层换源 Bucket 已批实施中** (2026-08-25 圣上批 B, docs/logic-switch-bucket-design.md + DECISIONS §11): nonoke 锁 → boot 拉 403 FATAL → 换 xnexus/logic Bucket. **四件武器全绑私库 n-omn 不丢, 唯一成本=丢 Dataset 白送 `--revision` atomic 锁, manifest.json 版本钉补回** (Bucket 根记 n-omn SHA+每文件 sha256, boot 校验哈希不匹配 fail 重试). **代码侧三改动已落 (本会话)**: ① sync-logic CI 新建 sync-logic-xnexus.yml (batch_bucket_files 上传+manifest+readback) ② start.sh §3 改 S3 拉+manifest 校验+另拉 flaretunnel_endpoints.json (破 §1 铁律, 圣上已批) ③ **deploy-ft-workers.yml publish-endpoints 改推 xnexus/logic Bucket (新发现 FT 端点依赖, entrypoint 读 /logic/flaretunnel_endpoints.json)**. **阻塞: xnexus 写凭据 + xnexus/logic Bucket 建 + xnexus/o 在线确认**. 待办: 圣上建 Bucket (`hf buckets create logic --private`) + 配 xnexus Space Secrets (清单 docs/xnexus-deploy-checklist.md) + GitHub secrets HF_TOKEN_XNEXUS → 首次推 8 件+manifest → 切 xnexus/o Space

@@ -776,3 +776,19 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **修复 (3cb5c39, 已 commit)**: flaretunnel/worker.js `ALLOWED_HOSTS` 加 `developer.amd.com.cn` + 注释留痕。**生效须圣上打 `deploy-ft-*` tag 触发 GitHub Actions 重部署 Worker** (deploy-ft-workers.yml, tag 触发权在圣上), 然后重启 Space 使 amd 推理走新白名单。
 - **§13 遗留仍有效的部分**: 换 key 后临时 `NIM_PROBE_ENABLED=1` 一 boot 验证死/活, 此建议保留 (与本次根因无关, 是通用探活手段)。
 - **教训 (写死)**: ① 排障先看**原始错误文本** (`host not allowed` 即 Worker 层签名), 别急着套历史签名模板; ② **枚举与推理路径分离**: 直连枚举 200 ≠ 过桥推理通, 排查 403 要按真实请求路径 (连接→proxy→Worker) 追; ③ 加白名单式改动的回归风险 = 绑定行为已改但白名单没跟上, 补绑定类改动须同步检查 egress 侧 ALLOWED_HOSTS。
+
+## 2026-09-04 · FT_HEALTH_COOLDOWN 定一面 = 启用 (设 env=30) — 消 docs/HANDOFF 矛盾
+
+- **背景 (矛盾)**: `docs/ft-health-aware-rotation.md` L5 声称"已落码启用(2026-08-23 Space 设 env=30 并 Restart)"; HANDOFF L150 / STATUS L800-802 / DECISIONS §9 三处一致"已落码待启用, 待圣上定推 Dataset + 真启用"。四文档分裂。
+- **实证 (2026-09-04 boot 20260904-0413)**: ① 代码全落 — entrypoint.sh L272-273 `_ft_health` 门控 + FlareTunnel.go L2416 `--health-cooldown` flag + L1272 HealthCoolDown + L1422 isHealthy + L308/L322/L571 三处起桥命令传参; ② 二进制 30/30 worker 正常启动 (boot L31); ③ **boot 无法证明 env 是否设** — entrypoint L326 log 文案无条件写 "round-robin", FlareTunnel.go L1284 RotationMode 恒硬编码 "round-robin", HF API 不暴露私有 Space secrets 名。即: 代码就绪但启用状态无外部判据。
+- **裁决 (2026-09-04 圣上定)**: **启用, Space 设 `FT_HEALTH_COOLDOWN=30`**。理由: 审计⑤确认是合理优化非过度设计 (对治慢根①死 worker 照轮打冷端); 默认关零风险 + 全健康时退化纯 RR 无性能损失; 40 worker 池健康感知是代理池社区标准做法。
+- **生效前提 (圣上侧)**: ① 确认带 flag 的 flaretunnel 二进制已推 HF Dataset (build.sh 编译) + sync 到 `/logic/flaretunnel`; ② Space 设 env `FT_HEALTH_COOLDOWN=30` → Restart; ③ boot 验证法 — 手动 kill 一 worker 域名, 看健康感知轮转跳过它 (docs/ft-health-aware-rotation.md §四 验证方案)。
+- **文档统一 (消矛盾)**: 一律定在"**已落码 + 圣上裁决启用 (env=30)**", docs L5 "已落码启用"保留 (方向对), HANDOFF/STATUS/DECISIONS 从"待定"改为"已裁决启用"。确认 env 落位 + boot 实证 = 圣上侧收尾。
+
+## 2026-09-04 · deploy-ft-workers.yml PRESET 精简 = 折中·留防封应急类 (task #60, 圣上定)
+
+- **背景 (审计③)**: deploy-ft-workers.yml 661 行 + 9 PRESET 场景 (gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg), 审计判"多为一次性建池操作, 日常只用 daily + secrets", 建议表 #4"精简 PRESET, 保留 daily/secrets" (低优先级)。
+- **分界点 (2026-09-04 圣上裁折中)**: 直接字面删到只剩 daily/secrets 会砍掉**防封/运维应急一键工具** — `delete:1`/`delete:v` (Worker 被封立重设), `reorg` (拓扑收缩到 8-16 最优), `solo:N` (单账号排障) — 删 case 后虽可手动设 Variables 达成, 但应急从"一键"退化为"记 3-4 个变量名", 与 §1 防封主题抵触。
+- **裁决 (折中·留防封应急类)**: **删 3 个纯一次性建池场景 `gen`/`first`/`publish`, 保留 7 场景** (`daily`/`solo:N`/`secrets`/`delete:1`/`delete:v`/`delete:o`/`reorg`)。删的 3 场景能力经 Variables 兜底 (case "" 分支原有): `GEN_NAMES=1` (生名), `PASS_MODE=2`+`DEPLOY_SCOPE=2` (首次双 pass 建), `PUBLISH_ONLY=1` (仅传 endpoint.json)。`gen-names` job / `publish-endpoints` job 保留 (if 条件仍认 gen_names/publish_only 输出)。
+- **改动 (未推)**: ① `.github/workflows/deploy-ft-workers.yml` — case 删 3 分支 + description 更新 + 5 处错误提示/注释改指向变量兜底 (YAML 校验通过, 无残留引用); ② `HANDOFF.md` — PRESET 场景表删 3 行 + 链序步骤 4-5 改变量兜底; ③ `ops/overengineering-audit-2026-09-02.md` — ③行/矩阵行/建议表#4/下一步 4 处标已实施。
+- **生效前提**: 本改动只影响 workflow 代码 (非生产运行态), 提交 push nomn 即生效, 无需 boot 验证。下次建池 (扩 zone/首次) 时用 Variables `GEN_NAMES=1`/`PASS_MODE=2`/`PUBLISH_ONLY=1` 触发, 不再用 PRESET=gen/first/publish。

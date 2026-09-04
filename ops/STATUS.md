@@ -797,6 +797,6 @@ SSOT 同步: HANDOFF 排障入口加 /v1/ft/metrics 公网取法 + 待办 ✅ �
 
 **验证 (全绿)**: docker 编译 EXIT 0 / isHealthy 单元测试 7/7 过 / entrypoint.sh bash -n OK / go vet EXIT 0 / git diff 完整.
 
-**默认关零风险**: 不设 `FT_HEALTH_COOLDOWN` env = 纯 round-robin 不变. 启用设 `FT_HEALTH_COOLDOWN=30` → 失败 worker 30s 降权跳过 (对治慢根①死 worker 照轮打冷端).
+**已裁决启用 (2026-09-04 圣上定, DECISIONS §14)**: Space 设 `FT_HEALTH_COOLDOWN=30` → 失败 worker 30s 降权跳过 (对治慢根①死 worker 照轮打冷端). 默认关零风险, 全健康时退化纯 RR 无性能损失.
 
-**待办**: 圣上定推 HF Dataset (build.sh 编译 flaretunnel + 手推) + 真启用 (设 env → Restart → 验证 /v1/ft/metrics rotation_index 跳不健康 worker).
+**生效前提 (圣上侧)**: 确认带 flag 二进制已推 Dataset `/logic/flaretunnel` + Space 设 env `FT_HEALTH_COOLDOWN=30` → Restart → boot 验证/kill worker 看跳过.

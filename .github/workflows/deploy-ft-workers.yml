@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       preset:
-        description: 'PRESET 场景 (gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg, 留空用 Variables)'
+        description: 'PRESET 场景 (daily/solo:N/secrets/delete:1/delete:v/delete:o/reorg, 留空用 Variables; gen/first/publish 经变量兜底)'
         required: false
         default: ''
 
@@ -112,18 +112,9 @@ jobs:
 
           # ── PRESET 覆盖细粒度变量 (仿 n-vless case) ───────────────
           case "$PRESET" in
-            gen)
-              # 只生成随机 Worker 名写 GitHub Variable, 不部署
-              GEN_NAMES=1 ;;
-            first)
-              # 首次全量建 Worker: 双 pass 绕 CF 扫描
-              GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=2; DELETE_MODE=0; SECRETS_ONLY=0 ;;
             daily)
               # 日常维护: 单 pass 全量重部署
               GEN_NAMES=0; DEPLOY_SCOPE=2; PASS_MODE=1; DELETE_MODE=0; SECRETS_ONLY=0 ;;
-            publish)
-              # 只派生 worker-major endpoint.json 传 Dataset, 不重部 Worker (省 16m N×M 格 deploy)
-              GEN_NAMES=0; SECRETS_ONLY=0; DEPLOY_SCOPE=2; DELETE_MODE=0; PUBLISH_ONLY=1 ;;
             solo:*)
               # 单账号部署: 冒号后数字 = 账号位 (1-10)
               GEN_NAMES=0; DEPLOY_SCOPE=1; SOLO_ACCOUNT="${PRESET#solo:}"
@@ -203,7 +194,7 @@ jobs:
   # ════════════════════════════════════════════════════════════════════
   # Job 2: gen-names — 生成 N×M 随机 Worker 名写 GitHub Variable
   # 仿 n-vless gen-names (sync-deploy.yml:224-339). 每账号独立抽 2 词 (障缝+封禁隔离).
-  # PRESET=gen/reorg 触发. WORKER_NAMES 平铺 ACTIVE_ACCOUNTS×WORKERS_PER_ACCOUNT 名逗号串.
+  # GEN_NAMES=1/reorg 触发. WORKER_NAMES 平铺 ACTIVE_ACCOUNTS×WORKERS_PER_ACCOUNT 名逗号串.
   # pos=(account-1)*WORKERS_PER_ACCOUNT + worker. 两端全可配 (账号数 + 每账号 worker 数).
   # ════════════════════════════════════════════════════════════════════
   gen-names:
@@ -344,7 +335,7 @@ jobs:
           POS=$(( (MATRIX_ACCOUNT - 1) * WORKERS_PER_ACCOUNT + MATRIX_WORKER ))
           WNAME=$(echo "$WORKER_NAMES" | cut -d',' -f$POS)
           if [ -z "$WNAME" ]; then
-            echo "ERROR: WORKER_NAMES empty at pos $POS. Run PRESET=gen first."
+            echo "ERROR: WORKER_NAMES empty at pos $POS. Set Variables GEN_NAMES=1 first."
             exit 1
           fi
 
@@ -399,7 +390,7 @@ jobs:
             # WORKER_NAMES = 全 N×M 名平铺逗号串 (现役名单); 列账号全 Worker → 不在名单内则删
             echo ">>> Mode 3: deleting all workers EXCEPT those in WORKER_NAMES (stale cleanup)"
             if [ -z "$WORKER_NAMES" ]; then
-              echo ">>> ERROR: WORKER_NAMES Variable empty. Run PRESET=gen first to populate active roster."
+              echo ">>> ERROR: WORKER_NAMES Variable empty. Set Variables GEN_NAMES=1 to populate active roster."
               exit 1
             fi
             RESPONSE=$(curl -s \
@@ -597,8 +588,8 @@ jobs:
 
   # ── publish-endpoints: 派生 worker-major endpoint.json 传 HF Dataset (圣上令自动回填) ─
   # 两路跑 (always() 因 deploy 可能 skipped):
-  #   ① PRESET=publish 场景: deploy 跳 (省 16m N×M 格), 仅 publish 直跑无须重部 Worker
-  #   ② daily/first 场景: deploy 成后跑 (secrets/gen 场景跳: URL 未变无须重传)
+  #   ① PUBLISH_ONLY=1 (Variables 兜底): deploy 跳 (省 16m N×M 格), 仅 publish 直跑无须重部 Worker
+  #   ② daily 场景: deploy 成后跑 (secrets 场景跳: URL 未变无须重传)
   # 读 GitHub Variable WORKER_NAMES N×M 名 + f{XX}.cc.cd 拓扑派生 worker-major URL → 传 xnexus/logic Bucket
   # 不涉 secret 真值 (HF_TOKEN Action 自动打码; URL 非 secret)
   publish-endpoints:
@@ -624,7 +615,7 @@ jobs:
           names_str = os.environ.get('WORKER_NAMES', '').strip()
           wpa = int(os.environ.get('WORKERS_PER_ACCOUNT', '3') or '3')
           if not names_str:
-              print('ERROR: WORKER_NAMES Variable empty. Run PRESET=gen first.')
+              print('ERROR: WORKER_NAMES Variable empty. Set Variables GEN_NAMES=1 first.')
               sys.exit(1)
           names = [n.strip() for n in names_str.split(',') if n.strip()]
           n_total = len(names)

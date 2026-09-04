@@ -9,6 +9,7 @@ const ALLOWED_HOSTS = new Set([
   "integrate.api.nvidia.com",   // NVIDIA NIM (主)
   "token.sensenova.cn",         // SenseNova Token Plan (sensenova 内置走 FT 出口, 2026-08-28 圣上令方案B)
   "api.sensenova.cn",           // SenseNova 传统 API (3.8.4x registry 可能沿用, 一并放行防 host 拒)
+  "developer.amd.com.cn",       // AMD 中国门户 (amd node 2026-09-03 补绑 FT 桥, 漏白名单致 403 host not allowed; 2026-09-04 补)
 ]); // 只放行白名单 host, 防被当开放代理
 
 const DROP_REQ = new Set([

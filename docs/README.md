@@ -1,3 +1,6 @@
+> ⚠️ **本文件为 candidate-v4.3.2 时代快照，已过期。** 生产事实以 `HANDOFF.md`（架构/不变量/排障入口）与 `ops/STATUS.md`（当前部署=commit、Space）为准。
+> 现役唯一生产 Space = **`xnexus/o`**（非 `nomke/omn` / `nonoke/omn`）；基础镜像现役为 `ghcr.io/i3t2y/omn-base:stable`（下文第 5 行所述 `diegosouzapw/omniroute:3.8.43` 仅对候选版准确）。env 键 `OMNIROUTE_*` 经 CLAUDE.md §1 例外保留，详见该条。
+>
 # OmniRoute × NVIDIA NIM 网关 — 文档入口
 
 ## 候选版说明
@@ -21,7 +24,7 @@
 
 ## r4 改名批勘注（2026-07-22/23, 首席令 omni-logic→omn-logic）
 
-> 非品牌 `omni-*` 全清为 `omn-*`（**OmniRoute/OMNIROUTE 品牌 21 命中完整不动**）。apply to staging `candidate-v4.3.2-staging/init-nim-keys.sh` (sha `4cbcc50120ec` 995L, 链 e5a26a9c→89f636b5→4cbcc50120ec)。
+> 非品牌 `omni-*` 全清为 `omn-*`；**OMNIROUTE 品牌 env 键经 CLAUDE.md §1 例外保留, 不动**(现役 dev/logic 共 16 处: `OMNIROUTE_API_KEY`×6 / `OMNIROUTE_PORT`×9 / `OMNIROUTE_RELAY_BACKEND`×1, 后者为上游 unset 契约)。candidate-v4.3.2-staging/init-nim-keys.sh 曾按此规则处理(sha `4cbcc50120ec` 995L)。
 
 | 改名前 → 后 | 位置 | 风险 |
 |------|------|------|

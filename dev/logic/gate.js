@@ -28,13 +28,11 @@ const UPSTREAM_TIMEOUT_MS = parseInt(process.env.GATE_UPSTREAM_TIMEOUT_MS || '30
 const SHUTDOWN_GRACE_MS = parseInt(process.env.GATE_SHUTDOWN_GRACE_MS || '5000', 10) || 5000;
 
 // ── FT (FlareTunnel) 桥本地端端口 (路3 路3-b 反代) ──────────────
-// entrypoint export FT_PORTS "空格分隔端口串" (多桥) / FT_PORT (单桥回退 8080).
+// entrypoint export FT_PORTS "空格分隔端口串" (多桥). FT_PORTS 空 → FT_BRIDGES 兜 8080 (/v1/ft/metrics 取时 503).
 // FT 桥监听 127.0.0.1:$PORT, 同端口 /healthz + /metrics (Host 守卫非 127.0.0.1:PORT 不命中).
 // gate 现役惯例 "首桥代整体" (init-nim-keys.sh _ft_register_proxy 多桥 healthz 读 [0].port);
 //   /v1/ft/metrics 默认取首桥, ?bridge=index (0-基) 选特定桥, 越界回 400.
 const FT_PORTS_LIST = (process.env.FT_PORTS || '').split(/\s+/).map(s => parseInt(s, 10)).filter(n => Number.isInteger(n) && n > 0);
-const FT_PORT_SINGLE = parseInt(process.env.FT_PORT || process.env.FT_PROXY_PORT || '8080', 10);
-if (!Number.isInteger(FT_PORT_SINGLE) || FT_PORT_SINGLE <= 0) { /* 兜 8080 */ }
 const FT_HOST = process.env.FT_PROXY_HOST || '127.0.0.1';
 const FT_BRIDGES = FT_PORTS_LIST.length > 0 ? FT_PORTS_LIST : [8080];  // FT 未启 (FT_PORTS 空) 时仍 8080 兜, /v1/ft/metrics 取时 503
 
@@ -288,7 +286,6 @@ function proxyV1(req, res) {
   let aborted = false;
   let gateTimeout = false;   // gate 主动超时 destroy
   let clientAborted = false; // 客户端断开触发 cleanup
-  let firstError = null;      // 首个上游 error (后续 destroy 反发不覆盖)
   function cleanup() {
     if (aborted) return;
     aborted = true;
@@ -316,8 +313,6 @@ function proxyV1(req, res) {
     else if (!res.writableEnded) res.end();
   });
   upstreamReq.on('error', (e) => {
-    // 首个 error 仅记一次 (后续 destroy 同事件反发不覆盖诊断)
-    if (!firstError) firstError = e;
     // abort source 区分: client 已断开 + 这是 cleanup 反发的 destroy → client_close (不响应, client 已走)
     const elapsedMs = Date.now() - (req._gateT0 || 0);
     const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted, elapsedMs });
@@ -453,7 +448,6 @@ function proxyAdmin(req, res) {
   let aborted = false;
   let gateTimeout = false;
   let clientAborted = false;
-  let firstError = null;
   function cleanup() {
     if (aborted) return;
     aborted = true;
@@ -479,7 +473,6 @@ function proxyAdmin(req, res) {
     else if (!res.writableEnded) res.end();
   });
   upstreamReq.on('error', (e) => {
-    if (!firstError) firstError = e;
     const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted });
     const code = clientAborted ? null : mapUpstreamStatus(e, { gateTimeout });
     if (!gateTimeout) {

@@ -22,7 +22,7 @@
   单 Space 无双写问题, 旧"R2 bucket 永不双写"双 Space 铁律随 nomke 撤失效。
 - upstream/ 两树只读; 机制结论须 file:line 双版本对照;
   基座 3.8.43 + 4.2.3 行为参数 + 3.8.49 定点移植。
-- **🔴 omn 命名红线 (2026-08-24 圣上令, 去网关指纹防 HF 风控; 2026-08-29 延伸: Space 名含 omn 已入官方视野; 2026-08-29 再延伸: 上游仓库名亦删, 一律通用描述)**: 代码/注释/文件/包名/评论一律用 `omn`, **禁用 `omniroute`/`nomke`/`nonoke`/`diegosouzapw` 字样 (含注释, 2026-08-29 圣上令)**。落点 dev/logic 源码 + 骨架件(Dockerfile/start.sh/README.md) + workflows (进 HF/Bucket 的一切)。例外保留: 旧 R2 桶名 `omniroute-data`(历史资源, fetch-*.yml 守卫正则) + upstream/ 两树只读 + ops/DECISIONS 等历史决策(只增不改, 不回改). 违反 = 红线, 一律拒。
+- **🔴 omn 命名红线 (2026-08-24 圣上令, 去网关指纹防 HF 风控; 2026-08-29 延伸: Space 名含 omn 已入官方视野; 2026-08-29 再延伸: 上游仓库名亦删, 一律通用描述)**: 代码/注释/文件/包名/评论一律用 `omn`, **禁用 `omniroute`/`nomke`/`nonoke`/`diegosouzapw` 字样 (含注释, 2026-08-29 圣上令)**。落点 dev/logic 源码 + 骨架件(Dockerfile/start.sh/README.md) + workflows (进 HF/Bucket 的一切)。例外保留: 旧 R2 桶名 `omniroute-data`(历史资源, fetch-*.yml 守卫正则) + upstream/ 两树只读 + ops/DECISIONS 等历史决策(只增不改, 不回改) + **dev/logic 现役 `OMNIROUTE_API_KEY`/`OMNIROUTE_PORT`/`OMNIROUTE_RELAY_BACKEND`(历史品牌遗留 env 键; `OMNIROUTE_RELAY_BACKEND` 为上游 unset 契约变量, 2026-09-05 Supreme 裁定保留, 不触发红线)**. 违反 = 红线, 一律拒。
 
 ## §2 Secrets 纪律
 - secret/token 值零入会话、零入文档、零入 git; 记录只写位置。

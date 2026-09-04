@@ -47,3 +47,6 @@ __pycache__/
 /flaretunnel/flaretunnel
 /flaretunnel/flaretunnel.bak.*
 
+
+# 补丁工具残留备份 (git 历史已保留)
+flaretunnel/FlareTunnel.go.orig

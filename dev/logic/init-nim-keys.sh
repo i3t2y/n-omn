@@ -1379,7 +1379,8 @@ PYEOF
 _register_multi_provider() {
   echo "[init] General multi-provider registration..."
   # 跨 provider 同模型 (dp4f) 聚合池收集: 循环内每 provider 枚举命中 deepseek+flash 变体时,
-  # 把 "${_nid}/${模型名}" (node.id 前缀绕内置名遮蔽, §8.1) 追加进 _DPV4_ENTRIES, 末尾建 dp4f-pool.
+  # 把 "${_nid}/${模型名}" (_nid = builtin 短名 / node 节点 UUID) 追加进 _DPV4_ENTRIES, 末尾建 dp4f-pool.
+  #   (注: "node.id 前缀绕 §8.1 遮蔽" 注释过时于 2026-08-28 内置化 — builtin 下 _nid=内置短名, 与 nvidia 同构)
   _DPV4_ENTRIES=()
   for _pcfg in "${PROVIDERS[@]}"; do
     IFS='|' read -r _pid _pnode _ppre _pburl _penvv _pmax _mpre _mode _static_models <<< "$_pcfg"
@@ -1554,7 +1555,7 @@ _register_multi_provider() {
         [ -z "$_mm" ] && continue
         _modids+=("${_mpre:+${_mpre}/}${_mm}")
         # 跨 provider 同模型 (dp4f) 收集: 枚举模型名匹配 [Dd]eep[Ss]eek+[Ff]lash 变体 →
-        # 追加 "${_nid}/${_mm}" 进全局 _DPV4_ENTRIES (node.id 前缀 = combo 条目, 绕 sensenova 内置名遮蔽).
+        # 追加 "${_nid}/${_mm}" 进全局 _DPV4_ENTRIES (combo 条目: builtin 模式 _nid=内置短名, node 模式=节点 UUID).
         # 2026-08-28 圣上令: 严格三提供商 (nvidia+sensenova+amd), 排除 openrouter
         # (boot 02:45 实证 openrouter 枚举含 3 个 deepseek/deepseek-v4-flash-* 变体, 误收进池).
         case "$_mm" in
@@ -1628,7 +1629,7 @@ _register_multi_provider() {
 # 调用 dp4f-pool 时 executor 按 p2c 逐条路由 (A 家挂 → fallback B → C).
 # combo 的 models 字段原生支持混合前缀条目 (每条 "前缀/模型" 独立路由到对应 provider):
 #   nvidia 条目  = nvidia/<完整模型名>        (内置 provider id 即前缀, 天然对)
-#   sensenova    = <node.id>/<裸模型名>       (node.id UUID 前缀精确匹配连接, 绕 §8.1 内置名遮蔽)
+#   sensenova    = sensenova/<裸模型名>       (builtin 内置名即前缀, 与 nvidia 同构短名通; 旧"绕 §8.1 遮蔽"注释过时于 08-28 内置化)
 #   amd          = <node.id>/<裸模型名>
 # 模型名不硬编码: sensenova/amd 枚举时已在循环内按 [Dd]eep[Ss]eek+[Ff]lash 匹配收集进 _DPV4_ENTRIES,
 # 本函数只补 nvidia 条目 (nvidia 通用枚举失败, 条目须从 POOL_ALIVE/filter_alive 取).

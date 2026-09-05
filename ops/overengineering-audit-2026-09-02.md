@@ -31,7 +31,7 @@ sonoke (base_url=https://omn.360710.xyz/v1)
 - PROVIDERS 表内置轨：gemini/openrouter/sensenova/mistral=builtin，amd=custom node
 
 ### 待办 / 不确定项
-- sonoke 真业务闭环：`/v1/models` 已 200，真业务 POST 待确认
+- ~~sonoke 真业务闭环~~：**✅ 已确认 (2026-09-05 实证)** — 660s 窗 38 条 Claude Code Messages 业务请求 (`/v1/v1/messages`, 经反代门票→gate→app→上游): 200×28 (74%, 含 33~35s 完整推理流) + `/count_tokens` 全 200; 503×10 为 app 层短耗时 (2.2s) 主动返回 (`upstream_completed`, err/abort 空) — 上游过载型, 同 dp4f-pool 529 链, 非链路断. 私有化闭环链路 (sonoke→CF Pages→gate→上游) 已实证
 - `FT_HEALTH_COOLDOWN`：码已落、状态两处文档矛盾（docs 说启用 / HANDOFF 说待定）
 - 清单 POST 后建设队列：incident-digest / handoff-sync skills 未构建
 

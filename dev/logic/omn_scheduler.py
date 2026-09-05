@@ -109,7 +109,7 @@ OMN_REDACT = _try_import()
 # omn_encrypt.py + EncryptedScheduler 死类 + ENC_SRC/ENC_STAGING 路径已整段移出.
 # 路2 砍七成降级后 EncryptedScheduler 从未实例化 (main 内路1+db 主链), 属死代码.
 # 私库只圣读 + litestream 已复制 storage.sqlite = 加密冗余, Zen 2026-07-29 裁降级砍.
-# 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 ops/DECISIONS.md.
+# 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 ops/docs/DECISIONS.md.
 from huggingface_hub import CommitScheduler, HfApi, hf_hub_download
 
 
@@ -237,7 +237,7 @@ def _capture_loop():
 # ═══════════════════════════════════════════════════════════════════════
 # 独立 daemon 线程, 隔离 HfApi 调用 (list/upload/download/delete 全在此线程, 不挂 capture_loop).
 # CommitScheduler 是 append-only 单向上传 (本地 staging 非远程 mirror), 删远程件必走 HfApi
-#   list_repo_files 列远程真态, 不可盲扫本地 staging (盲删会误判孤儿件). 见 ops/DECISIONS.md.
+#   list_repo_files 列远程真态, 不可盲扫本地 staging (盲删会误判孤儿件). 见 ops/docs/DECISIONS.md.
 # fail-safe 核心铁闸: 推归档库成功后才删原库件 (推失败绝删 = 丢归档). 任一步失败本轮跳过下次重试.
 def _archive_loop():
     """独立 daemon 线程: 周期归档 7天前旧日志 → 打包 tar.gz 推新私库 → 删原库腾空间.

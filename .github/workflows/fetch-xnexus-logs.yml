@@ -6,7 +6,7 @@
 # 定位: CI 侧证据采集, 非逻辑层, 不受 ② 零变更约束, 阻塞仅 push + HF_TOKEN secret。
 # 与 P0-tee 互补: P0-tee=容器内持久落盘(战后), 本通道=HF 可见窗口仓内归档(现在)。
 # 下游: claude-code-action 异步解读层未来从此 evidence 分支消费。
-# 出处: SEE DECISIONS.md "HF Space 日志抓取通道" 条 (2026-07-25) + "workflow 六件命名规约" 条 (2026-07-26)。
+# 出处: SEE docs/DECISIONS.md "HF Space 日志抓取通道" 条 (2026-07-25) + "workflow 六件命名规约" 条 (2026-07-26)。
 #
 # 快照语义 (2026-07-26 字节解剖修正, 02:00Z cg52 + Zen双窗口实证):
 #   连接建立瞬间, HF 倾吐容器自启动以来全部积压历史 (boot 至今全量叙事),

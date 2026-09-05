@@ -30,7 +30,7 @@
 
 ## D. 收尾
 - [ ] D1. ops/STATUS.md 更新(部署=commit, 验证时间)
-- [ ] D2. 新锁定决策已追加 DECISIONS.md
+- [ ] D2. 新锁定决策已追加 docs/DECISIONS.md
 - [ ] D3. 旧环境冻结保留期明确(默认1周)再退役
 
 ## M. 迁移日(③④⑤ 专用)

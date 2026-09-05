@@ -23,7 +23,7 @@ This release captures the currently working anti-template-loss deployment of the
 - `nim-pool-lab` experimental Combo plan.
 - Documentation:
   - `README.md`
-  - `docs/DECISIONS.md`
+  - `docs/docs/DECISIONS.md`
   - `docs/TROUBLESHOOTING.md`
   - `docs/VALIDATION.md`
   - `docs/AI_HANDOFF.md`

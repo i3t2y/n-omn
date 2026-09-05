@@ -4,7 +4,7 @@
 > **当前真态以 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) 为准**（2026-07-06 快照，上游 v3.8.44）。
 > 本文保留作 v1.0.0 时代 AI 接手规范与历史踩坑追溯，**勿据本文改代码**——先读 CURRENT_STATE。
 
-本文档给无上下文 AI 使用。任何新会话接手 `nim-omniroute-gateway` 时，必须先读 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md)，再读本文档、`README.md`、`docs/DECISIONS.md`、`docs/TROUBLESHOOTING.md`、`docs/VALIDATION.md`。
+本文档给无上下文 AI 使用。任何新会话接手 `nim-omniroute-gateway` 时，必须先读 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md)，再读本文档、`README.md`、`docs/docs/DECISIONS.md`、`docs/TROUBLESHOOTING.md`、`docs/VALIDATION.md`。
 
 ## 0. 当前唯一基线
 
@@ -296,7 +296,7 @@ PATCH-[ID]
 2. 上传 hf-space/ 四个核心文件
 3. 上传 cf-worker/index.js
 4. 上传 README.md
-5. 上传 docs/DECISIONS.md
+5. 上传 docs/docs/DECISIONS.md
 6. 上传 docs/TROUBLESHOOTING.md
 7. 上传 docs/VALIDATION.md
 8. 上传 docs/AI_HANDOFF.md

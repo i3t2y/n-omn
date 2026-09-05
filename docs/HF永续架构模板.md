@@ -56,7 +56,7 @@ HF 免费 Docker Space 有四条硬约束(2026-07 实测),裸跑任意服务都�
 - 环境层: `Dockerfile:26` `ARG BASE_IMAGE=ghcr.io/i3t2y/omniroute-base:stable`; `Dockerfile:27` `FROM ${BASE_IMAGE}`
 - 逻辑层: `sync-logic-nonoke.yml:40-41` 推 `dev/logic/` 五件到 Dataset `nonoke/omn-logic` 根平铺
 - 运行态: `dev/logic/litestream.yml:2` `path: /app/data/storage.sqlite` → `litestream.yml:5-9` R2 replica
-- 三层铁律源: `CLAUDE.md:13-20`(§1 拓扑铁律)+ `HANDOFF.md:8-14`
+- 三层铁律源: `CLAUDE.md:13-20`(§1 拓扑铁律)+ `docs/HANDOFF.md:8-14`
 
 ---
 
@@ -76,7 +76,7 @@ HF 免费 Docker Space 有四条硬约束(2026-07 实测),裸跑任意服务都�
 ### omn 实证
 - dev 自触: `sync-space-nonoke.yml:22-30` push paths 四件 + `sync-logic-nonoke.yml:15-20` push paths `dev/logic/**`
 - prod 显令: `sync-space-nomke.yml:18-19` 仅 `workflow_dispatch` + `sync-logic-nomke.yml:18-19` 同
-- token 隔离: `DECISIONS.md` "HF_TOKEN 命名空间隔离" 条
+- token 隔离: `docs/DECISIONS.md` "HF_TOKEN 命名空间隔离" 条
 
 ---
 
@@ -127,7 +127,7 @@ license: mit
 - 三 ARG+ENV 对: `Dockerfile:26/39/40`(BASE_IMAGE) / `Dockerfile:49/50`(LITESTREAM) / `Dockerfile:57/58`(HF_HUB_RANGE)
 - start.sh 三读: `start.sh:10` / `start.sh:32` / `start.sh:42`(全 `${ENV:-回退}`)
 - README 纯 frontmatter: `README.md` 10 行 `sdk: docker / app_port: 7860` 无版本字段
-- 闭环源: `DECISIONS.md` 三件永不再改三条
+- 闭环源: `docs/DECISIONS.md` 三件永不再改三条
 
 ---
 
@@ -520,11 +520,11 @@ jobs:
 
 运维层 (git 仓, 永不进 Space):
   ops/STATUS.md          # 当前部署态硬指标
-  ops/DECISIONS.md       # 只增不改决策账
+  ops/docs/DECISIONS.md       # 只增不改决策账
   ops/release-checklist.md  # 切流量前 A/B/C/M 验收
   ops/incidents/         # 七段式事故档
   audit/                 # 历史堪察档
-  HANDOFF.md             # 交接+架构契约 SSOT
+  docs/HANDOFF.md             # 交接+架构契约 SSOT
   CLAUDE.md              # 工作宪法 (护栏+拓扑铁律)
 ```
 
@@ -555,5 +555,5 @@ jobs:
 
 ---
 
-> 本模板提炼自 omn 血统,源血统见 `omn-merge` 仓 `DECISIONS.md`(三件永不再改三条)+ `CLAUDE.md`(工作宪法)+ `HANDOFF.md`(架构契约)。
+> 本模板提炼自 omn 血统,源血统见 `omn-merge` 仓 `docs/DECISIONS.md`(三件永不再改三条)+ `CLAUDE.md`(工作宪法)+ `docs/HANDOFF.md`(架构契约)。
 > 维护原则: 本文随 omn 现役血统演进同步,重大架构变更(如改三层定义/加新空间)须更新本文 §1 + 附录。

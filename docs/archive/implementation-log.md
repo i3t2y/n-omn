@@ -27,7 +27,7 @@ Client → [CLIENT_TOKEN] → Cloudflare Worker (index.js, 公网入口)
 | hf-space/entrypoint.sh | 94 | 启动时序：OmniRoute → init → gate.js |
 | hf-space/init-nim-keys.sh | 466 | NIM Key 初始化（最复杂，10 步流水线） |
 | docs/AI_HANDOFF.md | 306 | AI 接手规范（只能增量 Patch） |
-| docs/DECISIONS.md | 193 | 15 条架构决策 |
+| docs/docs/DECISIONS.md | 193 | 15 条架构决策 |
 | docs/TROUBLESHOOTING.md | 246 | 10 个故障场景 |
 | docs/VALIDATION.md | 208 | 实测验证记录 |
 | README.md | 452 | 项目主文档 |

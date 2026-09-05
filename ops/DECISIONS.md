@@ -1,7 +1,7 @@
-# ops/DECISIONS.md · omn 决策只增不改
+# ops/docs/DECISIONS.md · omn 决策只增不改
 
-> SSOT 决策层 (§3): 只增不改的裁决账本。翻案须 Zen 明确指令 (§0)。冲突以 HANDOFF.md 为准, 其次本文件。
-> 冲突次序: HANDOFF.md > DECISIONS.md (CLAUDE.md §3)。
+> SSOT 决策层 (§3): 只增不改的裁决账本。翻案须 Zen 明确指令 (§0)。冲突以 docs/HANDOFF.md 为准, 其次本文件。
+> 冲突次序: docs/HANDOFF.md > docs/DECISIONS.md (CLAUDE.md §3)。
 >
 > ⚠ 本文件 2026-07-31 新建。**旧决策全集尚未回填** (散落 audit/ / ops/incidents/ / ops/STATUS.md 段内, 未迁入)。新建前决策仍以原载体为真源;
 > 本文件先承载 2026-07-31 起新决策, 旧决策回填留Zen令 (避免半建误导 / 翻案误触)。
@@ -98,7 +98,7 @@
 
 ## 2026-08-12 · FT Worker GitHub Actions 自控部署 (仿 n-edget 手搓→自动) + worker.js 鉴权 fail-closed 红线
 
-**背景**: Zen令 "参考 github.com/i3t2y/n-vless、i3t2y/n-edget, 用 GitHub 控制 CF 账号建设 Worker"。落 `ops/DECISIONS.md` 2026-08-10 段 + `docs/flaretunnel.md:39` 自述的运维负债: 现役 = "手工建 Worker → CF Dashboard 全选删除粘贴 worker.js → 部署 → 手填真实 URL 进 `flaretunnel_endpoints.json` 喂本地桥"; `flaretunnel/worker.js:5` `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` 占位Zen手填, 换 AUTH_KEY 钥须逐 Worker 手改 → 密钥漏面大 + 运维负债重。
+**背景**: Zen令 "参考 github.com/i3t2y/n-vless、i3t2y/n-edget, 用 GitHub 控制 CF 账号建设 Worker"。落 `ops/docs/DECISIONS.md` 2026-08-10 段 + `docs/flaretunnel.md:39` 自述的运维负债: 现役 = "手工建 Worker → CF Dashboard 全选删除粘贴 worker.js → 部署 → 手填真实 URL 进 `flaretunnel_endpoints.json` 喂本地桥"; `flaretunnel/worker.js:5` `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` 占位Zen手填, 换 AUTH_KEY 钥须逐 Worker 手改 → 密钥漏面大 + 运维负债重。
 
 **治法 (本会话三件, 本地改完待 commit+push Zen)**: 手搓→GitHub Actions 自控一键全 Worker 一致部署。
 - `flaretunnel/worker.js` (+12/-7): ①fetch 签名 `async fetch(request)` → `async fetch(request, env)` ②硬编占位 `AUTH_KEY="PASTE_NEW_RELAY_AUTH_HERE"` → `const AUTH_KEY = env.RELAY_AUTH || null` 读 wrangler secret 注入 ③鉴权段加 **fail-closed 双守** `if (!AUTH_KEY || request.headers.get("x-relay-auth") !== AUTH_KEY)` — `!AUTH_KEY` 短路守 `undefined`/`null`/空串全硬拒 401。
@@ -334,7 +334,7 @@ fname = parts[2]
 
 ## 2026-08-12 · FT Worker 100 拓扑 + GitHub Actions 自控部署链 (仿 n-vless/n-edget)
 
-**背景**: `docs/flaretunnel.md:39` 自述现役机制 = "手工建 Worker 后写进 flaretunnel_endpoints.json 喂本地桥" + `ops/DECISIONS.md:24` (旧) 锁决 "欲真扩池超 M 须Zen先 CF 建新 Worker → 填真实 URL"。运维负债: 换 RELAY_AUTH 钥须逐 Worker 手改 + worker.js 更新须逐 Worker 手粘贴。Zen令参考两私库 `i3t2y/n-vless` + `i3t2y/n-edget` 用 GitHub 控制 CF 账号建设 Worker。
+**背景**: `docs/flaretunnel.md:39` 自述现役机制 = "手工建 Worker 后写进 flaretunnel_endpoints.json 喂本地桥" + `ops/docs/DECISIONS.md:24` (旧) 锁决 "欲真扩池超 M 须Zen先 CF 建新 Worker → 填真实 URL"。运维负债: 换 RELAY_AUTH 钥须逐 Worker 手改 + worker.js 更新须逐 Worker 手粘贴。Zen令参考两私库 `i3t2y/n-vless` + `i3t2y/n-edget` 用 GitHub 控制 CF 账号建设 Worker。
 
 **裁决 (Zen 2026-08-12 三点 + 拓扑定夺)**:
 - **拓扑**: 10 CF 账号 × 10 Worker = 100 上限框架, 现役启 4 账号 sub集 40 (后续Zen加 f05~f10 zone 只改 `ACTIVE_ACCOUNTS` Variable, workflow 矩阵自适应)。每账号绑 1 主域名 `f01~f10.cc.cd`, Worker 子域 `{1-10}.f{账号:02d}.cc.cd` (例第4账号第5 Worker = `5.f04.cc.cd`)。
@@ -716,7 +716,7 @@ Zen 2026-08-24 令"换 Bucket 深挖"批走 (B) 换 Bucket 源。背景: nonoke 
 
 **护栏**: §1 xnexus/o 唯一 Space, xnexus/logic 是 Bucket 源非 Space(不新建 Space); §2 xnexus HF_TOKEN 值零入会话; §5 git 一律 ask。
 
-出处: docs/logic-switch-bucket-design.md + docs/xnexus-deploy-checklist.md (commit 待Zen批)。关联: ops/DECISIONS.md §7 (R2 副本), docs/ft-health-aware-rotation.md (同型"待批实施"设计文档先例)。
+出处: docs/logic-switch-bucket-design.md + docs/xnexus-deploy-checklist.md (commit 待Zen批)。关联: ops/docs/DECISIONS.md §7 (R2 副本), docs/ft-health-aware-rotation.md (同型"待批实施"设计文档先例)。
 
 ## §12 升 3.8.50 全链路 (2026-08-30 Zen批"整体升 3.8.50", #39-#42, 只增不改)
 
@@ -790,7 +790,7 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **背景 (审计③)**: deploy-ft-workers.yml 661 行 + 9 PRESET 场景 (gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg), 审计判"多为一次性建池操作, 日常只用 daily + secrets", 建议表 #4"精简 PRESET, 保留 daily/secrets" (低优先级)。
 - **分界点 (2026-09-04 Zen裁折中)**: 直接字面删到只剩 daily/secrets 会砍掉**防封/运维应急一键工具** — `delete:1`/`delete:v` (Worker 被封立重设), `reorg` (拓扑收缩到 8-16 最优), `solo:N` (单账号排障) — 删 case 后虽可手动设 Variables 达成, 但应急从"一键"退化为"记 3-4 个变量名", 与 §1 防封主题抵触。
 - **裁决 (折中·留防封应急类)**: **删 3 个纯一次性建池场景 `gen`/`first`/`publish`, 保留 7 场景** (`daily`/`solo:N`/`secrets`/`delete:1`/`delete:v`/`delete:o`/`reorg`)。删的 3 场景能力经 Variables 兜底 (case "" 分支原有): `GEN_NAMES=1` (生名), `PASS_MODE=2`+`DEPLOY_SCOPE=2` (首次双 pass 建), `PUBLISH_ONLY=1` (仅传 endpoint.json)。`gen-names` job / `publish-endpoints` job 保留 (if 条件仍认 gen_names/publish_only 输出)。
-- **改动 (未推)**: ① `.github/workflows/deploy-ft-workers.yml` — case 删 3 分支 + description 更新 + 5 处错误提示/注释改指向变量兜底 (YAML 校验通过, 无残留引用); ② `HANDOFF.md` — PRESET 场景表删 3 行 + 链序步骤 4-5 改变量兜底; ③ `ops/overengineering-audit-2026-09-02.md` — ③行/矩阵行/建议表#4/下一步 4 处标已实施。
+- **改动 (未推)**: ① `.github/workflows/deploy-ft-workers.yml` — case 删 3 分支 + description 更新 + 5 处错误提示/注释改指向变量兜底 (YAML 校验通过, 无残留引用); ② `docs/HANDOFF.md` — PRESET 场景表删 3 行 + 链序步骤 4-5 改变量兜底; ③ `ops/overengineering-audit-2026-09-02.md` — ③行/矩阵行/建议表#4/下一步 4 处标已实施。
 - **生效前提**: 本改动只影响 workflow 代码 (非生产运行态), 提交 push nomn 即生效, 无需 boot 验证。下次建池 (扩 zone/首次) 时用 Variables `GEN_NAMES=1`/`PASS_MODE=2`/`PUBLISH_ONLY=1` 触发, 不再用 PRESET=gen/first/publish。
 
 ## 2026-09-04 · 备份处置 + SQLITE_CORRUPT 双 A 裁定 (Zen令, 审计 #62/#63)

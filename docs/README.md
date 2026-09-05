@@ -1,4 +1,4 @@
-> ⚠️ **本文件为 candidate-v4.3.2 时代快照，已过期。** 生产事实以 `HANDOFF.md`（架构/不变量/排障入口）与 `ops/STATUS.md`（当前部署=commit、Space）为准。
+> ⚠️ **本文件为 candidate-v4.3.2 时代快照，已过期。** 生产事实以 `docs/HANDOFF.md`（架构/不变量/排障入口）与 `ops/STATUS.md`（当前部署=commit、Space）为准。
 > 现役唯一生产 Space = **`xnexus/o`**（非 `nomke/omn` / `nonoke/omn`）；基础镜像现役为 `ghcr.io/i3t2y/omn-base:stable`（下文第 5 行所述 `diegosouzapw/omniroute:3.8.43` 仅对候选版准确）。env 键 `OMNIROUTE_*` 经 CLAUDE.md §1 例外保留，详见该条。
 >
 # OmniRoute × NVIDIA NIM 网关 — 文档入口
@@ -134,7 +134,7 @@
 
 - 旧版本研究：`4.1.0.md`、`n-omn-4.2.md`、`3.8.0.txt`
 - 历史快照：`CURRENT_STATE_v3.8.md`、`RELEASE_NOTES_v1.0.0.md`、`VALIDATION.md`、`audit-report.md`、`implementation-log.md`
-- nog 项目文档：`CHANGELOG.md`、`AI_HANDOFF.md`、`DECISIONS.md`、`EXPERIENCE.md`、`TROUBLESHOOTING.md`
+- nog 项目文档：`CHANGELOG.md`、`AI_HANDOFF.md`、`docs/DECISIONS.md`、`EXPERIENCE.md`、`TROUBLESHOOTING.md`
 - 事件复盘：`DEGRADED_POSTMORTEM.md`、`DEGRADED分析.md`、`Deep Research OmniRoute.md`
 - 规划稿：`superpowers/plans/`、`superpowers/specs/`
 - 旧工具：`check_restricted.sh`

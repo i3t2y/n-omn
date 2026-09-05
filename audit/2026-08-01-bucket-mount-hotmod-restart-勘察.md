@@ -2,7 +2,7 @@
 
 **Zen令**: 2026-08-01 "实测钉 Bucket RW mount 热更/Restart 真机制"。本文档钉官方文档边界(空白处)+底层机制推断 + 现役架构影响面 + 待实测唯一未知数 + 实测方案。
 
-**关联**: [[storage-bucket-dataset-结合堪察]] §11/§12 单择定局 + [[logic-dataset-to-bucket-intent]] (DECISIONS.md 2026-08-01 段迁意记号)。
+**关联**: [[storage-bucket-dataset-结合堪察]] §11/§12 单择定局 + [[logic-dataset-to-bucket-intent]] (docs/DECISIONS.md 2026-08-01 段迁意记号)。
 
 ---
 
@@ -160,7 +160,7 @@ Zen真痛点: init/gate 改动现须 Restart 生效(非秒级)。换 Bucket RW m
 
 ### 6.3 实测后落账
 - 结果回填本文档 §5
-- 进 DECISIONS.md 2026-08-01 段 待证项消解
+- 进 docs/DECISIONS.md 2026-08-01 段 待证项消解
 - 进 memory `logic-dataset-to-bucket-intent` 待证据消解
 
 ---

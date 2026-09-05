@@ -1,4 +1,4 @@
-# DECISIONS.md · omn 锁定决策日志
+# docs/DECISIONS.md · omn 锁定决策日志
 
 > 每项不可逆/影响后续工作流方向的决策追加一行。变更须 Zen 批准。
 > 格式: 日期 · 决策标题: 内容简述。(出处指向对应 ops/incidents/ 或 audit/)
@@ -115,7 +115,7 @@ bootstrap.sh `hf download --revision <HEAD commit_id>` 竞速根治案落地 (K3
 ## 2026-07-26 · 档册新规三件 + false-negative 复核规 + workflow 闸规 (K3 裁, Zen准)
 四件同日裁入, 防未来再坑:
 - **① boot 编号语义漂移修正**: boot 序号跨会话无血缘续接 (cg52 口语 "boot#7 03:32Z" 实为 fetch-logs 实证期的 boot, 在册 saga 用 boot#5/#6 与本轮无血缘). **档册新规**: 档册只认时间戳 (如 "7-26 03:32Z boot"), 口语序号限对话当轮禁入档; 引用须带时间戳双锚防漂移误读.
-- **② false-negative 复核规**: cg52 上轮 grep "DECISIONS 漏存盘" 假象 — 路径臆读 `ops/DECISIONS.md` (§3 文档链措辞漂, 真件在仓根 DECISIONS.md). **裁**: grep 否定结论必先复核路径再报 "未命中"; false negative 不得入账. 档册引用裁决出处时以 "档+段名" 双锚 (如 "§5后续列表 'bootstrap hf download 无 --revision'"), 防 §6.5 式臆挂.
+- **② false-negative 复核规**: cg52 上轮 grep "DECISIONS 漏存盘" 假象 — 路径臆读 `ops/docs/DECISIONS.md` (§3 文档链措辞漂, 真件在仓根 docs/DECISIONS.md). **裁**: grep 否定结论必先复核路径再报 "未命中"; false negative 不得入账. 档册引用裁决出处时以 "档+段名" 双锚 (如 "§5后续列表 'bootstrap hf download 无 --revision'"), 防 §6.5 式臆挂.
 - **③ R2 先证后建铁律**: Phase 2 链含 Rebuild — 若 R2 恢复链断, Rebuild 即 first-init 数据清零事件正撞单写铁律. **裁**: 步2 三子读数 (litestream snapshots / R2 bucket L0+WAL mtime+snapshots .ltx / lifecycle) 报回前 Phase 2 六步一律不启; 切流铁律增 "先证 R2 可恢复, 再谈重建". 切流后补验清单加: matrix 四笔外验证一次 snapshot 生成 + 恢复演练, "可恢复"从推断变实证. **关联悬案 (7-26 dispatch 铁证更新)**: ~~dbs.path=/app/data vs entrypoint DATA_DIR=/data 漂移嫌疑~~ 铁证推翻 (日志 `initialized db path=/app/data/storage.sqlite` 与 entrypoint `DATA_DIR=/app/data` 与 litestream.yml 全同, 零漂移). **真根**: restore-WAL-tail 半态致 compaction txid gap — entrypoint restore 拉 R2 低 txid snapshot (db_txid=0x0), litestream 启 replicate 后 `detected database behind replica` (db=0x0 vs replica=0x2c) 触发 fetched L0 seg (0x2c), compaction L1 合并本地 seg(0x10) + 拉回 seg(0x2c) txid 跳号 → `non-contiguous transaction ids` ERR每 30s. R2 鉴别器三子读须增两步: ① `sqlite3 /app/data/storage.sqlite "PRAGMA wal_checkpoint; SELECT * FROM pragma_wal_checkpoint;"` 看 db_txid 真态 ② R2 bucket 列 snapshots/*.ltx 全 txid 范围 + db/storage.sqlite/wal/ L0 seg txid 序列验链完整性 + entrypoint restore 选 snapshot 还是 WAL tail 逻辑分支审. 出处: saga §8.1 + evidence 分支 logs/nonoke--omn/20260726-0813-run.log.
 - **④ workflow 通用闸规**: fetch-space-logs.yml 补丁二暴露 — job 内 git 操作首步无 actions/checkout, 空白 runner 报 `fatal: not a git repository`. **裁**: 凡 job 内含 git 操作, 首步必有 `actions/checkout` (含 fetch-depth 按需) 或由前序 job 产物显式重建仓; "默认在仓内"是 runner 上最贵假设, 与"流式端点有限化误判"同册列本仓 Actions authoring 双铁律. 出处: ops/INCIDENTS 待建 (fetch-logs checkout 缺口 saga), 现 fetch-space-logs.yml 补丁二 inline 注释留痕 + 本 DECISIONS 条.
 
@@ -170,7 +170,7 @@ Zen令: 抓取 Space 日志用 GitHub Actions, 直接放 n-omn 私库。落地�
 ---
 
 ## 2026-07-25 · 落库完整性纪律: Write/Edit 返回成功不构成落库证据, read-back 才算
-Zen改判闸根因: 两轮我 cat 错路径(DECISIONS.md 根→ops/DECISIONS.md、audit/k3总览→docs/)致错报"DECISIONS 空文件 stop-the-line", 实根 DECISIONS.md 真存 4701字节 9 条齐。若照"Write/Edit 返回成功即落库"惯性, 此类自欺会在更大动作中炸。固化: (1) 每个文件落库后必 `cat` 或 `git diff` 全文 read-back 验, 不在路径臆测; (2) commit 前 `git diff --cached` 全文审, 只 `--stat` 不许提交; (3) git show <commit>:<path> 路径须用 stat 确认的真路径, 凭臆测路径 read-back 会假 0 行/假空。健康信号标准向落库路径的自然延伸: 中间段回显不构成健康证据, 写入回显同样不构成。出处: 本轮完整性闸反转 + ops/incidents/2026-07-25-c2-pipefail-init-silent-death.md "假健康 boot" 同构教训。
+Zen改判闸根因: 两轮我 cat 错路径(docs/DECISIONS.md 根→ops/docs/DECISIONS.md、audit/k3总览→docs/)致错报"DECISIONS 空文件 stop-the-line", 实根 docs/DECISIONS.md 真存 4701字节 9 条齐。若照"Write/Edit 返回成功即落库"惯性, 此类自欺会在更大动作中炸。固化: (1) 每个文件落库后必 `cat` 或 `git diff` 全文 read-back 验, 不在路径臆测; (2) commit 前 `git diff --cached` 全文审, 只 `--stat` 不许提交; (3) git show <commit>:<path> 路径须用 stat 确认的真路径, 凭臆测路径 read-back 会假 0 行/假空。健康信号标准向落库路径的自然延伸: 中间段回显不构成健康证据, 写入回显同样不构成。出处: 本轮完整性闸反转 + ops/incidents/2026-07-25-c2-pipefail-init-silent-death.md "假健康 boot" 同构教训。
 
 ---
 

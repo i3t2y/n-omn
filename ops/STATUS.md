@@ -110,7 +110,7 @@ Zen 2026-08-12 令 "参考 i3t2y/n-vless、i3t2y/n-edget, 用 GitHub 控制 CF �
 - §2 secrets: `RELAY_AUTH` 真值零入 git/会话。走 GitHub repo Secret → wrangler secret put 加密存 CF。worker.js 读 env.RELAY_AUTH 运行时绑定。换钥时 GitHub Secret + HF Space Secret 同值同步改
 - §0 翻案: 本段落 2026-08-10 "欲真扩池超 M 须Zen先 CF 建新 Worker" 运维负债 (变 "设 Secret + 跑 Action"), 不翻案不改池语义
 - §5 护栏: git add/commit 一律 ask。secret-scan exit=0 五态测全绿
-- 详见 `DECISIONS.md` 2026-08-12 段
+- 详见 `docs/DECISIONS.md` 2026-08-12 段
 
 ## 2026-08-10 · FT_WORKER_COUNT ENV 控桥轮换池规模 (dev/logic 层) — commit 67b6b8c push 通 nomn, 待 boot 真验
 
@@ -136,7 +136,7 @@ Zen 2026-08-10 令加 Worker 数变量 (原题 "RELAY_AUTH 改 32 worker 重建�
 - [ ] sync-logic-nonoke CI 推 Dataset nonoke/omn-logic (push 后自派)
 - [ ] Zen Restart dev Space (零 Rebuild, dev/logic path)
 - [ ] boot 真验: `[entrypoint] FT:` 行印 `N/M Worker round-robin` 双数 (设 ENV=8 看 `8/16 Worker (ENV FT_WORKER_COUNT=8 子集)`)
-- [ ] DECISIONS.md 2026-08-10 段已落 ✅
+- [ ] docs/DECISIONS.md 2026-08-10 段已落 ✅
 
 ### 待办
 - [ ] Zen设 Space Variable `FT_WORKER_COUNT` (建议先 8 验子集, 后按需调) → Restart → 看 FT 行双数真容
@@ -372,7 +372,7 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
   - 命名空间隔离实证: `*-nomke.yml` 零 `nonoke/omn`/`HF_TOKEN_NONOKE` 字面, `*-nonoke.yml` 零 `nomke`/`HF_TOKEN_NOMKE` 字面 (grep 字面零命中)
   - yaml 解析全六件 OK
 
-### DECISIONS 入册 (4+1 条同案, 参见 DECISIONS.md 顶)
+### DECISIONS 入册 (4+1 条同案, 参见 docs/DECISIONS.md 顶)
 - (a) R2 桶名参数化 `${R2_BUCKET}` (logic 层环境无关)
 - (b) workflow 六件命名规约 (`*-nonoke`=dev / `*-nomke`=prod, prod 三件仅 `workflow_dispatch`)
 - (c) HF_TOKEN 命名空间隔离 (NONOKE/NOMKE 双 token, 爆炸半径各半)
@@ -461,7 +461,7 @@ ARG 改动进 HF Space 走 **Space git remote 直推** (非 web UI 手改, 有 c
 ### 切换 ② boot 前固化批 (K3 令六项并②前三件, 本轮落地)
 - **probe 000 重试小修**: dev/logic/init-nim-keys.sh `probe_nim_keys_real` 000 分支单发→重试一次 (-m 30); 二次 403→AUTH_DEAD / 200/429→alive / 仍000→fail-open alive; bash -n 过 + case 合验
 - **push Dataset MATCH**: 远端 init = `a1640dd5` (probe 修源态入远端, byte-for-byte 验)
-- **三样固化**: release-checklist B3 具体化 + M 段 (20129/双层盘点/24h风暴计数); DECISIONS 三行 (gate超时180000/阈值不动/20129迁移日); HANDOFF.md 新建 (watcher 风暴特征串)
+- **三样固化**: release-checklist B3 具体化 + M 段 (20129/双层盘点/24h风暴计数); DECISIONS 三行 (gate超时180000/阈值不动/20129迁移日); docs/HANDOFF.md 新建 (watcher 风暴特征串)
 - 本轮 commit: `1159de6` (probe 修源 + 三样固化合一)
 
 ### 待Zen boot 时 (② 启动门 六项, Zen手动)

@@ -3,7 +3,7 @@
 # v3 (2026-07-25) 以来变更: 上游基座升 3.8.50; xnexus/o 私有化 + Pages 反代进生产; 消费端扩至 hermes/nexus
 
 ## §0 会话生命周期协议(最高优先级)
-- 会话开始: 读 HANDOFF.md + ops/STATUS.md + ops/DECISIONS.md 最近10条,
+- 会话开始: 读 docs/HANDOFF.md + ops/STATUS.md + ops/DECISIONS.md 最近10条,
   不凭记忆臆测, 不重复已锁定决策(翻案须 Zen 明确指令)。
 - 任务范围: 一次会话一件事, 结束即交接。
 - 会话结束/里程碑: 输出交接块(完成/锁定决策/文件变更/未决/下一步),
@@ -35,11 +35,11 @@
 - GitHub 令牌按最小 scope; HF Dataset 令牌仅写权限于目标 repo。
 
 ## §3 文档链(SSOT)
-- 系统契约: HANDOFF.md(架构/不变量/排障入口)。
+- 系统契约: docs/HANDOFF.md(架构/不变量/排障入口)。
 - 状态: ops/STATUS.md(当前部署=commit, 待办)。
-- 决策: ops/DECISIONS.md(只增不改)。
+- 决策: docs/DECISIONS.md(锁定一句话日志) + ops/DECISIONS.md(SSOT 账本), 均只增不改。
 - 事故: ops/incidents/(七段式)。验收: ops/release-checklist.md。
-- 历史: audit/ (只增, 不整理不删)。冲突以 HANDOFF.md 为准, 其次 DECISIONS.md。
+- 历史: audit/ (只增, 不整理不删)。冲突以 docs/HANDOFF.md 为准, 其次 ops/DECISIONS.md。
 
 ## §4 验证与健康信号
 - 健康 = boot 九段全执行 + init rc=0; 任何中间段回显不构成证据。

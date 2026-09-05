@@ -1,4 +1,4 @@
-# HANDOFF.md · omn 交接 / watcher 模式清单
+# docs/HANDOFF.md · omn 交接 / watcher 模式清单
 
 > 会话/班次交接 + 长跑 watcher 哨兵串。每次交接补"交接时刻状态"行; watcher 串清单是 in_progress 长跑探活/巡的命中表。
 > SSOT 角色与 ops/STATUS.md 互补: STATUS 记部署态硬指标, HANDOFF 记"此刻谁在跑/盯什么/等什么信号"。
@@ -75,7 +75,7 @@ tail -f /tmp/dev-boot.log | grep --line-buffered -E 'FALLBACK MODE|all .* accoun
 
 ## FT Worker 100 池架构交接 (2026-08-12 落地})
 
-> GitHub Actions 自控部署 CF Worker 出口换 IP 层 (非 n-vless/n-edget)。血统 + 契约 + 排障入口在此, 历史裁决见 ops/DECISIONS.md (2026-08-12 三段)。
+> GitHub Actions 自控部署 CF Worker 出口换 IP 层 (非 n-vless/n-edget)。血统 + 契约 + 排障入口在此, 历史裁决见 ops/docs/DECISIONS.md (2026-08-12 三段)。
 
 ### 不变量
 - **拓扑**: 10 CF 账号 × 10 Worker = 100 上限, 现役**满额 10 账号 100 Worker 全活** (`ACTIVE_ACCOUNTS=10` Variable 已设, f01~f10 zone 全启; 扩/缩仅改此值, workflow 矩阵自适应)。

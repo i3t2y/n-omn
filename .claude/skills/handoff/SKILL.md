@@ -1,12 +1,12 @@
 ---
 name: handoff
-description: omn 会话收尾时生成交接块 + 提议 ops/STATUS.md 与 ops/DECISIONS.md 更新 diff。固化 CLAUDE.md §0 生命周期(结束输出交接块供 Zen 归档), 避免交接块格式每轮漂移。triggers: "会话结束" "交接" "收尾" "归档摘要" "STATUS 更新" "DECISIONS 追加" "下一步" "未决问题"
+description: omn 会话收尾时生成交接块 + 提议 ops/STATUS.md 与 ops/docs/DECISIONS.md 更新 diff。固化 CLAUDE.md §0 生命周期(结束输出交接块供 Zen 归档), 避免交接块格式每轮漂移。triggers: "会话结束" "交接" "收尾" "归档摘要" "STATUS 更新" "DECISIONS 追加" "下一步" "未决问题"
 ---
 
 # handoff · omn 会话交接块生成
 
 > 用途: 会话结束/里程碑输出交接块 (CLAUDE.md §0 强制), 格式统一防漂移。供 Zen 归档进 ops/。
-> SSOT: HANDOFF.md(契约) > DECISIONS > audit。本 skill 只生成不改 SSOT 定义。
+> SSOT: docs/HANDOFF.md(契约) > DECISIONS > audit。本 skill 只生成不改 SSOT 定义。
 
 ## 何时触发
 - 会话收尾 / 里程碑节点
@@ -51,7 +51,7 @@ description: omn 会话收尾时生成交接块 + 提议 ops/STATUS.md 与 ops/D
 - 字段: 本地 HEAD / 本轮 commit / 远端 Dataset sha / 待Zen手动 / boot 后验 (如有)
 - 旧段保留 (历史态叠加)
 
-### DECISIONS.md 追加 diff (倒序, 最新顶上)
+### docs/DECISIONS.md 追加 diff (倒序, 最新顶上)
 - 格式: `## <日期> · <决策标题>: <一句话>`
 - 次行: <理由 + 出处 (ops/incidents 或 audit path)>
 - 与已有 DECISIONS 冲突: 行头显式标 `[翻案]` + 给翻案理由 (Zen 明令乙翻案者)
@@ -69,4 +69,4 @@ description: omn 会话收尾时生成交接块 + 提议 ops/STATUS.md 与 ops/D
 ## 产物去向
 - 交接块输出给 Zen (归档进 ops/)
 - STATUS/DECISIONS diff 以提议给 Zen (实际 commit 须Zen批, §5)
-- HANDOFF.md 交接时刻状态行同步更新 (本 skill 触发时可一并修 HANDOFF 交接块)
+- docs/HANDOFF.md 交接时刻状态行同步更新 (本 skill 触发时可一并修 HANDOFF 交接块)

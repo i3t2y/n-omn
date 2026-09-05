@@ -183,7 +183,7 @@ Dashboard 显示几十秒级限流倒计时，不视为故障。连续测试 pro
 | 文件 | 职责 |
 |---|---|
 | `README.md` | 快速理解和导航 |
-| `docs/DECISIONS.md` | 架构决策，不写教程 |
+| `docs/docs/DECISIONS.md` | 架构决策，不写教程 |
 | `docs/TROUBLESHOOTING.md` | 故障现象、根因、处理 |
 | `docs/VALIDATION.md` | 实测记录和验收标准 |
 | `docs/AI_HANDOFF.md` | 无上下文 AI 接手说明 |
@@ -193,7 +193,7 @@ Dashboard 显示几十秒级限流倒计时，不视为故障。连续测试 pro
 `v1.0.0` 需要通过 GitHub Release 固化。Release 内容对应一个 Git tag，代表仓库历史中的一个可恢复点。
 ```
 
-原因：DECISIONS.md 用来保存“为什么”，避免 README 被踩坑细节污染，也避免未来 AI 重复推翻已验证结论。  
+原因：docs/DECISIONS.md 用来保存“为什么”，避免 README 被踩坑细节污染，也避免未来 AI 重复推翻已验证结论。  
 实测证据：`1.3.0.txt` Line 7593 证明 `nim-pool` 正确路由到 nvidia；Line 9163、9182 证明 `/api/provider-models` 是 Dashboard 模型显示问题的根因修复点。
 
 ---

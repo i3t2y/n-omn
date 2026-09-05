@@ -72,4 +72,4 @@
 
 - 反代 Worker 版: `workers/ho-proxy/`（保留热备）
 - 反代 Pages 版: `pages/ho-proxy/`（新建）
-- 决策链: `ops/DECISIONS.md`（届时 4.3 再落）
+- 决策链: `ops/docs/DECISIONS.md`（届时 4.3 再落）

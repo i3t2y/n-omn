@@ -1,6 +1,6 @@
 # Troubleshooting
 
-本文档记录 `nim-omniroute-gateway` 已遇到的问题、根因和处理方法。这里不写架构决策，架构决策见 `docs/DECISIONS.md`。
+本文档记录 `nim-omniroute-gateway` 已遇到的问题、根因和处理方法。这里不写架构决策，架构决策见 `docs/docs/DECISIONS.md`。
 
 > ⚠️ **本文档状态**：反映 v1.0.0 时代，多处已 drift（§2/§3 模型 ID 示例、§11 PATCH-GATE-003 处理）。**当前真态以 [`docs/CURRENT_STATE_v3.8.md`](CURRENT_STATE_v3.8.md) 为准**。故障现象与根因判断逻辑仍参考，具体值/行号已过期见各节标注。
 

@@ -373,7 +373,25 @@ if [ "${OMN_LOG_TO_DATASET:-1}" = "1" ]; then
   export APP_LOG_FILE_PATH="${DATA_DIR}/omn-raw/app.log"   # 落 omn-raw (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
   mkdir -p "$(dirname "$APP_LOG_FILE_PATH")" 2>/dev/null || true
 fi
-NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}" node server.js &
+# ── 2.0 V8 堆观测注入 (Task#64) ──
+# 准入闸 chatBodyAdmission 判 0.75 阈值读的是 server.js 进程内 heapUsed/heap_size_limit,
+# 外部脚本 (scheduler/独立 node) 读不到别的进程的 V8 堆, 口径不符.
+# 正解 = NODE_OPTIONS=--require 注入定时器进 server.js 同进程同口径; 日志走 stderr → gate → Dataset 归档 (随现有流, 零新通道).
+cat > /tmp/heapwatch.cjs <<'HEAPEOF'
+// V8 堆观测: 周期打 heapUsed/heap_size_limit 对齐准入闸 0.75 阈值 (OMN_HEAPWATCH_INTERVAL_MS 可调, 默认 30s)
+const IV = Number(process.env.OMN_HEAPWATCH_INTERVAL_MS || 30000) || 30000;
+setInterval(() => {
+  try {
+    const m = process.memoryUsage();
+    const gs = require("v8").getHeapStatistics();
+    const MB = 1024 * 1024;
+    const used = m.heapUsed / MB, limit = gs.heap_size_limit / MB;
+    const pressure = gs.heap_size_limit ? m.heapUsed / gs.heap_size_limit : 0;
+    console.error(`[heapwatch] heapUsed=${used.toFixed(0)}MB heap_size_limit=${limit.toFixed(0)}MB pressure=${pressure.toFixed(3)} rss=${(m.rss/MB).toFixed(0)}MB shed_threshold=0.75`);
+  } catch (e) { /* 观测失败不惊动主进程 */ }
+}, IV);
+HEAPEOF
+NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096} --require=/tmp/heapwatch.cjs" node server.js &
 OR_PID=$!
 echo "[entrypoint] 上游服务 PID=$OR_PID (heap ${NODE_OPTIONS:-default})"
 

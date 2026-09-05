@@ -7,7 +7,7 @@
 
 ---
 
-## 一、背景(Supreme 两问)
+## 一、背景(Zen 两问)
 
 1. **gate.js admin 是否过于繁琐?** → 已在前轮解决: 520→455 行, 砍 47 行白名单路由器, 留单开关全路径 Basic Auth 透传。见 [[gate-js-single-switch-admin-landed]]。
 2. **gate 叠 `GATE_ADMIN_TOKEN` 何闸 vs OR 自身 `INITIAL_PASSWORD`(已是 `openssl rand -hex 16`=32字)是否过度谨慎?** → 本档论证(见 §三)。
@@ -69,7 +69,7 @@
 - ≥16 阈值**合理哨兵非过度** — 防误设占位; 16 不偏严, 与 PSK 同哲学。
 - **(原判)无可砍冗余处**: 两闸各管一面(gate=暴露面收 404 + 网关兜暴破 / OR=凭证验 session), 正交不重复。
 
-**§8 修正**: gate 层的"网关兜暴破"(Basic Auth)在 2026-07-23 Restart 实战后因浏览器原生 Basic Auth 框反复弹弊大于利被 Supreme 砍除。`GATE_ADMIN_TOKEN` 退为纯暴露面哨兵(§8), 暴破兜底取消, gate 层仅剩"存/否定后台是否暴露 404" 一责。论证 §三.2 第 4 点"gate 正是 loginGuard 假设的 reverse-proxy" **由 Basic Auth 改为暴露面 404** 实现 — 暴破者连后台路径都探不到仍是 gate 的职责, 但若 token 已设(后台开), 撞库就交 OR 自身 loginGuard 5次/15min IP 锁 + bcrypt 抗。
+**§8 修正**: gate 层的"网关兜暴破"(Basic Auth)在 2026-07-23 Restart 实战后因浏览器原生 Basic Auth 框反复弹弊大于利被 Zen 砍除。`GATE_ADMIN_TOKEN` 退为纯暴露面哨兵(§8), 暴破兜底取消, gate 层仅剩"存/否定后台是否暴露 404" 一责。论证 §三.2 第 4 点"gate 正是 loginGuard 假设的 reverse-proxy" **由 Basic Auth 改为暴露面 404** 实现 — 暴破者连后台路径都探不到仍是 gate 的职责, 但若 token 已设(后台开), 撞库就交 OR 自身 loginGuard 5次/15min IP 锁 + bcrypt 抗。
 
 ---
 
@@ -77,7 +77,7 @@
 
 ### 4.1 动机
 
-Supreme 准: 现 gate.js 留两具名 const(`ADMIN_TOKEN_MIN_LEN=16` line 30 + `ADMIN_ENABLED = GATE_ADMIN_TOKEN.length >= ADMIN_TOKEN_MIN_LEN` line 51)作中间层。质疑是否多此一举 — 判式内联省具名层。
+Zen 准: 现 gate.js 留两具名 const(`ADMIN_TOKEN_MIN_LEN=16` line 30 + `ADMIN_ENABLED = GATE_ADMIN_TOKEN.length >= ADMIN_TOKEN_MIN_LEN` line 51)作中间层。质疑是否多此一举 — 判式内联省具名层。
 
 ### 4.2 改前
 
@@ -131,15 +131,15 @@ if (GATE_ADMIN_TOKEN.length < 16) return next();                  // Basic Auth
 
 ### 4.7 状态
 
-**本地改完未推**(前轮)→ **2026-07-23 Supreme 令"推吧" → 推成**(commit `d23cea32`, 读回 `722a96a0` == 本地 逐字节 cmp PASS)→ **2026-07-23 03:31 Supreme 手动 Space Restart → boot 真态铁证落地**。
+**本地改完未推**(前轮)→ **2026-07-23 Zen 令"推吧" → 推成**(commit `d23cea32`, 读回 `722a96a0` == 本地 逐字节 cmp PASS)→ **2026-07-23 03:31 Zen 手动 Space Restart → boot 真态铁证落地**。
 
 ---
 
-## 七、Restart 后 boot 真态(Supreme 手动 2026-07-23 03:31:18)
+## 七、Restart 后 boot 真态(Zen 手动 2026-07-23 03:31:18)
 
 ### 7.1 改造生效铁证
 ```
-[gate] admin UI: enabled (开关状态可记, 不记 token).   ← 内联判式 GATE_ADMIN_TOKEN.length>=16 算出 = Supreme 在 Space Secrets 设有效 token
+[gate] admin UI: enabled (开关状态可记, 不记 token).   ← 内联判式 GATE_ADMIN_TOKEN.length>=16 算出 = Zen 在 Space Secrets 设有效 token
 [gate] listening on 0.0.0.0:7860 -> 127.0.0.1:20128
 ```
 - 新内联版 log 落, 语义对(原 `ADMIN_ENABLED ? ...:...` 换 `GATE_ADMIN_TOKEN.length>=16 ? ...:...`)
@@ -172,14 +172,14 @@ msg=admin_client_disconnected_proxy_aborted
 ### 7.4 风险评估
 - 几乎无害: `elapsedMs=1` = client 立即断未造 OR 负载(loginGuard 都没记, 请求没到 OR)
 - 撞库面已封: gate Basic Auth 拦错凭据 → 错请求不到 OR; 持对凭据才透传 → 再交 OR 自身 loginGuard(5次/15min 锁) + bcrypt + JWT 兜
-- **来源待 Supreme 确**: (a)手动试 admin UI(浏览器并发探活/取消致连串关闭) (b)HF Space ingress 自身探 `/` (c)某探活脚本 (d)外网撞库扫描。若(a)人为 = 正常无需动; 若(d) = gate+loginGuard 双闸已封, 可观察频率是否持续/加 IP 级限。
+- **来源待 Zen 确**: (a)手动试 admin UI(浏览器并发探活/取消致连串关闭) (b)HF Space ingress 自身探 `/` (c)某探活脚本 (d)外网撞库扫描。若(a)人为 = 正常无需动; 若(d) = gate+loginGuard 双闸已封, 可观察频率是否持续/加 IP 级限。
 
 ### 7.5 结论(已修正, 见 §7.6)
 gate.js 单开关+内联版(453 行)推送落地 + restart boot 真稳态闭环。`/api/auth/login` 连串 client_close **原判为"预期诊断日志非崩溃" — 此判读已被下一轮根因排查推翻(§7.6)**。
 
 ### 7.6 ⚠ 推翻 §7.3 判读 + client_close 根因锁 + 修复落地(2026-07-23)
 
-**原判错**: §7.3 说 `client_close` 是 "client 行为, gate 无错", 推测来源撞库扫描。**事后 Supreme 反馈 "设定的 INITIAL_PASSWORD 在后台输入后进不了, 也无任何提示" + "已删所有备份重设 INITIAL_PASSWORD 仍进不去" 推翻此判** — 真病在 gate 自身, 非外部撞库。
+**原判错**: §7.3 说 `client_close` 是 "client 行为, gate 无错", 推测来源撞库扫描。**事后 Zen 反馈 "设定的 INITIAL_PASSWORD 在后台输入后进不了, 也无任何提示" + "已删所有备份重设 INITIAL_PASSWORD 仍进不去" 推翻此判** — 真病在 gate 自身, 非外部撞库。
 
 **根因锁**(上游 `omniroute-3.8.43` 源码 + gate 日志铁证对照):
 - gate.js proxyV1.line277 + proxyAdmin.line386 各一行:
@@ -206,17 +206,17 @@ gate.js 单开关+内联版(453 行)推送落地 + restart boot 真稳态闭环�
 | 远端 sha | `722a96a0`(单开关内联版)→ `18bb1666`(client_close 修复版) |
 | 读回验 | sha == 本地, `cmp` 逐字节 PASS |
 
-**剩**: Supreme 手动 Space Restart → boot 看新版生效 → 判浏览器 `/api/auth/login` 登录通否(预期无 `client_disconnected_proxy_aborted`, bcrypt 期间不被掐, 有响应进后台 = 真闭环)。
+**剩**: Zen 手动 Space Restart → boot 看新版生效 → 判浏览器 `/api/auth/login` 登录通否(预期无 `client_disconnected_proxy_aborted`, bcrypt 期间不被掐, 有响应进后台 = 真闭环)。
 
-**续:Restart 后登录通了, 但浏览器原生 Basic Auth 框反复弹**(Supreme 反馈)。框弹时机 Supreme 未细分, 但裁决明确: **保留 GATE_ADMIN_TOKEN 但无需输它登录**。框反复弹的根因机制推测(未实证到单条 401+WWW-Authenticate 记录, 但方向 Supreme 已定): browser 原生 Basic Auth 框在 SPA 后台多子请求/多 path/realm 分区场景下难稳定缓存凭据, 体验差(无登出按钮/无可控重挑), 弊大于利。
+**续:Restart 后登录通了, 但浏览器原生 Basic Auth 框反复弹**(Zen 反馈)。框弹时机 Zen 未细分, 但裁决明确: **保留 GATE_ADMIN_TOKEN 但无需输它登录**。框反复弹的根因机制推测(未实证到单条 401+WWW-Authenticate 记录, 但方向 Zen 已定): browser 原生 Basic Auth 框在 SPA 后台多子请求/多 path/realm 分区场景下难稳定缓存凭据, 体验差(无登出按钮/无可控重挑), 弊大于利。
 
 ---
 
-## 八、砍 Basic Auth — GATE_ADMIN_TOKEN 退为纯哨兵(2026-07-23, Supreme 裁决)
+## 八、砍 Basic Auth — GATE_ADMIN_TOKEN 退为纯哨兵(2026-07-23, Zen 裁决)
 
 ### 8.1 决策
 
-Supreme: "可以保留 GATE_ADMIN_TOKEN, 但无需 auth 输入 GATE_ADMIN_TOKEN 登录。" 即 `GATE_ADMIN_TOKEN` **仅作暴露面开关**(≥16 后台开 / `<16` 全 404), 不再作入口认证。后台写执行认证**全交 OR 自身** `INITIAL_PASSWORD`(bcrypt) + `loginGuard`(5次/15min IP锁) + JWT session。
+Zen: "可以保留 GATE_ADMIN_TOKEN, 但无需 auth 输入 GATE_ADMIN_TOKEN 登录。" 即 `GATE_ADMIN_TOKEN` **仅作暴露面开关**(≥16 后台开 / `<16` 全 404), 不再作入口认证。后台写执行认证**全交 OR 自身** `INITIAL_PASSWORD`(bcrypt) + `loginGuard`(5次/15min IP锁) + JWT session。
 
 ### 8.2 改动(砍 Basic Auth 整段)
 
@@ -249,27 +249,27 @@ Supreme: "可以保留 GATE_ADMIN_TOKEN, 但无需 auth 输入 GATE_ADMIN_TOKEN 
 
 ### 8.5 剩(新)
 
-Supreme 手动 Space Restart → 试后台:
+Zen 手动 Space Restart → 试后台:
 - 预期 boot 仍 `[gate] admin UI: enabled`(token ≥16 不变)
 - 浏览器访后台**无 Basic 框**直进
 - 首次见 OR 登录页 → 输 `INITIAL_PASSWORD` → OR 设 session cookie → 进后台, 不再重弹任何框
 
 ---
 
-## 九、GATE_ADMIN_TOKEN → GATE_ADMIN_ENABLED 纯布尔开关(2026-07-23, Supreme "直接删了 GATE_ADMIN_TOKEN 用01变量")
+## 九、GATE_ADMIN_TOKEN → GATE_ADMIN_ENABLED 纯布尔开关(2026-07-23, Zen "直接删了 GATE_ADMIN_TOKEN 用01变量")
 
 ### 9.1 动机
 
-砍 Basic Auth(§八)后 `GATE_ADMIN_TOKEN` 退为纯哨兵: 仅判 `process.env.GATE_ADMIN_TOKEN.length >= 16` 当布尔用(不验密/不转发/不弹框)。圣上质: 既然已退纯布尔语义, `>=16` 长串值守是曲折表达, 距纯 `0/1` 布尔一步, 应简化 + 少持一长串 secret 守值(§3 secret 纪律更轻)。
+砍 Basic Auth(§八)后 `GATE_ADMIN_TOKEN` 退为纯哨兵: 仅判 `process.env.GATE_ADMIN_TOKEN.length >= 16` 当布尔用(不验密/不转发/不弹框)。Zen质: 既然已退纯布尔语义, `>=16` 长串值守是曲折表达, 距纯 `0/1` 布尔一步, 应简化 + 少持一长串 secret 守值(§3 secret 纪律更轻)。
 
 ### 9.2 是否补安全面? 决策与论证
 
-圣上先问 "搜索查证安全面不降级的办法"。基于 OWASP Authentication Cheat Sheet(fail-closed 账户锁 + MFA 最强, IP 级可多IP绕) + express-rate-limit 权威用法(CDN d.ts 验证), 呈三方案:
+Zen先问 "搜索查证安全面不降级的办法"。基于 OWASP Authentication Cheat Sheet(fail-closed 账户锁 + MFA 最强, IP 级可多IP绕) + express-rate-limit 权威用法(CDN d.ts 验证), 呈三方案:
 - **A. cookie session 闸**(gate 自管后台 session, HMAC-GATE_ADMIN_TOKEN 签 cookie 防重登) — 真不降级但 ~60行 + 双登录 + 6 处 bug 面(cookie 属性/CSRF/HMAC 时序/SPA 子请求拦截), 迭代成本高
 - **B. IP 限速**(~30行低 bug) — 但 OWASP: IP 级可多IP绕, 且与 OR loginGuard(IP 5/15)同维度重叠, 非凭据级真兜底
 - **C. 头验 X-Admin-Token** — 不适 OR web 后台 SPA 页浏览
 
-圣上问 "A 会不会很麻烦/出错引其他bug?" → 诚实答: 是, A 最繁最易出新 bug(双层登录串扰 + SPA 子请求拦截面 + cookie 属性)。圣上遂定: **"还是这样吧, 就简单加个 admin 登录变量开关, 开时什么也不用, 关时安全面打满"** = 不补兜底, 用纯布尔开关表达开/关态即可。安全面取舍同 §八.4(靠 OR 自身 loginGuard+bcrypt+JWT 抗, dev 可接受)。
+Zen问 "A 会不会很麻烦/出错引其他bug?" → 诚实答: 是, A 最繁最易出新 bug(双层登录串扰 + SPA 子请求拦截面 + cookie 属性)。Zen遂定: **"还是这样吧, 就简单加个 admin 登录变量开关, 开时什么也不用, 关时安全面打满"** = 不补兜底, 用纯布尔开关表达开/关态即可。安全面取舍同 §八.4(靠 OR 自身 loginGuard+bcrypt+JWT 抗, dev 可接受)。
 
 ### 9.3 改动(纯布尔替换, 安全面零新变)
 
@@ -291,20 +291,20 @@ Supreme 手动 Space Restart → 试后台:
 | 远端 sha | `d577be47`(砍 Basic 版)→ `d187a967`(纯布尔版) |
 | 读回验 | sha == 本地, `cmp` 逐字节 PASS |
 
-### 9.5 零空窗(Supreme 先改 Secrets)
+### 9.5 零空窗(Zen 先改 Secrets)
 
-推送顺序风险: 若先推代码(期待 `GATE_ADMIN_ENABLED`)而 Space Secrets 仍只有 `GATE_ADMIN_TOKEN` → boot 判 `GATE_ADMIN_ENABLED !== '1'` → 后台关全 404(空窗期, /healthz + /v1 API 健康不受影响, 仅后台诊断期难进)。Supreme **先改 Space Secrets**(`GATE_ADMIN_ENABLED=1` 就位), 再推代码 → **零空窗**, Restart 即生效。
+推送顺序风险: 若先推代码(期待 `GATE_ADMIN_ENABLED`)而 Space Secrets 仍只有 `GATE_ADMIN_TOKEN` → boot 判 `GATE_ADMIN_ENABLED !== '1'` → 后台关全 404(空窗期, /healthz + /v1 API 健康不受影响, 仅后台诊断期难进)。Zen **先改 Space Secrets**(`GATE_ADMIN_ENABLED=1` 就位), 再推代码 → **零空窗**, Restart 即生效。
 
 ### 9.6 最终语义(后台开关态)
 
 | env 态 | 行为 | 安全 |
 |---|---|---|
-| `GATE_ADMIN_ENABLED=1`(开) | 后台全路径**无闸**直透传 OR | 最低(靠 OR loginGuard+bcrypt+JWT; 圣上自选免闸) |
+| `GATE_ADMIN_ENABLED=1`(开) | 后台全路径**无闸**直透传 OR | 最低(靠 OR loginGuard+bcrypt+JWT; Zen自选免闸) |
 | 未设 / `0` / 空 / 任意非 `'1'`(关) | **全路径 404**, OR 不可探 | 打满(门藏 + 隔绝, 外网碰不到 OR) |
 
 ### 9.7 剩
 
-Supreme 手动 Space Restart → boot 见 `[gate] admin UI: enabled (GATE_ADMIN_ENABLED 开关状态)` → 浏览器后台无任何框直进 OR 登录页输 `INITIAL_PASSWORD` 进。
+Zen 手动 Space Restart → boot 见 `[gate] admin UI: enabled (GATE_ADMIN_ENABLED 开关状态)` → 浏览器后台无任何框直进 OR 登录页输 `INITIAL_PASSWORD` 进。
 
 ---
 
@@ -315,7 +315,7 @@ Supreme 手动 Space Restart → boot 见 `[gate] admin UI: enabled (GATE_ADMIN_
 - 自验纪律(§6): 测试合成 chr 拼接构造, 严禁真 key/类真 PSK 入会话
 - upstream 只读(§5): 仅读 omniroute-3.8.43 源码佐证, 不改不运行不入生产
 - 基座裁决(§5): gate.js 为本地逻辑层件, 不涉 3.8.43/3.8.49 基座迁移, 无回退/升级风险
-- 未 push 任何 GitHub remote(审计仓无 origin); Space Restart 未触(Supreme 手动)
+- 未 push 任何 GitHub remote(审计仓无 origin); Space Restart 未触(Zen 手动)
 
 ---
 

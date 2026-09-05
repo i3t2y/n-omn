@@ -1,7 +1,7 @@
 name: Sync dev logic to HF Bucket (xnexus)
 
-# 三层解耦 · 逻辑层同步 (低风险: 推 Bucket 不触 Rebuild, 圣上手动 Restart 才生效)
-# 2026-08-25 新建 (圣上批 B 换 Bucket): 旧 Space 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
+# 三层解耦 · 逻辑层同步 (低风险: 推 Bucket 不触 Rebuild, Zen手动 Restart 才生效)
+# 2026-08-25 新建 (Zen批 B 换 Bucket): 旧 Space 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
 #   xnexus/o = 唯一 Space, 逻辑层源 = xnexus/logic (Bucket).
 # 目标: Bucket xnexus/logic 仓内平铺 (entrypoint.sh / gate.js / ... 根目录 + manifest.json).
 # 版本钉补回 atomic 锁: Bucket 非版本化无 commit_id → manifest.json 手工钉回.

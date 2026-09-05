@@ -16,7 +16,7 @@ EXPOSED_PORT="${EXPOSED_PORT:-7860}"
 DATA_DIR="${DATA_DIR:-/app/data}"
 export DATA_DIR   # 须 export: init/scheduler 子进程须见同值 (_raw 路径两端对齐, 否子进程回默认 /data 歧义)
 
-# ── boot 编排日志全段落 raw (2026-08-01 圣上令补: entrypoint 本体 echo 全进 PID1 stdout 今丢, 补) ──
+# ── boot 编排日志全段落 raw (2026-08-01 Zen令补: entrypoint 本体 echo 全进 PID1 stdout 今丢, 补) ──
 #   [entrypoint] 编排真相(健康等待/各进程 PID/FATAL/gate依赖装/启动顺序)经 capture_loop 第6源入 save.
 #   omni-raw 须在 scheduler STAGING 外 (防明文混入 save): 同 RAW_DIR, omn_redact 兜脱敏后写 staging 推 save.
 #   tee 双路: 同时留 PID1 stdout 供 HF Space runtime logs 看 (窗外即焚的前置应急).
@@ -257,14 +257,14 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
     FT_LOG="${DATA_DIR}/omn-raw/flaretunnel.log"   # 落 omn-raw 临时区 (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
     mkdir -p "$FT_CA_DIR" "$(dirname "$FT_LOG")" 2>/dev/null || true
     # 单点启动函数: 本段首启 + §7 看门狗重启共用同一命令 (不分叉, "改也为以后不改")
-    # 多桥模式 (2026-08-10 圣上令): 读 /logic/flaretunnel_bridges.json 循环起 N 桥,
+    # 多桥模式 (2026-08-10 Zen令): 读 /logic/flaretunnel_bridges.json 循环起 N 桥,
     #   各占独立 127.0.0.1:$port + 各绑 --workers a-b 子段 (多桥共用 endpoints.json 同名单, 各取不重叠段).
     #   JSON 不存/空/非法 → 回退单桥 (保 FT_WORKER_COUNT ENV 单桥行为不破, 回滚 = 删 JSON + Restart).
     #   JSON 形: [{"name":"nim","port":8081,"workers":"0-23","providers":["nvidia"]},...]
     #     providers (opt): 桥绑何 provider 族名数组 (init 读此绑 proxy→族; 缺则裸桥待指派).
     #       单桥可绑多族共享出口 IP 段池; scopeId 用家族名常量串 "nvidia" 非 row id.
     #       HTTP 墙: 一族只绑一桥 (replace 语义), 单 proxy 可绑多族 (不同 scope_id 互不 replace).
-    #   30 桥封顶 (圣上限; HF 2vCPU/16GB 资源定, 超此墙见审计).
+    #   30 桥封顶 (Zen限; HF 2vCPU/16GB 资源定, 超此墙见审计).
     _ft_start() {
       _ft_verbose=""
       [ "${FT_VERBOSE:-0}" = "1" ] && _ft_verbose="--verbose"
@@ -289,7 +289,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
       if [ -f /logic/flaretunnel_bridges.json ] && jq -e '. | type=="array" and length>0 and all(.[]; has("port") and has("workers"))' /logic/flaretunnel_bridges.json >/dev/null 2>&1; then
         _ft_nb=$(jq 'length' /logic/flaretunnel_bridges.json 2>/dev/null || echo 0)
         if [ "$_ft_nb" -gt 30 ]; then
-          echo "[entrypoint] FT WARN: flaretunnel_bridges.json 桥数 $_ft_nb 超 30 封顶, 只起前 30 (圣上限; 超此资源见审计)."
+          echo "[entrypoint] FT WARN: flaretunnel_bridges.json 桥数 $_ft_nb 超 30 封顶, 只起前 30 (Zen限; 超此资源见审计)."
           _ft_nb=30
         fi
         if [ "$_ft_nb" -gt 0 ] && [ "$_ft_phys" -gt 0 ]; then
@@ -430,7 +430,7 @@ fi
 #   传 $DB_PATH 位置参数会命中 case 1 → "must specify at least one replica URL" 报错.
 #   db 路径已在 /logic/litestream.yml 的 dbs[].path 内定义, 命令行不可再传.
 if [ "$has_r2" = 1 ] && [ -f /logic/litestream.yml ]; then
-  # OMN_PERSIST_WRITE 闸 (2026-08-10 圣上令): 控本次启动后改动是否写回 R2.
+  # OMN_PERSIST_WRITE 闸 (2026-08-10 Zen令): 控本次启动后改动是否写回 R2.
   #   1 (默认/开) = litestream replicate 照跑, 在线改 (后台加 key/改设置) 推 R2 → 持久保存.
   #   0 (关)      = replicate 不启 → 本次改动不写回 R2 (不保存). 上游 在线读写本地 SQLite 照常(本次 boot 可见).
   #   语义: 此闸只控"写回 R2"一物, 不删任何东西, 不动 restore 读. 开=保存, 关=不保存. 回滚 = 删 Variable + Restart.
@@ -439,7 +439,7 @@ if [ "$has_r2" = 1 ] && [ -f /logic/litestream.yml ]; then
   mkdir -p "$(dirname "$_LS_LOG_RAW")" 2>/dev/null || true
   : > "$_LS_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零), omn-raw 同名件 capture_loop offset 重置
   if [ "${OMN_PERSIST_WRITE:-1}" = "1" ]; then
-    # (2026-08-01 圣上令补) litestream stderr 重定向入 raw → capture_loop 第7源入 save.
+    # (2026-08-01 Zen令补) litestream stderr 重定向入 raw → capture_loop 第7源入 save.
     # R2 复制链故障(compaction txid gap/proxy_breaker/replica断代)判据, 与 entrypoint 源同落 omn-raw.
     litestream replicate -config /logic/litestream.yml >>"$_LS_LOG_RAW" 2>&1 & LS_PID=$!
     echo "[entrypoint] Litestream PID=$LS_PID (stderr→$_LS_LOG_RAW, capture_loop litestream 源 → save/litestream/)"
@@ -461,7 +461,7 @@ if [ ! -f /logic/gate.js ]; then
 fi
 
 # ── 5.5 预装 gate 依赖 (三层解耦: /logic 逐 boot 重建 = ephemeral) ──
-# gate.js require('express'). AB 双轨自动判 (圣上原设计: 用官方镜像该装, 用全包镜像跳):
+# gate.js require('express'). AB 双轨自动判 (Zen原设计: 用官方镜像该装, 用全包镜像跳):
 #   node module resolution 自动查 本地 /logic/node_modules → 全局 NODE_PATH (express 入 GHCR base).
 #   镜像自带 ENV NODE_PATH (B 全包) → 命中跳; 裸上游 (A) 无 express 无 NODE_PATH → require fail → 装兜底.
 #   单判据 requireResolve = 与 gate.js 实跑同判据, 不两处分叉(免脚本以后再改).

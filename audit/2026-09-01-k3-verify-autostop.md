@@ -1,6 +1,6 @@
 # audit/2026-09-01 · k3 上游 bug 查证 + claudecode 自动停诊断 (memory 快照入血统)
 
-> 本文件 = 会话记忆 (kimi-k3-upstream-bug-verification-2026-09-01 + k3-autostop-agent-loop-unfit-2026-09-01) 的合并快照, 按圣上令"保存所有进私库 nomn"落血统。SSOT 决策见 ops/DECISIONS.md 2026-09-01 条。
+> 本文件 = 会话记忆 (kimi-k3-upstream-bug-verification-2026-09-01 + k3-autostop-agent-loop-unfit-2026-09-01) 的合并快照, 按Zen令"保存所有进私库 nomn"落血统。SSOT 决策见 ops/DECISIONS.md 2026-09-01 条。
 
 ---
 

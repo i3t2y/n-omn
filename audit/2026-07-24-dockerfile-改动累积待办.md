@@ -1,6 +1,6 @@
 # Dockerfile 改动累积待办
 **建**: 2026-07-24
-**律**: 圣上令"累积5条需改Dockerfile时一起改"。未满5条前不触, 仅累积。
+**律**: Zen令"累积5条需改Dockerfile时一起改"。未满5条前不触, 仅累积。
 **命中范围**: 本仓 `omn-merge/Dockerfile`(Space 现役) + `~/omn-ops/ghcr/Dockerfile`(三层解耦环境层真源) + `omn-merge/ghcr-tracked-Dockerfile`(跟踪副本)。
 
 ---
@@ -15,7 +15,7 @@
 - 而三层解耦环境层 `~/omn-ops/ghcr/Dockerfile:37` **已预装** python3+pip+sqlite3+curl+jq(行41 pip huggingface_hub 已装) + litestream(行51 tar 预置解包)。
 - 但 Space 未切 ghcr:stable, 仍跑上游直连镜像 → bootstrap 判缺 → A 模式兜底每 boot 临补 60s。
 
-**改向候选(待圣上裁, 攒满5条一并改时再决)**:
+**改向候选(待Zen裁, 攒满5条一并改时再决)**:
 - 候选A — **Space `omn-merge/Dockerfile` FROM 切 ghcr:stable**: `FROM diegosouzapw/omniroute:3.8.43@sha256:517c...` → `FROM ghcr.io/i3t2y/omniroute-base:stable`(或带 digest sha256:9c9aecf 钉版)。省每 boot 临补 60s。须验 ghcr:stable 镜像含 bootstrap.sh 三层链 + digest 读回。{memory `omn-ops-ghcr-prebuild-dockerfile-landed` 记 push 通 sha256:9c9aecf, BASE_IMAGE 仍 :stable, 生产无变化 — 即 ghcr:stable 已建但 Space 未切}
 - 候选B — **留上游 FROM, 改 ghcr Dockerfile 补预装**: 不切, 仅保 A 模式兜底不变(现状)。但这样 ghcr:stable 永不被用, 三层解耦环境层空建。低价值。
 
@@ -23,9 +23,9 @@
 
 ---
 
-## 第2条(圣上指"npm 外科加脚本非 Dockerfile")
+## 第2条(Zen指"npm 外科加脚本非 Dockerfile")
 
-**圣上指示**: "之前那个 npm 最后加在哪个脚本里的, 也没改 Dockerfile, 攒满5条时从其他脚本删, 一并挪进 Dockerfile。"
+**Zen指示**: "之前那个 npm 最后加在哪个脚本里的, 也没改 Dockerfile, 攒满5条时从其他脚本删, 一并挪进 Dockerfile。"
 
 **实证(外科段位置)**: `omn-logic/entrypoint.sh:236-252` 5.5 段 — 行242 `cd /logic && npm install --omit=dev --silent --no-audit --no-fund`。
 - 缘起: 附录A推 gate.js express 版但 bootstrap 三层解耦不跑 npm install, `/logic/node_modules` 缺 → `require('express')` MODULE_NOT_FOUND crashloop → B2 外科补。memory `crashloop-express-fix-landed` 记: commit b5a7891a, 远端非诺/omn-logic换词1件 sha06178176→4803e290。

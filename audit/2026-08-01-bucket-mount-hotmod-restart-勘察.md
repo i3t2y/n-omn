@@ -1,6 +1,6 @@
 # 2026-08-01 · Bucket RW mount 热更/Restart 真机制实测勘察
 
-**圣上令**: 2026-08-01 "实测钉 Bucket RW mount 热更/Restart 真机制"。本文档钉官方文档边界(空白处)+底层机制推断 + 现役架构影响面 + 待实测唯一未知数 + 实测方案。
+**Zen令**: 2026-08-01 "实测钉 Bucket RW mount 热更/Restart 真机制"。本文档钉官方文档边界(空白处)+底层机制推断 + 现役架构影响面 + 待实测唯一未知数 + 实测方案。
 
 **关联**: [[storage-bucket-dataset-结合堪察]] §11/§12 单择定局 + [[logic-dataset-to-bucket-intent]] (DECISIONS.md 2026-08-01 段迁意记号)。
 
@@ -79,7 +79,7 @@ L110 exec /logic/entrypoint.sh
 
 ## 4. Bucket mount 热更对 omn init/gate 真痛点的实际收益(钉)
 
-圣上真痛点: init/gate 改动现须 Restart 生效(非秒级)。换 Bucket RW mount 后收益逐文件核:
+Zen真痛点: init/gate 改动现须 Restart 生效(非秒级)。换 Bucket RW mount 后收益逐文件核:
 
 | 件 | 加载方式 | mount 热更后改件生效路径 | 真收益 |
 |---|---|---|---|
@@ -100,7 +100,7 @@ L110 exec /logic/entrypoint.sh
 
 ## 5. 实测落地范围(2026-08-01 真跑, 免费层封顶)
 
-**圣上令实测 → 真跑到此封顶**。免费层 cpu-basic **无终端/SSH dev mode**(PRO/Team 付费才有) → 无法进 Space 容器硬验 mount 内真态 + 运行中热更性。能做的全做:
+**Zen令实测 → 真跑到此封顶**。免费层 cpu-basic **无终端/SSH dev mode**(PRO/Team 付费才有) → 无法进 Space 容器硬验 mount 内真态 + 运行中热更性。能做的全做:
 
 ### 5.1 已钉死(铁证)
 
@@ -108,7 +108,7 @@ L110 exec /logic/entrypoint.sh
 |---|---|---|
 | bucket 写权限通 | push probe.txt 18B + readback 内容对得上(`v1-test-readwrite-check`) | hf buckets cp 我亲跑 |
 | space 配置层挂载真落 | `volumes -> [{'type':'bucket','source':'nonoke/data','mountPath':'/logic-bucket','readOnly':False}]` | get_space_runtime().raw.volumes |
-| boot 后 Space RUNNING 无挂载报错 | init rc=0, 32key alive, Resilience 300/200/96/300000 一致, gate PID=188 | 圣上贴 boot 日志 06:42:02 |
+| boot 后 Space RUNNING 无挂载报错 | init rc=0, 32key alive, Resilience 300/200/96/300000 一致, gate PID=188 | Zen贴 boot 日志 06:42:02 |
 | hf库1.8→1.26升+set_space_volumes新API在 | pip install -U --user huggingface_hub>=1.26 通 | 我亲跑 |
 
 ### 5.2 未钉(免费层无终端封顶, 须 PRO/Team 升级 SSH 才能)
@@ -120,7 +120,7 @@ L110 exec /logic/entrypoint.sh
 
 - **PRO/Team 升级** → SSH dev mode (`hf spaces ssh nonoke/omn`) 进容器跑 `cat /logic-bucket/probe.txt` + 多轮改 bucket 测 open 新态
 - **或**: 加临时 gate.js endpoint `GET /v1/_mountprobe` 读 `/logic-bucket/probe.txt` 返 = 改生产代码超实测范围(本次未采)
-- **或**: 改 start.sh boot 段加 `cat /logic-bucket/probe.txt>&2` 经 omn scheduler 推 Dataset 看 = 改生产 + 1次 Restart(本次未采, 圣上未准改代码)
+- **或**: 改 start.sh boot 段加 `cat /logic-bucket/probe.txt>&2` 经 omn scheduler 推 Dataset 看 = 改生产 + 1次 Restart(本次未采, Zen未准改代码)
 
 ---
 
@@ -134,9 +134,9 @@ L110 exec /logic/entrypoint.sh
 
 ---
 
-## 6. 实测方案(圣上侧, dev 环境隔离)
+## 6. 实测方案(Zen侧, dev 环境隔离)
 
-### 6.1 前置(圣上手动)
+### 6.1 前置(Zen手动)
 1. 建 dev Private Bucket: `nonoke/omn-runtime-test`(或复用 §12 规划之名)
 2. two-remote 拓扑: dev Space(nonoke/omn) 挂 RW `/logic-bucket`(test), 不碰 prod
 
@@ -171,8 +171,8 @@ L110 exec /logic/entrypoint.sh
 2. **底层推断**: 非 snapshot, 机制上支持外部改后重 open 见新态, 但 NFS 客户端缓存语义未钉须实测。
 3. **现役架构铁证**: `/logic` 是 download→cp 入 ephemeral, 非 mount。换 Bucket mount 须删 `start.sh` §3 整段, 且**废 commit_id 锁 = 竞速复活**。
 4. **真收益钉死**: omn 八件全 boot 一次性加载, 无运行中重读 → **Bucket mount 热更对 omn 无运行中秒级收益**, 改任一件仍须 Restart。唯一真收益 = 免 boot 拉件+cp 时延(冷启加速)。
-5. **待圣上实测**: §6 步A/B/C 钉 §5 唯一未知数(mount 客户端缓存固化 vs 热更)。
+5. **待Zen实测**: §6 步A/B/C 钉 §5 唯一未知数(mount 客户端缓存固化 vs 热更)。
 
-**对 2026-08-01 迁意图的影响**: 若真痛点是"init/gate 改动须 Restart 非秒级" — Bucket mount 不解此痛(省的是 boot 拉件时延非运行态热更)。若痛在"boot 拉件+cp 时延" — Bucket mount 解。圣上真痛点须重新定位后再决迁不迁。
+**对 2026-08-01 迁意图的影响**: 若真痛点是"init/gate 改动须 Restart 非秒级" — Bucket mount 不解此痛(省的是 boot 拉件时延非运行态热更)。若痛在"boot 拉件+cp 时延" — Bucket mount 解。Zen真痛点须重新定位后再决迁不迁。
 
-详文不入会话, 见 git 历史 recover。圣上确认后实测方案落地。
+详文不入会话, 见 git 历史 recover。Zen确认后实测方案落地。

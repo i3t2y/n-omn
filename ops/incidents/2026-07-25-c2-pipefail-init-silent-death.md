@@ -9,7 +9,7 @@ combo 可调, 影响面取决于 fallback 行为)。
 
 ## 时间线
 - 前两 boot: 7 registered 后无下文, 误判为日志截断
-- 诊断: 圣上裁定为真崩 → 本地合成复现(场景1无待删 rc=1 杀 / 场景2僵尸+重复)
+- 诊断: Zen裁定为真崩 → 本地合成复现(场景1无待删 rc=1 杀 / 场景2僵尸+重复)
 - 修复: set +eo pipefail 抬门 + ${_DEL_JSON:-[]} 兜底, 两场景合成验全绿
 - 落地: dev/logic/init-nim-keys.sh 改源 → CI push Dataset(nonoke/omn-logic) → sha256 读回验 → Restart
 - 2026-07-25 07:09 boot: 九段全执行 ✅

@@ -1,29 +1,29 @@
 name: Deploy FlareTunnel Workers
 
 # 用 GitHub 控制 CF 账号建设 FT Worker (仿 i3t2y/n-vless + i3t2y/n-edget sync-deploy.yml 机制).
-# 圣上 2026-08-12 三点令 + 拓扑裁决:
+# Zen 2026-08-12 三点令 + 拓扑裁决:
 #   1. Worker 名 + 自定义域名参考两项目 (儿童单词池, n-vless gen_names 范式), 排序 1-N 递增 (非 0-(N-1))
 #   2. 删旧 Worker → 新建 → 绑 custom domain (Worker 被封立重设, 仿 n-vless delete:1/delete:v Mode)
 #   3. 每账号绑 1 主域名 f01.cc.cd ~ fNN.cc.cd, Worker 子域 {N}.f{账号:02d}.cc.cd
 #      (例: 第 4 账号第 3 Worker = 3.f04.cc.cd)
-# 拓扑定夺 (2026-08-23 圣上令): 账号数 × 每账号 worker 数 全可配变量 (ACTIVE_ACCOUNTS × WORKERS_PER_ACCOUNT).
+# 拓扑定夺 (2026-08-23 Zen令): 账号数 × 每账号 worker 数 全可配变量 (ACTIVE_ACCOUNTS × WORKERS_PER_ACCOUNT).
 #   查证: 单 CF 账号建 2-3 worker 收益最大 (共享 Anycast 出口池 + 共享 100K 配额; 扩 IP 多样性的杠杆是加账号数非加每账号 worker).
 #
-# 机制择优 (圣上"参考两项目优点"):
+# 机制择优 (Zen"参考两项目优点"):
 #   - n-vless: gen_names 儿童单词池 + Delete Mode 1/2 + custom domain 三段验证 + 双 pass 绕扫描 + PRESET 场景切换
 #   - n-edget: 逗号串 + cut 位序取凭 (两项目同范式) + cron 定时同步 upstream (FT 非 fork 故略)
 # FT 适配差异 (非全抄 n-vless):
 #   - 后缀 v → ft (项目标识, 防 delete Mode 2 误删 n-vless Worker)
-#   - 域名 wXX.cc.cd → fXX.cc.cd (圣上定 f)
+#   - 域名 wXX.cc.cd → fXX.cc.cd (Zen定 f)
 #   -.secret 注入走 wrangler-action `secrets:` 输入 (非 n-vless curl PUT secrets API; 前轮 commit 008c48d 已采此路径, 更简)
-#   - 二维 account×worker 矩阵 (n-vless 一维 N 账号单 Worker; 圣上 N 账号 × WORKERS_PER_ACCOUNT Worker 二维扩)
+#   - 二维 account×worker 矩阵 (n-vless 一维 N 账号单 Worker; Zen N 账号 × WORKERS_PER_ACCOUNT Worker 二维扩)
 #   - 工作目录 flaretunnel/ (worker.js 非 n-vless _worker.js)
 # §2: RELAY_AUTH 真值零入 git/会话, GitHub Secret 自动打码日志 + wrangler secret put 加密存 CF.
 
 on:
   push:
     tags:
-      - 'deploy-ft-*'   # 仅 deploy-ft-* tag 推时触部署 (圣上主动 tag 掌触发权, 普通 push 改 workflow 不触全量重部署). 2026-09-02 收紧: 原 deploy-* 通配误触 deploy-ho-*/deploy-pages-* 反代 tag (run #37 实证), 反代两 workflow 用独立 tag 不撞 FT
+      - 'deploy-ft-*'   # 仅 deploy-ft-* tag 推时触部署 (Zen主动 tag 掌触发权, 普通 push 改 workflow 不触全量重部署). 2026-09-02 收紧: 原 deploy-* 通配误触 deploy-ho-*/deploy-pages-* 反代 tag (run #37 实证), 反代两 workflow 用独立 tag 不撞 FT
   schedule:
     - cron: '17 2 * * *'   # 日常 daily 预设走此 (UTC 02:17, 避 :00 整点)
   workflow_dispatch:
@@ -75,10 +75,10 @@ jobs:
           DELETE_MODE:   ${{ vars.DELETE_MODE }}
           SECRETS_ONLY:  ${{ vars.SECRETS_ONLY }}
           PUBLISH_ONLY:  ${{ vars.PUBLISH_ONLY }}
-          # 现役启账号数 (1-N). 圣上加 zone 后扩此值. matrix account 维上限.
+          # 现役启账号数 (1-N). Zen加 zone 后扩此值. matrix account 维上限.
           ACTIVE_ACCOUNTS: ${{ vars.ACTIVE_ACCOUNTS }}
           # 每账号 worker 数 (共享 Anycast 出口池 + 共享 100K 配额, 2-3 收益最大; 扩 IP 多样性的杠杆是加账号数非加每账号 worker).
-          # 默认 3 (甜点), 圣上可改 2/3/5/10 等; 全链 (矩阵/gen-names/deploy POS/publish 派生) 动态跟随.
+          # 默认 3 (甜点), Zen可改 2/3/5/10 等; 全链 (矩阵/gen-names/deploy POS/publish 派生) 动态跟随.
           WORKERS_PER_ACCOUNT: ${{ vars.WORKERS_PER_ACCOUNT }}
           # reorg: 拓扑重组专用 (1 = 先重生成名 → 删旧 worker → 全量建新). 非日常, 手动触发.
           REORG: ${{ vars.REORG }}
@@ -173,7 +173,7 @@ jobs:
 
           # ── 构建二维矩阵 (account × worker) ──────────────────────
           # n-vless 一维 N 账号; FT 二维 — 每账号建 WORKERS_PER_ACCOUNT 个 Worker (可配变量).
-          # WORKER 维 [1..WORKERS_PER_ACCOUNT] (圣上定排序 1-N 非 0-(N-1)).
+          # WORKER 维 [1..WORKERS_PER_ACCOUNT] (Zen定排序 1-N 非 0-(N-1)).
           # ACCOUNT 维随 DEPLOY_SCOPE: solo=[SOLO_ACCOUNT] / 全量=[1..ACTIVE_ACCOUNTS].
           # 两端全可配: ACTIVE_ACCOUNTS (账号数) + WORKERS_PER_ACCOUNT (每账号 worker 数).
           WORKER_MATRIX="[$(seq -s, 1 "$WORKERS_PER_ACCOUNT")]"
@@ -301,7 +301,7 @@ jobs:
       needs.gate.outputs.proceed == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 10   # 并发上限 10 (圣上 §5 速率 ≤2-3 约束在 CF API 维, Runner 并发 10 账号同时无碍)
+      max-parallel: 10   # 并发上限 10 (Zen §5 速率 ≤2-3 约束在 CF API 维, Runner 并发 10 账号同时无碍)
       matrix: ${{ fromJson(needs.gate.outputs.matrix) }}
 
     steps:
@@ -339,7 +339,7 @@ jobs:
             exit 1
           fi
 
-          # 域名派生: {worker 1-N}.f{account 01-N}.cc.cd (圣上定, 非 n-vless %10 循环)
+          # 域名派生: {worker 1-N}.f{account 01-N}.cc.cd (Zen定, 非 n-vless %10 循环)
           ACC2=$(printf "%02d" "$MATRIX_ACCOUNT")
           WSUB="$MATRIX_WORKER.f$ACC2.cc.cd"
 
@@ -373,7 +373,7 @@ jobs:
             exit 0
           fi
           if [ "$DELETE_MODE" = "2" ]; then
-            # Mode 2: 删账号下所有 Worker (圣上定全删, FT CF 账号内无 gate 网关他 Worker)
+            # Mode 2: 删账号下所有 Worker (Zen定全删, FT CF 账号内无 gate 网关他 Worker)
             echo ">>> Mode 2: deleting ALL workers in account (no suffix filter)"
             RESPONSE=$(curl -s \
               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts" \
@@ -586,7 +586,7 @@ jobs:
             echo "OK: workers.dev disabled"
           fi
 
-  # ── publish-endpoints: 派生 worker-major endpoint.json 传 HF Dataset (圣上令自动回填) ─
+  # ── publish-endpoints: 派生 worker-major endpoint.json 传 HF Dataset (Zen令自动回填) ─
   # 两路跑 (always() 因 deploy 可能 skipped):
   #   ① PUBLISH_ONLY=1 (Variables 兜底): deploy 跳 (省 16m N×M 格), 仅 publish 直跑无须重部 Worker
   #   ② daily 场景: deploy 成后跑 (secrets 场景跳: URL 未变无须重传)

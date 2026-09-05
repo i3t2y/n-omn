@@ -1,8 +1,8 @@
 # FlareTunnel 健康感知轮转 — 算法论证与实现设计
 
-> 圣上 2026-08-23 令"深入设计 FT 代理可优化空间 + 搜索论证最佳算法"。
+> Zen 2026-08-23 令"深入设计 FT 代理可优化空间 + 搜索论证最佳算法"。
 > 对治慢根 ①（100 Worker round-robin 游标长 + 冷端握手 + 死 worker 照轮）。
-> 状态: **已落码启用**（FlareTunnel.go 改点 + entrypoint.sh env 门控，2026-08-23 圣上 Space 设 `FT_HEALTH_COOLDOWN=30` 并 Restart，boot 真活）。
+> 状态: **已落码启用**（FlareTunnel.go 改点 + entrypoint.sh env 门控，2026-08-23 Zen Space 设 `FT_HEALTH_COOLDOWN=30` 并 Restart，boot 真活）。
 
 ---
 
@@ -139,5 +139,5 @@ case "--health-cooldown":
 ## 六、commit 链前置
 
 - 改 FlareTunnel.go → `flaretunnel/build.sh` 编译 → sha256 校验 → push HF Dataset nonoke/omn-logic（走 dev 镜像链）
-- SSOT: HANDOFF FT 待办 + DECISIONS 加裁决段（如圣上批启用）
-- git add/commit/push 一律 ask 圣上（§5）
+- SSOT: HANDOFF FT 待办 + DECISIONS 加裁决段（如Zen批启用）
+- git add/commit/push 一律 ask Zen（§5）

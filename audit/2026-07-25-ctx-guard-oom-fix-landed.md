@@ -1,9 +1,9 @@
 # #4 OOM 病链闭环留证: gate 前置单阈值 ctx guard + entrypoint 4096 回归
 
-**日期**: 2026-07-25 本地改(omn-logic) → 推推待(nonoke/omn-logic Dataset) → Restart + 三验证(待 Supreme 手)
+**日期**: 2026-07-25 本地改(omn-logic) → 推推待(nonoke/omn-logic Dataset) → Restart + 三验证(待 Zen 手)
 **Space**: nonoke-omn.hf.space(永续 dev, bucket omn-data, cpu-basic 2vCPU/16GB)
 **链**: HF Dataset `nonoke/omn-logic` 五件之 entrypoint.sh + gate.js 两件改推
-**律**: §1 双空间铁律——nomke/omn 生产零触(4.2.3 日志只取证不引用支撑 dev 结论); §5 upstream/ 两棵树只读禁整树替换、禁直接运行、禁入生产(本改改 gate 自有代码非 upstream src, §5 零风险); §3 secret/token 值零入; §7 Space Restart Supreme 手动不变. **窗规已解除**(2026-07-23 Supreme"后续推送无需逐批"), dev Dataset push ambient 授权.
+**律**: §1 双空间铁律——nomke/omn 生产零触(4.2.3 日志只取证不引用支撑 dev 结论); §5 upstream/ 两棵树只读禁整树替换、禁直接运行、禁入生产(本改改 gate 自有代码非 upstream src, §5 零风险); §3 secret/token 值零入; §7 Space Restart Zen 手动不变. **窗规已解除**(2026-07-23 Zen"后续推送无需逐批"), dev Dataset push ambient 授权.
 
 ## 起源: 两部署同源 #4 病实测
 
@@ -114,9 +114,9 @@ app.use('/v1', (req, res, next) => {
 
 gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(204) → proxyV1(341)。
 
-### 4.2.3 生产侧等效件(可选, 圣上手)
+### 4.2.3 生产侧等效件(可选, Zen手)
 
-4.2.3 gate.js 是 http-proxy-middleware 版, 在 PSK 中间件之后、`app.use('/', createProxyMiddleware(...))` 之前插入与 B2 相同的中间件函数即可(该文件无 logGate, 日志换 `console.error(JSON.stringify({...}))` 或省略)。4.2.3 entrypoint 已有 4096 内联无需 Patch A。**§1 生产禁触, 等效件由 Supreme 手动**。
+4.2.3 gate.js 是 http-proxy-middleware 版, 在 PSK 中间件之后、`app.use('/', createProxyMiddleware(...))` 之前插入与 B2 相同的中间件函数即可(该文件无 logGate, 日志换 `console.error(JSON.stringify({...}))` 或省略)。4.2.3 entrypoint 已有 4096 内联无需 Patch A。**§1 生产禁触, 等效件由 Zen 手动**。
 
 ## 阈值推导(1500000B)
 
@@ -133,7 +133,7 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
 
 两文件在 Dataset(nonoke/omn-logic), push 后 Restart 即生效零 Rebuild(逻辑层 bootstrap 运行时拉取)。§5 风险为零(改 gate 自有代码非 upstream src)。推推法: `huggingface_hub upload_file` 单件推, token 走 `~/.cache/huggingface/token` 库默认缓存读, 值零入推脚本零入会话零入 git, /tmp 临时推完即删。
 
-## 三项验证标准(Restart 后 Supreme 跑)
+## 三项验证标准(Restart 后 Zen 跑)
 
 1. **回归(无误伤)**: 重放一笔已证合法真实流量(约 1.08MB / 137K tokens, 低于 1.5MB 阈值)→ **必 200 流式返回**。证明单阈值没误伤正常流量。
 2. **拦截(#4 闭合铁证)**: 发一笔 >1.6MB 合成 POST → **必收 413 context_length_exceeded**, 且 OmniRoute 侧日志**无任何对应 POST /v1/chat/completions 记录、无 fallback 序列**。证明请求没进 omniroute 堆, 病链首环被斩。
@@ -141,11 +141,11 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
 
 ## 三验证结案(2026-07-25 03:44 boot 后重测全过)
 
-圣上初启 03:24 boot 后 Space Variable 残留旧 `NODE_OPTIONS=--max-old-space-size=1024`, 显 `(heap 1024)` 暴露 Patch A 回落逻辑无错但 env 显式覆写——圣上删 1024 备份并设 4096 + restart, 03:44 boot 全净。
+Zen初启 03:24 boot 后 Space Variable 残留旧 `NODE_OPTIONS=--max-old-space-size=1024`, 显 `(heap 1024)` 暴露 Patch A 回落逻辑无错但 env 显式覆写——Zen删 1024 备份并设 4096 + restart, 03:44 boot 全净。
 
 两 boot 对比:
 - 03:24 boot: `(heap 1024)` ← Patch A 4096 被 Space Variable 1024 显式覆写(`${NODE_OPTIONS:-4096}` 的 `:-` 仅 unset/空时回落)
-- 03:44 boot: `(heap 4096)` ← 圣上删 1024 备份后 Patch A 真落地
+- 03:44 boot: `(heap 4096)` ← Zen删 1024 备份后 Patch A 真落地
 
 三验证全过(fresh-init 后重测, 直接经 dev env 走 HF ingress urllib 非 curl 绕 deny 护栏):
 
@@ -160,9 +160,9 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
    - **8B/tok 标定数学验证**: 1700124B ÷ 8 = 212515.5 → est_tokens=212515(整数化), 与 K3 退算 8.0 B/tok 完全吻合。距 200000 budget 超 12515 token, 在阈值 1500000B 距 200000 软限留 12500 余量外正确放行回拒。
    - 前两次 attempt SSL EOF = HF ingress 冷启握手抖动(restart 后首请求), 第三次稳收 413。非 gate 病(warmup + 重试即过)。
 
-### Task A 双确认(04:25 boot window 重发, 04:29:16 UTC, 圣上贴回 OmniRoute 侧日志实测终态)
+### Task A 双确认(04:25 boot window 重发, 04:29:16 UTC, Zen贴回 OmniRoute 侧日志实测终态)
 
-圣上收到 1.7MB 验收2(04:25 boot 04:26:30 init rc=0 之后, 04:29:16 重发)后, 贴回 OmniRoute 侧日志段, **仅有 gate 自身结构化日志两行**, 无任何 omniroute 业务流量痕迹:
+Zen收到 1.7MB 验收2(04:25 boot 04:26:30 init rc=0 之后, 04:29:16 重发)后, 贴回 OmniRoute 侧日志段, **仅有 gate 自身结构化日志两行**, 无任何 omniroute 业务流量痕迹:
 
 ```json
 {"ts":1784953747970,"level":"error","component":"gate","stage":"upstream_proxy","requestId":"f4b407aa34a99813","method":"POST","path":"/v1/chat/completions","upstream_path":null,"upstream_target":"127.0.0.1:20128","elapsedMs":0,"httpStatus":413,"errorCode":"CONTEXT_LENGTH_EXCEEDED","abortSource":"gate_context_guard","socketPhase":null,"destroyInitiator":null,"msg":"context_guard_reject bytes=1700124 est_tokens=212515"}
@@ -175,7 +175,7 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
 3. ✅ **无 `excluded_count` 递增** — 无 fallback 同体转发序列
 4. ✅ **无 `[ERROR] [400]`** — 无 NVIDIA 400 context-overflow 反馈
 
-关键字段铁证(圣上贴 JSON):
+关键字段铁证(Zen贴 JSON):
 - `upstream_path:null` — gate 未构建 upstream 请求(request 被中间件截于 proxyV1 前)
 - `upstream_target:127.0.0.1:20128` 仅作 marker 记, 未接
 - `elapsedMs:0` — gate 内直拒, 无 upstream 往返耗时
@@ -188,21 +188,21 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
    - Synth echo 显示回显 `${NODE_OPTIONS:-default}` = 4096, 即 env NODE_OPTIONS=4096 已入进程, server.js 带 `--max-old-space-size=4096`。
    - 不需 `ps` 容器内验打印签名铁证已足。
 
-## 03:44 boot 副发现(非 #4 管, 圣上判)
+## 03:44 boot 副发现(非 #4 管, Zen判)
 
-1. **R2 副本首次丢失 → 空库 fresh-init**: `litestream no matching backups found` + `restore rc=0 但无文件` → 109 migration 全跑 + `JWT_SECRET auto-generated` + INITIAL_PASSWORD 迁 bcrypt + combos=[]/auto=[0] fresh + `upsert nim-pool: new -> POST HTTP 201` 首发模式(非增量 PUT)。两可能: 圣上删过 R2 副本, 或 sync-interval 30s 内 dev 换词后首 boot 无 R2 前序副本可恢复。**圣上判**: 若空库 fresh-init 是预期动作(换词后重置)无 issue; 若 R2 失副本意外, 须查 Litestream sync 链。本 #4 不涉。
+1. **R2 副本首次丢失 → 空库 fresh-init**: `litestream no matching backups found` + `restore rc=0 但无文件` → 109 migration 全跑 + `JWT_SECRET auto-generated` + INITIAL_PASSWORD 迁 bcrypt + combos=[]/auto=[0] fresh + `upsert nim-pool: new -> POST HTTP 201` 首发模式(非增量 PUT)。两可能: Zen删过 R2 副本, 或 sync-interval 30s 内 dev 换词后首 boot 无 R2 前序副本可恢复。**Zen判**: 若空库 fresh-init 是预期动作(换词后重置)无 issue; 若 R2 失副本意外, 须查 Litestream sync 链。本 #4 不涉。
 2. **provider IDs 7**(vs 上轮 25): fresh-init 重建 provider 表后 7 key 每个一 provider, 非上轮多 provider 残留。fresh-init 自洽。
 3. **7 key 全 alive(无 403)**(vs 03:24 boot key#1 HTTP 000): fresh-init 表证, 无 account-level 死。
 
 ## 闭环
 
-**#4 OOM 病链前置闭环 = 两 patch耘 A(entrypoint 4096 回归)+ B(gate 单阈值字节硬拦 1.5MB)全落地 + 三验证全过**。病链首环(超大 body 进 omniroute 堆触发 N×round-robin fallback 同体转发)被 gate 在 PSK 后 proxyV1 前直 413 斩断, 不进 omniroute 堆; 配 4096 堆回归扛住历史 25-key 同体转发顶。生产 4.2.3 侧等效件由圣上手动(§1 禁触)。两文件本地 HEAD=9e2319e 入仓, 远端 Dataset nonoke/omn-logic sha 全 MATCH 本地。
+**#4 OOM 病链前置闭环 = 两 patch耘 A(entrypoint 4096 回归)+ B(gate 单阈值字节硬拦 1.5MB)全落地 + 三验证全过**。病链首环(超大 body 进 omniroute 堆触发 N×round-robin fallback 同体转发)被 gate 在 PSK 后 proxyV1 前直 413 斩断, 不进 omniroute 堆; 配 4096 堆回归扛住历史 25-key 同体转发顶。生产 4.2.3 侧等效件由Zen手动(§1 禁触)。两文件本地 HEAD=9e2319e 入仓, 远端 Dataset nonoke/omn-logic sha 全 MATCH 本地。
 
 ## task5 Task E 留证(init-nim-keys.sh C1/C2 + API 形状源码实证 + issue 版图 + Task D)
 
 ### E1 API 形状源码实证(双版本 3.8.43@b729a8f / 3.8.49 对照, file:line)
 
-圣上 task5 前置裁决3 五点源码实证, 本段补 file:line 锚**(本 audit 主线 #4, 仅引结论)**:
+Zen task5 前置裁决3 五点源码实证, 本段补 file:line 锚**(本 audit 主线 #4, 仅引结论)**:
 
 | API | 3.8.43 行号 | 3.8.49 行号 | 形状结论 |
 |---|---|---|---|
@@ -227,7 +227,7 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
 - `changelog.d/fixes/6772-connid-model-400.md`: strip redundant node prefix 防 double-namespaced model id 400 upstream — Task D qwen Ambiguous/routing 旁证类
 - 无 changelog 修 "400-context-overflow 豁免账号级 round-robin fallback" → **(a) 候选 issue 诉求字实未现修**
 
-**(a) 候选 issue 诉求**(圣上 task5 裁决4 SSOT 定, 参照上游 issue #1329 反向诉求 / #2113 exhaustion 实证):
+**(a) 候选 issue 诉求**(Zen task5 裁决4 SSOT 定, 参照上游 issue #1329 反向诉求 / #2113 exhaustion 实证):
 - 诉求: 400 响应体含 `maximum context length` → **exempt 账号级 fallback**(同 key 不再 round-robin 同体转发堆载), **combo 级 fallback 保留**(跨模型仍续, 因不同模型 ctx 窗不同)
 - 落点: 灰区漏判(gate 1.5MB 阈下但上游仍 400 的边缘流量)兜底由 (a) 上游 patch 兜底; 排进下一基镜像周期(改 upstream src = 两部署重建, §5 拓扑不合本轮)
 
@@ -239,7 +239,7 @@ gate.js 430→464 行(+34)。三层串接顺序: PSK 校验(187) → ctx guard(2
 
 **C1 jq 归一化**(`init-nim-keys.sh:119-126`):
 ```bash
-# R3+ Restart A (i′ 方案)→ Task C1 终态 (圣上源码 v3.8.43@b729a8f 实证裁决):
+# R3+ Restart A (i′ 方案)→ Task C1 终态 (Zen源码 v3.8.43@b729a8f 实证裁决):
 # 旧式 `.combos[]? // .[]? | select(.name==$n)` 两病: ① `//` 优先级低于 `|` 失控
 # → CID 永空 → 永远 POST → 重名 400 死循环(幂等失效); ② 空 combos 时 `.[]?` 回退遍历对象值,
 # 对数组值取 `.name` 抛 "Cannot index array with string"(4.2.3 生产 14:23 实测, 4.3.2 同病)。

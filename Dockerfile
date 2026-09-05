@@ -1,6 +1,6 @@
 # omn 永续节点 · 环境层（版本无关设计）
 # ─────────────────────────────────────────────
-# 双轨切换机制 (2026-07-28 圣上调, 回应官方文档语义):
+# 双轨切换机制 (2026-07-28 Zen调, 回应官方文档语义):
 #   - ARG BASE_IMAGE = 文档占位符 + 默认值兜底 (HF 不注入 Variable 时退回 :stable 也能构建)
 #   - 日常升级走 GHCR `:stable` 浮动标签覆盖: 新 release 推新版镜像到 `:stable` tag,
 #     ARG 不动 prod 自动 rebuild 即拉新版 (版本无关设计真义)
@@ -11,7 +11,7 @@
 #   BASE_IMAGE Variable 可覆盖 ARG 默认值 (要求 Variable 名与 ARG 名字字一致)。前轮
 #   径 C 实证"Variable 未透"的病根 (2026-07-27) 须重新验真: 或是当时 Rebuild 缓存命中,
 #   或是改 Variable 值未真 Rebuild, 非官方语义为假。本双轨方案默认值改回 :stable 占位,
-#   dev/prod 各设 BASE_IMAGE Variable 覆盖 ARG 升级路径 (待圣上手动设置两 Space)。
+#   dev/prod 各设 BASE_IMAGE Variable 覆盖 ARG 升级路径 (待Zen手动设置两 Space)。
 #
 # 升级 omn 的两种路径 (2026-07-28 双轨):
 #   A. 日常路径 (推荐): GHCR 侧推新版镜像到 `:stable` tag → dev/prod Space Rebuild 即拉新版,
@@ -37,7 +37,7 @@ USER root
 ARG BASE_IMAGE
 ENV BASE_IMAGE=${BASE_IMAGE}
 
-# litestream 版本驱逐 (2026-07-28 圣上令, 版本号不残留三件内):
+# litestream 版本驱逐 (2026-07-28 Zen令, 版本号不残留三件内):
 #   ARG LITESTREAM_VERSION = build 期值 + ENV 转存 runtime; start.sh 镜像 A 路径补全
 #   分支 (BASE_IMAGE 直指裸上游官方镜像, 无 litestream 时触发) 读此 env
 #   curl 拉取。日常路径走 GHCR base (本地 tar COPY 预装) 不触发此分支。
@@ -47,7 +47,7 @@ ENV BASE_IMAGE=${BASE_IMAGE}
 ARG LITESTREAM_VERSION=0.5.9
 ENV LITESTREAM_VERSION=${LITESTREAM_VERSION}
 
-# huggingface_hub 区间驱逐 (2026-07-28 圣上令, 区间 pin 与 litestream 同模式驱逐):
+# huggingface_hub 区间驱逐 (2026-07-28 Zen令, 区间 pin 与 litestream 同模式驱逐):
 #   默认值 ">=1.0,<2.0" = 有意破坏升级防线 (拒未来 2.x 破式升级, 容忍 1.x 全补丁)。
 #   惰性每个键区间内的版本号驱逐自 ENV (升 2.x 须显改 ARG 评估兼容性 + Rebuild),
 #   防线品质不损 (默认值守 <2.0), start.sh 真 "零硬版本残"。

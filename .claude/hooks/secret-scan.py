@@ -19,7 +19,7 @@ def main():
         sys.exit(0)
     for name, pat in PATTERNS:
         if pat.search(text):
-            sys.stderr.write(f"[secret-scan] BLOCKED: 命中 {name} 形态。改用env占位后重试; 如为误伤请报Supreme裁决。\n")
+            sys.stderr.write(f"[secret-scan] BLOCKED: 命中 {name} 形态。改用env占位后重试; 如为误伤请报Zen裁决。\n")
             sys.exit(2)
     sys.exit(0)
 

@@ -10,7 +10,7 @@ description: 当贴入或读取 HF Space boot 日志时, 按 omn 引导九段清
 
 ## 何时触发
 - 贴入新 boot 日志 / 读 boot 日志尾段
-- 圣上 Restart 后贴回引导日志
+- Zen Restart 后贴回引导日志
 - 切换 / 上线 / 大改前 Boot 健康验收
 
 ## 九段清单 (逐项核日志实证, 缺一即不健康)

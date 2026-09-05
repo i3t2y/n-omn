@@ -6,9 +6,9 @@ Space Restart 后 (零 Rebuild) Dataset sync 覆盖 /logic/flaretunnel 旧版, �
 
 理由为何不入 git: 二进制产物出局经 Dataset 同步 (flaretunnel/ 源入库 ssot, 产物 .gitignore 拒).
 凭用法: 读 ~/.omn-secrets 内 `HF_TOKEN_DATASET_WRITE` (目标 Dataset 写权限, 记忆 [[omn-ops-独立根]]).
-  此脚本本身零硬编码凭 (§2 secrets 纪律). 圣上亲跑, 凭不进 Claude 手.
+  此脚本本身零硬编码凭 (§2 secrets 纪律). Zen亲跑, 凭不进 Claude 手.
 
-用法 (圣上在本会话以 `!` 前缀跑):
+用法 (Zen在本会话以 `!` 前缀跑):
   ! python3 scripts/push-ft-binary.py
 输出: upload OK commit URL; 失败打 traceback 退 1.
 

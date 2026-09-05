@@ -1,6 +1,6 @@
 # p0-events-table — 事件入库骨架
 
-> Supreme 增补令 #1 · 依附 cg52 v2 §5 P0 局部提前授权
+> Zen 增补令 #1 · 依附 cg52 v2 §5 P0 局部提前授权
 > **本地合成弹药, 非上膛**。R3 宣判(2026-07-23 03:16 后)前不出仓不上 Space。
 
 ## 补丁作用
@@ -66,9 +66,9 @@ SQLite events 表 schema + 写入函数 + 写入点清单。
 | 罚态进出 | `fallback_enter` + `fallback_exit` | ✅ 枚举含 + mock 写入过 (对偶齐) |
 | 队列丢弃 | `queue_drop` | ✅ 枚举含 + mock 写入过 |
 
-三类一个不缺 → 满足 Supreme 第五步验收"写入点清单与 v2 §6 对齐"。
+三类一个不缺 → 满足 Zen 第五步验收"写入点清单与 v2 §6 对齐"。
 
-## 验证输出(Supreme 第五步验收项)
+## 验证输出(Zen 第五步验收项)
 
 ```
 ✅  events 列序正确 [id/ts/event_type/payload]

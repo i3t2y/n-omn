@@ -2,7 +2,7 @@ name: deploy-ho-proxy
 
 # 反代 Worker (sonoke → xnexus gate) 部署 · tag-driven (仿 deploy-ft-workers.yml)
 # 触发: push `deploy-ho-*` tag 或 workflow_dispatch 手动
-# Secrets: HO_CF_TOKEN (CF API token, 4 权限最小集) + HO_CF_ACCOUNT_ID (圣上配在 Secrets 命名空间, 读 secrets.)
+# Secrets: HO_CF_TOKEN (CF API token, 4 权限最小集) + HO_CF_ACCOUNT_ID (Zen配在 Secrets 命名空间, 读 secrets.)
 on:
   push:
     tags:

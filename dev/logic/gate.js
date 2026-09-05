@@ -256,7 +256,7 @@ function proxyV1(req, res) {
     upstreamRes.on('end', () => {
       if (!res.writableEnded) res.end();
       // 正常成功/非 aborted 完成路径 logGate (此前只记 error/timeout 分支, 正常 200 不出日志
-      // 致永续日志健康镜态 staging 零内容 — 圣上 2026-07-29 探针验证暴露此漏). 成功也记一行.
+      // 致永续日志健康镜态 staging 零内容 — Zen 2026-07-29 探针验证暴露此漏). 成功也记一行.
       if (!aborted && res.headersSent) {
         logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
           httpStatus: res.statusCode || 200, level: 'info', msg: 'upstream_completed' });
@@ -356,14 +356,14 @@ function proxyV1(req, res) {
   }
 }
 
-// ── /v1/ft/metrics: PSK 鉴权反代 FlareTunnel 桥本地 /metrics (路3-b, 2026-08-12 圣上令) ──
+// ── /v1/ft/metrics: PSK 鉴权反代 FlareTunnel 桥本地 /metrics (路3-b, 2026-08-12 Zen令) ──
 // PSK 校验靠前 /v1 app.use (line 187-198): Bearer INTERNAL_PSK safeEqual, 缺/错 fail-closed 401.
 // 反代 FT 桥 127.0.0.1:$PORT/metrics (Prometheus text exposition, text/plain; version=0.0.4).
 //   FT 桥本地端无鉴权 (127.0.0.1 Host 守卫), gate 此层做唯一公网鉴权门.
 // 现役惯例 "首桥代整体" (init-nim-keys.sh _ft_register_proxy 多桥 healthz 读首桥);
 //   ?bridge=index (0-基) 选特定桥, 越界/非数 → 400; 默认 bridge=0 首桥.
 // FT 未启 (FT_PIDS 空): /metrics 上游 ECONNREFUSED → 503 (不 404, 区分路由存在 vs 桥死).
-// 不反代 /healthz: 公网已有 /healthz (探 OR 链), FT healthz 本地端无额外面价值; metrics 含 per-Worker 计数才是圣上要.
+// 不反代 /healthz: 公网已有 /healthz (探 OR 链), FT healthz 本地端无额外面价值; metrics 含 per-Worker 计数才是Zen要.
 app.get('/v1/ft/metrics', async (req, res) => {
   if (shuttingDown) return res.status(503).json({ error: 'service_unavailable', abort_source: 'shutdown' });
   // bridge 选址 (?bridge=N, 0-基, 默 0 首桥)
@@ -429,7 +429,7 @@ function proxyAdmin(req, res) {
     });
     upstreamRes.on('end', () => {
       if (!res.writableEnded) res.end();
-      // 正常成功完成 logGate (同 proxyV1 修, 圣上 2026-07-29 探针验漏补)
+      // 正常成功完成 logGate (同 proxyV1 修, Zen 2026-07-29 探针验漏补)
       if (!aborted && res.headersSent) {
         logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
           httpStatus: res.statusCode || 200, level: 'info', msg: 'upstream_completed' });

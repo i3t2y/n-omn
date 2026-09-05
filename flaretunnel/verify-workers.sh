@@ -1,6 +1,6 @@
 #!/bin/sh
 # verify-workers.sh · 8 zflare Worker 部署复核 (无 NIM 键, 验鉴权层+穿透)
-# 圣上跑: RELAY_AUTH=<新钥> sh verify-workers.sh
+# Zen跑: RELAY_AUTH=<新钥> sh verify-workers.sh
 # 判定: 每 Worker 两 curl
 #   ①无钥 → 401 unauthorized (裸奔洞堵, Worker 真改造)
 #   ②带钥 (无 NIM Bearer) → NIM 格式 401 (穿透到 NIM, 因缺 Bearer)

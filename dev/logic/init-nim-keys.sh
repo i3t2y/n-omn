@@ -68,7 +68,7 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 #   env_keys_var= 该 provider 的多 key env 变量名 (每行一个 key, NIM_KEYS 式; 空则跳过该 provider)
 #   max_models  = 动态枚举模型数上限 (防 OpenRouter 上千模型撑爆 combo)
 #   model_prefix= 枚举模型名前缀 (给裸模型 ID 加前缀; 空=枚举原样, 非空=provider/裸名).
-#                 实测 (2026-08-27 圣上直连上游铁证): 两家都认**裸名** (枚举原样), 不认双层前缀.
+#                 实测 (2026-08-27 Zen直连上游铁证): 两家都认**裸名** (枚举原样), 不认双层前缀.
 #                 sensenova: 认自带前缀裸名 (sensenova-u1.5-lite→200), 不认双层 (sensenova/sensenova-u1.5-lite→404);
 #                 amd: 认裸名 (DeepSeek-V4-Flash→200), 不认双层 (amd/DeepSeek-V4-Flash→404 "Provider amd not found").
 #                 → 双层前缀理论**证伪**, sensenova/amd model_prefix 空 = 枚举原样.
@@ -79,7 +79,7 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 # NVIDIA 保留现役 NIM_KEYS/nim-pool/nim-codex 专属路径不动, 仅额外走通用表再挂 FT 族.
 declare -a PROVIDERS=(
   "nvidia|nvidia-node|nvidia|${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com}|NIM_KEYS|20|"
-  # gemini: 2026-09-01 圣上令 — 内置 provider (frontier-labs.ts:58 id:"gemini" + registry baseUrl 现成).
+  # gemini: 2026-09-01 Zen令 — 内置 provider (frontier-labs.ts:58 id:"gemini" + registry baseUrl 现成).
   #   format:"gemini" 原生 generateContent 协议 (buildGeminiGenerateContentUrl, 非 openai 兼容端点).
   #   registry 内置 8 模型: gemini-3.7-flash / 3.1-pro-preview / 3.1-flash-lite / 3-flash-preview /
   #   3.1-flash-tts-preview / 2.5-pro / 2.5-flash / 2.5-flash-lite.
@@ -91,33 +91,33 @@ declare -a PROVIDERS=(
   #   内置 baseUrl (registry) = https://generativelanguage.googleapis.com/v1beta/models (原生协议,
   #   provider=gemini 连接注册后 executor 直接用它, 与旧 google-node 的 .../v1beta/openai 端点不同).
   "gemini|gemini-node|gemini|https://generativelanguage.googleapis.com/v1beta/models|GEMINI_KEYS|20||builtin|gemini-3.7-flash gemini-3.1-pro-preview gemini-3.1-flash-lite gemini-3-flash-preview gemini-2.5-pro gemini-2.5-flash gemini-2.5-flash-lite"
-  # openrouter: 2026-08-31 圣上令 — 内置 provider (gateways.ts:89 id:"openrouter" + registry baseUrl 现成),
+  # openrouter: 2026-08-31 Zen令 — 内置 provider (gateways.ts:89 id:"openrouter" + registry baseUrl 现成),
   #   第 8 字段 builtin 同 sensenova. 保持动态枚举 (passthroughModels:true, 全模型透传, max=100 不变);
   #   第 9 字段 static_models 留空 → 走默认枚举, 与改内置前 node 套件行为一致 (仅换短名前缀).
   "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100||builtin|"
   # sensenova: 第 8 字段 = builtin → 走内置 provider (不建 provider-node, 连接/模型/combo/dpv4 全挂
   #   provider=sensenova 内置名, 短名通, 与 nvidia 同模式). 内置 baseUrl 现成
   #   (config/providers/registry/sensenova/index.ts: https://token.sensenova.cn/v1/chat/completions),
-  #   executor 直接用它当上游不拼 path. 2026-08-28 圣上令: sensenova 全部走内置.
+  #   executor 直接用它当上游不拼 path. 2026-08-28 Zen令: sensenova 全部走内置.
   #   字段序 = id|node_name|prefix|base_url|env_keys_var|max_models|model_prefix(空)|mode|static_models
   #   (第 7 字段 model_prefix 须保留空位, builtin 须放第 8 字段, 否则 _mpre 错位吞掉 mode.)
   #   第 9 字段 static_models = 静态模型白名单 (空格分隔). 非空 → 跳过动态枚举上游 /models,
   #   直接用白名单注册 (方案A: sensenova 模型少且明确, 避免上游 /models 带回 u1-fast 图片模型误入 chat).
-  #   2026-08-28 圣上令方案A: 白名单 = 内置 registry 3 个 chat 模型 (sensenova-6.7-flash-lite/deepseek-v4-flash/glm-5.2).
+  #   2026-08-28 Zen令方案A: 白名单 = 内置 registry 3 个 chat 模型 (sensenova-6.7-flash-lite/deepseek-v4-flash/glm-5.2).
   "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite deepseek-v4-flash glm-5.2"
-  # mistral: 2026-08-31 圣上令 — 内置 provider (frontier-labs.ts:117 id:"mistral" + registry baseUrl 现成).
+  # mistral: 2026-08-31 Zen令 — 内置 provider (frontier-labs.ts:117 id:"mistral" + registry baseUrl 现成).
   #   第 8 字段 builtin 同 sensenova; 第 9 字段 static_models = registry 5 个 chat 模型 (方案A,
   #   模型少且明确, 避免上游 /models 带回 mistral-embed/codestral-embed 嵌入模型误入 chat).
   "mistral|mistral-node|mistral|https://api.mistral.ai/v1|MISTRAL_KEYS|20||builtin|mistral-large-latest mistral-medium-3-5 mistral-small-latest devstral-latest codestral-latest"
   # amd: 写死 /v1 (sensenova 模式). 勿用 ${AMD_BASE_URL:-...} env 覆盖 — Secret 若配无 /v1 旧值会覆盖默认值致 404 (boot 2026-08-26 实测 base 无 /v1).
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
 )
-# ── 死 provider 轨 disabled 标记 (2026-09-03 圣上令: 标记 disabled 保留代码, 可逆) ──
+# ── 死 provider 轨 disabled 标记 (2026-09-03 Zen令: 标记 disabled 保留代码, 可逆) ──
 # openrouter/mistral/gemini 三条内置轨 key 无效空转 (09-02 审计 CredentialHealth 全 Invalid API key,
 # 完整注册机制每 boot 都跑但交付零请求 = 纯噪音). 但 08-31/09-01 刚下令内置化 → 不删行不砍分支,
 # 仅跳过注册 + FT 绑族; key 复活后从本数组删名即恢复 (可逆, 不推翻内置化令).
 declare -a DISABLED_PROVIDERS=("gemini" "openrouter" "mistral")
-# 复核期: 圣上令(2026-09-03)后 2 周 = 2026-09-17 前复核 key 是否复活; 复活即从本数组删名,
+# 复核期: Zen令(2026-09-03)后 2 周 = 2026-09-17 前复核 key 是否复活; 复活即从本数组删名,
 # 勿让 dead 轨永久空转 (方案#3). 过期仅印 INFO 提醒, 不阻断 boot (fail-open).
 DISABLED_REVIEW_BY="2026-09-17"
 if [ "$(date +%Y%m%d 2>/dev/null)" -gt "${DISABLED_REVIEW_BY//-/}" ] 2>/dev/null; then
@@ -146,16 +146,16 @@ done
 
 # ══ 模型分档 SSOT（对齐现行 NVIDIA 目录）═══════════════════════
 TIER_FAST=(
-  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 圣上清单: 编码/Agent 高吞吐首选 (17M 调用/月)
-  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 圣上清单: 速度/成本效率之王 (8/11 新增)
-  "minimaxai/minimax-m3"  # 2026-08-27 圣上清单: 多模态 MoE
+  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 Zen清单: 编码/Agent 高吞吐首选 (17M 调用/月)
+  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 Zen清单: 速度/成本效率之王 (8/11 新增)
+  "minimaxai/minimax-m3"  # 2026-08-27 Zen清单: 多模态 MoE
   # 移除(下架/非最出色, 2026-08-27): z-ai/glm-5.2 / qwen/qwen3.8-max-preview / nvidia/llama-3.1-nemotron-nano-8b-v1 / nvidia/nemotron-3-nano-30b-a3b
 )
 TIER_STABLE=(
-  "deepseek-ai/deepseek-v4-pro-0813"  # 2026-08-27 圣上清单: 智能上限最高 (~56 分, 1.6T MoE)
-  "nvidia/nemotron-3-ultra-550b-a55b"  # 2026-08-27 圣上清单: 综合最强可靠 (Frontier 级, 52M 调用/月, 1M 上下文)
-  "moonshotai/kimi-k3"  # 2026-08-27 圣上清单: 新上架 404 不稳定, 待观察潜在新王
-  "zhipuai/glm-5.3"  # 2026-08-27 圣上清单: 等待中 (权重 8/28 开放未上架, filter_alive 探目录无会剔出 combo)
+  "deepseek-ai/deepseek-v4-pro-0813"  # 2026-08-27 Zen清单: 智能上限最高 (~56 分, 1.6T MoE)
+  "nvidia/nemotron-3-ultra-550b-a55b"  # 2026-08-27 Zen清单: 综合最强可靠 (Frontier 级, 52M 调用/月, 1M 上下文)
+  "moonshotai/kimi-k3"  # 2026-08-27 Zen清单: 新上架 404 不稳定, 待观察潜在新王
+  "zhipuai/glm-5.3"  # 2026-08-27 Zen清单: 等待中 (权重 8/28 开放未上架, filter_alive 探目录无会剔出 combo)
   # 移除(下架/非最出色, 2026-08-27): nvidia/nemotron-3-super-120b-a12b / google/gemma-4-31b-it
 )
 TIER_RESTRICTED=(
@@ -173,17 +173,17 @@ esac
 echo "[init] NIM_PROFILE=$_PROFILE -> pool 意向 ${#NIM_POOL_MODELS[@]} 个模型"
 
 NIM_CODEX_MODELS=(
-  "deepseek-ai/deepseek-v4-pro-0813"  # 2026-08-27 圣上清单: codex 用最强 pro
-  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 圣上清单: 编码高吞吐首选
-  "nvidia/nemotron-3-ultra-550b-a55b"  # 2026-08-27 圣上清单: 综合最强可靠
-  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 圣上清单: 速度/成本之王
+  "deepseek-ai/deepseek-v4-pro-0813"  # 2026-08-27 Zen清单: codex 用最强 pro
+  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 Zen清单: 编码高吞吐首选
+  "nvidia/nemotron-3-ultra-550b-a55b"  # 2026-08-27 Zen清单: 综合最强可靠
+  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 Zen清单: 速度/成本之王
 )
 NIM_FAST_MODELS=(
-  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 圣上清单: 编码高吞吐
-  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 圣上清单: 速度之王
-  "minimaxai/minimax-m3"  # 2026-08-27 圣上清单: 多模态 MoE
+  "deepseek-ai/deepseek-v4-flash-0731"  # 2026-08-27 Zen清单: 编码高吞吐
+  "nvidia/nemotron-3.5-lightning-30b-a3b"  # 2026-08-27 Zen清单: 速度之王
+  "minimaxai/minimax-m3"  # 2026-08-27 Zen清单: 多模态 MoE
 )
-NIM_EXTRA_MODELS=()  # 2026-08-27 圣上清单: 原 kimi-k3/qwen3.8-max/nano-8b-v1/nemotron-3-nano-30b 全入 TIER 或下架, 清空
+NIM_EXTRA_MODELS=()  # 2026-08-27 Zen清单: 原 kimi-k3/qwen3.8-max/nano-8b-v1/nemotron-3-nano-30b 全入 TIER 或下架, 清空
 
 build_all_models() {
   printf '%s
@@ -207,14 +207,14 @@ upsert_combo() {
   BODY=$(jq -n --arg name "$NAME" --arg strat "$STRAT" \
                --argjson models "$(models_to_json "$PREFIX" "${MODELS[@]}")" \
                '{name:$name, strategy:$strat, models:$models}')
-  # R3+ Restart A (i′ 方案)→ Task C1 终态 (圣上源码 v3.8.43@b729a8f 实证裁决):
+  # R3+ Restart A (i′ 方案)→ Task C1 终态 (Zen源码 v3.8.43@b729a8f 实证裁决):
   # 旧式 `.combos[]? // .[]? | select(.name==$n)` 两病: ① `//` 优先级低于 `|` 失控
   # → CID 永空 → 永远 POST → 重名 400 死循环(幂等失效); ② 空 combos 时 `.[]?` 回退遍历对象值,
   # 对数组值取 `.name` 抛 "Cannot index array with string"(4.2.3 生产 14:23 实测, 4.3.2 同病)。
   # 修正式 (数组/对象双容 + 对象守卫): 根为数组直接遍历, 根为对象取 .combos//.data 字段,
   # select 加 `type=="object"` 守卫防对非对象值(数组值)取 .name 抛错 — 兼两种响应结构 + 空库首跑。
   # ⚠ 2026-09-05 暂缓: 本处判码修复会让 GET 失败时由"盲目 POST"改为 fail-closed return 1,
-  #   属可感知行为变更 (原本侥幸可成功的场景将明确失败). Supreme 裁定本轮只推无行为变更项,
+  #   属可感知行为变更 (原本侥幸可成功的场景将明确失败). Zen 裁定本轮只推无行为变更项,
   #   故此处保持原样, 待 staging 回归后再单独处理.
   CID=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/combos" \
         | jq -r --arg n "$NAME" '(if type=="array" then . else (.combos // .data // []) end) | .[]? | select(type=="object" and .name==$n) | .id' | head -n1)
@@ -235,7 +235,7 @@ upsert_combo() {
   fi
 }
 
-# ══ Task C2: 僵尸/重复 nvidia 连接 GC (圣上源码 v3.8.43@b729a8f 实证裁决) ══
+# ══ Task C2: 僵尸/重复 nvidia 连接 GC (Zen源码 v3.8.43@b729a8f 实证裁决) ══
 # GET /api/providers 返 {connections:[...]} (字段名非 .providers, 旧误名会静默失效)。
 # POST /api/providers 无 name 查重 → 每 boot 重复注册累积; init 内 409 分支是死代码 (POST 不校验 name)。
 # GC 职责二合一: ① 僵尸(name nim-NN 编号 > 当前 NIM_KEYS 总数的连接删)
@@ -1271,7 +1271,7 @@ hf_snapshot() {
   jq '.settings' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/settings.json"
   jq '.combos' "$BACKUP_DIR/omni_config.json" > "$BACKUP_DIR/combos.json"
 
-  # ── DB 表快照 (链②) 已删 (2026-07-29 圣上裁砍七成): litestream 已复制整个 storage.sqlite ──
+  # ── DB 表快照 (链②) 已删 (2026-07-29 Zen裁砍七成): litestream 已复制整个 storage.sqlite ──
   #   scheduler/init 重复表 JSON = 企业级排场. 真 db 仅 litestream R2 一路 (恢复即全表).
   #   留此注释标撤销点, 将来多人/需直读 db 表 JSON 再启.
 
@@ -1322,7 +1322,7 @@ hf_snapshot() {
   if [ "$NIM_MODE" = "DEBUG" ] && [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
     local _keep=${NIM_DEBUG_LOG_KEEP:-5}
     # debug 件入 save/debug/ 子目录 (非根平铺) → upload_folder 摊平保子目录 →
-    #   save/debug/<stamp>.log parts=3 进 omn_scheduler _do_archive 归档流 (圣上 2026-08-01 准 debug 入归档).
+    #   save/debug/<stamp>.log parts=3 进 omn_scheduler _do_archive 归档流 (Zen 2026-08-01 准 debug 入归档).
     #   原根平铺 save/debug_*.log parts=2 被归档结构闸跳 = 永不归档; 改子目录后与其他六源同构可归档可删.
     mkdir -p "$BACKUP_DIR/debug" 2>/dev/null || true
     local _dbg="$BACKUP_DIR/debug/debug_$(basename "$INIT_LOG" | sed 's/^init_//')"
@@ -1367,7 +1367,7 @@ except Exception as e:
 PYEOF
 
   # ── omn 插件静态包推公开 Bucket (路③可选件) 已移出 ──
-  #   omn_bucket_sync.py + 本调用段 2026-07-31 移除 (圣上裁插件包可选件状态, 非现役链).
+  #   omn_bucket_sync.py + 本调用段 2026-07-31 移除 (Zen裁插件包可选件状态, 非现役链).
   #   恢复路径: git 历史检出 + Dataset 根回推. 见 ops/DECISIONS.md 2026-07-31 移除决策条.
 }
 
@@ -1407,7 +1407,7 @@ _register_multi_provider() {
     # nvidia: legacy NIM_KEYS 内置轨独占 (nim-01..32@provider=nvidia + nim-pool/nim-codex/dp4f
     # 全锚其上, FT 绑 provider=nvidia 字段), 通用表跳过 — 不建 node 套件, 防双轨.
     # 禁把 mode 改 builtin: 那会让本循环以 provider=nvidia 再注册 nvidia-01..32, 与 nim-01..32
-    # 同 provider 撞成 64 条 (2026-08-31 圣上令第一性: 分两路 内置/自定义, 每 provider 只走一条).
+    # 同 provider 撞成 64 条 (2026-08-31 Zen令第一性: 分两路 内置/自定义, 每 provider 只走一条).
     # PROVIDERS 表 nvidia 行保留, 仅供 ALL_FT_FAMILIES 收前缀绑 FT 族.
     [ "$_pid" = "nvidia" ] && { echo "[init]   nvidia: legacy 内置轨独占, 通用表跳过 (双轨收敛单轨)"; continue; }
     echo "[init]   $_pid: 建节点+连接+枚举模型 (base=${_pburl}, max=${_pmax}, mode=$([ "$_is_builtin" = 1 ] && echo builtin || echo node))..."
@@ -1506,7 +1506,7 @@ _register_multi_provider() {
     echo "[init]     $_pid: $_kc keys → $_reg registered, $_skip skipped, $_fail failed"
 
     # ── 3) 模型注册来源: 静态白名单 (方案A) 或 动态枚举上游 /models ──
-    # 方案A (2026-08-28 圣上令): 第 9 字段 static_models 非空 → 跳过动态枚举, 直接用白名单注册.
+    # 方案A (2026-08-28 Zen令): 第 9 字段 static_models 非空 → 跳过动态枚举, 直接用白名单注册.
     #   目的: sensenova 模型少且明确 (内置 registry 3 个 chat 模型), 避免上游 /models 带回
     #   u1-fast 图片模型 (上游不标 supportedEndpoints → catalog 默认按 chat, 误入 chat 列表).
     # 默认: 动态枚举 (GET {base_url}/models, 过滤 embedding, 截 max) — 对模型数大/需自动发现上游的
@@ -1562,7 +1562,7 @@ _register_multi_provider() {
         _modids+=("${_mpre:+${_mpre}/}${_mm}")
         # 跨 provider 同模型 (dp4f) 收集: 枚举模型名匹配 [Dd]eep[Ss]eek+[Ff]lash 变体 →
         # 追加 "${_nid}/${_mm}" 进全局 _DPV4_ENTRIES (combo 条目: builtin 模式 _nid=内置短名, node 模式=节点 UUID).
-        # 2026-08-28 圣上令: 严格三提供商 (nvidia+sensenova+amd), 排除 openrouter
+        # 2026-08-28 Zen令: 严格三提供商 (nvidia+sensenova+amd), 排除 openrouter
         # (boot 02:45 实证 openrouter 枚举含 3 个 deepseek/deepseek-v4-flash-* 变体, 误收进池).
         case "$_mm" in
           *[Dd]eep[Ss]eek*[Ff]lash*) [ "$_pid" = "openrouter" ] || _DPV4_ENTRIES+=("${_nid}/${_mm}") ;;
@@ -1625,13 +1625,13 @@ _register_multi_provider() {
   _cleanup_legacy_node "nvidia-node" "nvidia"
   _cleanup_legacy_node "openrouter-node" "openrouter"
   _cleanup_legacy_node "mistral-node" "mistral"
-  # 2026-09-01 圣上令: gemini 内置化, 清旧 google-node 自定义节点 (UUID 轨) + 其下连接/模型.
+  # 2026-09-01 Zen令: gemini 内置化, 清旧 google-node 自定义节点 (UUID 轨) + 其下连接/模型.
   _cleanup_legacy_node "google-node" "google"
   echo "[init] General multi-provider registration done."
 }
 
 # ── dp4f 跨 provider 同模型聚合池 (nvidia + sensenova + amd → dp4f-pool) ──
-# 2026-08-28 圣上令: 把 deepseek-v4-flash 在 nvidia/sensenova/amd 三家的实现合并进一个跨 provider 池,
+# 2026-08-28 Zen令: 把 deepseek-v4-flash 在 nvidia/sensenova/amd 三家的实现合并进一个跨 provider 池,
 # 调用 dp4f-pool 时 executor 按 p2c 逐条路由 (A 家挂 → fallback B → C).
 # combo 的 models 字段原生支持混合前缀条目 (每条 "前缀/模型" 独立路由到对应 provider):
 #   nvidia 条目  = nvidia/<完整模型名>        (内置 provider id 即前缀, 天然对)

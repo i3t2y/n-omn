@@ -1,9 +1,9 @@
 # real_context 32K→200K + body 1→4MB 改推闭环留证(7key 研究)
 
-**日期**: 2026-07-24 21:xxZ 改推(本地 omn-logic) → 23:10Z Space restart(Supreme 手) → 23:1x-07-25 研究(7弹实证)
+**日期**: 2026-07-24 21:xxZ 改推(本地 omn-logic) → 23:10Z Space restart(Zen 手) → 23:1x-07-25 研究(7弹实证)
 **Space**: nonoke-omn.hf.space(永续 dev, bucket omn-data, cpu-basic 2vCPU/16GB)
 **链**: HF Dataset `nonoke/omn-logic` 五件之 init-nim-keys.sh 单件改推
-**律**: §1 双空间铁律 — nomke/omn 生产零触(4.2.3 日志只取证不引用支撑 dev 结论); §5 机制结论须 file:line 上游 3.8.43 源码对照; §3 secret/token 值零入(本文 sha/token 占位不写值); §7 Space Restart Supreme 手动.
+**律**: §1 双空间铁律 — nomke/omn 生产零触(4.2.3 日志只取证不引用支撑 dev 结论); §5 机制结论须 file:line 上游 3.8.43 源码对照; §3 secret/token 值零入(本文 sha/token 占位不写值); §7 Space Restart Zen 手动.
 
 ## 起源: 4.2.3 vs 4.3.2 差对比
 
@@ -62,7 +62,7 @@ WebSearch("HF Spaces free tier CPU basic RAM 16GB resources limits 2025") 空返
 - 五件远端终态: init `21cc7cdb`→`73e71f30`, 余 entrypoint `4803e290`/gate `616047c6`/litestream `1563c08d`/package `5ed9981b` 不动
 - bash -n 语法 OK
 
-## Space Restart(Supreme 手) + boot 读回验
+## Space Restart(Zen 手) + boot 读回验
 
 restart 2026-07-24 23:10:14, boot 尾段实证三改全落:
 
@@ -97,7 +97,7 @@ z-ai/glm-5.2 | 137344 | - | 37/0 | low | rec_ctx=123609
 
 ### ⚠ 卡点(研究启用前)
 - 此 boot **7 key 注册**非 25(Space Secrets NIM_KEYS env 现填 7, probe dead=0 否认死封; 与上轮 25key boot 对比缩 18, 非脚本病是 env 填量)
-- chat 探针初 401 PSK drift(dev env 旧值 ≠ Space INTERNAL_PSK), Supreme 对齐后通
+- chat 探针初 401 PSK drift(dev env 旧值 ≠ Space INTERNAL_PSK), Zen 对齐后通
 
 ## 7 key 研究(7 弹实证)
 
@@ -154,8 +154,8 @@ z-ai/glm-5.2 | 137344 | - | 37/0 | low | rec_ctx=123609
 - 副症状(504/abort/长尾 OR RATE-LIMIT eviction 洪)随根因#1#2 消
 - **仍欠**:
   - 根因 #3 镜像固工具链(省冷启 60s apt 42 包 + pip huggingface_hub, ephemeral 丢后不必每冷启补全): 改 `omn-ops/ghcr/Dockerfile` 加 `RUN apt install + pip huggingface_hub` 进 GHCR omniroute-base:stable, 见 [[omn-ops-ghcr-prebuild-dockerfile-landed]]
-  - 25-32 key 转生产减 NIM 风控旁白: 仍卡圣上 §1 身份签发 + proxy 源 + 入凭, 不动
-  - dev 稳态档若升 8-10 key(降 NIM 频控): 圣上裁, 我随之
+  - 25-32 key 转生产减 NIM 风控旁白: 仍卡Zen §1 身份签发 + proxy 源 + 入凭, 不动
+  - dev 稳态档若升 8-10 key(降 NIM 频控): Zen裁, 我随之
 
 ## 链入
 - 前置差异源: 4.2.3 vs 4.3.2 日志对比(本会话 [[memory]] 记), memory [[hf-free-space-cpu-basic-spec]] 硬资源

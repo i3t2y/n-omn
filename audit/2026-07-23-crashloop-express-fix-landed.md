@@ -1,19 +1,19 @@
 # crashloop fix: express 预装推送留证
 
-**日期**: 2026-07-23 ~00:40Z(Supreme 显式令 "1" = 下令推)
+**日期**: 2026-07-23 ~00:40Z(Zen 显式令 "1" = 下令推)
 **仓**: omn-merge/本地审计仓 → HF Dataset `nonoke/omn-logic` (永续 dev, bucket omn-data)
-**律**: §1 双空间铁律 — nomn/nog/hf/sp3t2y 四远端**全不 push**(nomn=生产禁触); 仅推 dev dataset; Space Restart Supreme 手动, 我不触 Space。
+**律**: §1 双空间铁律 — nomn/nog/hf/sp3t2y 四远端**全不 push**(nomn=生产禁触); 仅推 dev dataset; Space Restart Zen 手动, 我不触 Space。
 
 ## 起因(附录 A 引入的 regression)
 附录 A(02:15Z 推 4 件覆写远端)把远端 `gate.js` 从旧 zero-dep 版(`49942db3` 287行, `require('http'/'crypto'`)覆写成现役 express 版(`616047c6` 520行, `require('express')`)。
 但 `bootstrap.sh` 三层解耦模式仅 `hf download` + `cp /logic`, 不跑 `npm install` → `/logic/node_modules` 缺 → `gate.js:21 require('express')` 崩 `MODULE_NOT_FOUND` → Space crashloop。
 
-## 选案(Supreme 拍板)
-两个落位候选(B = 保 express gate + npm install --omit=dev 预装 express, Supreme 已定方向):
+## 选案(Zen 拍板)
+两个落位候选(B = 保 express gate + npm install --omit=dev 预装 express, Zen 已定方向):
 - **B1 bootstrap 落位**: 改 `bootstrap.sh`(Space repo 根), 需 clone+push `nonoke/omn` Space repo, 新链未走 + 可能动只读树。字面贴 "bootstrap 加 npm install"。
-- **B2 entrypoint 落位**(Supreme 选, 推荐): 改 `omn-logic/entrypoint.sh`(Dataset 逻辑层五件之二), 仅 `upload_file` 推 1 件, 同附录 A 走熟链, 不碰 Space repo、不需 clone nonoke/omn。同 boot 代价(每次 npm install, ephemeral 决定)。
+- **B2 entrypoint 落位**(Zen 选, 推荐): 改 `omn-logic/entrypoint.sh`(Dataset 逻辑层五件之二), 仅 `upload_file` 推 1 件, 同附录 A 走熟链, 不碰 Space repo、不需 clone nonoke/omn。同 boot 代价(每次 npm install, ephemeral 决定)。
 
-Supreme "需重推 base" 警示在 B2 下**不成立**: 只推 Dataset = 附录 A 同链, 不重推 Space repo 根(Dockerfile+bootstrap) 也不重推 GHCR base image。
+Zen "需重推 base" 警示在 B2 下**不成立**: 只推 Dataset = 附录 A 同链, 不重推 Space repo 根(Dockerfile+bootstrap) 也不重推 GHCR base image。
 
 ## 落定(Edit)
 **文件**: `omn-logic/entrypoint.sh`
@@ -48,26 +48,26 @@ Supreme "需重推 base" 警示在 B2 下**不成立**: 只推 Dataset = 附录 
 推后 `hf download` 读回, 远端 entrypoint.sh sha `4803e290cc6a997bd8c5a840160f6aa87da97af2f35d6e429bccc8bb7377f653` 全 == 本地 `4803e290cc6a997bd8c5a840160f6aa87da97af2f35d6e429bccc8bb7377f653`, `cmp` 逐字节 PASS。五件远端 sha 全 == 本地 omn-logic/, 无意外波及。
 
 ## 窗规与授权
-- 附录 A 推送时 Supreme 显式解除窗规(覆盖原铁句 "03:16Z 前禁推"), 系统本次时钟 `2026-07-23 00:39:48Z`(§2 理论窗未满, 但窗规已解除覆盖)。
-- 本批为**独立新批**对外发布(补附录 A regression), Supreme 显式令 "1"(=下令推)到达, 条件③显式下令满足。
+- 附录 A 推送时 Zen 显式解除窗规(覆盖原铁句 "03:16Z 前禁推"), 系统本次时钟 `2026-07-23 00:39:48Z`(§2 理论窗未满, 但窗规已解除覆盖)。
+- 本批为**独立新批**对外发布(补附录 A regression), Zen 显式令 "1"(=下令推)到达, 条件③显式下令满足。
 
-## 停手点(交 Supreme)
-**Space Restart 由 Supreme 手动 — 我未触/不会触 Space**。远端 Dataset 根 entrypoint.sh 已就 crashloop fix 态, 待 Space `bootstrap.sh` 拉 `$LOGIC_BUCKET_REPO` 触发后生效。Restart 后应判:
+## 停手点(交 Zen)
+**Space Restart 由 Zen 手动 — 我未触/不会触 Space**。远端 Dataset 根 entrypoint.sh 已就 crashloop fix 态, 待 Space `bootstrap.sh` 拉 `$LOGIC_BUCKET_REPO` 触发后生效。Restart 后应判:
 1. crashloop 解除: 日志见 `[entrypoint] 预装 gate 依赖 (npm install --omit=dev)...` + `gate 依赖就绪`, 不再 `require('express') MODULE_NOT_FOUND`
 2. gate 起: `[entrypoint] starting gate on port 7860...` + `gate PID=`
 3. 探活: `nonoke-omn.hf.space/healthz` 200(注: boot 因 npm install +10-30s, HEALTHCHECK start-period 180s 应覆盖)
 
-## 剩余(交 Supreme)
-1. Space Restart(Supreme 手动) + crashloop 解除验证
+## 剩余(交 Zen)
+1. Space Restart(Zen 手动) + crashloop 解除验证
 2. K3 verdict 十题回填(先推后补, 仍未回填)
 3. E 项 Space Secrets: 确认 `OMN_DATASET_REPO=nonoke/omn-logic` + `HF_TOKEN` 有值(否则 init 行849 guard 空静默踏空, 同旧根因)
 4. 窗规状态澄清: 03:16Z 窗规后续对 dev Dataset 推送是否仍需逐批显式令
 
 ---
 
-# 附录 B: init 副崩 403 fail-open 修复(rar2, Supreme "双管"令)
+# 附录 B: init 副崩 403 fail-open 修复(rar2, Zen "双管"令)
 
-**日期**: 2026-07-23 ~00:5xZ(Supreme 令"双管, 权限已改" → C1 E 项 Secrets HF_TOKEN write 由 Supreme 手改 + C2 init fail-open 我改推)
+**日期**: 2026-07-23 ~00:5xZ(Zen 令"双管, 权限已改" → C1 E 项 Secrets HF_TOKEN write 由 Zen 手改 + C2 init fail-open 我改推)
 **起因**: crashloop express fix 生效后(gate 正常起), boot 日志继见 init 末尾崩:
 ```
 [init] snapshot: init_vars.json written
@@ -85,8 +85,8 @@ Traceback ... upload_folder ...
 
 **token 权限差异**: 本地 cache token 推 `nonoke/omn-logic`(crashloop fix + 附录 A)成功 = 有 write; Space 内 HF_TOKEN 只读 = 两个不同 token。
 
-## 双管修法(Supreme 定 C3 双管)
-- **C1 治本(Supreme 手改 E 项 Secrets)**: Space HF_TOKEN 换有 dataset-write scope token, init 快照真写入, 403 根除。Supreme 已执行"权限已改"。
+## 双管修法(Zen 定 C3 双管)
+- **C1 治本(Zen 手改 E 项 Secrets)**: Space HF_TOKEN 换有 dataset-write scope token, init 快照真写入, 403 根除。Zen 已执行"权限已改"。
 - **C2 保底(我改推)**: init-nim-keys.sh hf_snapshot fail-open 容错, 防 future token 波动再崩。
 
 ## C2 落定(Edit)
@@ -129,9 +129,9 @@ except Exception as e:
 ## 边界
 - 本地审计仓无 origin, 推 Dataset 1 件, nomn 生产零触, 不 push GitHub remote
 - HF_TOKEN 经 `~/.cache/huggingface/token` 缓存读(免 source secrets 被 secret-scan 拦)
-- Space Restart 由 Supreme 手动 — 我未触不触 Space; restart 后验双管效果
+- Space Restart 由 Zen 手动 — 我未触不触 Space; restart 后验双管效果
 
-## 剩余(交 Supreme)
+## 剩余(交 Zen)
 1. Space Restart(手动) + 双管效果验: boot 末 init rc=0 无 traceback, Space 不重启, `nonoke-omn.hf.space/healthz` 200 持续
 2. K3 verdict 十题回填(仍欠)
 3. C1 效果确认: restart 后 `[init] HF Dataset uploaded.` 出现 = HF_TOKEN write 权限真到位(快照链通); 如仍 403 = C1 未生效, 但 C2 已兜底不崩

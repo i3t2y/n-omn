@@ -143,13 +143,13 @@
 
 ---
 
-## 0 号重排批（2026-07-23, Supreme 四项拍板）
+## 0 号重排批（2026-07-23, Zen 四项拍板）
 
-> 0 号批 = 仓目录重排, 窗内纯本地 (mkdir/mv/cp + commit), 严禁任何 HF/Space 网络操作, 严禁 push。所有移动零内容改写, sha 前后复验为证; 唯一新增文件 = 无。Supreme 四项拍板 (2026-07-23 00:30Z 签发): ①本地镜像目录定名 `omn-logic/` ≡ HF `nonoke/omn-logic` 数据集根; ②`patches/p0/` 保留至 R3; ③`omn-logic/` 内用部署名 `entrypoint.sh`; ④立即执行。
+> 0 号批 = 仓目录重排, 窗内纯本地 (mkdir/mv/cp + commit), 严禁任何 HF/Space 网络操作, 严禁 push。所有移动零内容改写, sha 前后复验为证; 唯一新增文件 = 无。Zen 四项拍板 (2026-07-23 00:30Z 签发): ①本地镜像目录定名 `omn-logic/` ≡ HF `nonoke/omn-logic` 数据集根; ②`patches/p0/` 保留至 R3; ③`omn-logic/` 内用部署名 `entrypoint.sh`; ④立即执行。
 
 ### 部署契约重申
 
-- **`omn-logic/` ≡ 数据集根镜像**: 本地 `omn-logic/` 五件 = 推送时镜像覆写 HF `nonoke/omn-logic` 数据集根原位的目标件。推送激活条件三全(附录 A): 窗满 03:16Z + K3 verdict 回填 + Supreme 显式下令。
+- **`omn-logic/` ≡ 数据集根镜像**: 本地 `omn-logic/` 五件 = 推送时镜像覆写 HF `nonoke/omn-logic` 数据集根原位的目标件。推送激活条件三全(附录 A): 窗满 03:16Z + K3 verdict 回填 + Zen 显式下令。
 - **`entrypoint-merged.sh` → `entrypoint.sh` 命名由来**: staging 原 `entrypoint-merged.sh` (合并多段编排名) 落位 `omn-logic/` 时改用部署名 `entrypoint.sh` (与上游镜像 ENTRYPOINT 名对齐), sha 不变 (mv 改名零内容改写, `06178176`)。
 - **HF 新仓现状**: flat 8 文件根 (entrypoint.sh/gate.js/init-nim-keys.sh cea2b20eac05 旧版/init-nim-keys.r2-157.bak/litestream.yml/package.json/README.md/.gitattributes), 无 omni_data/ 也无 omn_data/ 快照子目录; 现役 init = 旧版未改名 (含 HF_DATASET_REPO/omni_data), 推 r4 = 全量替换 860L→995L。package.json 已定性为部署件 (gate 描述件), 属镜像第五件, 新仓已留。
 - **staging 退役处置**: `init/entrypoint` 迁入 `omn-logic/`, 五件冗余副本 (backoffAndDedup.ts/parseRetryAfter.ts/events_schema.sql = patches/p0 同 sha; gate.js/litestream.yml = omn-logic 同 sha) 经 sha/cmp 双重验证为同 sha 副本后清除, 无内容损失 (留证 `/tmp/staging-residuals-sha.txt` + 五对 cmp 全绿; r4 合并稿 fenced 全文第三重内容备份)。

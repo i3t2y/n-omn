@@ -53,7 +53,7 @@ fi
   echo "[start] FATAL: 缺 LOGIC_BUCKET_REPO"; exit 1; }
 
 # ── 3. 拉取逻辑层（Bucket 源, manifest 版本钉补回 atomic 锁） ──
-#     2026-08-25 换 Bucket (圣上批 B): 旧 Space 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
+#     2026-08-25 换 Bucket (Zen批 B): 旧 Space 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
 #     Bucket 非版本化无 commit_id/revision → 无 atomic 快照. 竞速根治手工补回:
 #       manifest.json = 提交点 (记 n-omn@SHA + 每文件 sha256), 由 CI 推文件后最后写.
 #       boot 先拉 manifest + 8 件, 逐文件校验 sha256 与 manifest 一致 = 同点全件.

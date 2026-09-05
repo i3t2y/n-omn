@@ -1,9 +1,9 @@
 # crashloop saga 闭环留证(双期: express + init 副崩)
 
-**日期**: 2026-07-23 01:05-01:08Z(Supreme 令序: "1"→"双管, 权限已改")
+**日期**: 2026-07-23 01:05-01:08Z(Zen 令序: "1"→"双管, 权限已改")
 **Space**: nonoke-omn.hf.space(永续 dev, bucket omn-data)
-**链长**: HF Dataset `nonoke/omn-logic` 逻辑层(五件之二改)+ Space Secrets E 项(Supreme 手)
-**律**: §1 双空间铁律 — nomn 生产零触, 仅改 dev dataset; Space Restart Supreme 手动。
+**链长**: HF Dataset `nonoke/omn-logic` 逻辑层(五件之二改)+ Space Secrets E 项(Zen 手)
+**律**: §1 双空间铁律 — nomn 生产零触, 仅改 dev dataset; Space Restart Zen 手动。
 
 ## saga 起源
 附录 A(02:15Z 推 4 件覆写远端)把远端 gate.js 从旧 zero-dep(`49942db3`)覆写成现役 express 版(`616047c6` require('express')), 但 bootstrap 三层解耦模式仅 `hf download+cp /logic` 不跑 npm install → 引入 crashloop regression。修复过程揭露第二层 init 副崩。
@@ -19,8 +19,8 @@
 - 起: express 解后 gate 起成, 但 init 末 `upload_folder 403 Forbidden pass create_pr=1` traceback 致 init 整进程 exit rc=1, 两 boot 间隔 ~30s 疑 Space supervisor 重启循环接力
 - 根因(`omn-logic/init-nim-keys.sh`): 行2 `set -eo pipefail` + 行849 guard 双键有值但 Space HF_TOKEN **只读**(缺 dataset-write scope) + 行930 PYEOF python `upload_folder` 无 try/except(403 抛 exit 1) + 行987 `hf_snapshot` 裸调(set -e 触发 init 整 exit rc=1), entrypoint 监督仅告警不主动重启 **但 HF Space supervisor 判 traceback 不健康 → 重启 → init 又 403 → 循环**
 - token 权限差异: 本地 cache token 推 nonoke/omn-logic 成功=有 write; Space 内 HF_TOKEN 只读=两个不同 token
-- 双管修法 C3(Supreme 定):
-  - **C1 治本(Supreme 手改 E 项 Secrets)**: Space HF_TOKEN 换有 dataset-write scope token, Quick pracy已改。
+- 双管修法 C3(Zen 定):
+  - **C1 治本(Zen 手改 E 项 Secrets)**: Space HF_TOKEN 换有 dataset-write scope token, Quick pracy已改。
   - **C2 保底(我改推)**: init-nim-keys.sh fail-open 容错防 future token 波动再崩。
 - C2 Edit: 改1 行930 PYEOF python upload 加 `try: ... except Exception as e:` 降级 WARN + 403 特判提示查 HF_TOKEN scope + token 值 `str(e).replace(HF_TOKEN, <REDACTED>)`脱敏(守 §3); 改2 行987 `hf_snapshot`→`hf_snapshot || true` 函数级兜底防 curl/jq 非 python 段异常触 set -e
 - C2 推 commit `ce761d2a`, sha `4cbcc501`→`21cc7cdb`, 行数 995→1008, 读回 cmp 逐字节 PASS
@@ -71,7 +71,7 @@
 ## 边界遵守全审
 - 本地审计仓无 origin, 推 Dataset 共累计 6 件跨 3 批(附录 A + express + C2), nomn 生产**零触**, 不 push 任何 GitHub remote
 - HF_TOKEN 经 `~/.cache/huggingface/token` 缓存读(免 source secrets 被 secret-scan 拦), secret 值零入会话/零入 git(上传 fail-open 段 token 脱敏)
-- Space Restart 全程由 Supreme 手动 — 我未触不触 Space Secrets/Space 重启动作
+- Space Restart 全程由 Zen 手动 — 我未触不触 Space Secrets/Space 重启动作
 - 三层解耦铁律守: 改逻辑层(Dataset entrypoint+init), 不碰环境层(GHCR base)/Space repo 根(bootstrap)
 
 ## saga 闭环确认

@@ -4,11 +4,11 @@ name: deploy-ho-proxy-pages
 # 拓扑: sonoke → proxy.360710.xyz (CF Pages 边缘, 前置 PSK 校验 + 注入 HF_TOKEN) → xnexus-o.hf.space
 # 触发: push `deploy-pages-*` tag 或 workflow_dispatch 手动
 #
-# GH Secrets (圣上填值, 值不进 repo/git, workflow 只引用):
+# GH Secrets (Zen填值, 值不进 repo/git, workflow 只引用):
 #   CF_API_TOKEN (账号 B) → B_CF_TOKEN   — scope 仅 need: Pages Edit
 #   INTERNAL_PSK (gate.js 同源常量值)     → 边缘前置鉴权 + 出站透传
 #   HF_TOKEN (xnexus-o 账号 HF 平台门票)  → 出站注入 X-Api-Key (私有 Space)
-# Secret (圣上已配在 Secrets 而非 Variables, workflow 据此读 secrets.):
+# Secret (Zen已配在 Secrets 而非 Variables, workflow 据此读 secrets.):
 #   B_CF_ACCOUNT_ID (账号 B 的 account id)
 #
 # 机制: GH Actions 作部署流水线, 从 GH secret 读音, printf|wrangler pages secret put 注入 CF,

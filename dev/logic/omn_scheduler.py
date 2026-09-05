@@ -1,6 +1,6 @@
 """omn_scheduler · 全源日志永续守护 (capture daemon + CommitScheduler)
 
-圣上令 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
+Zen令 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
   全源架构: gate/ft/app/init 四源 raw 落 _raw 临时区 → capture daemon 尾追增量 →
     omn_redact.redact_text 脱敏 (默6正则盖类A/B/C 真 secret 形态) → 写 staging 出件 →
     CommitScheduler 内置线程读 folder 变化自动 upload 私有 Dataset save/ (给 AI 分析).
@@ -37,7 +37,7 @@ _BJ_TZ = timezone(timedelta(hours=8))
 # PYTHONPATH 含本目录能 import omn_redact
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# ── ENV 占位 (圣上 Space Secrets 自建自持, 我零入值) ──
+# ── ENV 占位 (Zen Space Secrets 自建自持, 我零入值) ──
 # 调度间隔分钟 (官档推荐 >=5 防 history 爆, default 5)
 SCHED_EVERY = int(os.environ.get("OMN_SCHED_EVERY", "5"))
 # 捕获间隔秒 (独立 daemon 线程, 不挂 scheduler 内置线程)
@@ -49,12 +49,12 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 # ── 总闸 (圣旨 D): 默1 推 save; =0 关全数据收集层让性能 (桥/gate/init/上游业务零感知) ──
 LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
 
-# ── 归档 ENV (圣上令 2026-08-01: 7天前旧日志按源分四包 tar.gz 推新账号私库, 推成功后删原库腾空间) ──
-# 总闸: 默0 停归档 (2026-09-04 圣上裁定案 A 激进停用, DECISIONS §16: 审计证据 ops/overengineering-audit
+# ── 归档 ENV (Zen令 2026-08-01: 7天前旧日志按源分四包 tar.gz 推新账号私库, 推成功后删原库腾空间) ──
+# 总闸: 默0 停归档 (2026-09-04 Zen裁定案 A 激进停用, DECISIONS §16: 审计证据 ops/overengineering-audit
 #   —— 归档 7天 tar.gz 推新库的查错价值 ≈ 0 且自身曾损坏(parts!=4 病根), 而 R2 全备份 + Dataset save/
 #   —— 日志才是唯一查错真源; 停归档省 10 步铁闸复杂度). =1 显式手动可恢复. 挂 LOG_TO_DATASET 总闸下.
 ARCHIVE_ENABLED = os.environ.get("OMN_LOG_ARCHIVE", "0") == "1"
-# 新私库 repo_id (圣上新账号, replaceable 满换库只改此 Secret). 空 -> skip 整归档线程.
+# 新私库 repo_id (Zen新账号, replaceable 满换库只改此 Secret). 空 -> skip 整归档线程.
 ARCHIVE_REPO = os.environ.get("OMN_LOG_ARCHIVE_REPO", "").strip()
 # 新私库 write token (新账号独立 token, 不复用 HF_TOKEN). 空 -> skip.
 ARCHIVE_TOKEN = os.environ.get("OMN_LOG_ARCHIVE_TOKEN", "").strip()
@@ -63,8 +63,8 @@ ARCHIVE_DAYS = int(os.environ.get("OMN_LOG_ARCHIVE_DAYS", "7"))
 # 归档线程轮询间隔秒 (独立 daemon, 不挂 capture_loop). 默 3600s (1h).
 ARCHIVE_INTERVAL = int(os.environ.get("OMN_ARCHIVE_INTERVAL", "3600"))
 # 归档源 prefix 固定七源 (与 capture_loop 一致, 不复用 _capture_one 字面量防漂移)
-# (2026-08-01 圣上千补: entrypoint + litestream 两源加入归档扫源, 免7天后仍占私库空间)
-# (2026-08-01 圣上再令: debug 件入 save/debug/ 子目录后同构, 加入归档流可删可移归档库)
+# (2026-08-01 Zen千补: entrypoint + litestream 两源加入归档扫源, 免7天后仍占私库空间)
+# (2026-08-01 Zen再令: debug 件入 save/debug/ 子目录后同构, 加入归档流可删可移归档库)
 _ARCHIVE_PREFIXES = ("gate", "ft", "app", "init", "entrypoint", "litestream", "debug")
 
 # ── 路径 (staging 付给 scheduler 的 working tree) ──
@@ -104,11 +104,11 @@ OMN_REDACT = _try_import()
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 路2 加密 (EncryptedScheduler) 已移除 (2026-07-31 圣上裁路2 降级死代码)
+# 路2 加密 (EncryptedScheduler) 已移除 (2026-07-31 Zen裁路2 降级死代码)
 # ═══════════════════════════════════════════════════════════════════════
 # omn_encrypt.py + EncryptedScheduler 死类 + ENC_SRC/ENC_STAGING 路径已整段移出.
 # 路2 砍七成降级后 EncryptedScheduler 从未实例化 (main 内路1+db 主链), 属死代码.
-# 私库只圣读 + litestream 已复制 storage.sqlite = 加密冗余, 圣上 2026-07-29 裁降级砍.
+# 私库只圣读 + litestream 已复制 storage.sqlite = 加密冗余, Zen 2026-07-29 裁降级砍.
 # 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 ops/DECISIONS.md.
 from huggingface_hub import CommitScheduler, HfApi, hf_hub_download
 
@@ -171,7 +171,7 @@ def capture_stdout():
     for _ft_raw in sorted(RAW_DIR.glob("flaretunnel*.log")):
         _capture_one(_ft_raw, "ft")
     _capture_one(RAW_DIR / "app.log", "app")
-    # (2026-08-01 圣上令补) 第6-7源: entrypoint boot 编排真相 + litestream R2 复制链. 两源 entrypoint.sh tee >>raw + replicate >>raw 落 omn-raw, 经 omn_redact 兜脱敏后入 save.
+    # (2026-08-01 Zen令补) 第6-7源: entrypoint boot 编排真相 + litestream R2 复制链. 两源 entrypoint.sh tee >>raw + replicate >>raw 落 omn-raw, 经 omn_redact 兜脱敏后入 save.
     _capture_one(RAW_DIR / "entrypoint.log", "entrypoint")
     _capture_one(RAW_DIR / "litestream.log", "litestream")
 
@@ -193,12 +193,12 @@ def capture_init():
 def _start_schedulers():
     """起 CommitScheduler (路1: staging folder → 私有 Dataset save/ 推).
 
-    圣上 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
+    Zen 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
       全源架构 (E 脱敏层复活): gate/ft/app/init 四源 raw 落 _raw, capture daemon 尾追+omn_redact
         脱敏后写本 staging folder, scheduler 内置线程读 folder 自动 upload (私库给 AI 分析须脱敏).
       D 总闸 OMN_LOG_TO_DATASET: 默1 推 (积累期); =0 全数据收集层停让性能 (桥/gate/init/上游零感知).
     """
-    # D 总闸: 稳定后圣上配 OMN_LOG_TO_DATASET=0 → 全数据收集层停让性能 (不起 scheduler 不起 capture)
+    # D 总闸: 稳定后Zen配 OMN_LOG_TO_DATASET=0 → 全数据收集层停让性能 (不起 scheduler 不起 capture)
     if not LOG_TO_DATASET:
         return
     _ensure_dirs()
@@ -233,7 +233,7 @@ def _capture_loop():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 日志归档 (圣上令 2026-08-01: 7天前旧日志按源分四包推新账号私库, 推成功后删原库腾空间)
+# 日志归档 (Zen令 2026-08-01: 7天前旧日志按源分四包推新账号私库, 推成功后删原库腾空间)
 # ═══════════════════════════════════════════════════════════════════════
 # 独立 daemon 线程, 隔离 HfApi 调用 (list/upload/download/delete 全在此线程, 不挂 capture_loop).
 # CommitScheduler 是 append-only 单向上传 (本地 staging 非远程 mirror), 删远程件必走 HfApi
@@ -261,8 +261,8 @@ def _do_archive():
     铁闸: 推归档库成功 (或查证已归档) 后才 delete_files 删原库件. 任一步失败 -> 跳过该 prefix 该日不删.
     幂等: 推前列归档库查 archive/<prefix>/<date>.tar.gz 已存在 -> 跳推只删原件 (已归档证).
     """
-    src_api = HfApi(token=HF_TOKEN)        # 原库连接 (圣上现役)
-    dst_api = HfApi(token=ARCHIVE_TOKEN)   # 新私库连接 (圣上新账号, 独立 token)
+    src_api = HfApi(token=HF_TOKEN)        # 原库连接 (Zen现役)
+    dst_api = HfApi(token=ARCHIVE_TOKEN)   # 新私库连接 (Zen新账号, 独立 token)
     # 列原库全件 (list_repo_files 返 rfilename 全路径如 save/app/xxx.log); 网络错 -> return 不盲删
     try:
         all_files = src_api.list_repo_files(OMN_DATASET_REPO, repo_type="dataset", token=HF_TOKEN)
@@ -275,14 +275,14 @@ def _do_archive():
     for rf in all_files:
         parts = rf.split("/")
         # capture L155 真出件三段: save/<prefix>/<stamp>_<epoch>.log (parts=3).
-        # (原误判四段 len!=4 全杀致零归档, 2026-08-01 圣上 4回重启零删钉病根)
+        # (原误判四段 len!=4 全杀致零归档, 2026-08-01 Zen 4回重启零删钉病根)
         if len(parts) != 3 or parts[0] != "save" or parts[1] not in _ARCHIVE_PREFIXES:
             continue  # 非 save/<prefix>/<fname> 结构 (快照 json 根平铺 parts=2, debug 根平铺 parts=2 自动跳)
         fname = parts[2]
         if not fname.endswith(".log"):
             continue  # 非日志件 (快照 .json 不动)
         # 日期提取兼容两构: 六源 plain `YYYYMMDD_...` (首8位纯数字) +
-        #   debug `debug_YYYYMMDD_...` (debug_ 前缀, 圣上 2026-08-01 准 debug 入归档).
+        #   debug `debug_YYYYMMDD_...` (debug_ 前缀, Zen 2026-08-01 准 debug 入归档).
         #   原仅 fname[:8].isdigit() 杀 debug 前缀 -> debug 件零归档零删 (复 parts!=4 同源逻辑遗漏).
         m = re.search(r"(\d{8})_", fname)
         if not m:
@@ -351,7 +351,7 @@ def _do_archive():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 运行期 DB 健康探针 (圣上令 2026-09-04 裁定 SQLITE_CORRUPT 案 A: 治标最轻 = 可见性 + 调低周期)
+# 运行期 DB 健康探针 (Zen令 2026-09-04 裁定 SQLITE_CORRUPT 案 A: 治标最轻 = 可见性 + 调低周期)
 # ═══════════════════════════════════════════════════════════════════════
 # 背景: 生产 boot 多次复发 `database disk image is malformed` (audit 🚨 真问题, 非过度设计).
 #   上游每 interval 跑 runDbHealthCheck(autoRepair:true) 但结果静默 (core.ts 不打日志),

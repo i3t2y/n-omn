@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# 隔离 mock 测试: _register_multi_provider 分支逻辑 (2026-08-31 圣上令 openrouter/mistral 纳入内置轨)
+# 隔离 mock 测试: _register_multi_provider 分支逻辑 (2026-08-31 Zen令 openrouter/mistral 纳入内置轨)
 # 用法: bash ops/mock-omr-register.sh
 # 断言:
 #   1) nvidia 被 skip (无 provider=nvidia 连接 POST)
 #   2) openrouter: 连接 provider=openrouter (短名非 UUID), 无 node POST, 动态枚举跑, combo openrouter-pool
 #   3) mistral:   连接 provider=mistral, 无 node POST, 静态白名单 5 模型不枚举上游, combo mistral-pool
 #   4) amd:       走 node 分支 (有 name=amd-node POST), 连接 provider= 空 (mock node 无 id)
-#   5) dp4f:      收集含 sensenova/deepseek-v4-flash, 不含 openrouter/ (2026-08-28 圣上令排除)
+#   5) dp4f:      收集含 sensenova/deepseek-v4-flash, 不含 openrouter/ (2026-08-28 Zen令排除)
 #   6) cleanup:   5 家旧节点清理调用 (sensenova/nvidia/openrouter/mistral/google)
 #   7) gemini:    连接 provider=gemini, 无 node POST, 静态白名单 7 模型不枚举上游, combo gemini-pool
 # 说明: 只测循环控制流, 内部 helper 全 mock (helper 本身已 boot 验证). 从 init-nim-keys.sh 原样提取函数定义。
@@ -124,12 +124,12 @@ chk_calls "mistral-pool combo (prefix=mistral)" 'MOCK upsert_combo name=mistral-
 chk_calls "sensenova-pool combo (prefix=sensenova)" 'MOCK upsert_combo name=sensenova-pool strat=p2c prefix=sensenova' 1
 chk_calls "gemini-pool combo (prefix=gemini)" 'MOCK upsert_combo name=gemini-pool strat=p2c prefix=gemini' 1
 chk_calls "amd-pool combo 建" 'MOCK upsert_combo name=amd-pool' 1
-# 7) dp4f: 含 sensenova/deepseek-v4-flash, 不含 openrouter/ (2026-08-28 圣上令严格三提供商)
+# 7) dp4f: 含 sensenova/deepseek-v4-flash, 不含 openrouter/ (2026-08-28 Zen令严格三提供商)
 #    注意: 全文件含 openrouter/grok-3 模型名 (openrouter-pool 模型注册), 断言须限定 dp4f 行.
 chk_calls "dp4f 池建 (upsert_dp4f_pool 调)" 'MOCK upsert_dp4f_pool entries=' 1
 _dp4f_line=$(grep 'MOCK upsert_dp4f_pool' "$CALLS")
 printf '%s\n' "$_dp4f_line" | grep -q 'sensenova/deepseek-v4-flash' && echo "PASS: dp4f 含 sensenova/deepseek-v4-flash" || { echo "FAIL: dp4f 缺 sensenova/deepseek-v4-flash"; fail=1; }
-printf '%s\n' "$_dp4f_line" | grep -q 'openrouter/' && { echo "FAIL: dp4f 误含 openrouter/"; fail=1; } || echo "PASS: dp4f 排除 openrouter/ (2026-08-28 圣上令)"
+printf '%s\n' "$_dp4f_line" | grep -q 'openrouter/' && { echo "FAIL: dp4f 误含 openrouter/"; fail=1; } || echo "PASS: dp4f 排除 openrouter/ (2026-08-28 Zen令)"
 # 8) cleanup: 5 家旧节点清理 + sensenova double-prefix
 chk_calls "5 家旧节点 cleanup" 'MOCK cleanup node=' 5
 chk_calls "sensenova double-prefix 清理" 'MOCK cleanup sensenova double-prefix' 1

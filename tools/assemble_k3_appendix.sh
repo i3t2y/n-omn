@@ -4,14 +4,14 @@ set -eo pipefail
 cd ~/omn-merge
 OUT=omn-v4.3.2-k3-review-20260722.md
 
-# 附录 A: events_write.sh 全文 (Supreme 令: 写入件 SQL 拼接安全性 K3 可审时放附录, 不计入 7 正文)
+# 附录 A: events_write.sh 全文 (Zen 令: 写入件 SQL 拼接安全性 K3 可审时放附录, 不计入 7 正文)
 cat >> "$OUT" <<'APPA_EOF'
 
 ---
 
 ## 附录 A — events_write.sh（写入执行件, 不计入 7 正文, 供 K3 审 SQL 拼接安全性）
 
-> Supreme 令: events_schema.sql 覆盖表契约; events_write.sh 逻辑薄但 SQL 拼接安全性可审, 故放附录.
+> Zen 令: events_schema.sql 覆盖表契约; events_write.sh 逻辑薄但 SQL 拼接安全性可审, 故放附录.
 > 源: `patches/p0/events-table/events_write.sh` (零改).
 
 ```bash
@@ -31,14 +31,14 @@ cat >> "$OUT" <<'APPA_EOF'
 | **M3** | probe_nim_keys_real 真探活 + auth_dead 跳注册 | init 行538-623 | 403判死/429判活/余活 fail-open; INDEX 递增编号不塌; baseline-4.2.3 无此件=全新增量. |
 | **M4** | 压缩全局关闭 | init 行688-694 | PUT 体仅 `{"enabled":false}`; 不留 defaultMode/autoTriggerTokens(防"0阈值=全压"反向). |
 | **M5** | 横幅版本对齐 | init 行5-8/829 | 顶注 v4.3.0→v4.3.2; jq `--arg version "4.3.2"`. |
-| **M6** | (跳过) | — | Supreme 授权可选跳. |
-| **M7** | 请求级超时 env 注入 | entrypoint 行24-40 | `DEFAULT_REQUEST_TIMEOUT_MS=${:-180000}`(Supreme 签名)+ `REQUEST_TIMEOUT_MS`(上游真识别变量名 runtimeTimeouts.ts:75)双注. **gate.js 零 diff**(GATE_UPSTREAM_TIMEOUT_MS=30000 解冻后走 env 调, 列 K3 题5). |
+| **M6** | (跳过) | — | Zen 授权可选跳. |
+| **M7** | 请求级超时 env 注入 | entrypoint 行24-40 | `DEFAULT_REQUEST_TIMEOUT_MS=${:-180000}`(Zen 签名)+ `REQUEST_TIMEOUT_MS`(上游真识别变量名 runtimeTimeouts.ts:75)双注. **gate.js 零 diff**(GATE_UPSTREAM_TIMEOUT_MS=30000 解冻后走 env 调, 列 K3 题5). |
 
 ---
 
 ## 附录 C — 验收标准(启动日志七行核验表)
 
-**9 key 预期** (Supreme 验收签名):
+**9 key 预期** (Zen 验收签名):
 
 | # | 日志签名 | 预期值 |
 |---|---|---|

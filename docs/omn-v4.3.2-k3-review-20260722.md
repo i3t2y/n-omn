@@ -3,7 +3,7 @@
 > **历史快照声明**: 本档嵌入/参考的 gate.js 代码含 `GATE_ADMIN_TOKEN` (Basic Auth) 机制, 该机制已于 `82d6559` (2026-07-23, saga回填期 "gate单开关" 改造, `GATE_ADMIN_TOKEN.length` 判换为 `GATE_ADMIN_ENABLED === '1'` 纯布尔) 废弃。现行机制见 `dev/logic/gate.js` (`GATE_ADMIN_ENABLED` 纯布尔开关, gate.js:24)。本档保留原貌供 v4.3.2 K3 审阅历史审计, 非现行规范。
 
 > 生成: 2026-07-22 (冻结令窗口内, staging 路线)
-> 签发 cg52 v2 + Supreme 四裁断 (M1动态三式 / M3 fail-open / M4 enabled:false / M7 env注入+gate不动)
+> 签发 cg52 v2 + Zen 四裁断 (M1动态三式 / M3 fail-open / M4 enabled:false / M7 env注入+gate不动)
 > 供 K3 审阅 v4.3.2 终态代码 (M1-M5/M7 改造落 staging, M6 跳)
 > **修订档 r1 (2026-07-22 送审前自修首轮三硬伤)**: 硬伤1 = M5 漏改三 echo(v4.3.0→v4.3.2, 现 r2 稿行481/958/995); 硬伤2 = probe 端点 GET /v1/models→POST /v1/chat/completions(测不出鉴权死); 硬伤3 = probe 后 alive+三字段重算(防 RPM 配额虚高). init sha 链起 e33ada6 (954L) → ...
 > **修订档 r2 (2026-07-22 r1 核验照出四处文档/注释矛盾, 抛光补丁)**: 发现A(r1自造) = M3 注释块仍说"不重算"与行610-650 重算代码打架 → 改"已定案·硬伤3"; 发现B = init 注释称 gate 有限流而现役 gate.js 零限流 → 改B1 注释订正"现役 gate.js 零限流, 限流唯一杠杆=上游 requestQueue" + 改B2 合并稿 [3/7] 段头加 KNOWN(gate 头注"28/1/2200"=v4.3.1 残留, gate 零 diff 不动, 解冻后修); 发现C = 重算段漏策略选择 → 行630-634 补 alive≤1 连动 round-robin(复原单 key 设计意图); 发现D = 附录C Resilience 读回预期写死 300/27/200/300000 会误导首次部署判读(nonoke 9/9 POST 403 现实下 alive=1 读回 35/3/1714) → 改条件预期. init sha 链 → 4a088b71 (991L) → 56aac52a (995L).
@@ -14,7 +14,7 @@
 
 1. 本稿 7 件来自 `candidate-v4.3.2-staging/`（基于 commit `a4e68a0` 的现役副本 + v4.3.2 改造 M1-M5/M7）。
 2. `candidate-v4.3-reviewed/` 现役谱系在冻结窗内（至 2026-07-23 03:16Z）**未被触碰** — 开工前后双 `find -newer 冻结令起点` 皆空，7 件 mtime 与开工前逐字一致（铁证见附录 C）。
-3. K3 通过后，staging 件与 candidate 的收敛（merge/replace）动作属冻结令管辖，须待窗满或 Supreme 显式解禁后另行下令执行。staging 是一次性审阅载体，K3 verdict 回填后，或解冻并入 candidate，或废弃，不长期维护双份。
+3. K3 通过后，staging 件与 candidate 的收敛（merge/replace）动作属冻结令管辖，须待窗满或 Zen 显式解禁后另行下令执行。staging 是一次性审阅载体，K3 verdict 回填后，或解冻并入 candidate，或废弃，不长期维护双份。
 4. **路径口径注记(0 号重排批后, 2026-07-23)**: 上文清单表/各 fenced 段后路径栏凡标 `candidate-v4.3.2-staging/` 者为**重排前 staging 口径**(历史真源标注); staging 已退役, **现役圣源 = `omn-logic/`(≡ HF nonoke/omn-logic 数据集根镜像), 三 P0 件现役圣源 = `patches/p0/`**。sha 链不受路径口径影响(init `4cbcc50120ec` / entrypoint `06178176` 终态 sha 与 fenced 内容逐字一致, 终审三件套 diff 空)。新旧路径映射见 `docs/README.md` 0 号重排批段。
 
 ## 基座声明
@@ -46,7 +46,7 @@
 - 文件 1-4 = **Track-1 部署阻塞级**（审完即推 nonoke, 解冻后）。
 - 文件 5-7 = **Track-2 并行构建参考**（P0 弹药, 不阻塞 Track-1; R3 宣判后再接线接入, 本稿仅审设计）。
 
-M6 原计划项本轮跳过（Supreme 授权可选跳）。
+M6 原计划项本轮跳过（Zen 授权可选跳）。
 
 ---
 
@@ -2075,7 +2075,7 @@ export type FingerprintFn = (method: string, path: string, bodyHash: string) => 
 -- ============================================================
 -- p0-events-table — SQLite events 表 schema 草案
 -- ============================================================
--- Supreme 增补令 #1 · 依附 cg52 v2 §5 P0 局部提前授权
+-- Zen 增补令 #1 · 依附 cg52 v2 §5 P0 局部提前授权
 -- 本地合成弹药, R3 宣判(2026-07-23 03:16 后)前不出仓不上 Space.
 
 -- ── 零新增持久通道红线(架构师) ──────────────────────────────
@@ -2168,7 +2168,7 @@ CREATE INDEX IF NOT EXISTS idx_events_event_type ON events (event_type);
 
 
 
-> Supreme 令: events_schema.sql 覆盖表契约; events_write.sh 逻辑薄但 SQL 拼接安全性可审, 故放附录.
+> Zen 令: events_schema.sql 覆盖表契约; events_write.sh 逻辑薄但 SQL 拼接安全性可审, 故放附录.
 > 源: `patches/p0/events-table/events_write.sh` (零改).
 
 ```bash
@@ -2269,14 +2269,14 @@ write_event() {
 | **M3** | probe_nim_keys_real 真探活(POST /v1/chat/completions) + auth_dead 跳注册 + **probe 后 alive 重算+策略对齐防 RPM 虚高(硬伤3+发现C)** + 单 key 策略对齐 round-robin | init 行567-638 Probe+重算 | 403判死/429判活/余活 fail-open; **probe 端点 POST 推理(硬伤2: GET /v1/models 测不出鉴权死)**; INDEX 递增编号不塌; **probe 后排除 auth_dead 重算 _ALIVE_KEYS 并重跑 M1 三式(硬伤3)+ alive≤1 连动 round-robin(发现C 复原单 key 设计意图)**; **r2注释改A(M3注释已定案非"不重算")**; baseline-4.2.3 无此件=全新增量. |
 | **M4** | 压缩全局关闭 | init 行799-806 | PUT 体仅 `{"enabled":false}`; 不留 defaultMode/autoTriggerTokens(防"0阈值=全压"反向). |
 | **M5** | 横幅版本对齐 | init 行5-8/870 | 顶注 v4.3.0→v4.3.2; jq `--arg version "4.3.2"`; **三 echo(行481/958/995)全 v4.3.2 修硬伤1**(M5 前漏改 echo). |
-| **M6** | (跳过) | — | Supreme 授权可选跳. |
+| **M6** | (跳过) | — | Zen 授权可选跳. |
 | **M7** | 请求级超时 env 外科单注(r3 查证定版) | entrypoint 行24-35 | **r3 改**: `DEFAULT_REQUEST_TIMEOUT_MS` 经官方 Environment wiki §15 查证确认不在变量表内(env-doc-sync CI 失败即缺席)→ 删除该 env; 改外科单注 `STREAM_READINESS_TIMEOUT_MS=180000`(默 80000=80s 首非 ping SSE 事件时限 = 长思考首 token 静默真杀手, 122s 级思考正对此刀, 抬至 180s 不动其他预算). `REQUEST_TIMEOUT_MS` 是全局快捷键(同覆 FETCH_TIMEOUT_MS 600s + STREAM_IDLE_TIMEOUT_MS 600s, 注会降额=双面刃, 本场景无降额需求故不注). **gate.js 零 diff**(GATE_UPSTREAM_TIMEOUT_MS=30000 Node socket 不活跃超时, 解冻后走 env 调, 列 K3 题5). |
 
 ---
 
 ## 附录 C — 验收标准(启动日志七行核验表)
 
-**9 key 预期** (Supreme 验收签名):
+**9 key 预期** (Zen 验收签名):
 
 | # | 日志签名 | 预期值 |
 |---|---|---|

@@ -1,5 +1,5 @@
 """omn-redact · 单一脱敏引擎 lib
-圣上令 2026-07-28: 脱敏公式变量化, 单 ENV 管道分隔多正则 + 硬默认六条 ENV 空跑默认设则覆盖.
+Zen令 2026-07-28: 脱敏公式变量化, 单 ENV 管道分隔多正则 + 硬默认六条 ENV 空跑默认设则覆盖.
 复用现役 init-nim-keys.sh:975-981 sed 五正则真逻辑迁移 python re + secret-scan PSK 头类.
 
 消费链:
@@ -39,10 +39,10 @@ def load_patterns():
         return _patterns_cache
     env = os.environ.get("REDACT_PATTERNS", "").strip()
     if env:
-        # 管道分隔; 正则内若需 | 须 \| 转义 (圣上配置时明示)
+        # 管道分隔; 正则内若需 | 须 \| 转义 (Zen配置时明示)
         pats = [p for p in env.split("|") if p.strip()]
     else:
-        pats = list(DEFAULT_PATTERNS)  # 圣上决策 ENV 空跑默认六条
+        pats = list(DEFAULT_PATTERNS)  # Zen决策 ENV 空跑默认六条
     _patterns_cache = [re.compile(p) for p in pats]
     return _patterns_cache
 

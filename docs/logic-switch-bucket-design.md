@@ -1,8 +1,8 @@
 # 逻辑层换源 Bucket — 完整设计文档 (nonoke/omn-logic → xnexus/logic)
 
-> 圣上 2026-08-24 令"换 Bucket 深挖"，**2026-08-25 批走 (B) 换 Bucket 源**。
+> Zen 2026-08-24 令"换 Bucket 深挖"，**2026-08-25 批走 (B) 换 Bucket 源**。
 > 背景: nonoke HF 账号 ToS 违规锁 → boot 拉 nonoke/omni-logic Dataset 403 FATAL。
-> 状态: **✅ 已批准实施**（破 §1 三件定态已获圣上显令）。实施顺序见 §七。
+> 状态: **✅ 已批准实施**（破 §1 三件定态已获Zen显令）。实施顺序见 §七。
 
 ---
 
@@ -11,7 +11,7 @@
 nonoke 账号锁 → `hf download nonoke/omni-logic` 403 → boot FATAL（start.sh L105）。
 逻辑层八件源失效。需换源：非oke 锁后, 从 nonoke 挪到 xnexus。
 
-**关键认知（本会话圣上点破）**: 四件武器（版控/PR/血缘/K3 commit_id 锁/git show 历史）**全绑私库 n-omn, 不绑 Dataset**。换源不丢四件。唯一真成本 = 丢 Dataset 白送的 `--revision` atomic 快照锁。
+**关键认知（本会话Zen点破）**: 四件武器（版控/PR/血缘/K3 commit_id 锁/git show 历史）**全绑私库 n-omn, 不绑 Dataset**。换源不丢四件。唯一真成本 = 丢 Dataset 白送的 `--revision` atomic 快照锁。
 
 ## 二、现役链路（已核实 start.sh L50-110 + sync-logic-nonoke.yml）
 
@@ -81,7 +81,7 @@ Bucket 非版本化、无 commit_id/revision → **无 atomic 快照**。若也�
 
 | 代价 | 等级 | 说明 |
 |------|------|------|
-| **改 start.sh §3** | **高（破 §1 三件定态铁律）** | 须圣上显令批准; start.sh 是 Dockerfile/README/start.sh 三件之一 |
+| **改 start.sh §3** | **高（破 §1 三件定态铁律）** | 须Zen显令批准; start.sh 是 Dockerfile/README/start.sh 三件之一 |
 | **改 sync CI** | 中 | 上传逻辑 + manifest + readback 重写 |
 | **建 xnexus/logic Bucket** | 手动 | 须 xnexus 账号 UI 或 `hf buckets create` |
 | **丢 HF atomic 快照** | 已补 | manifest 钉回, 但多一套自研机制要维护 |
@@ -90,14 +90,14 @@ Bucket 非版本化、无 commit_id/revision → **无 atomic 快照**。若也�
 
 ## 七、执行序（已批准 2026-08-25, 代码侧已落）
 
-1. 建 xnexus/logic Bucket（圣上, UI 或 `hf buckets create`）⏳ 阻塞
+1. 建 xnexus/logic Bucket（Zen, UI 或 `hf buckets create`）⏳ 阻塞
 2. ✅ 改 sync-logic CI（新建 sync-logic-xnexus.yml: 上传→bucket + manifest + readback）
 3. ✅ 改 start.sh §3（S3 拉 + manifest 校验 + 另拉 flaretunnel_endpoints.json）
 4. ✅ 改 deploy-ft-workers.yml publish-endpoints（FT 端点推 xnexus/logic Bucket）
 5. ⏳ 首次手动推 8 件 + manifest 到 xnexus/logic（须 xnexus HF_TOKEN）
 6. ⏳ 验证: 本地 mock 测 manifest 校验五态(已过) + boot 真验(须 xnexus Space 在线)
 7. SSOT 文档落（HANDOFF 待办 + DECISIONS 加段）
-8. 圣上批准 commit → push → 切 xnexus/o Space
+8. Zen批准 commit → push → 切 xnexus/o Space
 
 > 代码侧 2/3/4 已落本会话. 阻塞项 1/5/6 全在 xnexus 写凭据 + xnexus/o 在线确认.
 
@@ -105,7 +105,7 @@ Bucket 非版本化、无 commit_id/revision → **无 atomic 快照**。若也�
 
 - §1 拓扑: nonoke/omn 仍是唯一 Space; xnexus/logic 是**新 Bucket 源（非 Space）** — **不新建 Space** ✅
 - §2 秘钥: xnexus HF_TOKEN 值零入会话/git/文档
-- §5 git: add/commit/push 一律 ask 圣上
+- §5 git: add/commit/push 一律 ask Zen
 - start.sh 改动最小化: 只改 §3 拉取段, 不碰 boot 其余
 
 ## 九、备选轻路（对比）

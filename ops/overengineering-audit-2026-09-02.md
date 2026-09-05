@@ -59,7 +59,7 @@ boot 实证: clear_stale: 无陈旧错态（空转）
 
 **③ deploy-ft-workers.yml（661 行）+ 9 PRESET 场景（已精简 → 7 场景 + 变量兜底）**
 - 为 30 worker egress 池；但历史裁决（`ft-worker-count-vs-keys-decoupled.md`）铁证 **8~16 worker 最优，32 浪费**，现 30 已超最优上沿
-- PRESET 矩阵（gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg）多为一次性建池操作，日常只用 daily + secrets（**2026-09-04 圣上裁折中: 已删 3 一次性 gen/first/publish, 保留 7 场景含防封应急 delete/solo/reorg, gen/first/publish 改经 Variables 兜底**）
+- PRESET 矩阵（gen/first/daily/publish/solo:N/secrets/delete:1/delete:v/delete:o/reorg）多为一次性建池操作，日常只用 daily + secrets（**2026-09-04 Zen裁折中: 已删 3 一次性 gen/first/publish, 保留 7 场景含防封应急 delete/solo/reorg, gen/first/publish 改经 Variables 兜底**）
 
 **④ FT 桥绑族短名盲区（新增证据 2026-09-02 15:26 boot）**
 ```
@@ -69,21 +69,21 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 - 机制：`resolveProxyForConnection` 取连接 `provider` 名查 registry scope（settings.ts L546）；`normalizeAssignmentScopeId` 对 provider scope **原样透传**（mappers.ts L164）
 - 根因：**绑族在 `_register_multi_provider` 之前**（init L494 vs L1340），node 模式 provider 的 UUID 节点还没建/查 → 只能绑字面短名 `amd`，库中无此 provider 名 → 落空直连
 - 后果：`updated=6` 中 1 个是**绑给不存在名字的空 assignment**（对 amd 无效冗余绑定）；amd 5 key 共享 HF 容器单出口 IP（多 key 直连同 IP 触风控 = 封号风险）
-- 圣上令 2026-09-03：**按 A 方向修复——amd 多 key 必须走 FT 桥**（node 注册后补绑 UUID 到 FT proxy，commit b67a91f 已落地+push）
+- Zen令 2026-09-03：**按 A 方向修复——amd 多 key 必须走 FT 桥**（node 注册后补绑 UUID 到 FT proxy，commit b67a91f 已落地+push）
   - 落实：`_register_multi_provider` node 段建/复用节点后补绑 `_nid`(UUID)→`_FT_PROXY_ID`；上游 `assignProxyToScope` #6365 覆盖语义无冲突。boot 判据=日志见 `amd: node <UUID> 补绑 FT 桥 ✓`
 
 ### ⚠️ 状态不明（需定夺，非纯过度设计）
-**⑤ FT_HEALTH_COOLDOWN**：代码 L251-253 已落、boot 显示 `rotation_mode:round-robin, blacklist_patterns:0`；docs 声称"已落码启用" vs HANDOFF/DECISIONS 说"待圣上定...真启用" —— **两处矛盾，需定一面**
+**⑤ FT_HEALTH_COOLDOWN**：代码 L251-253 已落、boot 显示 `rotation_mode:round-robin, blacklist_patterns:0`；docs 声称"已落码启用" vs HANDOFF/DECISIONS 说"待Zen定...真启用" —— **两处矛盾，需定一面**
 
 ### 🟢 查证后确认为合理（不砍）
 - Pages 反代 + 私有化：私有 Space 必带 token 入站，反代唯一持有 token 侧，刚需
 - cron-job 探活：走反代 = 探用户真实路径，免费档够用
 - litestream→R2：48h 休眠冷启丢盘唯一解
 - NIM 32-key pool：真实生产流量承载，非过度
-- 日志归档到 Dataset：HF 免费层 30min 日志丢 + 私库 100GB 硬限，双痛点都真 —— 注意：归档指 save/ 抓取推送（保留）；**7天窗 tar.gz 推新私库那层已于 2026-09-04 圣上裁案 A 激进停用**（见下 🚨 处置补充）
+- 日志归档到 Dataset：HF 免费层 30min 日志丢 + 私库 100GB 硬限，双痛点都真 —— 注意：归档指 save/ 抓取推送（保留）；**7天窗 tar.gz 推新私库那层已于 2026-09-04 Zen裁案 A 激进停用**（见下 🚨 处置补充）
 
 ### 🚨 真实问题（不是过度设计，是待修 bug）
-- **SQLITE_CORRUPT `database disk image is malformed`**：boot **多次复发**（09-02 14:30 + 15:26 两轮均现：`resolveConversationId failed, continuing without conversation tracking` + `[ProxyHealth] Egress summary skipped` + `Cleanup Error: no such table: compression_run_telemetry`）—— **⚠ 2026-09-05 boot 实证更正**：`compression_run_telemetry` 缺表 = **上游幽灵表 bug**（`compressionRunTelemetry.ts:31` 的 `CREATE TABLE IF NOT EXISTS` 仅写入时执行，`cleanup.ts:386` 无条件 `DELETE FROM` 盲删不确保建表；压缩 disabled 时每启必报，try/catch 吞成 errors=1，非损坏、非致命），**应从损坏证据中剔除**；而真损坏信号 `resolveConversationId failed` 与 `Egress summary skipped` **本次已消失** → "持续性损坏"定性大幅弱化，仅存的损坏证据已由 e7b16b3 quick_check + 丢弃强制 restore 消除。**2026-09-04 圣上裁案 A（治标最轻：可见性 + 调低周期）已落码**——`omn_scheduler.py` 加 `_db_health_loop` 探针（周期 GET `/api/db/health`→issues 打日志持久，`OMNIROUTE_API_KEY` 空则 skip）；探针让复发可见，为治本提供观测依据。见交接块下一步
+- **SQLITE_CORRUPT `database disk image is malformed`**：boot **多次复发**（09-02 14:30 + 15:26 两轮均现：`resolveConversationId failed, continuing without conversation tracking` + `[ProxyHealth] Egress summary skipped` + `Cleanup Error: no such table: compression_run_telemetry`）—— **⚠ 2026-09-05 boot 实证更正**：`compression_run_telemetry` 缺表 = **上游幽灵表 bug**（`compressionRunTelemetry.ts:31` 的 `CREATE TABLE IF NOT EXISTS` 仅写入时执行，`cleanup.ts:386` 无条件 `DELETE FROM` 盲删不确保建表；压缩 disabled 时每启必报，try/catch 吞成 errors=1，非损坏、非致命），**应从损坏证据中剔除**；而真损坏信号 `resolveConversationId failed` 与 `Egress summary skipped` **本次已消失** → "持续性损坏"定性大幅弱化，仅存的损坏证据已由 e7b16b3 quick_check + 丢弃强制 restore 消除。**2026-09-04 Zen裁案 A（治标最轻：可见性 + 调低周期）已落码**——`omn_scheduler.py` 加 `_db_health_loop` 探针（周期 GET `/api/db/health`→issues 打日志持久，`OMNIROUTE_API_KEY` 空则 skip）；探针让复发可见，为治本提供观测依据。见交接块下一步
 - **dp4f-pool 失败链**：`nvidia/deepseek-v4-flash-0731 超时 → 529 Service temporarily overloaded → Model-only lockout → FALLBACK(另一 nvidia key) → 200` —— 主路上游过载，已能同 provider 内 key fallback 自愈（15:29:51 最终 200，36s），备路可靠性 OK；529 为 nvidia 上游过载而非代码缺陷
 
 ---
@@ -92,13 +92,13 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 
 | # | 动作 | 优先级 |
 |---|---|---|
-| 1 | ~~死 provider 轨（openrouter/mistral/gemini）摘除或标记 disabled~~：**圣上裁"标记 disabled 保留代码"** — 加 `DISABLED_PROVIDERS` 数组（两处禁入：ALL_FT_FAMILIES 绑族 + _register_multi_provider 注册段），删名即复活 | **✅ 已实施（mock 全绿, boot 待验）** |
-| 2 | ~~amd 补绑 FT 桥（A 方向，圣上令 2026-09-03）~~：node 注册后把真实 UUID 绑进 FT proxy，多 key 走桥轮换出口 IP | **✅ 已完成 b67a91f（boot 待验）** |
+| 1 | ~~死 provider 轨（openrouter/mistral/gemini）摘除或标记 disabled~~：**Zen裁"标记 disabled 保留代码"** — 加 `DISABLED_PROVIDERS` 数组（两处禁入：ALL_FT_FAMILIES 绑族 + _register_multi_provider 注册段），删名即复活 | **✅ 已实施（mock 全绿, boot 待验）** |
+| 2 | ~~amd 补绑 FT 桥（A 方向，Zen令 2026-09-03）~~：node 注册后把真实 UUID 绑进 FT proxy，多 key 走桥轮换出口 IP | **✅ 已完成 b67a91f（boot 待验）** |
 | 2b | ~~SQLITE_CORRUPT 排查~~：e7b16b3 quick_check 落地（本地非空也验损，坏则丢弃强制 restore），堵复发；20:56 boot 实证 `quick_check ok` | **✅ 已闭环（DECISIONS §13）** |
 | 2c | ~~amd 403 根因~~：**§13 推翻更正 — 真根 = FT Worker 白名单缺 `developer.amd.com.cn`（b67a91f 补绑 FT 桥后推理过桥被 Worker 拒 403 host not allowed），非账户级死 key**。修复 3cb5c39 已 commit，生效须 `deploy-ft-*` tag 重部署 Worker + 重启 Space | **✅ 已修（DECISIONS 2026-09-04 追加更正，boot 待验）** |
 | 3 | `FT_HEALTH_COOLDOWN` 状态定一面（启用 or 移除），消文档矛盾 | 中 |
-| 4 | ~~deploy-ft-workers.yml 精简 PRESET，保留 daily/secrets~~：**✅ 已实施（2026-09-04, 圣上裁折中: 删 gen/first/publish 3 一次性, 保留 7 场景含防封应急, gen/first/publish 经变量兜底）** | ~~低~~ ✅ |
-| 5 | sensenova 内置化方案（plan 已备好）执行 | 待圣上令 |
+| 4 | ~~deploy-ft-workers.yml 精简 PRESET，保留 daily/secrets~~：**✅ 已实施（2026-09-04, Zen裁折中: 删 gen/first/publish 3 一次性, 保留 7 场景含防封应急, gen/first/publish 经变量兜底）** | ~~低~~ ✅ |
+| 5 | sensenova 内置化方案（plan 已备好）执行 | 待Zen令 |
 | 6 | ~~备份处置 案 A：归档激进停用（`OMN_LOG_ARCHIVE` 默认 0）~~ | **✅ 已落码（DECISIONS §16①，omn_scheduler.py L54，函数保留可回滚；push 待批）** |
 | 7 | ~~SQLITE_CORRUPT 案 A：治标可见性（`/api/db/health` 探针 + 调低周期）~~ | **✅ 已落码（DECISIONS §16②，omn_scheduler.py `_db_health_loop`；Space 须配 `OMNIROUTE_API_KEY` + 可选调低 `OMNIROUTE_DB_HEALTHCHECK_INTERVAL_MS`）** |
 
@@ -107,7 +107,7 @@ egress: amd-node 全 Direct / sensenova 全 127.0.0.1:8080
 ## 交接块
 
 - **完成**：n-omn 现状汇总 + 过度设计查证（实锤 4 项 / 状态不明 1 项 / 合理保留 5 项 / 真问题 2 项）+ **2026-09-04 双 A 裁定落码**
-- **锁定决策 (2026-09-04)**：备份处置 A = 归档激进停用（`OMN_LOG_ARCHIVE` 默认 0，DECISIONS §16①）+ SQLITE_CORRUPT A = 治标可见性探针（DECISIONS §16②）—— 均落码 `omn_scheduler.py`，函数保留可回滚，push 待圣上批
+- **锁定决策 (2026-09-04)**：备份处置 A = 归档激进停用（`OMN_LOG_ARCHIVE` 默认 0，DECISIONS §16①）+ SQLITE_CORRUPT A = 治标可见性探针（DECISIONS §16②）—— 均落码 `omn_scheduler.py`，函数保留可回滚，push 待Zen批
 - **文件变更**：本文件新建；补 ④FT scope 短名盲区 + SQLITE_CORRUPT 复发强化 + 建议表 2/2b/6/7 + DECISIONS §16 追加
 - **未决**：见「三、下一步建议」表 5/6/7 生效前提项
-- **下一步**：~~amd 补绑 FT 桥改码（A 方向已批）~~✅ → ~~SQLITE_CORRUPT 排查~~✅ → ~~死 provider 轨摘除~~✅(disabled 可逆) → ~~FT_HEALTH_COOLDOWN 定一面~~✅(圣上裁启用 env=30, DECISIONS §14) → ~~PRESET 精简~~✅(删 3 一次性, DECISIONS §15) → **~~备份处置 A~~✅ + **~~SQLITE_CORRUPT 案 A~~✅ (均落码, DECISIONS §16; push 待批, 生效须圣上侧配 `OMNIROUTE_API_KEY` + 可选调低 interval)**
+- **下一步**：~~amd 补绑 FT 桥改码（A 方向已批）~~✅ → ~~SQLITE_CORRUPT 排查~~✅ → ~~死 provider 轨摘除~~✅(disabled 可逆) → ~~FT_HEALTH_COOLDOWN 定一面~~✅(Zen裁启用 env=30, DECISIONS §14) → ~~PRESET 精简~~✅(删 3 一次性, DECISIONS §15) → **~~备份处置 A~~✅ + **~~SQLITE_CORRUPT 案 A~~✅ (均落码, DECISIONS §16; push 待批, 生效须Zen侧配 `OMNIROUTE_API_KEY` + 可选调低 interval)**

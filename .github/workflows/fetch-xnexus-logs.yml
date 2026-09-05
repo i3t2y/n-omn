@@ -1,5 +1,5 @@
 # Fetch HF Space logs → n-omn evidence 分支 (xnexus 唯一 Space)
-# 圣上 2026-07-25 令: 抓取 Space 日志用 GitHub Actions, 直接放私库。
+# Zen 2026-07-25 令: 抓取 Space 日志用 GitHub Actions, 直接放私库。
 # 2026-08-25 xnexus 化: fetch-xnexus-logs.yml (xnexus/o 唯一 Space)。
 #   xnexus/o = 唯一 Space (§1), 抓 xnexus/o Space 日志 → n-omn evidence 分支。
 #   token = HF_TOKEN (xnexus 账号, 已设定)。
@@ -8,9 +8,9 @@
 # 下游: claude-code-action 异步解读层未来从此 evidence 分支消费。
 # 出处: SEE DECISIONS.md "HF Space 日志抓取通道" 条 (2026-07-25) + "workflow 六件命名规约" 条 (2026-07-26)。
 #
-# 快照语义 (2026-07-26 字节解剖修正, 02:00Z cg52 + 圣上双窗口实证):
+# 快照语义 (2026-07-26 字节解剖修正, 02:00Z cg52 + Zen双窗口实证):
 #   连接建立瞬间, HF 倾吐容器自启动以来全部积压历史 (boot 至今全量叙事),
-#   随后转实时细流 — Space 空闲期细流近乎零。圣上两窗实证:
+#   随后转实时细流 — Space 空闲期细流近乎零。Zen两窗实证:
 #   10s 窗收 142237 字节, 60s 窗收 142251 字节 (多烧 50s 仅添 14B = 流非慢,
 #   端点行为指纹). 故每次抓取 = "全量历史积压 + 60s 实时窗" 而非 "60s 切片",
 #   单次抓取即覆盖完整 boot 叙事, cron 每 30min 频率绰绰有余, 反增证据价值.
@@ -180,7 +180,7 @@ jobs:
             echo "pushed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 首跑验证回显 (圣上手动 dispatch 时判)
+      - name: 首跑验证回显 (Zen手动 dispatch 时判)
         if: always()
         run: |
           echo "=== 验收三点回显 ==="

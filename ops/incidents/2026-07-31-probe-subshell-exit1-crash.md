@@ -14,7 +14,7 @@
 杀主进程 init → container `exit 1`, 日志断在 probe 起 `probe_nim_keys_real:` 行后
 无收判行无 `Done` 无 `rc=0`。
 
-诊断弯路: 首推 "HF Space supervisor 健康 probe 静默期杀 container" (外因臆测), 圣上
+诊断弯路: 首推 "HF Space supervisor 健康 probe 静默期杀 container" (外因臆测), Zen
 驳回 "不是被杀就是代码有问题" → 退回查源坐实真根 = 代码 bug 非 HF 外杀。
 
 治本 (commit `ef16b46`): L675 末补 `|| true` 兜子 shell 恒 exit 0。`_pverbose=0` test
@@ -35,11 +35,11 @@ fail → `|| true` 强制 exit 0; `_pverbose=1` printf 写满 exit 0 覆盖 `|| 
 - 2026-07-31 05:25 boot: 同崩 exit 1, 同断点。
 - 诊断轮 1: 我首推 "HF Space supervisor 健康 probe 静默期杀 container" (外因臆测)。
   推治法 = X4 ENV `NIM_PROBE_ENABLED=0` 整跳 probe 绕过 (= 我说 ENV 绕非真治)。
-- 圣上驳回 "不是被杀就是代码有问题" → 退回查源。
+- Zen驳回 "不是被杀就是代码有问题" → 退回查源。
 - 诊断轮 2 (本地复现): 剥离出子 shell + `wait` + `set -e` 最小复现, `bash -c 'set -eo pipefail; _pverbose=0; p(){ [ "$_pverbose" = "1" ] && echo x; }; (p)& w=$!; wait $w; echo OK'` → **EXIT 1, 无 "OK"**。精确复现 05:24/05:25 崩。真根坐实 = `[ "0" = "1" ]` test exit1 → 子 shell 退出码 1 → 裸 `wait` 收 1 → `set -e` 杀。
-- 2026-07-31 05:47 boot (圣上配 X4 ENV `NIM_PROBE_ENABLED=0`): 跳 probe, 16 秒透 rc=0
+- 2026-07-31 05:47 boot (Zen配 X4 ENV `NIM_PROBE_ENABLED=0`): 跳 probe, 16 秒透 rc=0
   (ENV 绕治标, 未触子 shell 故未崩, 但非真根根除)。
-- 2026-07-31 06:14 boot (commit `ef16b46` 修后, 圣上配回 `NIM_PROBE_ENABLED=1` 真路):
+- 2026-07-31 06:14 boot (commit `ef16b46` 修后, Zen配回 `NIM_PROBE_ENABLED=1` 真路):
   probe 7 key 全 HTTP 200 → alive, `Done (first-init). v4.3.2` + `NIM init 已退出 rc=0`
   06:15:31。~78 秒全程 (probe ~40 秒 3 批并发3)。**真根根除铁证**。
 
@@ -105,7 +105,7 @@ L675 末补 `|| true` (commit `ef16b46`, `dev/logic/init-nim-keys.sh` +4/-1):
 - 隔离测非 verbose 模 rc 0 透 (旧复现 exit 1 现修)
 - 隔离测 verbose 模 rc 0 + sed 真脱敏 `<REDACTED>` 仍写 (功能不损)
 
-boot 真验 (06:14, commit `ef16b46` push `e935ec2..ef16b46` 后圣上配 `NIM_PROBE_ENABLED=1`
+boot 真验 (06:14, commit `ef16b46` push `e935ec2..ef16b46` 后Zen配 `NIM_PROBE_ENABLED=1`
 Restart): probe 7 key 全 HTTP 200 → alive + 汇总 + Done rc=0 + 全 boot 78 秒。真根根除。
 
 ## 三轮 boot 对照定谳
@@ -127,14 +127,14 @@ Restart): probe 7 key 全 HTTP 200 → alive + 汇总 + Done rc=0 + 全 boot 78 
 02:50 boot verbose 模 (`NIM_PROBE_VERBOSE=1`) `curl -s -v ... 2>&1` 明文回显 7 个 nvapi key
 进 `init_20260731_025003.log` → 推 HF Dataset `nonoke/omn-logic` 公开存储 = 极敏感泄露。
 commit `e935ec2` 已修代码 (sed `gi` 脱明文 → `<REDACTED>`), 02:50 VERBOSE 段铁证全
-`<REDACTED>`。但**历史已推 Dataset 的 init log 含明文**须圣上判清理:
+`<REDACTED>`。但**历史已推 Dataset 的 init log 含明文**须Zen判清理:
 
-- 待办 (圣上裁决, 仅记位置零值入档):
+- 待办 (Zen裁决, 仅记位置零值入档):
   - HF Space `NIM_PROBE_VERBOSE` ENV 若仍开则关 (防未来 verbose 段再产明文, 关后
     verbose 段整不产 — 治标)
   - Dataset `nonoke/omn-logic` 历史 `init_*.log` / `debug_*.log` 含明文 key 件 (02:50
-    verbose boot 期) 圣上判删 / 重写剥明文版重推 (历史泄露清理)
-  - 圣上贴回本会话的 02:50 boot 文本含 7 明文 nvapi key (圣上持有的真凭) — 圣上侧
+    verbose boot 期) Zen判删 / 重写剥明文版重推 (历史泄露清理)
+  - Zen贴回本会话的 02:50 boot 文本含 7 明文 nvapi key (Zen持有的真凭) — Zen侧
     善后, 我侧只记位置不存值 (§2 红线)
 - 责任与本轮代码改无关: `e935ec2` 脱敏治本已落, 本挂账仅清历史已泄露存量。
 
@@ -144,11 +144,11 @@ commit `e935ec2` 已修代码 (sed `gi` 脱明文 → `<REDACTED>`), 02:50 VERBO
 - [x] 06:14 boot `NIM_PROBE_ENABLED=1` 真路验真根根除 (rc=0 + 40 秒)
 - [x] 记忆 [[probe-x2x4-slow-start-landed]] 补真根 + 三轮对照表 + 臆测证伪教训
 - [ ] SSOT (STATUS/HANDOFF/DECISIONS) 补本会话三真根 (本档同批)
-- [ ] §2 历史泄露清理 (圣上侧, 见上挂账段)
+- [ ] §2 历史泄露清理 (Zen侧, 见上挂账段)
 
 ## 经验教训
 
-1. **排障先穷尽代码 bug 再归外因**: 本轮首推 "HF supervisor 杀" 外因臆测被圣上驳回,
+1. **排障先穷尽代码 bug 再归外因**: 本轮首推 "HF supervisor 杀" 外因臆测被Zen驳回,
    退回查源方坐实代码 exit1 地雷。崩点日志断在静默期天然无 traceback ≠ 外力 kill,
    应先验代码退出码传播链 (子 shell + `wait` + `set -e` 三元组)。
 2. **`set -e` + 子 shell + `wait` 三元组是地雷**: `wait "$pid"` 返子 shell 退出码,

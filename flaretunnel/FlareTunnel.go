@@ -199,7 +199,7 @@ type Worker struct {
 }
 
 // WorkerStat 是单 Worker 的实时体检计数 (路3: 体检表下沉桥自报, 永续累加真流量成败).
-// 圣上 2026-07-31 旨: init 一次性探活快照哲学无效 (代理出口IP动态瞬时), 改桥运行时 self-report real-time.
+// Zen 2026-07-31 旨: init 一次性探活快照哲学无效 (代理出口IP动态瞬时), 改桥运行时 self-report real-time.
 type WorkerStat struct {
 	Name      string `json:"name"`
 	URL       string `json:"url"`
@@ -1262,7 +1262,7 @@ type ProxyServer struct {
 	UpstreamVerifySSL    bool
 	CacheCerts           bool
 	NoSSLIntercept       bool
-	// 圣上 2026-07-30 双核: ProxyServer 上 EndpointsFile 非必建 (LoadWorkers 已参数化, 见 main() 局部变量传参);
+	// Zen 2026-07-30 双核: ProxyServer 上 EndpointsFile 非必建 (LoadWorkers 已参数化, 见 main() 局部变量传参);
 	// 真必建仅两字段:
 	RelayAuth            string // 必建: 注入 Worker 的鉴权头 (透传 X-Relay-Auth 给 Bridge → Worker, 堵裸奔开放代理洞)
 	CADir                string // 必建: CA 证书目录 (/tmp/ft-ca, 每 boot 自签重生; Start() 用它拼 CACertPath/CAKeyPath)
@@ -1737,7 +1737,7 @@ func (ps *ProxyServer) HandleCONNECT(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleHealthz 返桥实时体检 JSON (路3): Worker 总数/round-robin 游标/RotationMode/黑名单 pattern 数/per-Worker 计数.
-// 不含 RELAY_AUTH/endpoints token (仅 Worker.URL 含 workers.dev 域名非 key; 圣上 §2 secret 红线).
+// 不含 RELAY_AUTH/endpoints token (仅 Worker.URL 含 workers.dev 域名非 key; Zen §2 secret 红线).
 func (ps *ProxyServer) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 	ps.mutex.Lock()
 	workers := len(ps.Workers)

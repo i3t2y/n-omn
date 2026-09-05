@@ -1,13 +1,13 @@
 # 2026-08-01 · save/*.log 全量分析报告
 
-**圣上令**: 2026-08-01 "把之前 save 目录下的 *.log 都拉下来分析一下" + "拉完全删了"。
+**Zen令**: 2026-08-01 "把之前 save 目录下的 *.log 都拉下来分析一下" + "拉完全删了"。
 
 **范围**: HF Dataset `nonoke/omn-logic` 私库 `save/` 路径下全部 `.log` 快照。
 
 **动作**:
 - 拉取 2289 件 `.log`(12.8MB) 至本地 `/tmp/omn-save-pull/save/`(`snapshot_download` + `max_workers=8`,69s 含缓存命中)
 - 远程 `save/*.log` 全删(`HfApi.delete_files` glob 一次批删,commit `f60b8bd6`),留 6 件 `.json` 快照不动
-- 本地 2289 件留 `/tmp/omn-save-pull/` 供分析(分析完是否删待圣上令)
+- 本地 2289 件留 `/tmp/omn-save-pull/` 供分析(分析完是否删待Zen令)
 
 **四源时间跨**(文件名 epoch,UTC): **2026-07-30 17:07Z ~ 2026-08-01 09:02Z**(~40h,跨 2 个-boot 期)
 
@@ -66,7 +66,7 @@ PSK 正常铁证:业务 `/v1/chat/completions` 等路径全 200,仅 `/api/*` adm
 
 ### 1.4 治法
 
-**零代码改可消**:圣上开维护窗 `GATE_ADMIN_ENABLED='1'`(§6 门路)→ gate 本地拒 admin 路径不再透传上游,401/403 即消。
+**零代码改可消**:Zen开维护窗 `GATE_ADMIN_ENABLED='1'`(§6 门路)→ gate 本地拒 admin 路径不再透传上游,401/403 即消。
 
 注:`GATE_ADMIN_TOKEN` 机制已废于 `82d6559`(saga 回填期 "gate 单开关" 改造),现 `gate.js` 无 Token 认证,纯布尔开关。开窗即消,无须配 Token。
 
@@ -213,7 +213,7 @@ init 链全绿:32 key alive / Resilience RPM=300 concurrent=96 / init Done rc=0 
 | 源 | 现象 | 次数 | 真因 | 病? | 治法 |
 |---|---|---|---|---|---|
 | gate | 401/403 | 2083 | `GATE_ADMIN_ENABLED=0` + admin GET 路径透传 + OmniRoute admin API 自返(无 admin token) | ❌ 预期 | 开维护窗 `GATE_ADMIN_ENABLED='1'` 消,零代码改 |
-| app | "No credentials for nvidia" | 11 | boot race:init providers 凭据注册(POST /api/providers)未完窗口期,app 先 listen 收请求即崩 | ❌ 预期 | 改 entrypoint 启序(app 等 init Done 才能 listen)+ 命中重试。须圣上准改代码 |
+| app | "No credentials for nvidia" | 11 | boot race:init providers 凭据注册(POST /api/providers)未完窗口期,app 先 listen 收请求即崩 | ❌ 预期 | 改 entrypoint 启序(app 等 init Done 才能 listen)+ 命中重试。须Zen准改代码 |
 | ft | Worker fail | ≤2 | 16 池 round-robin 偶发 | ❌ 预期 | 无须治 |
 | init | 全绿 | — | 32 alive / rc=0 | ✅ | — |
 
@@ -221,11 +221,11 @@ init 链全绿:32 key alive / Resilience RPM=300 concurrent=96 / init Done rc=0 
 
 ---
 
-## 6. 待圣上定夺
+## 6. 待Zen定夺
 
-1. **gate 2083 次**:量大占日志空间但非病。欲消则开维护窗(零代码改)。不欲消则靠已落地的**日志归档机制**(omn_scheduler.py `_archive_loop`,commit `a80d335` push nomn)解空间占用——须圣上建新 HF 私库配 `OMN_LOG_ARCHIVE_REPO` + `OMN_LOG_ARCHIVE_TOKEN` 两 Secret + restart dev 才生效。
+1. **gate 2083 次**:量大占日志空间但非病。欲消则开维护窗(零代码改)。不欲消则靠已落地的**日志归档机制**(omn_scheduler.py `_archive_loop`,commit `a80d335` push nomn)解空间占用——须Zen建新 HF 私库配 `OMN_LOG_ARCHIVE_REPO` + `OMN_LOG_ARCHIVE_TOKEN` 两 Secret + restart dev 才生效。
 2. **app boot race 11 次**:非病但影响 boot 后 ~60-160s 窗口内请求。欲根治须准改 `entrypoint.sh` 启序(app 等 init Done 才能 listen),本轮未准改代码。
-3. **本地 2289 拉件**(`/tmp/omn-save-pull/` 12.8MB):分析已完,删否待圣上令。
+3. **本地 2289 拉件**(`/tmp/omn-save-pull/` 12.8MB):分析已完,删否待Zen令。
 
 ---
 
@@ -239,7 +239,7 @@ init 链全绿:32 key alive / Resilience RPM=300 concurrent=96 / init Done rc=0 
 
 ---
 
-## 8. 齐全性评估(2026-08-01 圣上令补)
+## 8. 齐全性评估(2026-08-01 Zen令补)
 
 ### 现拉件五类(2289件)
 - 四源 gate/ft/app/init + **debug 16件**(init verbose 超集,`NIM_MODE=DEBUG` 时产,含 probe 全程+curl 细节+HTTP 000/403 fail-open 路径 → 印证 init 全绿)。**第一轮分析漏看 debug**,已补 — debug 件印证 probe fail-open 链(HTTP 000→重试 30s 宽超时 / 403→AUTH_DEAD 跳注册)。
@@ -256,7 +256,7 @@ init 链全绿:32 key alive / Resilience RPM=300 concurrent=96 / init Done rc=0 
 - `litestream replicate -config ... & LS_PID=$!` 无 stderr 重定向 → 同进 PID1 stdout(与遗漏①一起丢)。restore `2>/tmp/ls_restore.err` 一闪即弃。
 - **影响**:R2 复制断代/compaction txid gap/proxy_breaker 等数据层故障判据全丢。
 
-### 补漏落地(2026-08-01 圣上准补,本地改完未 push)
+### 补漏落地(2026-08-01 Zen准补,本地改完未 push)
 
 **三改**:
 1. `entrypoint.sh` L17 后:加 `exec > >(tee -a "$_EP_LOG_RAW") 2>&1` 全段 boot 编排落 `${DATA_DIR}/omn-raw/entrypoint.log`,boot 前截断(:>) 免跨 boot 累计重复推。tee 双路(同时留 PID1 stdout 供 Space runtime logs 前置应急)。
@@ -272,7 +272,7 @@ init 链全绿:32 key alive / Resilience RPM=300 concurrent=96 / init Done rc=0 
 
 ---
 
-## 9. save 分类为何未生效(2026-08-01 圣上令查)
+## 9. save 分类为何未生效(2026-08-01 Zen令查)
 
 ### 现象
 - `omn_scheduler.py` 分类代码(commit `a80d335`,产 `save/<prefix>/<YYYYMMDD_HHMMSS>_<epoch>.log` 子目录)已 push nomn 私库 + CI `sync-logic-nonoke` #21 跑通同步至 Dataset(sha256 一致铁证:`aa4bd9d260...`)。
@@ -291,5 +291,5 @@ init 链全绿:32 key alive / Resilience RPM=300 concurrent=96 / init Done rc=0 
 **零代码改,单步 restart Space**。Dataset 新版已在,Space 重启即拉新 → 分类+北京时间命名+归档线+第6-7源补漏全生效(三改 pushS 后须 restart 一次同启)。
 
 ### 归档线同步注意
-归档 `_do_archive` L269 判 `len(parts)==4` = 子目录四段格式。旧平铺三段件归档解析不到 → 现役 67 旧平铺件**归档扫不到**。restart 后产子目录件归档才起。旧平铺件须圣上明令批量删(或留占空间至下次清)。
+归档 `_do_archive` L269 判 `len(parts)==4` = 子目录四段格式。旧平铺三段件归档解析不到 → 现役 67 旧平铺件**归档扫不到**。restart 后产子目录件归档才起。旧平铺件须Zen明令批量删(或留占空间至下次清)。
 

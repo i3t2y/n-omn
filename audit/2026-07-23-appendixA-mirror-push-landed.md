@@ -1,12 +1,12 @@
 # 附录 A 镜像覆写推送留证
 
-**日期**: 2026-07-23 ~02:15Z (Supreme 显式解除窗规, 绿灯推)
+**日期**: 2026-07-23 ~02:15Z (Zen 显式解除窗规, 绿灯推)
 **仓**: omn-merge/本地审计仓 → HF Dataset `nonoke/omn-logic` (永续 dev, bucket omn-data)
-**律**: §1 双空间铁律 — nomn/nog/hf/sp3t2y 四远端**全不 push**(nomn=生产禁触); 仅推非oke dev dataset; Space Restart Supreme 手动, 我不触 Space。
+**律**: §1 双空间铁律 — nomn/nog/hf/sp3t2y 四远端**全不 push**(nomn=生产禁触); 仅推非oke dev dataset; Space Restart Zen 手动, 我不触 Space。
 
 ## 窗规解除记录
-原铁句(02:03Z memory 落字): "03:16Z 前任何 HF/Dataset/Space 推送一律拒绝" — 三条件①窗满②K3 verdict 回填③Supreme 下令, 缺一不可。
-Supreme 新令: "推吧" + 选择"显式解除窗规绿灯推" — 条件①窗规解除覆盖原铁句, ②K3 verdict 未回填先推后补(Supreme 认可), ③显式令下到。三条件就此全覆盖。
+原铁句(02:03Z memory 落字): "03:16Z 前任何 HF/Dataset/Space 推送一律拒绝" — 三条件①窗满②K3 verdict 回填③Zen 下令, 缺一不可。
+Zen 新令: "推吧" + 选择"显式解除窗规绿灯推" — 条件①窗规解除覆盖原铁句, ②K3 verdict 未回填先推后补(Zen 认可), ③显式令下到。三条件就此全覆盖。
 
 ## 推送预案步骤与实际偏差
 
@@ -19,7 +19,7 @@ Supreme 新令: "推吧" + 选择"显式解除窗规绿灯推" — 条件①窗�
 
 ### Step2 预期偏差根因
 原预案(r4+ verdict 后阻断核验档): "推送时镜像覆写…预期变更仅 init/entrypoint 两件, gate/litestream/package.json 零 diff" — 基于 r4 改名批只动 init/entrypoint, + package.json 定性"远端已留不覆盖"。
-**实际远端**: gate.js `49942db3` / package.json `78288b02` 是**旧版非现役件**(r4 前更早期 Dataset 版), 与本地 `omn-logic/` 现役件 sha 异; litestream 零 diff 唯一符。Supreme 裁决选 4 件覆写(用本地现役件替代远端旧版)。
+**实际远端**: gate.js `49942db3` / package.json `78288b02` 是**旧版非现役件**(r4 前更早期 Dataset 版), 与本地 `omn-logic/` 现役件 sha 异; litestream 零 diff 唯一符。Zen 裁决选 4 件覆写(用本地现役件替代远端旧版)。
 
 ## 远端旧 sha 留证(推前, 不可复原)
 
@@ -42,15 +42,15 @@ Supreme 新令: "推吧" + 选择"显式解除窗规绿灯推" — 条件①窗�
 - package.json     `5ed9981bf8c39f4337fc0c0f0d002baa9d42c3230f363b4931a3a396a8a8416b`
 
 ## 本地仓 commit(未 push 任何 GitHub remote)
-- `5c546af` omn-merge: 0 号重排批(窗内纯本地, Supreme 四项拍板)
-- `57445d4` omn-merge: 0 号重排批尾注三项闭环(窗内, Supreme 第四步)
+- `5c546af` omn-merge: 0 号重排批(窗内纯本地, Zen 四项拍板)
+- `57445d4` omn-merge: 0 号重排批尾注三项闭环(窗内, Zen 第四步)
 
 **本地仓定名**: 审计仓, 无 origin GitHub remote; nomn/nog/hf/sp3t2y 四远端中 nomn=生产禁触, 不 push 任何。upstream/ gitlink mode 160000 裸锚已知(见 docs/README.md 尾注1)。
 
-## 停手点(交 Supreme)
-**Space Restart 由 Supreme 手动 — 我未触/不会触 Space**。远端 Dataset 根已就 r4 终态, 待 Space `bootstrap.sh` 拉 `$LOGIC_BUCKET_REPO` 触发后生效。
+## 停手点(交 Zen)
+**Space Restart 由 Zen 手动 — 我未触/不会触 Space**。远端 Dataset 根已就 r4 终态, 待 Space `bootstrap.sh` 拉 `$LOGIC_BUCKET_REPO` 触发后生效。
 
-## 剩余(交 Supreme)
+## 剩余(交 Zen)
 1. K3 verdict 十题回填(先推后补)
 2. E 项 Space Secrets: 设 `OMN_DATASET_REPO=nonoke/omn-logic` + 确认 `HF_TOKEN` 有值(否则 init 行 849 guard 静默踏空, 同旧根因)
-3. Space Restart(Supreme 手动)后判 nonoke-omn.hf.space 健康 + boot 签名读回
+3. Space Restart(Zen 手动)后判 nonoke-omn.hf.space 健康 + boot 签名读回

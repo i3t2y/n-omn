@@ -2,6 +2,20 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。§1 拓扑(2026-08-24/29 修订): 单 Space 单桶, xnexus/o = 唯一 Space 兼生产, R2 bucket = omn-data, 此处记生产态。旧 nomke/nonoke 两 Space 段历史存档不改不回。
 
+## 2026-09-05 · 503 chat_admission_busy 根因定位 (进程 V8 堆高位, 非宿主内存) — 观测待办已列
+
+Claude Code 客户端持续报 `API Error: 503 Chat admission capacity is temporarily unavailable` + `Retrying in 7s · attempt N/10`。源码定位 (upstream 3.8.50 `src/shared/middleware/chatBodyAdmission.ts`) 与 boot 日志 `reason=queue_timeout activeHeavy=1 waiting=0 queuedBytes=0 lane=key_<x-api-key 指纹>` 逐条对齐:
+
+- **触发链**: 请求判 heavy (body≥256KB ∨ messages≥200 ∨ tools≥64 ∨ est-tokens≥32K, L34/L74-85) → **进程级单重型槽** `CHAT_MAX_HEAVY_IN_FLIGHT=1` 默认 (L44-47, 我方未设该 env 走默认) → 槽被占时**仅当 V8 堆 `heapUsed/heap_size_limit ≥0.75`** (L100-103 `CHAT_ADMISSION_HEAP_SHED_RATIO`) 才走 `acquireHeavyWithin(2000ms)` → 超时 `recordShed("queue_timeout")` → `rejectionResponse(503)` L669 原文消息。heap 健康时第二条 heavy 走 `tryAcquireHealthyHeadroom` 立即放行, **不会 503**。
+- **定性**: 非宿主 Space 内存不够 (cpu-basic 16GB 富余), 准入闸只看 V8 堆不看宿主内存。**2026-09-05 boot 观测行 (Task#64) 重大更正** — 生产实测 `heap_size_limit=1120MB` (entrypoint 起 node 显示 `--max-old-space-size=1024`), **非**我前期本机移套的 4144MB: 本地验证 `--max-old-space-size=1024` → `heap_size_limit≈1072-1120MB`, `4096`/默认 → 4144MiB。故 **shed 阈值 ≈ 840MB (0.75×1120MB)**, 非 3.1GB。与 ADAPTIVE_ADMISSION_* (services/admission/, 默认 shadow 不拦) 是两套互不相干的机制, 勿混。
+- **1024 真源 (2026-09-05 追查)**: **非 Space env, 是上游 Dockerfile L227 `ENV NODE_OPTIONS="--max-old-space-size=${OMNIROUTE_MEMORY_MB}"`**, 基镜像构建时 `OMNIROUTE_MEMORY_MB=1024` 写死进镜像层 ENV → 注入进程环境后 entrypoint `:---=4096` 兜底因"变量已设非空"失效。Space 未设 NODE_OPTIONS 时**镜像 1024 照常生效**。
+- **反推翻 (2026-09-05 boot 实证)**: 空载堆 `pressure=0.007 (8MB/1120MB)` 极健康, **无滞留、无长期高位** → 前判"流式缓冲/对象滞留嫌疑"**不成立**, 弃。真根因 = **镜像层 `NODE_OPTIONS=1024` → 上限仅 ~1.1GB → 长推理流 (33-35s) 一进来堆冲过 840MB 即触 0.75 shed**。空载 8MB 与"几乎总是 503"完全自洽: 平时健康, 真推理时必 shed。
+- **处置定案 (更新)**: **B 治本** — **必须** Space Variables 设 `NODE_OPTIONS=--max-old-space-size=4096` (HF 用户变量覆盖镜像 ENV; **删除无效**, 镜像层会填回 1024; **勿带 --require**, entrypoint 自动追加会重复)。或治根=重建基镜像时改 build arg `OMNIROUTE_MEMORY_MB=4096` (重, 需 GHCR 重 build + pull)。上限回 ~4.1GB → 阈值回 ~3.1GB → 长流不触 (当年 #4 已证 4096 生产安全)。**A 提槽弃** — 1.1GB 上限下 3 路并发只会更易 OOM。
+
+**待办 (下一步)**:
+- [x] 加进程 V8 堆观测日志行 (entrypoint.sh, Task#64, commit ee8b6e3 + push) — **✅ 已落地**, 下轮 boot 见 `[heapwatch]` 行, 已立功: 暴露生产上限 1120MB 真根因
+- [x] **B 治本**: HF Space Variables 设 `NODE_OPTIONS=--max-old-space-size=4096` (覆盖上游 Dockerfile L227 镜像 ENV 的 1024) + Restart — **✅ 已闭环 (2026-09-05 06:47 boot 三证全绿)**: ① `entrypoint (heap --max-old-space-size=4096)` ② `[heapwatch] heap_size_limit=4192MB` ③ heavy 请求 (104/107/111 msgs × 43 tools) 全 `status:200`, 全程零 chat_admission/queue_timeout/activeHeavy. 压力峰值 0.112 vs 阈值 0.75 (余量 6.7×), 8MB↔340MB 周期 GC 回收干净→无滞留. 残留 429 全为上游 provider 自身限流 (sensenova tpm/amd concurrency), dp4f-pool fallback 自愈, 与 503 两层不同源
+
 ## 2026-09-02 · xnexus-o 私有化 + 反代注入 token + cron-job 探活 — 执行计划归档 (ops/private-space-proxy-plan.md)
 
 圣上令归档。方案 = xnexus-o 改私有 → 带 token 入站脱离匿名池 (官方 rate-limits 双档: Anonymous per-IP 500 vs Free user 1000/5min) → 反代 CF 侧持 HF token 出站注入 → cron-job.org 带 PSK 探反代。三重收益: 焊死 PSK 泄露直连绕过 + 甩开匿名池入站 429 + 探活走用户真实路径。

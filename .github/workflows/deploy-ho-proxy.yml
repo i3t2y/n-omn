@@ -49,5 +49,5 @@ jobs:
         with:
           apiToken: ${{ secrets.HO_CF_TOKEN }}
           accountId: ${{ secrets.HO_CF_ACCOUNT_ID }}
-          workingDirectory: workers/ho-proxy
+          workingDirectory: tools/ho-proxy
           command: ${{ inputs.command || 'deploy' }}

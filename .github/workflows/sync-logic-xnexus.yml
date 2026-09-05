@@ -14,7 +14,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'dev/logic/**'
+      - 'logic/**'
       - '.github/workflows/sync-logic-xnexus.yml'
   workflow_dispatch:
 
@@ -40,7 +40,7 @@ jobs:
         # 编译产物 flaretunnel/flaretunnel → 上传为 Bucket 平铺名 flaretunnel.
         # 节奏: 二进制是逻辑层资产 (entrypoint L217 注释), 迁 Bucket 后随 8 件一起同步.
         run: |
-          cd flaretunnel
+          cd tools/flaretunnel
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o flaretunnel FlareTunnel.go
           echo "built: $(ls -la flaretunnel | awk '{print $5, $9}') sha256=$(sha256sum flaretunnel | cut -d' ' -f1)"
           test -x flaretunnel
@@ -57,9 +57,9 @@ jobs:
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
                    "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
-          # flaretunnel 二进制源在 repo 根 flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余 8 件在 dev/logic/
+          # flaretunnel 二进制源在 tools/flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余 8 件在 logic/
           def src_path(f):
-              return "flaretunnel/flaretunnel" if f == "flaretunnel" else f"dev/logic/{f}"
+              return "tools/flaretunnel/flaretunnel" if f == "flaretunnel" else f"logic/{f}"
           # 1. 上传 8 件业务文件 + 读回算 sha256 (血缘: 校验 bucket 实际存的字节)
           # HF bucket 写后读最终一致, BlobNotFound 可能出现在上传阶段或读回阶段 → 整体重试
           from huggingface_hub import download_bucket_files

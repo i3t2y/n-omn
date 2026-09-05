@@ -1,8 +1,8 @@
 // ===== ho-proxy (Page 版): sonoke → xnexus gate 入站反代 · Cloudflare Pages =====
-// 🔴 部署必须 cd 进部署目录再跑 `wrangler pages deploy .`: wrangler 4.x 对"相对子路径"
-//   形式 (deploy pages/ho-proxy) 不自动发现 functions/ → "No Functions. Shimming..." 全站 404
-//    (本地三态实证: 相对|子路径→No Functions ❌, cd+`.`→Compiled Worker ✅, toml 有无不相关).
-//    名字走 --project-name ho-proxy-pages, INTERNAL_PSK/HF_TOKEN 经 GH Actions secret-put 注 CF env.
+// 🔴 部署必须 cd 进 pages/ 再跑 `wrangler pages deploy .` : wrangler 4.x 对"相对子路径"
+//   形式 (deploy pages) 不自动发现 → "No Functions. Shimming..." 全站 404
+//   (本地三态实证: 相对|子路径→No Functions ❌, cd+`.`→Compiled Worker ✅, toml 有无不相关).
+//   项目根 = pages/ (中间件平铺 _middleware.js, 无 functions/ 子目录; 名字走 --project-name ho-proxy-pages)
 // 文件名必须 _middleware.js (根级中间件, 拦截全路径含无路由的 404 路径):
 //   wrangler 4.128 还有个坑: functions/[[path]].js 的 [[path]] 当 glob 匹配空集 → 判空 → 404;
 //   _middleware.js 根级中间件缓冲全路径等价 catch-all, 直接 return Response 不调 next()。

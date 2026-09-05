@@ -21,9 +21,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Dockerfile'
-      - 'start.sh'
-      - 'README.md'          # 根 README 须保留 HF frontmatter (sdk: docker, app_port: 7860)
+      - 'space/Dockerfile'
+      - 'space/start.sh'
+      - 'space/README.md'          # 根 README 须保留 HF frontmatter (sdk: docker, app_port: 7860)
       - '.gitattributes'
       - '.github/workflows/sync-space-xnexus.yml'
   workflow_dispatch:
@@ -39,8 +39,8 @@ jobs:
         run: |
           mkdir -p /tmp/hf-sync
           # 白名单: 仅 HF Space 骨架四件, 零业务件泄漏 (三层解耦后业务件不进 Space git 仓)
-          for f in Dockerfile start.sh README.md .gitattributes; do
-            cp "$f" /tmp/hf-sync/
+          for f in space/Dockerfile space/start.sh space/README.md .gitattributes; do
+            cp "$f" "/tmp/hf-sync/$(basename $f)"
           done
           echo "---- files to sync to xnexus/o ----"
           ls -la /tmp/hf-sync

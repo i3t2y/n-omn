@@ -12,11 +12,11 @@ cat >> "$OUT" <<'APPA_EOF'
 ## 附录 A — events_write.sh（写入执行件, 不计入 7 正文, 供 K3 审 SQL 拼接安全性）
 
 > Zen 令: events_schema.sql 覆盖表契约; events_write.sh 逻辑薄但 SQL 拼接安全性可审, 故放附录.
-> 源: `patches/p0/events-table/events_write.sh` (零改).
+> 源: `tools/patches/p0/events-table/events_write.sh` (零改).
 
 ```bash
 APPA_EOF
-cat patches/p0/events-table/events_write.sh >> "$OUT"
+cat tools/patches/p0/events-table/events_write.sh >> "$OUT"
 cat >> "$OUT" <<'APPA_EOF'
 ```
 

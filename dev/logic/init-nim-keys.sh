@@ -117,6 +117,12 @@ declare -a PROVIDERS=(
 # 完整注册机制每 boot 都跑但交付零请求 = 纯噪音). 但 08-31/09-01 刚下令内置化 → 不删行不砍分支,
 # 仅跳过注册 + FT 绑族; key 复活后从本数组删名即恢复 (可逆, 不推翻内置化令).
 declare -a DISABLED_PROVIDERS=("gemini" "openrouter" "mistral")
+# 复核期: 圣上令(2026-09-03)后 2 周 = 2026-09-17 前复核 key 是否复活; 复活即从本数组删名,
+# 勿让 dead 轨永久空转 (方案#3). 过期仅印 INFO 提醒, 不阻断 boot (fail-open).
+DISABLED_REVIEW_BY="2026-09-17"
+if [ "$(date +%Y%m%d 2>/dev/null)" -gt "${DISABLED_REVIEW_BY//-/}" ] 2>/dev/null; then
+  echo "[init] WARNING: DISABLED_PROVIDERS (gemini/openrouter/mistral) 已过复核期 $DISABLED_REVIEW_BY, 请确认 key 是否复活"
+fi
 
 # 判定 provider id 是否被禁用 (ALL_FT_FAMILIES 绑族收集 + _register_multi_provider 注册 共用)
 _is_provider_disabled() {

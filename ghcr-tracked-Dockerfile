@@ -20,7 +20,7 @@
 #── 构建参数: 上游 tag+digest 双锁合并为单 ARG (buildx linter 对双 ARG 透传 FROM 误报 invalid digest length;
 #   合一 ARG 形 `image:tag@digest` 与 candidate-v4.3/Dockerfile L7 inline 写法一致, linter 接受)
 #   digest 不可变防漂移; 设 build_arg UPSTREAM_REF=tag@digest 即可换上游版 (防 latest 漂致 Turbopack 缓存 mmap hang)
-ARG UPSTREAM_REF=3.8.43@sha256:517c160643c56ad72e3e305458d9619a4c87f711393c13020450f9f088d1570
+ARG UPSTREAM_REF=3.8.50@sha256:085c57adf499a8aaa9f35ccde95c0df9c11bd9ecd18d6c9edbf3b68b8079ba9d
 FROM diegosouzapw/omniroute:${UPSTREAM_REF}
 
 #── 跨版防御 env (3.8.43 无害; 防误漂到 3.8.45+ Turbopack 缓存 mmap 失败致 Next 静默 hang) ──

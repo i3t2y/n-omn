@@ -50,7 +50,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
 
 # ── 归档 ENV (Zen令 2026-08-01: 7天前旧日志按源分四包 tar.gz 推新账号私库, 推成功后删原库腾空间) ──
-# 总闸: 默0 停归档 (2026-09-04 Zen裁定案 A 激进停用, DECISIONS §16: 审计证据 ops/overengineering-audit
+# 总闸: 默0 停归档 (2026-09-04 Zen裁定案 A 激进停用, DECISIONS §16: 审计证据 docs/ops/overengineering-audit
 #   —— 归档 7天 tar.gz 推新库的查错价值 ≈ 0 且自身曾损坏(parts!=4 病根), 而 R2 全备份 + Dataset save/
 #   —— 日志才是唯一查错真源; 停归档省 10 步铁闸复杂度). =1 显式手动可恢复. 挂 LOG_TO_DATASET 总闸下.
 ARCHIVE_ENABLED = os.environ.get("OMN_LOG_ARCHIVE", "0") == "1"
@@ -109,7 +109,7 @@ OMN_REDACT = _try_import()
 # omn_encrypt.py + EncryptedScheduler 死类 + ENC_SRC/ENC_STAGING 路径已整段移出.
 # 路2 砍七成降级后 EncryptedScheduler 从未实例化 (main 内路1+db 主链), 属死代码.
 # 私库只圣读 + litestream 已复制 storage.sqlite = 加密冗余, Zen 2026-07-29 裁降级砍.
-# 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 ops/docs/DECISIONS.md.
+# 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 docs/ops/DECISIONS.md.
 from huggingface_hub import CommitScheduler, HfApi, hf_hub_download
 
 
@@ -237,7 +237,7 @@ def _capture_loop():
 # ═══════════════════════════════════════════════════════════════════════
 # 独立 daemon 线程, 隔离 HfApi 调用 (list/upload/download/delete 全在此线程, 不挂 capture_loop).
 # CommitScheduler 是 append-only 单向上传 (本地 staging 非远程 mirror), 删远程件必走 HfApi
-#   list_repo_files 列远程真态, 不可盲扫本地 staging (盲删会误判孤儿件). 见 ops/docs/DECISIONS.md.
+#   list_repo_files 列远程真态, 不可盲扫本地 staging (盲删会误判孤儿件). 见 docs/ops/DECISIONS.md.
 # fail-safe 核心铁闸: 推归档库成功后才删原库件 (推失败绝删 = 丢归档). 任一步失败本轮跳过下次重试.
 def _archive_loop():
     """独立 daemon 线程: 周期归档 7天前旧日志 → 打包 tar.gz 推新私库 → 删原库腾空间.
@@ -362,7 +362,7 @@ def _do_archive():
 #     issues 项 {type, table?, description, count}, integrity_check_failed 即物理损坏复发.
 # probe 独立 daemon 线程, 周期 GET 把 issues 打日志 → entrypoint tee → save/entrypoint/ 持久.
 # gate: OMNIROUTE_API_KEY 空 -> skip (真 manage key = Space Secret OMNIROUTE_API_KEY, init 种进 DB apiKeys,
-#   Bearer 打 /api/* = 200 通; OMN_MANAGE_TOKEN 是 ops 误造名, 打 /api/* 必 403 AUTH_001, 见 ops/STATUS.md
+#   Bearer 打 /api/* = 200 通; OMN_MANAGE_TOKEN 是 ops 误造名, 打 /api/* 必 403 AUTH_001, 见 docs/ops/STATUS.md
 #   2026-09-02 排障纠错). 缺凭证不抢资源; 探针纯观测绝不影响主链.
 #   probe fail-open: 任一异常只打日志, 绝不 raise 出线程.
 def _db_health_loop():

@@ -1368,7 +1368,7 @@ PYEOF
 
   # ── omn 插件静态包推公开 Bucket (路③可选件) 已移出 ──
   #   omn_bucket_sync.py + 本调用段 2026-07-31 移除 (Zen裁插件包可选件状态, 非现役链).
-  #   恢复路径: git 历史检出 + Dataset 根回推. 见 ops/docs/DECISIONS.md 2026-07-31 移除决策条.
+  #   恢复路径: git 历史检出 + Dataset 根回推. 见 docs/ops/DECISIONS.md 2026-07-31 移除决策条.
 }
 
 # ── 通用多 provider 注册函数 (NIM_KEYS 多 key 模式推广: gemini/openrouter/sensenova/mistral/amd) ──

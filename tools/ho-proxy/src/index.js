@@ -37,7 +37,7 @@ export default {
       if (!DROP_REQ.has(k.toLowerCase())) headers.set(k, v);
     }
     // 私有 Space 门票: authorization 覆盖为 Bearer <HF_TOKEN> (2026-09-02 实测只认这头, X-Api-Key 无效).
-    // PSK 改放 X-Gate-PSK 独立头透传给 gate 应用层校验 (authorization 已占位). 与 pages/ho-proxy 版对齐.
+    // PSK 改放 X-Gate-PSK 独立头透传给 gate 应用层校验 (authorization 已占位). 与 scripts/pages/_middleware.js 版对齐.
     if (env.HF_TOKEN) {
       headers.set("authorization", "Bearer " + env.HF_TOKEN);
       headers.set("x-gate-psk", "Bearer " + env.INTERNAL_PSK);

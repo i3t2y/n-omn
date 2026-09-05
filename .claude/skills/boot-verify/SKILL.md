@@ -6,7 +6,7 @@ description: 当贴入或读取 HF Space boot 日志时, 按 omn 引导九段清
 # boot-verify · omn 引导九段终验
 
 > 用途: 贴入/读取 HF Space boot 日志后, 按九段清单逐项核对, 输出验收表。固化"九段全执行缺一不可 + init rc=0"健康标准 (CLAUDE.md §4), 避免每轮凭会话记忆漏判中间段假健康 (C2 病链教训前两 boot 误判的根)。
-> SSOT 九段定义以 ops/release-checklist.md A1 为准 (本 skill 只验不改)。
+> SSOT 九段定义以 docs/ops/release-checklist.md A1 为准 (本 skill 只验不改)。
 
 ## 何时触发
 - 贴入新 boot 日志 / 读 boot 日志尾段

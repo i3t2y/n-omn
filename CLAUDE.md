@@ -19,7 +19,7 @@
   仅经反代入口可达。生产 URL = `https://omn.360710.xyz/v1`
   (Cloudflare Pages 反代, 出站注入 HF Bearer 门票; PSK 走 X-Gate-PSK 头)。
   不新建任何 Space。
-- R2 bucket = **omn-data** (单 Space 单桶; omniroute-data 旧桶存历史不动)。
+- **2026-09-05 备份链废弃**: R2/litestream/Dataset snapshot 三链全砍 (首席架构师裁); R2 bucket 与 Dataset repo `nonoke/omn-logic` 退役 (HF 侧实物任存, 代码零引用); Secrets 可删 R2_*/OMN_DATASET_REPO. 持久化收编: GitHub = 代码/配置真源; Bucket 挂载 = logic/ 部署通道 + 运行日志 capture_loop 直写 `/data/omn-logs/save/`; SQLite 无备份 (空库启动 + init-nim-keys.sh 幂等重建)。
 - upstream/ 只读对照树: **现役基座 = 3.8.50** (2026-08-30 生产切换,
   BASE_IMAGE 钉 digest)。3.8.43/3.8.49 目录为历史对照, 机制结论
   仍以 file:line 对照现行 3.8.50 树为准。
@@ -43,8 +43,7 @@
 
 ## §4 验证与健康信号
 - 健康 = boot 九段全执行 + init rc=0; 任何中间段回显不构成证据。
-- 内部状态只认日志签名与持久通道(Litestream→R2、Dataset);
-  探针只做最终确认, 顺序不可反。
+- 内部状态只认日志签名与 Bucket 挂载持久 (`/data/omn-logs/save/` 直写); 探针只做最终确认, 顺序不可反。
 - 切流量前过 docs/ops/release-checklist.md A/B/C/M 全段。
 - 堆健康 (2026-09-05 实录): 生效配置 `NODE_OPTIONS=--max-old-space-size=4096`
   (Space Variables, 覆盖上游 Dockerfile 镜像层 1024; 删除无效)。

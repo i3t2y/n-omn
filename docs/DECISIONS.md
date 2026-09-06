@@ -341,3 +341,28 @@ init 末: OMN_BUCKET_SYNC=1 → omn_bucket_sync.py 推插件包公开 Bucket
 **当前态**: 三件改完 (omn_scheduler _start_schedulers/main 删实例+线程, init 删链②, entrypoint 路径指 STDOUT_STAGING, helper 删 cryptography) + 全 AST/bash-n 绿. sync 白名单仍 10 件 (archive 文件留推). 未 commit 待Zen.
 
 出处: `dev/logic/{omn_scheduler,init-nim-keys,entrypoint,helper}` 改 + `dev/logic/{omn_redact,omn_encrypt,omn_bucket_sync}` archive 不删. 关联上文 "2026-07-29 永续日志架构" 条 + [[three-files-never-change-landed]].
+
+## 2026-09-06 · Bucket 大整理 + 探活落地 (Zen批全, 执行: hermes 小思)
+
+**背景**: 砍链 (ebd6f0a~138ca5d) 完成后 Bucket /data 顶层仍夹杂 omn-logs/omn-raw/omn-log-snapshot/omn-sched/call_logs/cache/db_backups/log_archives + litestream 残骸 15.36GB, 命名三套风格.
+
+**裁决** (Zen):
+- 删 litestream 残骸 `.storage.sqlite-litestream/` 全权: 15,775 files / 15.36 GB, 生产 Space 已于 971275c → 25cbf89 切段, 最后写 2026-09-03 02:59 此后零新增, 已冷
+- 保留 probe-failed 标本 22MB 不删 (Zen 旨): storage.sqlite.probe-failed-1788622856649 事故证据, 未来复现 SQLITE_CORRUPT 根因时用
+- Bucket 顶层留单一口 `backups/`: omn-logs/save→backups/logs/save, omn-raw→backups/logs/raw, omn-log-snapshot→backups/config, db_backups→backups/db-legacy
+- 上游 OmniRoute 自写目录 (omn-sched/ call_logs/ cache/ log_archives/) 一律保留原名: 代码硬编码路径改了双份更乱
+- 代码常量化 3 件 + 文档 2 件: logic/{omn_scheduler,entrypoint,init-nim-keys}.py|sh + docs/{HANDOFF,DECISIONS,layout 到此 commit} + CLAUDE.md §1/§4/§探活
+- 双 Side 探活落地 (cron-job.org 4min, Zen实测稳): n-omn job 7518918 = omn.360710.xyz/healthz; hermes job = sonoke-nexus.hf.space/api/health (200 免鉴权; /health 被 HF 302 拦不算活)
+
+**实现**: commits `25cbf89` (路径第一轮 omn-* → logs/) + `39eca2a` (第二轮 logs/ → backups/logs/ + 宪法两段口径), CLI hf API batch_bucket_files server-side copy+delete, 单批 ≤500 件熔断
+
+**终态分区**:
+- /data/backups/{config,db-legacy,logs/{save,raw}} = 持久收编逻辑区
+- /data/storage.sqlite{,-shm,-wal} = 上游 DB
+- /data/storage.last-good.sqlite = boot 快照回滚
+- /data/.probe-failed-1788622856649 = 事故标本 (Zen 暂留)
+- /data/{call_logs,cache,omn-sched,log_archives} = 上游自写, 原名
+- /data/{entrypoint.sh, gate.js, helper.sh, init-nim-keys.sh, manifest.json, omn_redact.py, omn_scheduler.py, package.json, flaretunnel, flaretunnel_endpoints.json} = logic 部署件 8 件 + configs 2 件 (CI 同步源)
+
+**出处**: 此条 + docs/HANDOFF.md 2026-09-06 下"Bucket 收纳完成"段 + docs/hermes/hermes-status.md §探活 + CLAUDE.md §1/§4 (同步) + commits `25cbf89`/`39eca2a` (n-omn main) + `973f5ae`/`57681ef` (nexus main).
+

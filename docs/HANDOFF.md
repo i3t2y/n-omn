@@ -5,6 +5,19 @@
 
 ## 交接时刻状态
 
+### 2026-09-06 下 · Bucket 收纳完成 + 探活落地 (执行人: hermes sonoke/h 小思; Zen 批全)
+
+- **Bucket 大清理** (commits `25cbf89` + `39eca2a`):
+  - 路径统一: omn-logs/save→backups/logs/save, omn-raw→backups/logs/raw, omn-log-snapshot→backups/config, db_backups→backups/db-legacy (4 桶 top-dir 归一 backups/)
+  - 删 litestream 残骸: `.storage.sqlite-litestream/` 15,775 files / 15.36 GB (09-03 02:59 停写, Space 已于 971275c 切段) + `litestream.yml` 1 件 → 桶总量 17 GB → 1.6 GB (−90%)
+  - 代码侧全改: omn_scheduler.py / entrypoint.sh / init-nim-keys.sh / space/start.sh / CLAUDE.md §1/§4 口径, AST/bash 双语法绿
+  - 生产实盘: 改后 Space(971275c→25cbf89 → 39eca2a) 日志实证 `[init] snapshot → /data/backups/config`、`/data/backups/logs/raw/*` 持续写入,入口最简验证 = `[start] Bucket 校验通过 (n-omn@<SHA> 8 件 sha256 全对)`
+- **双 Side 探活落地 (cron-job.org 4min 两件, Zen 实测稳定)**:
+  - n-omn job 7518918 → `https://omn.360710.xyz/healthz` (CF Pages 反代 → xnexus/o Space)
+  - hermes job → `https://sonoke-nexus.hf.space/api/health` (200 免鉴权, 不走网关 `/health` 302 假活)
+  - 探活约定已写 docs/hermes/hermes-status.md §探活 (nexus 仓 commit `973f5ae`) + keepalive.py 头注释 `/health`→`/api/health` 更口
+- **保留不动 (旨记)**: probe-failed 22MB 标本 / omn-sched (上游活写) / call_logs (上游) / cache (上游) / log_archives (上游) — 上游 OmniRoute 自写目录改名无效,命名保留原名最齐
+
 ### 2026-09-06 · 持久化大清理完成 + 生产重启验证通过 (执行人: hermes sonoke/h 小思会话; Zen 裁决全批)
 - **砍链四连** (commit 链 `ebd6f0a`→`0c8abff`→`53c094d`→`b1f1836`→`15ac409`→`fcf019e`→`138ca5d`):
   - `ebd6f0a` litestream→R2 链全删 (Dockerfile 装段/start.sh 检查段/entrypoint restore+replicate+看门狗+trap/litestream.yml 本件/sync-space files 清单)

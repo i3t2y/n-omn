@@ -1,20 +1,18 @@
-"""omn_scheduler · 全源日志永续守护 (capture daemon + CommitScheduler)
+"""omn_scheduler · 全源日志永续守护 (capture daemon → Bucket 挂载直写)
 
 Zen令 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
-  全源架构: gate/ft/app/init 四源 raw 落 _raw 临时区 → capture daemon 尾追增量 →
-    omn_redact.redact_text 脱敏 (默6正则盖类A/B/C 真 secret 形态) → 写 staging 出件 →
-    CommitScheduler 内置线程读 folder 变化自动 upload 私有 Dataset save/ (给 AI 分析).
-  私库只圣读为何仍脱敏: 圣旨改派"日志最终给 AI 分析", 须脱敏防 secret 进 AI 上下文流.
+  2026-09-05 首席架构师裁: 数据集 dataset 链路全废弃, 收编 Bucket 挂载 save/, 写即持久.
+  全源架构: gate/ft/app/init/entrypoint 五源 raw 落 _raw → capture daemon 尾追增量 →
+    omn_redact.redact_text 脱敏 → 直写 Bucket 挂载 save/<prefix>/.
 
 三件红线: 本脚本读 Space Secrets ENV, 不改 Dockerfile/start.sh. 最小打扰.
-  D 总闸 OMN_LOG_TO_DATASET (默1=积累期推; =0=稳定后全数据收集层停让性能, 桥/gate/init/上游零感知).
+  D 总闸 OMN_LOG_TO_DATASET (默1=积累开; =0=稳定后全数据收集层停让性能, 桥/gate/init/上游零感知).
 
 拉起: entrypoint.sh `python3 /logic/omn_scheduler.py &` (复用现役 daemon 模式).
-停: SIGTERM/SIGINT -> scheduler.__exit__ (trigger 最后 upload + stop), capture daemon daemon 自然随主退.
+停: mount 直写无 flush 队列, SIGTERM 即死即净 (capture 每 60s 一轮, 最坏丢一轮增量, 可接受).
 
 依赖:
-  - huggingface_hub (start.sh:32 自愈装, 区间 >=1.0,<2.0)
-  - omn_redact      (同目录 omn_redact.py, PYTHONPATH=/logic; 默6正则可 ENV REDACT_PATTERNS 覆盖动态调)
+  - omn_redact (同目录 omn_redact.py, PYTHONPATH=/logic; 默6正则可 ENV REDACT_PATTERNS 覆盖动态调)
 """
 import os
 import sys
@@ -23,10 +21,6 @@ import time
 import json
 import signal
 import threading
-import subprocess
-import tarfile
-import tempfile
-import shutil
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -38,28 +32,21 @@ _BJ_TZ = timezone(timedelta(hours=8))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # ── ENV 占位 (Zen Space Secrets 自建自持, 我零入值) ──
-# 调度间隔分钟 (官档推荐 >=5 防 history 爆, default 5)
-SCHED_EVERY = int(os.environ.get("OMN_SCHED_EVERY", "5"))
-# 捕获间隔秒 (独立 daemon 线程, 不挂 scheduler 内置线程)
+# 捕获间隔秒 (独立 daemon 线程)
 CAPTURE_INTERVAL = int(os.environ.get("OMN_CAPTURE_INTERVAL", "60"))
-# HF Dataset repo (现有 init-nim-keys.sh 用 OMN_DATASET_REPO 同名 ENV)
-OMN_DATASET_REPO = os.environ.get("OMN_DATASET_REPO", "").strip()
-HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
+# 2026-09-05 裁: OMN_DATASET_REPO / HF_TOKEN / OMN_SCHED_EVERY 废 (CommitScheduler 链删, Bucket 挂载直写无 HF API)
 
 # ── 总闸 (圣旨 D): 默1 推 save; =0 关全数据收集层让性能 (桥/gate/init/上游业务零感知) ──
 LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
 
 # ── 归档 (2026-09-05 首席架构师裁: 整段删除) ──
 # 原 7天 tar.gz 推新私库 + 删原库 daemon 已砍: 查错价值≈0 + 自身曾损坏 + litestream 已废.
-# 日志真源链: capture_loop → save/ (Dataset/Bucket) 直存, 人工需要时手动拿, 无自动归档层.
-# ── 路径 (staging 付给 scheduler 的 working tree) ──
+# 日志真源链: capture_loop → save/ (Bucket 挂载) 直存, 人工需要时手动拿, 无自动归档层.
+# ── 路径 (capture 直写 Bucket 挂载 save/, 无 staging 无 upload) ──
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
-STAGING = DATA_DIR / "omn-sched"
-STDOUT_STAGING = STAGING               # 路1 明文 JSONL staging (摊平, .log 直放 omn-sched 根, Dataset 侧 path_in_repo=save)
-# RAW_DIR 须在 STAGING 外! CommitScheduler folder_path=STDOUT_STAGING=STAGING 整目录 upload,
-#   _raw 若在其下 → 明文 raw (gate/ft/app/init 未脱敏) 混入 save = 圣旨脱敏漏泄.
-#   故 raw 区独立分目录, scheduler 上传不触及, capture_loop 读 raw → omn_redact → 写 STDOUT_STAGING.
-RAW_DIR = DATA_DIR / "omn-raw"          # 四源 raw 临时区: 明文原态, capture_loop 尾追脱敏后写 STDOUT_STAGING (不进 save)
+STDOUT_STAGING = DATA_DIR / "omn-logs" / "save"   # Bucket 挂载直写: capture 出件即持久终态, 无中间层
+# RAW_DIR 与 save/ 分立: raw 明文 (gate/ft/app/init 未脱敏) 绝不能入 save = 脱敏红线.
+RAW_DIR = DATA_DIR / "omn-raw"          # 五源 raw 临时区: 明文原态, capture_loop 尾追脱敏后写 STDOUT_STAGING (不进 save 直击)
 GATE_STDERR = Path(os.environ.get("OMN_GATE_STDERR", str(RAW_DIR / "gate-stderr.log")))
 
 # mkdir 延迟到 main/capture 调用时 (import 无副作用, 本地无 /data 权限不崩)
@@ -69,9 +56,6 @@ def _ensure_dirs():
             d.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass  # 无写权限 -> 路降级, 不阻 import
-
-# ── 全局持三 scheduler 实例 (SIGTERM with __exit__ 用) ──
-_SCHEDULERS = []
 
 # ── 依赖动态装 (defensive: helper.sh 已装但镜像 A 路径补全分支可能后跑) ──
 def _try_import():
@@ -95,7 +79,7 @@ OMN_REDACT = _try_import()
 # 路2 砍七成降级后 EncryptedScheduler 从未实例化 (main 内路1+db 主链), 属死代码.
 # 私库只圣读 + litestream 已复制 storage.sqlite = 加密冗余, Zen 2026-07-29 裁降级砍.
 # 恢复路径: git 历史检出 omn_encrypt.py + 本段 EncryptedScheduler 类. 见 docs/ops/DECISIONS.md.
-from huggingface_hub import CommitScheduler, HfApi, hf_hub_download
+# huggingface_hub import 已删 (2026-09-05 CommitScheduler/HfApi/hf_hub_download 全废, Bucket 挂载直写零依赖)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -147,7 +131,7 @@ def _capture_one(raw_path, out_prefix):
 
 
 def capture_stdout():
-    """五源 (gate/ft/app/entrypoint/litestream) raw 尾追 → redact → 写 staging 出件 (推 save).init.log 由 capture_init 单独接 (类 C)."""
+    """四源 (gate/ft/app/entrypoint) raw 尾追 → redact → 直写 Bucket 挂载 save/. init.log 由 capture_init 单独接 (类 C)."""
     # gate stderr (logGate JSON) · ft (Go 半结构) · app (上游 structured JSONL) 三源均落 RAW_DIR
     _capture_one(RAW_DIR / "gate-stderr.log", "gate")
     # ft 源 glob 撮 flaretunnel*.log: 单桥写 flaretunnel.log (entrypoint.sh:299),
@@ -156,9 +140,9 @@ def capture_stdout():
     for _ft_raw in sorted(RAW_DIR.glob("flaretunnel*.log")):
         _capture_one(_ft_raw, "ft")
     _capture_one(RAW_DIR / "app.log", "app")
-    # (2026-08-01 Zen令补) 第6-7源: entrypoint boot 编排真相 + litestream R2 复制链. 两源 entrypoint.sh tee >>raw + replicate >>raw 落 omn-raw, 经 omn_redact 兜脱敏后入 save.
+    # entrypoint boot 编排真相 (第5源): tee >>raw 落 omn-raw, 经 omn_redact 兜脱敏后直写 save.
+    # (litestream 源 2026-09-05 已删: 备份链废弃, raw 文件不再产生)
     _capture_one(RAW_DIR / "entrypoint.log", "entrypoint")
-    _capture_one(RAW_DIR / "litestream.log", "litestream")
 
 
 def capture_init():
@@ -175,33 +159,14 @@ def capture_init():
 # ═══════════════════════════════════════════════════════════════════════
 # 调度初始化 + 主循环
 # ═══════════════════════════════════════════════════════════════════════
-def _start_schedulers():
-    """起 CommitScheduler (路1: staging folder → 私有 Dataset save/ 推).
+# ═══════════════════════════════════════════════════════════════════════
+# 调度初始化 (2026-09-05 裁: CommitScheduler 删, 无 upload 层 — capture 直写 Bucket 挂载即终态)
+# ═══════════════════════════════════════════════════════════════════════
 
-    Zen 2026-07-30 终极旨: 靠积累 log 达 omni+nim多key+免费模型最优 (避上下文崩塌/优模型调用/便排错).
-      全源架构 (E 脱敏层复活): gate/ft/app/init 四源 raw 落 _raw, capture daemon 尾追+omn_redact
-        脱敏后写本 staging folder, scheduler 内置线程读 folder 自动 upload (私库给 AI 分析须脱敏).
-      D 总闸 OMN_LOG_TO_DATASET: 默1 推 (积累期); =0 全数据收集层停让性能 (桥/gate/init/上游零感知).
-    """
-    # D 总闸: 稳定后Zen配 OMN_LOG_TO_DATASET=0 → 全数据收集层停让性能 (不起 scheduler 不起 capture)
-    if not LOG_TO_DATASET:
-        return
-    _ensure_dirs()
-    if not OMN_DATASET_REPO or not HF_TOKEN:
-        # 缺 repo/token -> skip (不死, daemon 空跑待 env 补)
-        return
-    # 路1: staging folder (capture daemon 写已脱敏出件) → 私有 Dataset save/ 推 (squash_history 防 history 爆)
-    s1 = CommitScheduler(
-        repo_id=OMN_DATASET_REPO, repo_type="dataset",
-        folder_path=str(STDOUT_STAGING),
-        path_in_repo="save",  # 摊平, .log/.json 直放 save/根 (Dataset save/ 根)
-        every=SCHED_EVERY, token=HF_TOKEN, squash_history=True,
-    )
-    _SCHEDULERS.extend([s1])
 
 
 def _capture_loop():
-    """独立 daemon 线程: 周期 capture 写 staging (scheduler 内置线程读 staging upload).
+    """独立 daemon 线程: 周期 capture 脱敏后直写 Bucket 挂载 save/ (写即持久, 无 upload 层).
 
     D 总闸: OMN_LOG_TO_DATASET=0 时线程启动即早退, 不抢资源 (主链零感知).
     """
@@ -272,26 +237,18 @@ def _db_health_loop():
 
 
 def _on_signal(signum, frame):
-    """SIGTERM/SIGINT -> 三 scheduler __exit__ (最后 upload + stop) -> 主退."""
-    for s in _SCHEDULERS:
-        try:
-            s.__exit__(None, None, None)
-        except Exception:
-            pass
+    """SIGTERM/SIGINT -> 直退 (mount 直写无 flush 队列, 即死即净)."""
     raise SystemExit(0)
 
 
 def main():
-    # E 复活: capture daemon 线程起, 三源 + init 尾追 → redact → 写 staging.
-    # scheduler 内置线程读 folder_path 变化 upload 进 save. D 闸关时两线程均早退.
-    _start_schedulers()
-    # capture daemon (D 闸在 _capture_loop 内查, =0 即早退不起循环)
+    # capture daemon 直写 Bucket 挂载 save/ (无 upload 层, D 闸在 _capture_loop 内查, =0 即早退)
     threading.Thread(target=_capture_loop, daemon=True).start()
     # DB 健康探针 daemon (gate 在 _db_health_loop 内查: OMNIROUTE_API_KEY 非空, 空则早退)
     threading.Thread(target=_db_health_loop, daemon=True).start()
     signal.signal(signal.SIGTERM, _on_signal)
     signal.signal(signal.SIGINT, _on_signal)
-    # 主线程挂住 (scheduler 内置 thread upload + capture daemon 尾追)
+    # 主线程挂住 (capture daemon 尾追直写 mount)
     signal.pause()
 
 

@@ -140,7 +140,7 @@ def capture_stdout():
     for _ft_raw in sorted(RAW_DIR.glob("flaretunnel*.log")):
         _capture_one(_ft_raw, "ft")
     _capture_one(RAW_DIR / "app.log", "app")
-    # entrypoint boot 编排真相 (第5源): tee >>raw 落 logs/raw, 经 omn_redact 兜脱敏后直写 save.
+    # entrypoint boot 编排真相 (第5源): tee >>raw 落 backups/logs/raw, 经 omn_redact 兜脱敏后直写 save.
     # (litestream 源 2026-09-05 已删: 备份链废弃, raw 文件不再产生)
     _capture_one(RAW_DIR / "entrypoint.log", "entrypoint")
 

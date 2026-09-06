@@ -18,9 +18,9 @@ set -eo pipefail
 
 # ══ 单变量调试 + 日志归档（stdout 实时 tee；DEBUG 时另上传 Dataset，见⑨）═══════
 NIM_MODE="${NIM_MODE:-NORMAL}"
-# DEBUG init.log → logs/raw 临时区, capture_init 尾追+omn_redact 后写 save (类 C 脱敏)
+# DEBUG init.log → backups/logs/raw 临时区, capture_init 尾追+omn_redact 后写 save (类 C 脱敏)
 # (DATA_DIR 由 entrypoint export, 与 scheduler RAW_DIR 对齐; 缺省回 /data 兼容)
-LOG_DIR="${DATA_DIR:-/data}/logs/raw"
+LOG_DIR="${DATA_DIR:-/data}/backups/logs/raw"
 if [ "$NIM_MODE" = "DEBUG" ]; then
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   INIT_LOG="$LOG_DIR/init_$(date +%Y%m%d_%H%M%S).log"

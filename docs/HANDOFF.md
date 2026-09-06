@@ -5,6 +5,21 @@
 
 ## 交接时刻状态
 
+### 2026-09-05 · 仓库终态重构 + 宪法 v4 签发 (执行人: hermes sonoke/h 小思会话; Zen 裁决全批)
+- **宪法 v4 全库生效** (commit `7252673`): 圣上/Supreme → Zen 全库统一改名 (853 处 64 文件); 基座钉 3.8.50 (tag+digest `085c57ad`, 3.8.43/4.2.3/3.8.49 降为历史对照); 生产拓扑唯一定格 = xnexus/o 私有 Space + CF Pages 反代 `https://omn.360710.xyz/v1`; 网关认证契约 `X-Gate-PSK` 优先 / Bearer 兼容; 消费端扩列 hermes(nexus); `NODE_OPTIONS=--max-old-space-size=4096` 写进 §4。"只增不改"纪律被 Zen 明令解禁用于本次历史文档改名。
+- **仓库五租库体重构** (commit 链 `92d32e6`→`0cabffe`→`fafb005`→`0279f56`, 布局见 `docs/LAYOUT.md`):
+  - archive/ → docs/archive/ (合并旧 docs/archive, 无冲突); audit/ → docs/audit/; ops/ → docs/ops/ (宪法 §0/§3 链同步)
+  - dev/logic/ → logic/ (生产 8 件套真源); workers/ho-proxy→tools/ho-proxy; flaretunnel→tools/flaretunnel; patches→tools/patches
+  - pages/ho-proxy/functions/_middleware.js → scripts/pages/_middleware.js (部署: cd scripts/pages && wrangler pages deploy .)
+  - HF Space 骨架四件 (Dockerfile/README/start.sh/.gitattributes) → space/ (sync-space-xnexus.yml 白名单同步改)
+  - 删: 根 package.json 影子副本 / ghcr-tracked-Dockerfile (漂移) / upstream/ 空 gitlink
+  - 全 workflow 引用改链 (sync-logic logic/**; deploy-ho-proxy tools/ho-proxy; deploy-ho-proxy-pages scripts/pages)
+- **CI 修复**: sync-space-xnexus.yml 漏迁 .gitattributes 路径致 fafb005 时 cp 失败 → `0279f56` 修 → workflow_dispatch run 33973025310 **completed success**
+- **生产探活** (2026-09-05): `omn.360710.xyz/healthz` → 401/46ms (gate 活, 401=无 PSK 属预期); xnexus-o.hf.space 直连 404/429 (HF 平台限流特征, 生产本不走直连, 无处置)
+- **docs/README.md 重写**: v4.2.3 快照版 → 现役文档地图 + 排障入口, 顶挂 SSOT 指针 (HANDOFF/STATUS/DECISIONS/CLAUDE)
+- **新文档**: `docs/LAYOUT.md` (搬迁史 + 现行目录职责 + 红线清单)
+- ⚠️ 待办火种: real-start.sh L72-81 plugin stage 逻辑与现 skills/plugins→Bucket 符号链接方案冗余 (hermes 侧, 不属本仓); 宪法 v4 对齐核验项 (§4 health 四信号证实 / omn-log-query.py 诊断模线入册) 已备忘待下轮
+
 ### 2026-07-25 (本轮末) · 切换 ② boot 前固化批落地完毕 — 待Zen Restart (执行人: cg52 侧, Claude Code 侧落引导前修源/固化)
 - 本地 HEAD: `dbedbed` (动态见 `git log --oneline -1`)
 - 本轮四 commit: `5ee3778`(K3三件) `e76ccf3`(②三钉点) `1159de6`(probe修源+三样固化) `dbedbed`(STATUS)

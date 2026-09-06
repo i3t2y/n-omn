@@ -12,7 +12,7 @@
 | `logic/` | gate/proxy 8 件套真源 | 改 logic 改生产 |
 | `scripts/` | push-ft-binary.py + scripts/pages/ | 手动轻推 ft 二进制 + CF Pages |
 | `scripts/pages/` | ho-proxy Pages 版反代根 (_middleware.js 平铺) | 部署根, cd scripts/pages 再 wrangler pages deploy . |
-| `tools/` | assemble/merge/k3/ho-proxy(worker)/flaretunnel/patches | 组装用脚本 + 部署边界 |
+| `tools/` | assemble/merge/k3/ho-proxy(worker)/flaretunnel/patches/omn-log-query.py/mock-omr-register.sh | 组装脚本 + 部署边界 + 诊断工具 |
 
 ## 已搬迁 (2026-09-05 Zen)
 

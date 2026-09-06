@@ -3,13 +3,13 @@
 """omn 运行态日志/状态查询工具 (ops/ 层, 永不进 Space, 零 key 落盘)
 
 用法 (python3 直跑, key 从 ~/.omn-secrets 进程内读, 零输出):
-  python3 ops/omn-log-query.py gate [N]     # 查 gate 请求日志: httpStatus/errorCode 分布 + 4xx/5xx 明细
-  python3 ops/omn-log-query.py gate <模型名> # 按模型聚合: app 路由行拿模型 + 时间窗关联 gate 状态 (模型级 429/502)
-  python3 ops/omn-log-query.py app [N]      # 查上游 app 日志: errorCode/ProxyFetch/limit 签名
-  python3 ops/omn-log-query.py ft           # 查 FT 代理实时计数 (/v1/ft/metrics, PSK) + 桥日志错误签名
-  python3 ops/omn-log-query.py health       # 查运行时连接健康 (manage key = OMNIROUTE_API_KEY, ~/.omn-secrets 已真值)
-  python3 ops/omn-log-query.py combo        # 查 combo 池配置 (同 manage key)
-  python3 ops/omn-log-query.py storm [N]    # M3 口径: 风暴特征串计数 (gate+app 日志, 应=0)
+  python3 tools/omn-log-query.py gate [N]     # 查 gate 请求日志: httpStatus/errorCode 分布 + 4xx/5xx 明细
+  python3 tools/omn-log-query.py gate <模型名> # 按模型聚合: app 路由行拿模型 + 时间窗关联 gate 状态 (模型级 429/502)
+  python3 tools/omn-log-query.py app [N]      # 查上游 app 日志: errorCode/ProxyFetch/limit 签名
+  python3 tools/omn-log-query.py ft           # 查 FT 代理实时计数 (/v1/ft/metrics, PSK) + 桥日志错误签名
+  python3 tools/omn-log-query.py health       # 查运行时连接健康 (manage key = OMNIROUTE_API_KEY, ~/.omn-secrets 已真值)
+  python3 tools/omn-log-query.py combo        # 查 combo 池配置 (同 manage key)
+  python3 tools/omn-log-query.py storm [N]    # M3 口径: 风暴特征串计数 (gate+app 日志, 应=0)
 
 日志来源:
   - gate 请求日志: Dataset xnexus/logic save/gate/  (scheduler 每~10s 抓增量, 每请求一行 JSON)

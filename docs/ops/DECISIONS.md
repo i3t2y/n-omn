@@ -36,7 +36,7 @@
 - **内置轨** (连接挂 `provider=<内置名>`, 短名通, 不建 node) = **nvidia + sensenova + openrouter + mistral**
 - **自定义轨** (建 provider-node, 连接挂 `provider=<node_uuid>`) = **amd 仅** (registry 两版本均无 → 唯一非内置)
 
-**决策: openrouter/mistral 并入 sensenova 那批内置迁移** (mode=builtin, 同一 `_register_multi_provider` 内置分支, 连接注册 `provider=openrouter` / `provider=mistral`)。PROVIDERS 表两行改 8/9 字段: openrouter = `mode=builtin` + **static_models 空** (保留动态枚举, passthroughModels:true, max=100 不变); mistral = `mode=builtin` + **方案A static_models 5 chat 模型** (避开 mistral-embed/codestral-embed 污染 chat 列表)。清理函数 `_cleanup_legacy_node(nvidia/openrouter/mistral)` + `_cleanup_sensenova_double_prefix` 幂等清旧 node 残留。env `ALL_FT_FAMILIES` 前缀族不变, FT 绑 `provider` 字段不受影响。mock 验证 (ops/mock-omr-register.sh) 全绿: nvidia skip / openrouter 动态枚举短名 / mistral 白名单不枚举 / amd node 分支 / dp4f 三 provider 排除 openrouter / 4 家旧 node cleanup。
+**决策: openrouter/mistral 并入 sensenova 那批内置迁移** (mode=builtin, 同一 `_register_multi_provider` 内置分支, 连接注册 `provider=openrouter` / `provider=mistral`)。PROVIDERS 表两行改 8/9 字段: openrouter = `mode=builtin` + **static_models 空** (保留动态枚举, passthroughModels:true, max=100 不变); mistral = `mode=builtin` + **方案A static_models 5 chat 模型** (避开 mistral-embed/codestral-embed 污染 chat 列表)。清理函数 `_cleanup_legacy_node(nvidia/openrouter/mistral)` + `_cleanup_sensenova_double_prefix` 幂等清旧 node 残留。env `ALL_FT_FAMILIES` 前缀族不变, FT 绑 `provider` 字段不受影响。mock 验证 (tools/mock-omr-register.sh) 全绿: nvidia skip / openrouter 动态枚举短名 / mistral 白名单不枚举 / amd node 分支 / dp4f 三 provider 排除 openrouter / 4 家旧 node cleanup。
 
 **pool 必要性判据 (Zen问"为什么每个提供商都要一个 pool"时的定谳)**:
 - pool (= combo) = **上游唯一的多 key 聚合/容错机制**, 请求 `model=<pool名>` 走 `chatHelpers.ts:193 getComboForModel` → combo.ts `strategy` (p2c/round-robin/weighted) + `checkFallbackError` 失败换 key/provider; 裸 `provider/model` 只挑一条连接, 无轮询无 fallback。
@@ -76,7 +76,7 @@
 
 **决策**: omniroute 管理面 `/api/*` (provider-nodes/providers/combos/models/health/keys/settings-export) 的 manage key **真变量 = `OMNIROUTE_API_KEY`** (xnexus/o Space Secret → init-nim-keys.sh L735-758 种 DB `apiKeys` 表, 写 `/data/.or-api-key`)。**废弃 `OMN_MANAGE_TOKEN` 这个命名**——它只在 ops 层/记忆/工具里出现, 上游源码无此 env; 在 xnexus/o Space 设 `OMN_MANAGE_TOKEN` 无效, 拿它打 `/api/*` 恒 `AUTH_001`。
 
-**理由**: 2026-08-31 实测——本地 `~/.omn-secrets` 的 `OMN_MANAGE_TOKEN` 打 xnexus-o `/api/*` 恒 403 AUTH_001; 改用 `OMNIROUTE_API_KEY` 立即 200 通 (实测 `/api/provider-nodes?type=openai-compatible` 200, 据此定位 `404a636c`=nvidia-node)。`grep -rn "OMN_MANAGE_TOKEN" upstream/…/src/` 全树无此名, 坐实是自造。落地: `ops/omn-log-query.py` 已改 `MGR=getval('OMNIROUTE_API_KEY')` (commit a8a56af), `health/providers/models/combo` 子命令本地即通, 不需另取 Space 真值。关联 [[omn-log-query-tool-landed]], [[manage-token-omn-manage-location-2026-08-21]]。
+**理由**: 2026-08-31 实测——本地 `~/.omn-secrets` 的 `OMN_MANAGE_TOKEN` 打 xnexus-o `/api/*` 恒 403 AUTH_001; 改用 `OMNIROUTE_API_KEY` 立即 200 通 (实测 `/api/provider-nodes?type=openai-compatible` 200, 据此定位 `404a636c`=nvidia-node)。`grep -rn "OMN_MANAGE_TOKEN" upstream/…/src/` 全树无此名, 坐实是自造。落地: `tools/omn-log-query.py` 已改 `MGR=getval('OMNIROUTE_API_KEY')` (commit a8a56af), `health/providers/models/combo` 子命令本地即通, 不需另取 Space 真值。关联 [[omn-log-query-tool-landed]], [[manage-token-omn-manage-location-2026-08-21]]。
 
 ---
 
@@ -84,7 +84,7 @@
 
 **决策**: 查模型 429/502 日志与 FT 代理实时计数**不需要 omniroute manage key**——HF_TOKEN 读 Dataset (`save/gate/` `save/app/` `save/ft/`) 即可；FT 用 INTERNAL_PSK 查 gate `/v1/ft/metrics` 反代；manage key (OMN_MANAGE_TOKEN) 仅用于 `/api/*` 运行时状态 (health/providers/models/combo)，且必须用 **xnexus/o Space Secrets 真值**（本地 dev 值 AUTH_001 无效, 实测 403）。
 
-**理由**: manage key 泄露面收敛——日常日志查询走 HF_TOKEN (只面 Dataset) 不触真 manage key；HF Dataset 三层日志已覆盖 429/502、ProxyFetch、桥转发全貌。模型维度分布需注意：gate 请求行无模型字段，须用 app HTTP/ROUTING 行 + 时间窗 ±60s 关联 (低并发可靠, 高并发同秒可能错配)；FT metrics failures 是累计计数口径, 单看不下结论 (须对照 save/app ProxyFetch 行复核真实业务转发)。落地工具: `ops/omn-log-query.py` (commit f9900eb, 八子命令统一入口, key 进程内读零落盘)。
+**理由**: manage key 泄露面收敛——日常日志查询走 HF_TOKEN (只面 Dataset) 不触真 manage key；HF Dataset 三层日志已覆盖 429/502、ProxyFetch、桥转发全貌。模型维度分布需注意：gate 请求行无模型字段，须用 app HTTP/ROUTING 行 + 时间窗 ±60s 关联 (低并发可靠, 高并发同秒可能错配)；FT metrics failures 是累计计数口径, 单看不下结论 (须对照 save/app ProxyFetch 行复核真实业务转发)。落地工具: `tools/omn-log-query.py` (commit f9900eb, 八子命令统一入口, key 进程内读零落盘)。
 
 ---
 
@@ -92,7 +92,7 @@
 
 **决策**: HF tree API (`GET /api/datasets/{repo}/tree/{rev}/{sub}?recursive=true&limit=1000`) 分页**一律解析响应头 `Link: <url&cursor=<base64>>; rel="next"`** 拉 next URL, 循环到无 next 即全量; **禁用 `after` 请求参数**。
 
-**理由**: 实测坐实——`after` 参数变体 (编码全路径/仅文件名/原名) 均被 API 静默忽略, 恒返回首页前 1000 项 (status 200 无报错)；真游标在 `Link` 头。此坑导致 `save/app` 目录 1617 文件截断在 09:51 (分页失效只拿首 1000, 假象"数据停更")。修复后全量拉取, 时间窗与 `save/gate` 同秒重叠。落地: `ops/omn-log-query.py` `ds_tree()` L35 起已按此实现; 同类递归列表 (models/datasets 枚举) 疑同构, 留下次验证。
+**理由**: 实测坐实——`after` 参数变体 (编码全路径/仅文件名/原名) 均被 API 静默忽略, 恒返回首页前 1000 项 (status 200 无报错)；真游标在 `Link` 头。此坑导致 `save/app` 目录 1617 文件截断在 09:51 (分页失效只拿首 1000, 假象"数据停更")。修复后全量拉取, 时间窗与 `save/gate` 同秒重叠。落地: `tools/omn-log-query.py` `ds_tree()` L35 起已按此实现; 同类递归列表 (models/datasets 枚举) 疑同构, 留下次验证。
 
 ---
 

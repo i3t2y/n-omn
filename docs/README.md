@@ -48,7 +48,7 @@ Claude Code / Codex    →─→─→─→─→─→ CF Pages (scripts/pages
 
 | 症状 | 查询链接 |
 |------|----------|
-| Space 得起但收不到流量，封点击 | `docs/ops/omn-log-query.py` |
+| Space 得起但收不到流量，封点击 | `tools/omn-log-query.py` |
 | `queue_timeout / 503_waiting_in_queue` | chat_admission shed 已打开 `CHAT_QUEUE_TIMEOUT_MS` 看 STATUS |
 | `not found OR_API_KEY` | `docs/HANDOFF.md` / 或在生产 Space Variables 回复 |
 | Bucket 403 / 拉取失败 | start.sh L56 `LOGIC_BUCKET_REPO` 要看 xnexus/logic |

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 隔离 mock 测试: _register_multi_provider 分支逻辑 (2026-08-31 Zen令 openrouter/mistral 纳入内置轨)
-# 用法: bash ops/mock-omr-register.sh
+# 用法: bash tools/mock-omr-register.sh
 # 断言:
 #   1) nvidia 被 skip (无 provider=nvidia 连接 POST)
 #   2) openrouter: 连接 provider=openrouter (短名非 UUID), 无 node POST, 动态枚举跑, combo openrouter-pool

@@ -28,15 +28,15 @@ Zen令归档。方案 = xnexus-o 改私有 → 带 token 入站脱离匿名池 (
 
 ## 2026-08-31 · manage key 真变量修正 = OMNIROUTE_API_KEY — commit a8a56af push 通 nomn
 
-定位 CredentialHealth `/models` 报错时纠出重大命名错——**`OMN_MANAGE_TOKEN` 是 ops 层误造名** (上游源码无此 env), 拿它打 `/api/*` 恒 403 `AUTH_001`。真 manage key = **`OMNIROUTE_API_KEY`** (Space Secret → init L735-758 种 DB apiKeys), 本地 `~/.omn-secrets` 已有真值, 改用即 200 通。`ops/omn-log-query.py` 已改 `MGR=getval('OMNIROUTE_API_KEY')`, `health/providers/models/combo` 子命令本地直接可用 (不需另取 Space 真值)。**在 xnexus/o Space 不需要设 `OMN_MANAGE_TOKEN`**。
+定位 CredentialHealth `/models` 报错时纠出重大命名错——**`OMN_MANAGE_TOKEN` 是 ops 层误造名** (上游源码无此 env), 拿它打 `/api/*` 恒 403 `AUTH_001`。真 manage key = **`OMNIROUTE_API_KEY`** (Space Secret → init L735-758 种 DB apiKeys), 本地 `~/.omn-secrets` 已有真值, 改用即 200 通。`tools/omn-log-query.py` 已改 `MGR=getval('OMNIROUTE_API_KEY')`, `health/providers/models/combo` 子命令本地直接可用 (不需另取 Space 真值)。**在 xnexus/o Space 不需要设 `OMN_MANAGE_TOKEN`**。
 
 - **顺带定位真因**: `openai-compatible-chat-404a636c` (CredentialHealth 报错节点) = **nvidia-node**, baseUrl `https://integrate.api.nvidia.com` **缺 `/v1`** → 探活拼 `/models`=404 (真实 `/v1/models`=200) → 上游 T25 fallback 报 "Endpoint /models unavailable"。业务不受影响 (nvidia 推理走 NIM 专属 `/v1` 硬编码路径照常 200; CredentialHealth cache 只被 monitoring 展示消费, 不参与路由/filter_alive/combo) → **纯噪音, 无需修正**。
 
-## 2026-08-31 · ops/omn-log-query.py 日志查询工具落地 — commit f9900eb push 通 nomn
+## 2026-08-31 · tools/omn-log-query.py 日志查询工具落地 — commit f9900eb push 通 nomn
 
 Zen问"如何用 omniroute key 查日志了解 429/502 与 FT 代理"。裁定: **查日志不需要 omniroute key** — gate/app/ft 三层日志经 HF Dataset 用 HF_TOKEN 只读; FT 实时计数走 gate `/v1/ft/metrics` (INTERNAL_PSK); manage key 仅 `/api/*` 运行时状态且须 xnexus/o Space Secrets 真值 (本地 dev 值 AUTH_001, 实测)。
 
-- **工具**: `ops/omn-log-query.py` (ops/ 层不进 Space) 八子命令 `gate [N]`/`gate <模型>`/`app [N]`/`ft`/`storm [N]`/`health`/`providers`/`models`/`combo`; key 从 ~/.omn-secrets 进程内读零落盘。
+- **工具**: `tools/omn-log-query.py` (ops/ 层不进 Space) 八子命令 `gate [N]`/`gate <模型>`/`app [N]`/`ft`/`storm [N]`/`health`/`providers`/`models`/`combo`; key 从 ~/.omn-secrets 进程内读零落盘。
 - **模型级 429/502 聚合**: gate 行无模型字段 (仅 requestId/path/httpStatus), 模型名在 save/app 的 HTTP/ROUTING 行; 聚合 = app 行拿模型 + 时间窗 ±60s 关联 gate httpStatus。实测 dp4f 9 请求全 200。
 - **HF tree API 分页修复**: `after` 参数被 API 静默忽略 (恒返首 1000, save/app 1617 文件曾截断 09:51), 真游标 = 响应头 `Link: rel="next"` 的 cursor。修复后 save/app 全量拉到 2026-08-31 与 gate 同秒重叠。
 - **本轮观测**: FT metrics 全池 30 Worker 累计成功率 ~8% (failures 2295/2485, 自 boot 累计 + 桥日志只写自签 CA 噪音) — 单看不下结论, 须对照 save/app ProxyFetch 行; gate 17 请求全 200 (3×403=manage key 无效探测非攻击); storm 首 24h 窗 M3 特征串 = 0 PASS。

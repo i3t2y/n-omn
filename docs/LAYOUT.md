@@ -33,5 +33,21 @@
 | ghcr-tracked-Dockerfile | 根 | 删除 (真源 ~/omn-ops/ghcr/Dockerfile, 跟进漂移过) |
 | .gitattributes | 根 | `space/.gitattributes` |
 
+## Bucket 运行时布局 (xnexus/logic, 2026-09-06 归并终态)
+
+| 路径 | 归属 | 说明 |
+|------|------|------|
+| `backups/config/` | 我方 | init 配置快照 (原 omn-log-snapshot) |
+| `backups/logs/save/` | 我方 | capture_loop 脱敏日志 (原 omn-logs/save) |
+| `backups/logs/raw/` | 我方 | 五源明文 raw (原 omn-raw) |
+| `backups/db-legacy/` | 我方 | 孤儿归档 (原 db_backups) |
+| `backups/storage.last-good.sqlite` | 我方 | boot 快照兜底 |
+| `storage.sqlite{,-shm,-wal}` | 上游 | OmniRoute DB 真源 |
+| `{call_logs,cache,omn-sched,log_archives}/` | 上游 | 自写目录, 改名无效故保留原名 |
+| 桶根 8 件 logic + manifest.json | CI | sync-space 部署真源, sha256 校验 |
+| `.probe-failed-1788622856649` | 标本 | 09-05 SQLITE_CORRUPT 事故件 (Zen 旨留) |
+
+> 2026-09-06 大清理: 删 litestream 残骸 15,775 件/15.36GB + litestream.yml; 桶量 17GB→1.6GB。commit `25cbf89`/`39eca2a` (n-omn), 详见 DECISIONS 2026-09-06 条。
+
 > 红线: CLAUDE.md 不许移动 (机器友好态) · 物理文件全库只增不改原则在 docs/ops 和 docs/audit 内生效; 仓库布局纪律只在这片页设 amend。
 

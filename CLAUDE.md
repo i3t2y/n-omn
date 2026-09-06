@@ -3,7 +3,7 @@
 # v3 (2026-07-25) 以来变更: 上游基座升 3.8.50; xnexus/o 私有化 + Pages 反代进生产; 消费端扩至 hermes/nexus
 
 ## §0 会话生命周期协议(最高优先级)
-- 读 docs/HANDOFF.md + docs/docs/ops/STATUS.md + docs/docs/ops/DECISIONS.md 最近10条,
+- 读 docs/HANDOFF.md + docs/ops/STATUS.md + docs/ops/DECISIONS.md 最近10条,
   不凭记忆臆测, 不重复已锁定决策(翻案须 Zen 明确指令)。
 - 任务范围: 一次会话一件事, 结束即交接。
 - 会话结束/里程碑: 输出交接块(完成/锁定决策/文件变更/未决/下一步),
@@ -43,7 +43,7 @@
 
 ## §4 验证与健康信号
 - 健康 = boot 九段全执行 + init rc=0; 任何中间段回显不构成证据。
-- 内部状态只认日志签名与 Bucket 挂载持久 (`/data/omn-logs/save/` 直写); 探针只做最终确认, 顺序不可反。
+- 内部状态: GitHub = 代码/配置真源; Bucket 挂载 = logic 部署通道 + 日志直写 (`/data/omn-logs/save/`) + boot 快照 (`/data/backups/storage.last-good.sqlite`, quick_check 过才更新); init 幂等重建兜底; 探针只做最终确认, 顺序不可反.
 - 切流量前过 docs/ops/release-checklist.md A/B/C/M 全段。
 - 堆健康 (2026-09-05 实录): 生效配置 `NODE_OPTIONS=--max-old-space-size=4096`
   (Space Variables, 覆盖上游 Dockerfile 镜像层 1024; 删除无效)。

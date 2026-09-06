@@ -14,7 +14,6 @@ _need_install=0
 for t in python3 curl pip3; do
   command -v "$t" >/dev/null 2>&1 || { echo "[start] 缺失基础工具: $t"; _need_install=1; break; }
 done
-command -v litestream >/dev/null 2>&1 || _need_install=1
 { command -v hf >/dev/null 2>&1 || command -v huggingface-cli >/dev/null 2>&1; } || _need_install=1
 
 if [ "$_need_install" = "1" ]; then
@@ -25,24 +24,11 @@ if [ "$_need_install" = "1" ]; then
   echo "[start] 镜像 A 模式：正在补全环境（约 60s）..."
   apt-get update && apt-get install -y --no-install-recommends \
     curl jq python3 python3-pip sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
-  # huggingface_hub 区间驱逐自 ENV (Dockerfile ARG HF_HUB_RANGE + ENV 转存, 与 litestream 同模式):
+  # huggingface_hub 区间驱逐自 ENV (Dockerfile ARG HF_HUB_RANGE + ENV 转存):
   #   默认 >=1.0,<2.0 守 "拒 2.x 破式升, 容 1.x 全补丁" 防线; 升 2.x 改 ARG 默认值/HF Variable
   #   buildtime 覆盖即零改件。双引号包区间串防 shell 重定向注入 (dash 实测安全)。
   # [cli] extra 自 1.x 起不存在, CLI 内建主包。
   pip3 install --no-cache-dir --break-system-packages "huggingface_hub${HF_HUB_RANGE:->=1.0,<2.0}"
-  if ! command -v litestream >/dev/null 2>&1; then
-    # 镜像 A 路径补全 (BASE_IMAGE 直指裸上游 无 litestream 时触发)。
-    # 日常路径走 GHCR base (本地 tar COPY 预装) 不触发此分支。
-    # 版本号驱逐自 ENV (Dockerfile ARG LITESTREAM_VERSION + ENV 转存, 永不再改三件):
-    #   升 litestream 改 Dockerfile ARG 默认值 / HF Variable buildtime 覆盖, 此处零改。
-    # 资产命名 v0.5.x 全程稳定 (GitHub API 实证 v0.5.9/v0.5.15 一致):
-    #   litestream-{ver}-linux-{arch}.tar.gz, x86_64 直用 (官方主资产即此名, amd64 仅 VFS 扩展件),
-    #   aarch64 归一 arm64。uname -m 直拼 URL (x86_64 无须映)。
-    _a=$(uname -m | sed 's/aarch64/arm64/')
-    _ls_v="${LITESTREAM_VERSION:-0.5.9}"
-    curl -fsSL "https://github.com/benbjohnson/litestream/releases/download/v${_ls_v}/litestream-${_ls_v}-linux-${_a}.tar.gz" \
-      | tar -xz -C /usr/local/bin litestream && chmod +x /usr/local/bin/litestream
-  fi
   echo "[start] 环境补全完成"
 else
   echo "[start] 镜像 B 模式：工具链已就绪"
@@ -71,7 +57,7 @@ if command -v python3 >/dev/null 2>&1; then
 import os, hashlib, json, sys
 from huggingface_hub import download_bucket_files
 repo = os.environ["LOGIC_BUCKET_REPO"]
-files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
+files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
          "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
 local = "/tmp/logic"
 try:

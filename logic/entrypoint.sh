@@ -1,10 +1,8 @@
 #!/bin/bash
 # 进程编排总控 (合并版)
 # =====================================================
-# K3 v2.0 骨架 (已修 litestream restore -config; ephemeral 盘认清 → R2 是数据主路径)
-# + candidate v4.3 加固迁移:
-#   1. restore guard 完善版: flock 跨容器互斥 + -o 临时路径原子 mv + quick_check + -if-replica-exists 自适应 + STRICT 日志
-#   2. trap SIGTERM/SIGINT: 向 上游服务/init/litestream/gate 四后台子进程转 SIGTERM, grace wait, SIGKILL 兜底, 无孤儿
+# K3 v2.0 骨架 (2026-09-05 首席架构师裁: litestream/R2 备份链彻底废弃, 空库启动 + init 幂等重建)
+#   trap SIGTERM/SIGINT: 向 上游服务/init/gate/scheduler 后台子进程转 SIGTERM, grace wait, SIGKILL 兜底, 无孤儿
 # gate 用 background 运行 (node /logic/gate.js &) + GATE_PID 纳入 _shutdown 转发;
 #   entrypoint 持 PID 1 主监控循环 (while true) 管四子进程。
 #   (非 exec 接管 PID 1 — exec 会让三后台成 gate 兄弟变孤儿, trap 失效)
@@ -22,7 +20,7 @@ export DATA_DIR   # 须 export: init/scheduler 子进程须见同值 (_raw 路�
 #   tee 双路: 同时留 PID1 stdout 供 HF Space runtime logs 看 (窗外即焚的前置应急).
 _EP_LOG_RAW="${DATA_DIR}/omn-raw/entrypoint.log"
 mkdir -p "$(dirname "$_EP_LOG_RAW")" 2>/dev/null || true
-: > "$_EP_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零, 与 litestream.log 同), capture_loop offset 按 path 重置免跨 boot 重复推
+: > "$_EP_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零), capture_loop offset 按 path 重置免跨 boot 重复推
 exec > >(tee -a "$_EP_LOG_RAW") 2>&1
 echo "[entrypoint] boot 编排日志 tee -> $_EP_LOG_RAW (_raw → capture_loop entrypoint 源 → omn_redact → save/entrypoint/)"
 DB_PATH="$DATA_DIR/storage.sqlite"
@@ -45,19 +43,19 @@ STREAM_READINESS_TIMEOUT_MS="${STREAM_READINESS_TIMEOUT_MS:-180000}"
 export STREAM_READINESS_TIMEOUT_MS
 echo "[entrypoint] STREAM_READINESS_TIMEOUT_MS=$STREAM_READINESS_TIMEOUT_MS (M7 外科单注, wiki §15 实证)"
 
-OR_PID=""; INIT_PID=""; LS_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
+OR_PID=""; INIT_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
 # FT_PIDS = 空格分隔多桥 PID 串 (多桥模式); 单桥回退时仅一元素. trap/看门狗遍历此串.
 FT_PIDS=""
 
 echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PORT DATA=$DATA_DIR (ephemeral, R2 是数据主路径)"
 
-# ── trap 转发: 向 上游服务/init/litestream/gate 四发 SIGTERM, grace 后 SIGKILL, wait 回收 ──
+# ── trap 转发: 向 上游服务/init/gate/scheduler 各发 SIGTERM, grace 后 SIGKILL, wait 回收 ──
 # 重要: gate 用 background (非 exec 接管 PID 1), entrypoint 持 PID 1 主监控循环;
 #   否则 exec gate 会让三后台成 gate 兄弟 (孤儿), trap 失效。
 cleanup_done=0
 _forward_signal() {
   local sig="$1" pid fpid
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID"; do
     [ -z "$pid" ] && continue
     kill -0 "$pid" 2>/dev/null && kill -"$sig" "$pid" 2>/dev/null || true
   done
@@ -77,7 +75,7 @@ _shutdown() {
   local g=0 alive
   while [ "$g" -lt 50 ]; do
     alive=0
-    for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
+    for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID"; do
       [ -z "$pid" ] && continue
       kill -0 "$pid" 2>/dev/null && alive=1
     done
@@ -91,7 +89,7 @@ _shutdown() {
   done
   echo "[entrypoint] shutdown: force-kill 残留..."
   _forward_signal KILL
-  for pid in "$OR_PID" "$INIT_PID" "$LS_PID" "$GATE_PID" "$SCHED_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID"; do
     [ -z "$pid" ] && continue
     wait "$pid" 2>/dev/null || true
   done
@@ -115,116 +113,10 @@ else
 fi
 
 # ── 1. Litestream restore (启动前; 红线: 不覆盖有效 DB; ephemeral → R2 是数据主路径) ─
-# 优雅降级:
-#   R2 无副本 → -if-replica-exists rc=0 但不创建文件 → 空库启动 (init 重建), 不 exit
-#   restore 失败 (配置/网络/权限) → WARN + 空库启动, 不 exit (永不因 restore 失败 FATAL)
-#   restore 成功+有文件 → quick_check 通过 → 原子 mv → 正式 $DB
-#   restore 成功+quick_check 失败 → 丢弃临时+空库启动, 不 exit
-# K3 v2.0 修复: restore 增加 -config /litestream.yml (v1 缺此参数读默认 /etc/litestream.yml 导致静默失败)
-has_r2=0
-[ -n "${R2_ACCESS_KEY_ID:-}" ] && [ -n "${R2_SECRET_ACCESS_KEY:-}" ] && [ -n "${R2_ACCOUNT_ID:-}" ] && has_r2=1
-
-# ── Litestream restore 判据 ──
-# 2026-09-03 #57 SQLITE_CORRUPT 复发根因闭环: 旧逻辑"本地非空→skip"让坏库永续复用,
-# R2 哪怕有完好副本也救不了 (litestream 每 10s 把坏库推回 R2, 删 R2 即重新污染)。
-# 强化: 本地非空也 quick_check, 通过才 skip (不覆盖有效 DB); 坏则丢弃本地强制走 restore。
-_do_restore=1
-if [ "$has_r2" = 0 ]; then
-  echo "[entrypoint] ⚠ R2 凭据未配置 → skip restore, 空库启动 (数据将不可持久, 强烈建议补齐)"
-  _do_restore=0
-elif [ -f "$DB_PATH" ] && [ -s "$DB_PATH" ]; then
-  echo "[entrypoint] 本地库非空 ($DB_PATH) → 先 quick_check 验损..."
-  if command -v sqlite3 >/dev/null 2>&1; then
-    if sqlite3 "$DB_PATH" "PRAGMA quick_check;" 2>/dev/null | grep -q "^ok$"; then
-      echo "[entrypoint] 本地库非空 ($DB_PATH) → skip restore (quick_check ok, 不覆盖有效 DB)"
-      _do_restore=0
-    else
-      echo "[entrypoint] ⚠ 本地库 quick_check 失败 (损坏) → 丢弃本地文件, 强制走 restore."
-      rm -f "$DB_PATH" "$DB_PATH-wal" "$DB_PATH-shm" 2>/dev/null || true
-    fi
-  else
-    echo "[entrypoint] 本地库非空 ($DB_PATH) → skip restore (sqlite3 不可用, 沿用旧行为不覆盖)"
-    _do_restore=0
-  fi
-fi
-
-if [ "$_do_restore" = 1 ]; then
-  # 本地库空或不存在 → restore
-  rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm"
-  printf '%s' "" > /tmp/ls_restore.err
-  rc=0
-  litestream restore -config /logic/litestream.yml -if-replica-exists -o "$DB_TMP" "$DB_PATH" 2>/tmp/ls_restore.err || rc=$?
-  used_tmp=1
-  # flag 自适应回退: 仅当某 flag 不支持才降级, 保留其它仍可支持 flag。
-  # 优先级: -if-replica-exists -o tmp (最佳, R2 无副本 rc=0 无文件不 WARN)
-  #   → -if-replica-exists 单独 (-o 不支持, 仍 R2 无副本 rc=0 无文件不 WARN)
-  #   → 裸 restore (两 flag 都不支持, R2 无副本会 rc≠0 → 走 WARN 分支, 但有 "no replica/empty/not found" 字串例外不 WARN)
-  if echo "$(cat /tmp/ls_restore.err 2>/dev/null)" | grep -qiE 'unknown flag|invalid option|flag provided but not defined'; then
-    _err1="$(cat /tmp/ls_restore.err 2>/dev/null)"
-    if printf '%s' "$_err1" | grep -qiE '\-o|output'; then
-      # -o 不支持: 保留 -if-replica-exists, 去 -o, 直接 restore $DB_PATH (冷启动空, 无有效 DB 被覆盖)
-      echo "[entrypoint] litestream 不支持 -o → 回退 -if-replica-exists 单独 restore $DB_PATH."
-      rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm"
-      printf '%s' "" > /tmp/ls_restore.err
-      rc=0
-      litestream restore -config /logic/litestream.yml -if-replica-exists "$DB_PATH" 2>/tmp/ls_restore.err || rc=$?
-      used_tmp=0
-    elif printf '%s' "$_err1" | grep -qiE 'if-replica-exists'; then
-      # -if-replica-exists 不支持: 裸 restore (R2 无副本会 rc≠0, 下文 "no replica" 例外不 WARN)
-      echo "[entrypoint] litestream 不支持 -if-replica-exists → 回退裸 restore $DB_PATH."
-      rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm"
-      printf '%s' "" > /tmp/ls_restore.err
-      rc=0
-      litestream restore -config /logic/litestream.yml "$DB_PATH" 2>/tmp/ls_restore.err || rc=$?
-      used_tmp=0
-    fi
-  fi
-
-  if [ "$rc" -ne 0 ]; then
-    # 裸 restore (两 flag 都不支持) 在 R2 无副本时会 rc≠0, 但属正常首次部署, 不该 WARN。
-    # litestream 无副本常见错误字串: "no replica"/"no data"/"not found"/"does not exist"/"empty"。
-    if printf '%s' "$(cat /tmp/ls_restore.err 2>/dev/null)" | grep -qiE 'no replica|no (matching )?replica|no data|not found|does not exist|no entries|empty'; then
-      echo "[entrypoint] restore rc=$rc 但匹配 '无副本' 错误 (R2 无副本或首次部署, 正常). 空库启动, init 重建配置."
-    else
-      echo "[entrypoint] ⚠ restore 失败 rc=$rc (见 /tmp/ls_restore.err; 已脱敏, 不打凭据). 空库启动."
-      [ "${LITESTREAM_STRICT:-0}" = 1 ] && echo "[entrypoint]   STRICT=1: 仅告警, 不 exit (空库启动)."
-    fi
-    rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
-  elif [ "$used_tmp" = 1 ] && { [ ! -f "$DB_TMP" ] || [ ! -s "$DB_TMP" ]; }; then
-    echo "[entrypoint] restore rc=0 但无文件 (R2 无副本或首次部署). 空库启动, init 重建配置."
-    rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
-  elif [ "$used_tmp" = 1 ]; then
-    # 临时文件有效 → quick_check → 原子 mv
-    qc_ok=0
-    if command -v sqlite3 >/dev/null 2>&1; then
-      if sqlite3 "$DB_TMP" "PRAGMA quick_check;" 2>/dev/null | grep -q "^ok$"; then
-        qc_ok=1
-      else
-        echo "[entrypoint] ⚠ quick_check 失败. 丢弃临时 $DB_TMP, 空库启动."
-        [ "${LITESTREAM_STRICT:-0}" = 1 ] && echo "[entrypoint]   STRICT=1: 仅告警, 不 exit."
-        rm -f "$DB_TMP" "$DB_TMP-wal" "$DB_TMP-shm" 2>/dev/null || true
-      fi
-    else
-      echo "[entrypoint] sqlite3 不可用, 跳过 quick_check (验文件非空)."
-      qc_ok=1
-    fi
-    [ "$qc_ok" = 1 ] && mv "$DB_TMP" "$DB_PATH" && echo "[entrypoint] ✓ 已从 R2 恢复 (原子 mv $DB_TMP → $DB_PATH)"
-  else
-    # used_tmp=0 (直接 $DB restore): 验 $DB 非空 + quick_check
-    if [ ! -f "$DB_PATH" ] || [ ! -s "$DB_PATH" ]; then
-      echo "[entrypoint] restore rc=0 但 $DB_PATH 无文件 (R2 无副本或首次部署). 空库启动, init 重建."
-    elif command -v sqlite3 >/dev/null 2>&1; then
-      if sqlite3 "$DB_PATH" "PRAGMA quick_check;" 2>/dev/null | grep -q "^ok$"; then
-        echo "[entrypoint] ✓ 已从 R2 恢复 (直接 $DB_PATH, quick_check ok)"
-      else
-        echo "[entrypoint] ⚠ quick_check 失败 on $DB_PATH. 丢弃空库启动."
-        rm -f "$DB_PATH" "$DB_PATH-wal" "$DB_PATH-shm" 2>/dev/null || true
-      fi
-    else
-      echo "[entrypoint] ✓ 已从 R2 恢复 (直接 $DB_PATH, 文件非空)"
-    fi
-  fi
-fi
+# 2026-09-05 首席架构师裁 (litestream/R2 彻底废弃):
+#   · $DATA_DIR 无 R2 副本直接空库启动, init 重建 NIM keys (init-nim-keys.sh 幂等)
+#   · 无 SQLite 备份链 (无 R2 是备份路径); 删 litestream 安装/restore/replicate 三段
+#   · has_r2 字段移除 (R2_* Secrets 可删, 代码不再引用)
 
 # ── 1.5 FlareTunnel 本地桥 (2026-07-30, 档位A: 单桥 :8080 round-robin N Worker) ──
 # 拓扑: 上游 undici → HTTP CONNECT 127.0.0.1:8080 → 桥 MITM → CF Worker 池 → NIM.
@@ -425,31 +317,7 @@ if [ -f /logic/init-nim-keys.sh ] && [ -n "${NIM_KEYS:-}" ]; then
   echo "[entrypoint] Init PID=$INIT_PID"
 fi
 
-# ── 5. Litestream 复制 (后台) ──
-# v0.5.9契约: replicate -config 模式 fs.NArg()必须=0 (走配置文件内 dbs[].path).
-#   传 $DB_PATH 位置参数会命中 case 1 → "must specify at least one replica URL" 报错.
-#   db 路径已在 /logic/litestream.yml 的 dbs[].path 内定义, 命令行不可再传.
-if [ "$has_r2" = 1 ] && [ -f /logic/litestream.yml ]; then
-  # OMN_PERSIST_WRITE 闸 (2026-08-10 Zen令): 控本次启动后改动是否写回 R2.
-  #   1 (默认/开) = litestream replicate 照跑, 在线改 (后台加 key/改设置) 推 R2 → 持久保存.
-  #   0 (关)      = replicate 不启 → 本次改动不写回 R2 (不保存). 上游 在线读写本地 SQLite 照常(本次 boot 可见).
-  #   语义: 此闸只控"写回 R2"一物, 不删任何东西, 不动 restore 读. 开=保存, 关=不保存. 回滚 = 删 Variable + Restart.
-  #   (restore L136 仍跑不受此闸控 — 关态只阻写回不阻读档.)
-  _LS_LOG_RAW="${DATA_DIR}/omn-raw/litestream.log"
-  mkdir -p "$(dirname "$_LS_LOG_RAW")" 2>/dev/null || true
-  : > "$_LS_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零), omn-raw 同名件 capture_loop offset 重置
-  if [ "${OMN_PERSIST_WRITE:-1}" = "1" ]; then
-    # (2026-08-01 Zen令补) litestream stderr 重定向入 raw → capture_loop 第7源入 save.
-    # R2 复制链故障(compaction txid gap/proxy_breaker/replica断代)判据, 与 entrypoint 源同落 omn-raw.
-    litestream replicate -config /logic/litestream.yml >>"$_LS_LOG_RAW" 2>&1 & LS_PID=$!
-    echo "[entrypoint] Litestream PID=$LS_PID (stderr→$_LS_LOG_RAW, capture_loop litestream 源 → save/litestream/)"
-  else
-    echo "[entrypoint] Litestream: OMN_PERSIST_WRITE=0 关态, replicate 不启 → 本次改动不保存 (不写回 R2)."
-    echo "[entrypoint] OMN_PERSIST_WRITE=0: 后台加 key/改设置不保存" > "$_LS_LOG_RAW"
-  fi
-fi
-
-echo "[entrypoint] 全部就绪：OR=$OR_PID Init=${INIT_PID:-无} LS=${LS_PID:-无} Gate→:$EXPOSED_PORT (background, entrypoint 持 PID 1 主监)"
+echo "[entrypoint] 全部就绪：OR=$OR_PID Init=${INIT_PID:-无} Gate→:$EXPOSED_PORT (background, entrypoint 持 PID 1 主监)"
 
 # ── 6. 启动 gate (background, entrypoint 持 PID 1 主监控循环) ──
 # 上游健康二次确认: 若上游已死, 不启 gate (避孤儿 gate 空转)
@@ -519,7 +387,7 @@ echo "[entrypoint] omn_scheduler PID=$SCHED_PID (永续日志: 明文 stderr →
 
 # ── 7. 监督循环: 任一关键进程退出 → 停其余 ──
 # gate 为对外服务 = 退出停一切; 上游服务为必需 = 退出停一切;
-# init 非致命 (仅日志); litestream 退出按 STRICT (严格 exit / 非致命告警 PID 置空)
+# init/scheduler 非致命 (仅日志告警)
 _init_logged=0
 while true; do
   if ! kill -0 "$GATE_PID" 2>/dev/null; then
@@ -535,17 +403,9 @@ while true; do
     echo "[entrypoint] WARN: omn_scheduler 已退出 (永续日志 daemon 挂). 业务不受影响, 在线 30min 内可手动抓. PID 置空."
     SCHED_PID=""
   fi
-  if [ -n "$LS_PID" ] && ! kill -0 "$LS_PID" 2>/dev/null; then
-    if [ "${LITESTREAM_STRICT:-0}" = 1 ]; then
-      echo "[entrypoint] FATAL: Litestream replicate exited (strict). 停止."; _shutdown; exit 1
-    else
-      echo "[entrypoint] WARN: Litestream replicate exited (非致命). DB 不再备份 (LITESTREAM_STRICT=0)."
-      LS_PID=""
-    fi
-  fi
   # ── FT 看门狗: 桥非致命, 死则重启 (上限 5 次后弃守降级) ──
   # 重启安全 (2026-07-30 源码实证 generateCACert 复用语义): 桥重启不换 CA,
-  #   上游已载 NODE_EXTRA_CA_CERTS 不失效, 无须连带重启上游 — 与 litestream 非致命同级.
+  #   上游已载 NODE_EXTRA_CA_CERTS 不失效, 无须连带重启上游.
   # 弃守语义: 5 次连死 = 资产/配置级病非抖动, WARN 弃守, FT_PID 置空停止循环判;
   #   nvidia 若已注册代理即降级 (指向死桥调用必败), 人工修资产/关开关后 Restart.
   # 多桥模式 (2026-08-10): 单桥回退仍走 FT_PID 单判定; 多桥遍历 FT_PIDS 各桥判活,

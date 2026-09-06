@@ -1255,11 +1255,13 @@ echo "[init]   POOL_STRATEGY=$_POOL_STRATEGY REAL_CONTEXT=$_NIM_REAL_CONTEXT (pe
 echo "[init] ─────────────────────────────────────────────"
 
 hf_snapshot() {
-  # D 总闸: OMN_LOG_TO_DATASET=0 时整段 snapshot 跳过 (稳定后让性能, config+log 皆数据收集层)
-  [ "${OMN_LOG_TO_DATASET:-1}" = "1" ] || { echo "[init] snapshot: OMN_LOG_TO_DATASET=0 跳过 (稳定后让性能)."; return 0; }
-  [ -z "$HF_TOKEN" ] || [ -z "$OMN_DATASET_REPO" ] && return 0
-  echo "[init] HF Dataset snapshot（配置 + 可选 DEBUG log）..."
-  local BACKUP_DIR="/tmp/omn-snapshot"; mkdir -p "$BACKUP_DIR"
+  # 2026-09-05 首席架构师裁: HF Dataset 快照废弃 → 直写 Bucket 挂载点
+  #   /data/omn-log-snapshot/ = HF Bucket 挂载 (FUSE, 写即持久, 重启保留)
+  #   闸门沿用 OMN_LOG_TO_DATASET (默 1 开; =0 跳整段省 IO)
+  [ "${OMN_LOG_TO_DATASET:-1}" = "1" ] || { echo "[init] snapshot: OMN_LOG_TO_DATASET=0 跳过."; return 0; }
+  local BACKUP_DIR="/data/omn-log-snapshot"
+  mkdir -p "$BACKUP_DIR" 2>/dev/null || { echo "[init] snapshot: WARN /data 挂载未就绪, 跳过"; return 0; }
+  echo "[init] snapshot → $BACKUP_DIR (Bucket 挂载直写, 无 HF API)"
   local OR_KEY; OR_KEY="$(resolve_or_key)"
   curl -sf "$BASE_URL/api/settings/export-json" -H "Authorization: Bearer $OR_KEY" \
     | jq 'del(.usageHistory, .domainCostHistory, .domainBudgets) |
@@ -1345,26 +1347,7 @@ hf_snapshot() {
     fi
   fi
 
-  python3 - <<'PYEOF'
-import os
-from datetime import datetime, timezone
-from huggingface_hub import HfApi
-from huggingface_hub.utils import HfHubHTTPError
-try:
-    api = HfApi(token=os.environ["HF_TOKEN"])
-    api.upload_folder(folder_path="/tmp/omn-snapshot", path_in_repo="save",
-        repo_id=os.environ["OMN_DATASET_REPO"], repo_type="dataset",
-        commit_message=f"Sync save - {datetime.now(timezone.utc).isoformat()}")
-    print("[init] HF Dataset uploaded.")
-except Exception as e:
-    # C2 fail-open: HF_TOKEN 权限不足(403/Write 权限缺)或网络异常 → 不让 init 整进程 exit 1
-    #   (set -e 下 python traceback exit 1 会触发 init rc=1 → Space supervisor 误判不健康重启 → crashloop)。
-    #   数据主路径是 R2 Litestream, 快照仅为冗余; 此处静默告警跳过, 保 gate/上游/init 主体不崩。
-    msg = str(e).replace(os.environ.get("HF_TOKEN", "") or "x", "<REDACTED>")
-    print(f"[init] snapshot: WARN HF Dataset 上传失败 (fail-open 跳过, 数据主路径 R2 不受影响): {type(e).__name__}")
-    if isinstance(e, HfHubHTTPError) and "403" in msg:
-        print("[init] snapshot: WARN 403 Forbidden — HF_TOKEN 缺 write 权限, 检查 Space Secret E 项 HF_TOKEN scope (需 dataset-write)")
-PYEOF
+  echo "[init] snapshot 完成: $(ls -1 "$BACKUP_DIR" 2>/dev/null | wc -l) 件于 $BACKUP_DIR"
 
   # ── omn 插件静态包推公开 Bucket (路③可选件) 已移出 ──
   #   omn_bucket_sync.py + 本调用段 2026-07-31 移除 (Zen裁插件包可选件状态, 非现役链).

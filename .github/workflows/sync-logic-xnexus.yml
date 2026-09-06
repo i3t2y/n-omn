@@ -55,7 +55,7 @@ jobs:
           import hashlib, json, os, sys
           from huggingface_hub import batch_bucket_files
           bucket = os.environ["BUCKET_ID"]
-          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
+          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
                    "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
           # flaretunnel 二进制源在 tools/flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余 8 件在 logic/
           def src_path(f):
@@ -101,7 +101,7 @@ jobs:
           import hashlib, json, os, sys
           from huggingface_hub import download_bucket_files
           bucket = os.environ["BUCKET_ID"]
-          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","litestream.yml","package.json",
+          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
                    "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
           os.makedirs("/tmp/verify", exist_ok=True)
           # 拉 manifest + 8 件 (对齐 boot 拉取路径, 验的是 boot 会看到的同一份)

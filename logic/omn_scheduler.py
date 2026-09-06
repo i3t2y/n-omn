@@ -49,24 +49,9 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 # ── 总闸 (圣旨 D): 默1 推 save; =0 关全数据收集层让性能 (桥/gate/init/上游业务零感知) ──
 LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
 
-# ── 归档 ENV (Zen令 2026-08-01: 7天前旧日志按源分四包 tar.gz 推新账号私库, 推成功后删原库腾空间) ──
-# 总闸: 默0 停归档 (2026-09-04 Zen裁定案 A 激进停用, DECISIONS §16: 审计证据 docs/ops/overengineering-audit
-#   —— 归档 7天 tar.gz 推新库的查错价值 ≈ 0 且自身曾损坏(parts!=4 病根), 而 R2 全备份 + Dataset save/
-#   —— 日志才是唯一查错真源; 停归档省 10 步铁闸复杂度). =1 显式手动可恢复. 挂 LOG_TO_DATASET 总闸下.
-ARCHIVE_ENABLED = os.environ.get("OMN_LOG_ARCHIVE", "0") == "1"
-# 新私库 repo_id (Zen新账号, replaceable 满换库只改此 Secret). 空 -> skip 整归档线程.
-ARCHIVE_REPO = os.environ.get("OMN_LOG_ARCHIVE_REPO", "").strip()
-# 新私库 write token (新账号独立 token, 不复用 HF_TOKEN). 空 -> skip.
-ARCHIVE_TOKEN = os.environ.get("OMN_LOG_ARCHIVE_TOKEN", "").strip()
-# 归档天数窗: 默7 (7天前日志归档). 用 _BJ_TZ 北京时间判 (防 system TZ 漂移).
-ARCHIVE_DAYS = int(os.environ.get("OMN_LOG_ARCHIVE_DAYS", "7"))
-# 归档线程轮询间隔秒 (独立 daemon, 不挂 capture_loop). 默 3600s (1h).
-ARCHIVE_INTERVAL = int(os.environ.get("OMN_ARCHIVE_INTERVAL", "3600"))
-# 归档源 prefix 固定七源 (与 capture_loop 一致, 不复用 _capture_one 字面量防漂移)
-# (2026-08-01 Zen千补: entrypoint + litestream 两源加入归档扫源, 免7天后仍占私库空间)
-# (2026-08-01 Zen再令: debug 件入 save/debug/ 子目录后同构, 加入归档流可删可移归档库)
-_ARCHIVE_PREFIXES = ("gate", "ft", "app", "init", "entrypoint", "litestream", "debug")
-
+# ── 归档 (2026-09-05 首席架构师裁: 整段删除) ──
+# 原 7天 tar.gz 推新私库 + 删原库 daemon 已砍: 查错价值≈0 + 自身曾损坏 + litestream 已废.
+# 日志真源链: capture_loop → save/ (Dataset/Bucket) 直存, 人工需要时手动拿, 无自动归档层.
 # ── 路径 (staging 付给 scheduler 的 working tree) ──
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 STAGING = DATA_DIR / "omn-sched"
@@ -233,123 +218,6 @@ def _capture_loop():
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 日志归档 (Zen令 2026-08-01: 7天前旧日志按源分四包推新账号私库, 推成功后删原库腾空间)
-# ═══════════════════════════════════════════════════════════════════════
-# 独立 daemon 线程, 隔离 HfApi 调用 (list/upload/download/delete 全在此线程, 不挂 capture_loop).
-# CommitScheduler 是 append-only 单向上传 (本地 staging 非远程 mirror), 删远程件必走 HfApi
-#   list_repo_files 列远程真态, 不可盲扫本地 staging (盲删会误判孤儿件). 见 docs/ops/DECISIONS.md.
-# fail-safe 核心铁闸: 推归档库成功后才删原库件 (推失败绝删 = 丢归档). 任一步失败本轮跳过下次重试.
-def _archive_loop():
-    """独立 daemon 线程: 周期归档 7天前旧日志 → 打包 tar.gz 推新私库 → 删原库腾空间.
-
-    gate: OMN_LOG_ARCHIVE=1 AND OMN_LOG_TO_DATASET=1 AND ARCHIVE_REPO+ARCHIVE_TOKEN 非空.
-    缺任一 -> early return 不抢资源 (同 _capture_loop gate 模式). 挂 LOG_TO_DATASET 总闸下.
-    """
-    if not (ARCHIVE_ENABLED and LOG_TO_DATASET and ARCHIVE_REPO and ARCHIVE_TOKEN):
-        return
-    while True:
-        try:
-            _do_archive()
-        except Exception:
-            pass  # 归档错不阻循环 (下轮重试, fail-safe 保证不丢归档)
-        time.sleep(ARCHIVE_INTERVAL)
-
-
-def _do_archive():
-    """一轮归档: 列原库 → 按 _BJ_TZ 7天窗+prefix 分组 → 逐日打包推新库 → 推成删原.
-
-    铁闸: 推归档库成功 (或查证已归档) 后才 delete_files 删原库件. 任一步失败 -> 跳过该 prefix 该日不删.
-    幂等: 推前列归档库查 archive/<prefix>/<date>.tar.gz 已存在 -> 跳推只删原件 (已归档证).
-    """
-    src_api = HfApi(token=HF_TOKEN)        # 原库连接 (Zen现役)
-    dst_api = HfApi(token=ARCHIVE_TOKEN)   # 新私库连接 (Zen新账号, 独立 token)
-    # 列原库全件 (list_repo_files 返 rfilename 全路径如 save/app/xxx.log); 网络错 -> return 不盲删
-    try:
-        all_files = src_api.list_repo_files(OMN_DATASET_REPO, repo_type="dataset", token=HF_TOKEN)
-    except Exception:
-        return  # 列不出 (网络/权限) -> 下轮再来, 绝不盲删
-    # 7 天窗 (北京时间): cutoff YYYYMMDD 字符串比较 == 日期比较 (同位长, 文件名首8位即北京时间日)
-    cutoff = (datetime.now(_BJ_TZ) - timedelta(days=ARCHIVE_DAYS)).strftime("%Y%m%d")
-    # 分组 {prefix: {date_str: [repo_path, ...]}} 仅取 ≤ cutoff 的归档件
-    by_prefix_date = {p: {} for p in _ARCHIVE_PREFIXES}
-    for rf in all_files:
-        parts = rf.split("/")
-        # capture L155 真出件三段: save/<prefix>/<stamp>_<epoch>.log (parts=3).
-        # (原误判四段 len!=4 全杀致零归档, 2026-08-01 Zen 4回重启零删钉病根)
-        if len(parts) != 3 or parts[0] != "save" or parts[1] not in _ARCHIVE_PREFIXES:
-            continue  # 非 save/<prefix>/<fname> 结构 (快照 json 根平铺 parts=2, debug 根平铺 parts=2 自动跳)
-        fname = parts[2]
-        if not fname.endswith(".log"):
-            continue  # 非日志件 (快照 .json 不动)
-        # 日期提取兼容两构: 六源 plain `YYYYMMDD_...` (首8位纯数字) +
-        #   debug `debug_YYYYMMDD_...` (debug_ 前缀, Zen 2026-08-01 准 debug 入归档).
-        #   原仅 fname[:8].isdigit() 杀 debug 前缀 -> debug 件零归档零删 (复 parts!=4 同源逻辑遗漏).
-        m = re.search(r"(\d{8})_", fname)
-        if not m:
-            continue  # 无 YYYYMMDD_ 段 (非日志名规) 跳
-        date_str = m.group(1)  # YYYYMMDD 北京时间 (capture L134 写名 + init debug_ 前缀同源 _BJ_TZ)
-        if date_str > cutoff:
-            continue  # 窗内新件不动 (≤ cutoff 才归档)
-        by_prefix_date[parts[1]].setdefault(date_str, []).append(rf)
-    # 去重: 一次性列归档库全件 (省 API), 查已归档日期集
-    try:
-        archived = set(dst_api.list_repo_files(ARCHIVE_REPO, repo_type="dataset", token=ARCHIVE_TOKEN))
-    except Exception:
-        archived = set()  # 列不出 -> 视为无历史走完整打包推 (幂等覆盖, 安全)
-    # 逐 prefix 逐日归档 (推成功才删)
-    for prefix in _ARCHIVE_PREFIXES:
-        for date_str, file_paths in by_prefix_date[prefix].items():
-            tar_pin = f"archive/{prefix}/{date_str}.tar.gz"
-            already = tar_pin in archived
-            tmp_dir = None
-            try:
-                if not already:
-                    # 3d 逐件下载到临时目录 (hf_hub_download 必落盘, 无纯内存 API)
-                    tmp_dir = tempfile.mkdtemp(prefix=f"omn-arch-{prefix}-{date_str}-")
-                    local_files = []
-                    for rf in file_paths:
-                        try:
-                            lp = hf_hub_download(
-                                repo_id=OMN_DATASET_REPO, filename=rf,
-                                repo_type="dataset", token=HF_TOKEN, local_dir=tmp_dir,
-                            )
-                            local_files.append((rf, lp))
-                        except Exception:
-                            break  # 任一件下载失败 -> abandon 该 prefix 该日, 下轮重试
-                    if len(local_files) != len(file_paths):
-                        continue  # 下载不全绝不推半包 (推成功才删的前提被破坏 -> 跳)
-                    # 打包 tar.gz (arcname 保原 repo 路径, 解出即原 save/<prefix>/ 结构)
-                    tar_path = os.path.join(tmp_dir, f"{date_str}.tar.gz")
-                    with tarfile.open(tar_path, "w:gz") as tf:
-                        for rf, lp in local_files:
-                            tf.add(lp, arcname=rf)
-                    # 推新私库
-                    with open(tar_path, "rb") as f:
-                        dst_api.upload_file(
-                            path_or_fileobj=f, path_in_repo=tar_pin,
-                            repo_id=ARCHIVE_REPO, repo_type="dataset",
-                            token=ARCHIVE_TOKEN,
-                            commit_message=f"archive {prefix} {date_str} ({len(file_paths)} logs)",
-                        )
-                # 推成功 (或已归档证 already=True) 后才删原库该日该 prefix 全件 — 铁闸
-                # pattern `*{date_str}_*.log`: `*` 前缀通配兼容两构 —
-                #   六源 plain `20260801_*.log` (*匹空) + debug `debug_20260801_*.log` (*匹 debug_).
-                #   fnmatch `*{date_str}_` 要求紧接日期段, 他日件 (20260802_) 不含本日段不匹, 安全.
-                src_api.delete_files(
-                    repo_id=OMN_DATASET_REPO,
-                    delete_patterns=[f"save/{prefix}/{date_str}_*.log", f"save/{prefix}/*{date_str}_*.log"],
-                    repo_type="dataset", token=HF_TOKEN,
-                    commit_message=f"archive: purge {prefix} {date_str} (archived to {ARCHIVE_REPO})",
-                )
-                archived.add(tar_pin)  # 标本批已归档, 防同轮/future 重复推
-            except Exception:
-                # 任一步失败 -> 本轮跳过该 prefix 该日, 绝不在推成功前删 (避免丢归档)
-                continue
-            finally:
-                if tmp_dir and os.path.exists(tmp_dir):
-                    shutil.rmtree(tmp_dir, ignore_errors=True)  # 清临时, 防爆 /tmp
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # 运行期 DB 健康探针 (Zen令 2026-09-04 裁定 SQLITE_CORRUPT 案 A: 治标最轻 = 可见性 + 调低周期)
 # ═══════════════════════════════════════════════════════════════════════
@@ -419,8 +287,6 @@ def main():
     _start_schedulers()
     # capture daemon (D 闸在 _capture_loop 内查, =0 即早退不起循环)
     threading.Thread(target=_capture_loop, daemon=True).start()
-    # 归档 daemon (gate 在 _archive_loop 内查: ARCHIVE_ENABLED+LOG_TO_DATASET+repo/token 非空, 缺任一早退)
-    threading.Thread(target=_archive_loop, daemon=True).start()
     # DB 健康探针 daemon (gate 在 _db_health_loop 内查: OMNIROUTE_API_KEY 非空, 空则早退)
     threading.Thread(target=_db_health_loop, daemon=True).start()
     signal.signal(signal.SIGTERM, _on_signal)

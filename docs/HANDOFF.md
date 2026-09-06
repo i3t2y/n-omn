@@ -5,6 +5,23 @@
 
 ## 交接时刻状态
 
+### 2026-09-06 · 持久化大清理完成 + 生产重启验证通过 (执行人: hermes sonoke/h 小思会话; Zen 裁决全批)
+- **砍链四连** (commit 链 `ebd6f0a`→`0c8abff`→`53c094d`→`b1f1836`→`15ac409`→`fcf019e`→`138ca5d`):
+  - `ebd6f0a` litestream→R2 链全删 (Dockerfile 装段/start.sh 检查段/entrypoint restore+replicate+看门狗+trap/litestream.yml 本件/sync-space files 清单)
+  - `53c094d` capture_loop→Dataset 推流废 → `/data/omn-logs/save/` Bucket 挂载直写; CommitScheduler/HfApi/hf_hub_download/_start_schedulers 全删; OMN_DATASET_REPO/HF_TOKEN/SCHED_EVERY ENV 全废
+  - `b1f1836` boot 快照兜底: entrypoint 启动前 quick_check 过 → cp 到 `/data/backups/storage.last-good.sqlite`; 本地库坏 → 备份替换 (坏库不污染备份, 免空库重建)
+  - `15ac409` 砍前全量归档 → `docs/archive/2026-09-05-persistence-pre-cleanup/` (回滚锚点)
+  - `fcf019e` init-nim-keys.sh 4 处死链语义修正 (upload_folder→Bucket 直写, _do_archive 删标, R2-restore/R2 主路径语义正名)
+  - `138ca5d` 宪法 v4.2: §0 读档路径修正 (docs/docs 嵌套不存在); §4 补 boot 快照兜底条款
+- **生产重启冒烟验证通过** (2026-09-06 05:15~05:17, 日志实证):
+  - `[start] Bucket 校验通过 (n-omn@b1f1836 8 件 sha256 全对)` — 新版 logic 就位
+  - `[entrypoint] boot 快照已更新 (/data/storage.sqlite → backups/, quick_check ok)` — 兜底快照生效
+  - 全程 **0 litestream / 0 R2 restore / 0 HF Dataset** 字样
+  - `/data/storage.sqlite` 全量保留: 32 NIM keys + sensenova×3 + amd×5 注册 OK; combos/proxies/JWT 全 hydrate; context checkpoint 无缝续走
+  - `heap pressure ≤10%`, FT 桥 30/30 worker 全 200, 生产已在接流量 (nonoke-omn→moonshotai/kimi-k3 200/ms 级 stream 正常)
+- **终态分层 (首席架构师定):** GitHub = 代码; Bucket 挂载 = logic 部署通道 + omn-logs/save 日志 + omn-log-snapshot 快照 + omn-data DB 真源 + backups/boot 快照; SQLite = 运行时, 重启 boot 快照兜底, 双灭 init 幂等重建
+- **HF/CF 侧实物不删**: R2 omn-data 桶 + omn-logic Dataset 实物仍存在, 代码零引用, HF Secrets `R2_*`/`OMN_DATASET_REPO`/`LITESTREAM_*` 可清理 (Zen 手动)
+
 ### 2026-09-05 · 仓库终态重构 + 宪法 v4 签发 (执行人: hermes sonoke/h 小思会话; Zen 裁决全批)
 - **宪法 v4 全库生效** (commit `7252673`): 圣上/Supreme → Zen 全库统一改名 (853 处 64 文件); 基座钉 3.8.50 (tag+digest `085c57ad`, 3.8.43/4.2.3/3.8.49 降为历史对照); 生产拓扑唯一定格 = xnexus/o 私有 Space + CF Pages 反代 `https://omn.360710.xyz/v1`; 网关认证契约 `X-Gate-PSK` 优先 / Bearer 兼容; 消费端扩列 hermes(nexus); `NODE_OPTIONS=--max-old-space-size=4096` 写进 §4。"只增不改"纪律被 Zen 明令解禁用于本次历史文档改名。
 - **仓库五租库体重构** (commit 链 `92d32e6`→`0cabffe`→`fafb005`→`0279f56`, 布局见 `docs/LAYOUT.md`):

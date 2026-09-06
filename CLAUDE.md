@@ -12,7 +12,7 @@
   git 出货, 不经会话即兴生成。
 
 ## §1 拓扑铁律 (2026-09-05 重整: 全部现状均已落地, 以下为运行描述, 非历史决策)
-- n-omn 私库 = 唯一血统。根目录=生产血统; dev/logic/=dev逻辑层镜像
+- n-omn 私库 = 唯一血统。根目录=生产血统; logic/=dev逻辑层镜像
   (实物在 xnexus/logic Bucket, 改动须 git 先行再 push);
   dev/base/=基镜像血缘; docs/ops/=运营层(永不进Space, 不同步)。
 - **xnexus/o = 唯一 Space** (私有化, 2026-09-02 完成): 匿名直连 404,
@@ -23,10 +23,10 @@
 - upstream/ 只读对照树: **现役基座 = 3.8.50** (2026-08-30 生产切换,
   BASE_IMAGE 钉 digest)。3.8.43/3.8.49 目录为历史对照, 机制结论
   仍以 file:line 对照现行 3.8.50 树为准。
-- **🔴 omn 命名红线**: 进 HF/Bucket 的一切 (dev/logic 源码 + Dockerfile/
+- **🔴 omn 命名红线**: 进 HF/Bucket 的一切 (logic 源码 + Dockerfile/
   start.sh/README.md + workflows) 禁用 `omniroute`/`nomke`/`nonoke`/
   `diegosouzapw` 字样。例外: 旧 R2 桶名 + ops 历史文档 (只增不改) +
-  dev/logic 现役 `OMNIROUTE_API_KEY`/`OMNIROUTE_PORT`/`OMNIROUTE_RELAY_BACKEND`
+  logic 现役 `OMNIROUTE_API_KEY`/`OMNIROUTE_PORT`/`OMNIROUTE_RELAY_BACKEND`
   环境变量键名 (上游契约, 2026-09-05 Zen 裁定保留)。违反 = 红线, 一律拒。
 
 ## §2 Secrets 纪律
@@ -37,7 +37,7 @@
 ## §3 文档链(SSOT)
 - 系统契约: docs/HANDOFF.md(架构/不变量/排障入口)。
 - 状态: docs/ops/STATUS.md(当前部署=commit, 待办)。
-- 决策: docs/DECISIONS.md(锁定一句话日志) + docs/ops/DECISIONS.md(SSOT 账本), 均只增不改。
+- 决策: docs/ops/DECISIONS.md 为唯一 SSOT 裁决账本(只增不改); docs/DECISIONS.md 为一句话索引副档, 不独立演进。
 - 事故: docs/ops/incidents/(七段式)。验收: docs/ops/release-checklist.md。
 - 历史: audit/ (只增, 不整理不删)。冲突以 docs/HANDOFF.md 为准, 其次 docs/ops/DECISIONS.md。
 

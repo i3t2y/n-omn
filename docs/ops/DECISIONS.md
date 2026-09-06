@@ -812,3 +812,10 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **Zen侧生效前提**: ① 确认 Space 配 `OMNIROUTE_API_KEY` (未配则探针 skip 打提示); ② (可选) 调低上游周期 `OMNIROUTE_DB_HEALTHCHECK_INTERVAL_MS` 从默认 6h → 更频 (治标观测; 探针 1h 是独立观测通道, 两者不冲突)。
 - **治标定位 (写死)**: 本方案**不是自愈** — 只做运行期物理损坏的**可见性观测** (探针 GET) + 拉近上游 autoRepair 周期 (调低 interval)。真正修复物理损坏的 quick_check/restore 策略已闭环于 e7b16b3 (本地非空也验损坏则丢弃强制 restore)。探针让"它又坏了"何时复发可见, 为将来治本 (周期重建库等) 提供观测依据。
 - 出处: 生产 boot 20260904 + audit ops/overengineering-audit-2026-09-02.md 🚨 + 上游 core.ts (只读) + memory `manage-token-omn-manage-location-2026-08-21`。关联: §13 (amd 定谳), e7b16b3 (quick_check 落地)。
+
+## 2026-09-06 · 生产 xnexus/o 起不来 = 写路径故障非损坏 (readonly probe 复现实验 + 代码追源)
+
+- **背景**: 生产 xnexus/o boot 报 `disk I/O error` + `SQLITE_READONLY` fatal, 服务起不来, 伴随"全 OOM 告警"。候选假设: 进程崩溃留 WAL 残留 (缺 -shm) 致 Node readonly probe 打开失败。
+- **本地复现实验** (docs/readonly-probe-repro.py, python3 内置 sqlite3, 无 sqlite3 CLI): ①干净 WAL 库 read/write quick_check 恒 ok; ②注入空 -wal + 删 -shm 模拟崩溃残留后, readonly quick_check **依然 ok**。**结论: 当前 SQLite 版本下 WAL 残留 (缺 -shm) 不足以让 readonly 打开失败 — 否定该假设。** 且 Python sqlite3 close 自动 checkpoint, 干净关闭不留残留 — 仅文件残留检查不能推断 readonly 失败。
+- **裁决 (定性)**: 生产起不来 = **文件系统写路径故障** (ENOSPC 磁盘满 或 /data 只读挂载 EROFS/ro). 证据模式: 读成功 (CLI quick_check 过) 但写/重命名被拒 => SQLite 在"只读挂载/无空间"下同时报 `disk I/O error` + `SQLITE_READONLY` — 文件头可读 (满足 probe) 但写 WAL/checkpoint 撞只读/无空间。**非 SQLITE_CORRUPT 损坏** (quick_check 过, 且 probe 未走 corruption 分支)。OOM 告警为环境压力并行信号, 非 DB 根因 (heap 4096 已生效)。
+- **文件变更**: docs/readonly-probe-repro.py 新建 (实验脚本留存, 可复跑). 无代码改动. 出处: 生产 boot 2026-09-06 + 本地实验 + 上游 driverFactory/core/probeUtils (3.8.50 只读树). 关联: 2026-09-04 SQLITE_CORRUPT 双 A 裁定 (SQLITE_READONLY 与 SQLITE_CORRUPT 不同类, 判据仍只认 quick_check 字面量/`integrity_check_failed` 为损坏)。

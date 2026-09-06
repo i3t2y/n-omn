@@ -1,0 +1,9 @@
+[submodule "omniroute-3.8.43"]
+	path = upstream/omniroute-3.8.43
+	url = https://github.com/diegosouzapw/OmniRoute.git
+[submodule "omniroute-3.8.49"]
+	path = upstream/omniroute-3.8.49
+	url = https://github.com/diegosouzapw/OmniRoute.git
+[submodule "omniroute-3.8.50"]
+	path = upstream/omniroute-3.8.50
+	url = https://github.com/diegosouzapw/OmniRoute.git

@@ -114,9 +114,28 @@ fi
 
 # ── 1. Litestream restore (启动前; 红线: 不覆盖有效 DB; ephemeral → R2 是数据主路径) ─
 # 2026-09-05 首席架构师裁 (litestream/R2 彻底废弃):
-#   · $DATA_DIR 无 R2 副本直接空库启动, init 重建 NIM keys (init-nim-keys.sh 幂等)
-#   · 无 SQLite 备份链 (无 R2 是备份路径); 删 litestream 安装/restore/replicate 三段
-#   · has_r2 字段移除 (R2_* Secrets 可删, 代码不再引用)
+#   · 无 R2 副本启动 → 空库启动, init 重建 NIM keys (init-nim-keys.sh 幂等)
+#   · 无 litestream 备份链; R2 退役 (Secrets 可删 R2_*)
+# ── boot 快照兜底 (保底: 启动前 quick_check 有效 DB → 覆盖 $DATA_DIR/backups/storage.last-good.sqlite) ──
+#   防 Bucket-FUSE 坏库事故: 只抄 quick_check ok 的库 = 坏库不会污染备份.
+#   本地库已坏 → 尝试备份替换 (备份也是 quick_check 过的). 两都缺 → 空库启动 init 重建.
+mkdir -p "$DATA_DIR/backups" 2>/dev/null || true
+if [ -s "$DB_PATH" ]; then
+  if command -v sqlite3 >/dev/null 2>&1 && sqlite3 "$DB_PATH" "PRAGMA quick_check;" 2>/dev/null | grep -q '^ok$'; then
+    cp "$DB_PATH" "$DATA_DIR/backups/storage.last-good.sqlite" 2>/dev/null \
+      && echo "[entrypoint] boot 快照已更新 ($DB_PATH → backups/, quick_check ok)"
+  else
+    echo "[entrypoint] ⚠ 本地库 $DB_PATH quick_check 失败/缺 sqlite3, 不更新快照"
+    # 兜底恢复: 备份非空且自身 quick_check ok → fetching 备份覆盖 (不丢上次启动的成果)
+    if [ -s "$DATA_DIR/backups/storage.last-good.sqlite" ] && command -v sqlite3 >/dev/null 2>&1 \
+       && sqlite3 "$DATA_DIR/backups/storage.last-good.sqlite" "PRAGMA quick_check;" 2>/dev/null | grep -q '^ok$'; then
+      cp "$DATA_DIR/backups/storage.last-good.sqlite" "$DB_PATH" 2>/dev/null \
+        && echo "[entrypoint] ⚠ 本地库损坏, 已用 boot 快照兜底 ($DATA_DIR/backups/ → $DB_PATH)"
+    fi
+  fi
+fi
+# 空库启动以及 boot 快照失败都 init 重建兜底, 不 FATAL
+: > "$DATA_DIR/omn-raw/.boot-ts" 2>/dev/null || true
 
 # ── 1.5 FlareTunnel 本地桥 (2026-07-30, 档位A: 单桥 :8080 round-robin N Worker) ──
 # 拓扑: 上游 undici → HTTP CONNECT 127.0.0.1:8080 → 桥 MITM → CF Worker 池 → NIM.

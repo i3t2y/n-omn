@@ -103,7 +103,8 @@ declare -a PROVIDERS=(
   #   第 9 字段 static_models = 静态模型白名单 (空格分隔). 非空 → 跳过动态枚举上游 /models,
   #   直接用白名单注册 (方案A: sensenova 模型少且明确, 避免上游 /models 带回 u1-fast 图片模型误入 chat).
   #   2026-08-28 Zen令方案A: 白名单 = 内置 registry 3 个 chat 模型 (sensenova-6.7-flash-lite/deepseek-v4-flash/glm-5.2).
-  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite deepseek-v4-flash glm-5.2"
+  #   2026-09-06 Zen令: 并存登记 sensenova-6.8-flash-lite (6.8 换代, 保留 6.7 兜底可回滚).
+  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite sensenova-6.8-flash-lite deepseek-v4-flash glm-5.2"
   # mistral: 2026-08-31 Zen令 — 内置 provider (frontier-labs.ts:117 id:"mistral" + registry baseUrl 现成).
   #   第 8 字段 builtin 同 sensenova; 第 9 字段 static_models = registry 5 个 chat 模型 (方案A,
   #   模型少且明确, 避免上游 /models 带回 mistral-embed/codestral-embed 嵌入模型误入 chat).

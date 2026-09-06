@@ -1257,7 +1257,7 @@ echo "[init] ──────────────────────�
 hf_snapshot() {
   # 2026-09-05 首席架构师裁: HF Dataset 快照废弃 → 直写 Bucket 挂载点
   #   /data/omn-log-snapshot/ = HF Bucket 挂载 (FUSE, 写即持久, 重启保留)
-  #   闸门沿用 OMN_LOG_TO_DATASET (默 1 开; =0 跳整段省 IO)
+  #   闸门沿用 OMN_LOG_TO_DATASET (默 1 开; =0 跳整段省 IO)— 历史名, 语义现为 "snapshot 开"
   [ "${OMN_LOG_TO_DATASET:-1}" = "1" ] || { echo "[init] snapshot: OMN_LOG_TO_DATASET=0 跳过."; return 0; }
   local BACKUP_DIR="/data/omn-log-snapshot"
   mkdir -p "$BACKUP_DIR" 2>/dev/null || { echo "[init] snapshot: WARN /data 挂载未就绪, 跳过"; return 0; }
@@ -1319,11 +1319,11 @@ hf_snapshot() {
   # ── 【v4.2.3·⑨ 】DEBUG log 上传到 Dataset（debug_<时间戳>.log）──
   #   仅 DEBUG 模式 + INIT_LOG 存在即启 (D 闸 OMN_LOG_TO_DATASET 已在 hf_snapshot 首统管, 旧 NIM_DEBUG_LOG_TO_DATASET 冗闸已去, 圣旨令2).
   #   上传前字段级脱敏: Authorization/NIM_KEY/Cookie/Set-Cookie/Bearer 替换为 <REDACTED> (sed 5 = omn_redact 默1-5 同源).
-  #   与 scheduler capture_init 双路并行不冲突: 一次性 upload_folder 真终态兜底 (capture_loop 60s 一轮可能漏 init exit 后尾段).
+  #   与 scheduler capture_init 双路并行不冲突: Bucket 挂载直写真终态兜底 (capture_loop 60s 一轮可能漏 init exit 后尾段).
   #   本地滚动清理：只保留最近 NIM_DEBUG_LOG_KEEP(默认5) 个。
   if [ "$NIM_MODE" = "DEBUG" ] && [ -n "$INIT_LOG" ] && [ -f "$INIT_LOG" ]; then
     local _keep=${NIM_DEBUG_LOG_KEEP:-5}
-    # debug 件入 save/debug/ 子目录 (非根平铺) → upload_folder 摊平保子目录 →
+    # debug 件入 save/debug/ 子目录 (2026-09-05 裁: upload_folder 已删, 直写 Bucket)
     #   save/debug/<stamp>.log parts=3 进 omn_scheduler _do_archive 归档流 (Zen 2026-08-01 准 debug 入归档).
     #   原根平铺 save/debug_*.log parts=2 被归档结构闸跳 = 永不归档; 改子目录后与其他六源同构可归档可删.
     mkdir -p "$BACKUP_DIR/debug" 2>/dev/null || true
@@ -1793,7 +1793,7 @@ echo "[init] Model registration done."
 mapfile -t POOL_ALIVE  < <(filter_alive "${NIM_POOL_MODELS[@]}")
 mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
 
-# ⑦ first-init 也走幂等 upsert（根治 R2 restore 后撞名）
+# ⑦ first-init 也走幂等 upsert（防重启撞名, 2026-09-05 裁: R2 链已删, 语义保底一致）
 upsert_combo "nim-pool"  "$_POOL_STRATEGY" "nvidia" "${POOL_ALIVE[@]}"
 upsert_combo "nim-codex" "$_CODEX_STRATEGY" "nvidia" "${CODEX_ALIVE[@]}"
 
@@ -1804,7 +1804,7 @@ _register_multi_provider
 context_accumulator_update
 # C2 fail-open 双保险: hf_snapshot 内 python upload 异常已 try/except 降级 WARN exit 0;
 #   此处 ||true 兜底函数级 (curl/jq 等非 python 段若异常), 防 set -e 触发 init 整进程 exit 1 致 Space crashloop。
-#   snapshot 仅冗余备份, R2 是数据主路径, 失败不致命。
+#   2026-09-05 裁: R2 链已删; snapshot 仅 Bucket 挂载一份, 失败不致命 (空库 init 幂等重建)。
 hf_snapshot || true
 
 touch "$INIT_MARKER"

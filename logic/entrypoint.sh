@@ -18,7 +18,7 @@ export DATA_DIR   # 须 export: init/scheduler 子进程须见同值 (_raw 路�
 #   [entrypoint] 编排真相(健康等待/各进程 PID/FATAL/gate依赖装/启动顺序)经 capture_loop 第6源入 save.
 #   omni-raw 须在 scheduler STAGING 外 (防明文混入 save): 同 RAW_DIR, omn_redact 兜脱敏后写 staging 推 save.
 #   tee 双路: 同时留 PID1 stdout 供 HF Space runtime logs 看 (窗外即焚的前置应急).
-_EP_LOG_RAW="${DATA_DIR}/omn-raw/entrypoint.log"
+_EP_LOG_RAW="${DATA_DIR}/logs/raw/entrypoint.log"
 mkdir -p "$(dirname "$_EP_LOG_RAW")" 2>/dev/null || true
 : > "$_EP_LOG_RAW" 2>/dev/null || true   # 截断旧残留 (boot 新轮归零), capture_loop offset 按 path 重置免跨 boot 重复推
 exec > >(tee -a "$_EP_LOG_RAW") 2>&1
@@ -47,7 +47,7 @@ OR_PID=""; INIT_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
 # FT_PIDS = 空格分隔多桥 PID 串 (多桥模式); 单桥回退时仅一元素. trap/看门狗遍历此串.
 FT_PIDS=""
 
-echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PORT DATA=$DATA_DIR (ephemeral, R2 是数据主路径)"
+echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PORT DATA=$DATA_DIR (ephemeral, Bucket 挂载是持久真源)"
 
 # ── trap 转发: 向 上游服务/init/gate/scheduler 各发 SIGTERM, grace 后 SIGKILL, wait 回收 ──
 # 重要: gate 用 background (非 exec 接管 PID 1), entrypoint 持 PID 1 主监控循环;
@@ -135,7 +135,7 @@ if [ -s "$DB_PATH" ]; then
   fi
 fi
 # 空库启动以及 boot 快照失败都 init 重建兜底, 不 FATAL
-: > "$DATA_DIR/omn-raw/.boot-ts" 2>/dev/null || true
+: > "$DATA_DIR/logs/raw/.boot-ts" 2>/dev/null || true
 
 # ── 1.5 FlareTunnel 本地桥 (2026-07-30, 档位A: 单桥 :8080 round-robin N Worker) ──
 # 拓扑: 上游 undici → HTTP CONNECT 127.0.0.1:8080 → 桥 MITM → CF Worker 池 → NIM.
@@ -165,7 +165,7 @@ if [ "${FLARETUNNEL_ENABLED:-0}" = "1" ]; then
     chmod +x /logic/flaretunnel 2>/dev/null || true   # start.sh 仅 chmod /logic/*.sh, 二进制此处自举
     FT_CA_DIR="${FT_CA_DIR:-/tmp/ft-ca}"
     FT_PORT="${FT_PORT:-8080}"                        # 须与 上游 后台注册代理端口一致 (Step 6)
-    FT_LOG="${DATA_DIR}/omn-raw/flaretunnel.log"   # 落 omn-raw 临时区 (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
+    FT_LOG="${DATA_DIR}/logs/raw/flaretunnel.log"   # 落 logs/raw 临时区, capture_loop 尾追+omn_redact 后写 save
     mkdir -p "$FT_CA_DIR" "$(dirname "$FT_LOG")" 2>/dev/null || true
     # 单点启动函数: 本段首启 + §7 看门狗重启共用同一命令 (不分叉, "改也为以后不改")
     # 多桥模式 (2026-08-10 Zen令): 读 /logic/flaretunnel_bridges.json 循环起 N 桥,
@@ -281,7 +281,7 @@ cd /app
 # 路径改指 scheduler RAW_DIR (_raw 临时区), capture_loop 尾追+omn_redact 后写 staging folder 推 save (E 脱敏层).
 # D 闸: OMN_LOG_TO_DATASET=0 不设 = 上游回默认本机盘 (logs/application/app.log, omn_redact 不 demang 进 folder, 如旧行).
 if [ "${OMN_LOG_TO_DATASET:-1}" = "1" ]; then
-  export APP_LOG_FILE_PATH="${DATA_DIR}/omn-raw/app.log"   # 落 omn-raw (scheduler folder 外, 防明文混入 save), capture_loop 尾追+omn_redact 后写 staging 推 save
+  export APP_LOG_FILE_PATH="${DATA_DIR}/logs/raw/app.log"   # 落 logs/raw, capture_loop 尾追+omn_redact 后写 save
   mkdir -p "$(dirname "$APP_LOG_FILE_PATH")" 2>/dev/null || true
 fi
 # ── 2.0 V8 堆观测注入 (Task#64) ──
@@ -379,12 +379,11 @@ else
 fi
 
 echo "[entrypoint] starting gate on port $EXPOSED_PORT..."
-# ── 9. 永续日志 (2026-07-30 全源架构): 三源 gate/ft/app raw 落 omn-raw, capture_loop 尾追+omn_redact 写 staging ──
-# gate stderr → omn-raw/gate-stderr.log (capture_loop 过 omn_redact 脱敏后写 staging gate_<ts>.log 推 save).
-# omn-raw 须在 scheduler folder 外 (STAGING/omn-sched): CommitScheduler 整目录 upload, _raw 在其下 → 明文混入 save = 脱敏漏泄.
+# ── 9. 永续日志 (2026-07-30 全源架构; 2026-09-06 目录统一 /data/logs/{raw,save}): 三源 gate/ft/app raw 落 logs/raw, capture_loop 尾追+omn_redact 写 save ──
+# gate stderr → logs/raw/gate-stderr.log (capture_loop 过 omn_redact 脱敏后写 save).
 # 圣旨改派: 私库日志给 AI 分析 → 须脱敏, gate 不直写 staging (旧版明文原样推已废).
 # D 闸关 (OMN_LOG_TO_DATASET=0) 时 scheduler 不起, raw 文件仍写但无人推 save + 不脱敏 (稳定让性能, 如旧行).
-GATE_STDERR_LOG="${DATA_DIR}/omn-raw/gate-stderr.log"
+GATE_STDERR_LOG="${DATA_DIR}/logs/raw/gate-stderr.log"
 mkdir -p "$(dirname "$GATE_STDERR_LOG")" 2>/dev/null || true
 # helper.sh 装插件包依赖 (boto3); logging 路仅 huggingface_hub (start.sh 已装) 无须额外包
 if [ -f /logic/helper.sh ]; then
@@ -402,7 +401,7 @@ export OMN_GATE_STDERR="$GATE_STDERR_LOG"
 # SIGTERM 经 _forward_signal 转发 -> _on_signal 安全 __exit__ scheduler (最后 upload).
 python3 /logic/omn_scheduler.py &
 SCHED_PID=$!
-echo "[entrypoint] omn_scheduler PID=$SCHED_PID (永续日志: 明文 stderr → 私有 Dataset)"
+echo "[entrypoint] omn_scheduler PID=$SCHED_PID (永续日志: 明文 stderr → Bucket logs/raw)"
 
 # ── 7. 监督循环: 任一关键进程退出 → 停其余 ──
 # gate 为对外服务 = 退出停一切; 上游服务为必需 = 退出停一切;

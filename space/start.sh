@@ -1,6 +1,6 @@
 #!/bin/sh
 # nexus 永续节点 · 自适应引导 v3.0（版本无关）
-# 与逻辑层的唯一契约：Dataset 根目录必须存在 entrypoint.sh。
+# 与逻辑层的唯一契约:Bucket 根目录由 start.sh 内生 entrypoint.sh。
 # 其余一切文件名、目录结构均由逻辑层自定义，本脚本不感知。
 set -e
 echo "[start] >>> 启动 $(date '+%F %T') <<<"

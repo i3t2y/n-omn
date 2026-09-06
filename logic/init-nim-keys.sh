@@ -18,10 +18,9 @@ set -eo pipefail
 
 # ══ 单变量调试 + 日志归档（stdout 实时 tee；DEBUG 时另上传 Dataset，见⑨）═══════
 NIM_MODE="${NIM_MODE:-NORMAL}"
-# DEBUG init.log → omn-raw 临时区, capture_init 尾追+omn_redact 后写 staging 推 save (类 C 脱敏)
-# omn-raw 须在 scheduler folder 外 (STAGING/omn-sched): CommitScheduler 整目录 upload, _raw 在其下 → 明文混入 save = 脱敏漏泄.
+# DEBUG init.log → logs/raw 临时区, capture_init 尾追+omn_redact 后写 save (类 C 脱敏)
 # (DATA_DIR 由 entrypoint export, 与 scheduler RAW_DIR 对齐; 缺省回 /data 兼容)
-LOG_DIR="${DATA_DIR:-/data}/omn-raw"
+LOG_DIR="${DATA_DIR:-/data}/logs/raw"
 if [ "$NIM_MODE" = "DEBUG" ]; then
   mkdir -p "$LOG_DIR" 2>/dev/null || true
   INIT_LOG="$LOG_DIR/init_$(date +%Y%m%d_%H%M%S).log"
@@ -1256,10 +1255,10 @@ echo "[init] ──────────────────────�
 
 hf_snapshot() {
   # 2026-09-05 首席架构师裁: HF Dataset 快照废弃 → 直写 Bucket 挂载点
-  #   /data/omn-log-snapshot/ = HF Bucket 挂载 (FUSE, 写即持久, 重启保留)
+  #   /data/backups/config/ = HF Bucket 挂载 (FUSE, 写即持久, 重启保留)
   #   闸门沿用 OMN_LOG_TO_DATASET (默 1 开; =0 跳整段省 IO)— 历史名, 语义现为 "snapshot 开"
   [ "${OMN_LOG_TO_DATASET:-1}" = "1" ] || { echo "[init] snapshot: OMN_LOG_TO_DATASET=0 跳过."; return 0; }
-  local BACKUP_DIR="/data/omn-log-snapshot"
+  local BACKUP_DIR="/data/backups/config"
   mkdir -p "$BACKUP_DIR" 2>/dev/null || { echo "[init] snapshot: WARN /data 挂载未就绪, 跳过"; return 0; }
   echo "[init] snapshot → $BACKUP_DIR (Bucket 挂载直写, 无 HF API)"
   local OR_KEY; OR_KEY="$(resolve_or_key)"

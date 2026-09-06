@@ -44,9 +44,9 @@ LOG_TO_DATASET = os.environ.get("OMN_LOG_TO_DATASET", "1") == "1"
 # 日志真源链: capture_loop → save/ (Bucket 挂载) 直存, 人工需要时手动拿, 无自动归档层.
 # ── 路径 (capture 直写 Bucket 挂载 save/, 无 staging 无 upload) ──
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
-STDOUT_STAGING = DATA_DIR / "omn-logs" / "save"   # Bucket 挂载直写: capture 出件即持久终态, 无中间层
+STDOUT_STAGING = DATA_DIR / "logs" / "save"   # Bucket 挂载直写: capture 出件即持久终态, 无中间层
 # RAW_DIR 与 save/ 分立: raw 明文 (gate/ft/app/init 未脱敏) 绝不能入 save = 脱敏红线.
-RAW_DIR = DATA_DIR / "omn-raw"          # 五源 raw 临时区: 明文原态, capture_loop 尾追脱敏后写 STDOUT_STAGING (不进 save 直击)
+RAW_DIR = DATA_DIR / "logs" / "raw"   # 五源 raw 临时区: 明文原态, capture_loop 尾追脱敏后写 STDOUT_STAGING
 GATE_STDERR = Path(os.environ.get("OMN_GATE_STDERR", str(RAW_DIR / "gate-stderr.log")))
 
 # mkdir 延迟到 main/capture 调用时 (import 无副作用, 本地无 /data 权限不崩)
@@ -140,7 +140,7 @@ def capture_stdout():
     for _ft_raw in sorted(RAW_DIR.glob("flaretunnel*.log")):
         _capture_one(_ft_raw, "ft")
     _capture_one(RAW_DIR / "app.log", "app")
-    # entrypoint boot 编排真相 (第5源): tee >>raw 落 omn-raw, 经 omn_redact 兜脱敏后直写 save.
+    # entrypoint boot 编排真相 (第5源): tee >>raw 落 logs/raw, 经 omn_redact 兜脱敏后直写 save.
     # (litestream 源 2026-09-05 已删: 备份链废弃, raw 文件不再产生)
     _capture_one(RAW_DIR / "entrypoint.log", "entrypoint")
 

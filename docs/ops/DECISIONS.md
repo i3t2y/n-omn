@@ -847,3 +847,35 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **定谳**: 白名单终态 (logic/init-nim-keys.sh L112) = `sensenova-6.8-flash-lite deepseek-v4-flash glm-5.2` (3 模型, 与上游 registry 同数量). 上游 3.8.50 registry 仍记旧 id `sensenova-6.7-flash-lite` (index.ts:17), 6.8 未收录 → 我方 6.8 为**前向换代注册**.
 - **待验**: boot 后看 6.8 是否真 200. 若仍 404 → 404 另有上游策展层原因 (真 id 带前缀/版本后缀), 须上游 `/v1/models` 枚举定位, 本会话不追. 与同日 SQLITE_CORRUPT (2026-09-07-sqlite-corrupt-write-path.md) 为**两独立事件**, 勿混.
 - **commit**: 待批 (随 STATUS+incident 同批). 文件: logic/init-nim-keys.sh + 本条. 出处: Zen令 "sensenova-6.7已升级为6.8, 直接改id名" + 生产 boot 09-07. 关联: 2026-09-06 并存登记 (被本条反转), 2026-09-07 图形模型策展定性.
+## 2026-09-07 · 持久化精简架构审查 — 分层结论 (Zen质疑 09-05 三链全砍, 归档待决)
+
+- **背景**: 生产 SQLITE_CORRUPT (usage/call_logs/xp_audit_log/proxy_logs 写坏, `database disk image is malformed`) 自 09-07 09:22 起反复复发, 且 boot 自动兜底 (本地库坏 → 用 `storage.last-good.sqlite` 覆盖) 后**依旧复现**。Zen质疑: "同样问题出现过几次, 归根结底是上次精简备份/持久化架构变更造成的, 说明上次变更不合理"。本会话受命**只审查不动作**, 落档供后续拍板。
+- **涉历变更**: ① 09-04 (DECISIONS L796) 砍 7 天归档 tar.gz 链 — 审证据≈0 且曾坏, **保留** R2 全备份 + Dataset save/ 日志; ② 09-05 (CLAUDE.md §1) R2/litestream/Dataset snapshot **三链全砍**, SQLite 判"无备份, 空库启动 + init 重建", Bucket 收编真源 (logic 部署 + 日志 + config + boot 快照 `storage.last-good.sqlite`)。
+- **审查结论 (三块分层, 非整体翻案)**:
+  1. **砍归档链 (09-04) = 合理**, 支持。查错价值≈0、自身曾坏 (parts!=4), 删得对。
+  2. **砍到"无备份 + 单份 boot 快照" (09-05) = 过度精简, 不合理**, 已认。铁证: (a) 09-04 才裁"保留 R2 防配置丢失", 09-05 连砍 → usage/call_logs/xp_audit_log/proxy_logs 等**不可再生历史**被每次 corrupt 重启清空, 非降容错而是**接受必然丢数据**; (b) `storage.last-good.sqlite` = 活库 **quick_check (浅检)** OK 时 cp 的**单份**快照, 坏活库一次漏检即被当健康入库 → 单版本覆盖、无历史可退 → 每 boot 复用污染源**永续复现**。
+  3. **corrupt 成因 ≠ 砍备份**: `database disk image is malformed` = 磁盘页物理撕裂, 只能来自活库写路径 torn write (非正常停机/tear/FUSE 异步 flush), **R2/litestream 时代同样发生** (活库都在 ephemeral 盘)。精简备份**非肇事者, 是让 corrupt 无法自愈的放大器**。
+- **定性一句话**: 砍归档 vs 砍到无备份, 两个量级; 前者合理, 后者把"多版本可回退"压成"单版本必覆盖" = 本次反复 corrupt 的结构性放大器。
+- **修正方向 (未定案, 待 Zen 拍板三选一)**:
+  1. **只救火**: 删坏快照 `storage.last-good.sqlite` + Restart 空库重建 (设计内建路径, 遥测表本就空零损失) — 最快。
+  2. **救火 + 多版本 rolling 健康快照**: 存最近 N 份且每份过 `PRAGMA integrity_check` (非 quick_check) 才入池; corrupt 回退到最近健康版; 周期 GC 旧份。走 Bucket, 不重上 R2 (免 Class A 月配额成本)。
+  3. **维持现状**, 仅留可见性观测 (09-04 探针), 接受 corrupt 丢遥测数据。
+- **commit**: 待批. 文件: docs/ops/DECISIONS.md (本条, 只增). 出处: 生产 corrupt 复发 09-07 + Zen质疑 + entrypoint L119-137 + 09-04/09-05 裁决链. 关联: 2026-09-07-sqlite-corrupt-write-path.md, 09-04 备份处置案 A, 09-05 三链全砍, e7b16b3 (quick_check/restore).
+## 2026-09-07 · 持久化精简架构审查 — 修正②: 治疗点=不安全拷贝路径, 非 rolling (Zen再推, 深化续条)
+
+- **背景**: 承上层"分层结论"三选一, Zen再推"方案2 的 rolling 快照不治本; 且明确指出 **"未改之前并未出现过这种情况"** — 推翻上轮③的"torn write 本就可能发生"轻描淡写。本续条深度论证"未改前未出现"的因果, 并纠正治疗点。
+- **承认**: ③的"反正总会来"论证不充分。"未改前从未出现"必须被认真解释, 不能归咎于概率。
+- **关键识别 (09-05 引入的新机制)**: 09-05 前活库由 **litestream 事务一致复制** (复制 WAL 帧 + 世代多版本回退) → 坏页能回滚到更早健康世代, 不表面化。09-05 收编成 **裸 `cp` 单份快照** (entrypoint L125/L132) + `quick_check` (L124/L131, 浅检) 门禁。这是以前没有的**不安全拷贝路径**, 两个独立缺陷:
+  - **缺陷① `cp` 非事务一致备份**: 对一张上次非正常停机留下的撕裂活库, `cp` 只是把撕裂原样搬进快照 → 污染固化。
+  - **缺陷② `cp` 跨 FUSE (网络挂载) 写不崩溃安全**: HF bucket 挂载大文件异步 flush 读回可撕裂 → 快照文件本身可能是 FUSE 撕出来的坏文件, 不依赖活库。
+  - quick_check 浅检漏检坏页 → 坏快照被当"健康"入库 → 下一 boot 再种活库 → 再 cp 回 FUSE → 撕裂永久重放。这既解释"反复出现", 也解释"多版本 rolling 救不了" (rolling 仍是 cp, 照样进坏页)。
+- **两读法解释"未改前未出现", 收敛同一治本点**:
+  - **R1 (自愈)**: R2/litestream 时代撕裂也发生过, 但世代回滚到更早健康版本, 从不表面化 → "未出现"=未表面化。
+  - **R2 (新机制产坏)**: 09-05 裸 `cp`-过-FUSE 本身就是制造机制, 复制撕裂挂载文件在**生产侧直接产坏页** → "未改前未出现"为字面真。
+  - 日志佐证 R2 更贴合: "不更新快照" 又 "已用boot快照兜底" 后**依旧 corrupt** = 快照源本身带坏页, 直指 `cp`-过-FUSE 这条 09-05 独有路径。
+- **治疗点 (非 rolling)**: 治本 = 改掉不安全拷贝路径, 三选一:
+  1. **`sqlite3 .backup` / `VACUUM INTO`** (事务一致快照, 坏库当场 fail 作硬门禁) 代替裸 cp + quick_check;
+  2. 回到**事务一致复制** (litestream/replication), 最接近旧自愈语义;
+  3. 最次: 快照加**严格 `integrity_check`** (非 quick_check) + 多份 — 是缓冲非治本 (仍可能 FUSE 撕)。
+- **诚实边界**: R2 世代已退役, 无法 100% 证实 R1/R2; 但两读法收敛同一治本点 = 不安全拷贝路径. 退役 R2 bucket 若在可取证据判 R1/R2, 但只作证明不改治法。
+- **commit**: 待批. 文件: docs/ops/DECISIONS.md (本条追加, 只增). 出处: Zen再推 "2不治本、未改前未出现" + entrypoint L119-137 (cp/quick_check) + 09-05 收编. 关联: 上层分层结论条, 2026-09-07-sqlite-corrupt-write-path.md, e7b16b3.

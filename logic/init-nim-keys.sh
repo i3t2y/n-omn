@@ -100,13 +100,16 @@ declare -a PROVIDERS=(
   #   (第 7 字段 model_prefix 须保留空位, builtin 须放第 8 字段, 否则 _mpre 错位吞掉 mode.)
   #   第 9 字段 static_models = 静态模型白名单 (空格分隔). 非空 → 跳过动态枚举上游 /models, 直接用白名单注册.
   #   2026-09-06 Zen令定性 (对齐上游): 模型源 = 每 provider 策展的 registry models 列表. upstream 3.8.50
-  #   config/providers/registry/sensenova/index.ts 现列 3 个 chat 模型; 我方白名单 = 该 3 模型 + 6.8 forward-add
-  #   (6.8 上游尚未收录, 2026-09-06 并存登记). 上游以策展代过滤: 图像流模型 (u1-fast) 直接不列入 chat 模型,
+  #   config/providers/registry/sensenova/index.ts (3.8.50) 仍列 3 个 chat 模型 (含旧 id sensenova-6.7-flash-lite);
+  #   我方白名单以 6.8 换代 = 3 模型 (2026-09-07 zen令直接改 id 删 6.7, 见下). 上游以策展代过滤: 图像流模型
+  #   (u1-fast) 直接不列入 chat 模型,
   #   源注释明载 "U1 Fast belongs to image flows; chat 404 model not found" = 良性死条目, 非架构风险,
   #   无全局 names 正则需求. 我方按上游同源策展 = static_models 白名单.
   #   2026-08-28 Zen令方案A: 白名单 = 内置 registry 3 个 chat 模型 (sensenova-6.7-flash-lite/deepseek-v4-flash/glm-5.2).
   #   2026-09-06 Zen令: 并存登记 sensenova-6.8-flash-lite (6.8 换代, 保留 6.7 兜底可回滚).
-  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite sensenova-6.8-flash-lite deepseek-v4-flash glm-5.2"
+  #   2026-09-07 Zen令: 6.7 已升级为 6.8 → 直接改 id, 删 6.7 只留 6.8 (实测 6.7/6.8 双 404 = 上游模型 id
+  #     换代, 6.7 兜底已无意义). 白名单终态 = sensenova-6.8-flash-lite deepseek-v4-flash glm-5.2 (3 模型).
+  "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.8-flash-lite deepseek-v4-flash glm-5.2"
   # mistral: 2026-08-31 Zen令 — 内置 provider (frontier-labs.ts:117 id:"mistral" + registry baseUrl 现成).
   #   第 8 字段 builtin 同 sensenova; 第 9 字段 static_models = registry 5 个 chat 模型 (方案A,
   #   模型少且明确, 避免上游 /models 带回 mistral-embed/codestral-embed 嵌入模型误入 chat).

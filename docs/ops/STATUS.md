@@ -2,6 +2,23 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。§1 拓扑(2026-08-24/29 修订): 单 Space 单桶, xnexus/o = 唯一 Space 兼生产, R2 bucket = omn-data, 此处记生产态。旧 nomke/nonoke 两 Space 段历史存档不改不回。
 
+## 2026-09-07 · 🔴 红旗: SQLite 写路径真损坏 (SQLITE_CORRUPT) — usage/callLogs 持续写失败, 非 ghost-table 噪声
+
+**判断升级(区别于 09-05 良性分类)**: 历 `compression_run_telemetry no such table` = 上游幽灵表懒建 bug(**良性**, 见 [[sqlite-corrupt-ghost-table-2026-09-05]], 判据只认字面量/integrity_check)。**本 boot(2026-09-07 09:23 起)出现真损坏字面量, 与幽灵表并存但两码事**:
+
+```
+Failed to save usage stats: SqliteError: database disk image is malformed   (code: SQLITE_CORRUPT)
+[callLogs] Failed to prune overflow request artifacts: database disk image is malformed
+```
+
+- **写路径真损坏**: `save usage stats`(src_lib_usage)与 `callLogs prune overflow artifacts`(src_lib_usage)两写操作反复 SQLITE_CORRUPT, 自 boot 09:23 起贯穿全程, 非偶发。
+- **影响面 = 遥测/档案层, 非服务面**: 同一批 chat 请求 `ProxyEgress status=success` + `[STREAM] complete` 照常 200(09:49 kimi-k3 / 09:50 deepseek 全 complete)。损坏只卡 usage_history/call_logs 落库, 服务未断。**dashboard 用量/调用账会漏记**。
+- **是否新现**: boot 快照 `quick_check ok` 正常写 Bucket 挂载; 活库 `/data/storage.sqlite` = HF ephemeral 盘, 每 boot 由 Bucket 快照恢复(见 §1 持久化)。损坏落在活库侧, Bucket 侧 last-good 快照独立, **持久化数据未受威胁**。
+
+**定性待定(开 incident, 非结论)**: 已 incident `2026-09-07-sqlite-corrupt-write-path.md`。根因域修正 (entrypoint L26/L50 源码铁证): 活库 `$DATA_DIR/storage.sqlite` (`DATA_DIR=/data`) = **ephemeral 本地盘, 非对象挂载** → 排除 object-mount 写语义; 域应=ephemeral 盘 write/tear (上次非正常停机残留) 或 boot 恢复源 (`backups/storage.last-good.sqlite`) 带损。须 `PRAGMA integrity_check` 对活库 + 快照源双验定位。**先记红旗, 不臆断根因**。
+
+**同 boot 并存观测**: sensenova lite 7收到 404(见本段末注释)——sensenova-6.7/6.8-flash-lite 静态白名单 4 模型注册成功但**上游 route not found, 3 key 全轮 404**, 现不可调用; 需上游枚举定真实 id。/tmp/sensenova-enum.sh 已备。
+
 ## 2026-09-05 · 503 chat_admission_busy 根因定位 (进程 V8 堆高位, 非宿主内存) — 观测待办已列
 
 Claude Code 客户端持续报 `API Error: 503 Chat admission capacity is temporarily unavailable` + `Retrying in 7s · attempt N/10`。源码定位 (upstream 3.8.50 `src/shared/middleware/chatBodyAdmission.ts`) 与 boot 日志 `reason=queue_timeout activeHeavy=1 waiting=0 queuedBytes=0 lane=key_<x-api-key 指纹>` 逐条对齐:

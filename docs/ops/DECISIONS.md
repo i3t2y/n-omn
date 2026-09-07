@@ -840,3 +840,10 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **连带**: OPENROUTER_KEYS Space Secret 无人读 → **Zen 侧可删** (checklist docs/xnexus-deploy-checklist.md L73 已标删). dpv4-pool 仍 = nvidia+sensenova+amd 严格三家 (openrouter 本就排除, 现在连 guard 都不用).
 - **未测**: bash -n 通过; boot 待批 commit + Space 侧验证 (manifest 锁提 Bucket → 重启 → 探针确认无 openrouter 残留). gemini/mistral 仍在 disabled 数组 (`("gemini" "mistral")`), 复核期 2026-09-17 未动.
 - **commit**: 待批. 文件: logic/init-nim-keys.sh + docs/xnexus-deploy-checklist.md + 本条. 出处: Zen令 "把openrouter删了". 关联: 2026-09-03 disabled 决策 (从保留升级为删), 2026-09-07 图形模型策展定性.
+## 2026-09-07 · sensenova 6.7→6.8 白名单直接改 id (Zen令, 反转 09-06 并存登记)
+
+- **背景**: 09-06 曾并存登记 sensenova-6.8-flash-lite (保留 6.7 兜底可回滚). 09-07 生产 boot (09:49/09:51) 实测 **6.7 与 6.8 双返 404 `model route not found`** (全 3 key `all ... cooling down`), 注册面全绿但调用全 404.
+- **Zen令 (升级认知)**: 6.7 已下架升级为 6.8 → 白名单**直接改 id, 删 6.7 只留 6.8**. 6.7 兜底在"上游 id 换代"下已无意义 (404 即死条目).
+- **定谳**: 白名单终态 (logic/init-nim-keys.sh L112) = `sensenova-6.8-flash-lite deepseek-v4-flash glm-5.2` (3 模型, 与上游 registry 同数量). 上游 3.8.50 registry 仍记旧 id `sensenova-6.7-flash-lite` (index.ts:17), 6.8 未收录 → 我方 6.8 为**前向换代注册**.
+- **待验**: boot 后看 6.8 是否真 200. 若仍 404 → 404 另有上游策展层原因 (真 id 带前缀/版本后缀), 须上游 `/v1/models` 枚举定位, 本会话不追. 与同日 SQLITE_CORRUPT (2026-09-07-sqlite-corrupt-write-path.md) 为**两独立事件**, 勿混.
+- **commit**: 待批 (随 STATUS+incident 同批). 文件: logic/init-nim-keys.sh + 本条. 出处: Zen令 "sensenova-6.7已升级为6.8, 直接改id名" + 生产 boot 09-07. 关联: 2026-09-06 并存登记 (被本条反转), 2026-09-07 图形模型策展定性.

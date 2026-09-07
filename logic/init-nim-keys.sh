@@ -65,13 +65,13 @@ REGISTERED=0; SKIPPED=0; FAILED=0
 #   prefix      = 模型名前缀 (combo 引用名 = ${prefix}/${modelId}; executor 用它拼请求)
 #   base_url    = OpenAI 兼容端点 (探活 + 动态枚举 /v1/models + executor 上游 URL)
 #   env_keys_var= 该 provider 的多 key env 变量名 (每行一个 key, NIM_KEYS 式; 空则跳过该 provider)
-#   max_models  = 动态枚举模型数上限 (防 OpenRouter 上千模型撑爆 combo)
+#   max_models  = 动态枚举模型数上限 (防超大 provider 上千模型撑爆 combo)
 #   model_prefix= 枚举模型名前缀 (给裸模型 ID 加前缀; 空=枚举原样, 非空=provider/裸名).
 #                 实测 (2026-08-27 Zen直连上游铁证): 两家都认**裸名** (枚举原样), 不认双层前缀.
 #                 sensenova: 认自带前缀裸名 (sensenova-u1.5-lite→200), 不认双层 (sensenova/sensenova-u1.5-lite→404);
 #                 amd: 认裸名 (DeepSeek-V4-Flash→200), 不认双层 (amd/DeepSeek-V4-Flash→404 "Provider amd not found").
 #                 → 双层前缀理论**证伪**, sensenova/amd model_prefix 空 = 枚举原样.
-#                 mistral 认裸名 devstral-2512, openrouter 枚举即 org/model. 全 provider 枚举原样即可.
+#                 mistral 认裸名 devstral-2512. 全 provider 枚举原样即可.
 # 每 provider 建 1 个 openai-compatible 节点定 base_url, 再按 key 建 N 个连接指同节点
 # (providers/route.ts:125-143 建连接时自动 providerSpecificData.baseUrl=node.baseUrl,
 #  executor default.ts:150-155 读 providerSpecificData.baseUrl 覆盖每连接上游 URL).
@@ -90,18 +90,20 @@ declare -a PROVIDERS=(
   #   内置 baseUrl (registry) = https://generativelanguage.googleapis.com/v1beta/models (原生协议,
   #   provider=gemini 连接注册后 executor 直接用它, 与旧 google-node 的 .../v1beta/openai 端点不同).
   "gemini|gemini-node|gemini|https://generativelanguage.googleapis.com/v1beta/models|GEMINI_KEYS|20||builtin|gemini-3.7-flash gemini-3.1-pro-preview gemini-3.1-flash-lite gemini-3-flash-preview gemini-2.5-pro gemini-2.5-flash gemini-2.5-flash-lite"
-  # openrouter: 2026-08-31 Zen令 — 内置 provider (gateways.ts:89 id:"openrouter" + registry baseUrl 现成),
-  #   第 8 字段 builtin 同 sensenova. 保持动态枚举 (passthroughModels:true, 全模型透传, max=100 不变);
-  #   第 9 字段 static_models 留空 → 走默认枚举, 与改内置前 node 套件行为一致 (仅换短名前缀).
-  "openrouter|openrouter-node|openrouter|https://openrouter.ai/api/v1|OPENROUTER_KEYS|100||builtin|"
+  # openrouter: 2026-09-07 Zen令删 (原 2026-08-31 内置 provider 轨, 09-02 审计 key 无效空转 → disabled,
+  #   现升级为彻底删行不保留). 行删除导致 OPENROUTER_KEYS 无人读; dpv4 亦不再需排除 guard.
   # sensenova: 第 8 字段 = builtin → 走内置 provider (不建 provider-node, 连接/模型/combo/dpv4 全挂
   #   provider=sensenova 内置名, 短名通, 与 nvidia 同模式). 内置 baseUrl 现成
   #   (config/providers/registry/sensenova/index.ts: https://token.sensenova.cn/v1/chat/completions),
   #   executor 直接用它当上游不拼 path. 2026-08-28 Zen令: sensenova 全部走内置.
   #   字段序 = id|node_name|prefix|base_url|env_keys_var|max_models|model_prefix(空)|mode|static_models
   #   (第 7 字段 model_prefix 须保留空位, builtin 须放第 8 字段, 否则 _mpre 错位吞掉 mode.)
-  #   第 9 字段 static_models = 静态模型白名单 (空格分隔). 非空 → 跳过动态枚举上游 /models,
-  #   直接用白名单注册 (方案A: sensenova 模型少且明确, 避免上游 /models 带回 u1-fast 图片模型误入 chat).
+  #   第 9 字段 static_models = 静态模型白名单 (空格分隔). 非空 → 跳过动态枚举上游 /models, 直接用白名单注册.
+  #   2026-09-06 Zen令定性 (对齐上游): 模型源 = 每 provider 策展的 registry models 列表. upstream 3.8.50
+  #   config/providers/registry/sensenova/index.ts 现列 3 个 chat 模型; 我方白名单 = 该 3 模型 + 6.8 forward-add
+  #   (6.8 上游尚未收录, 2026-09-06 并存登记). 上游以策展代过滤: 图像流模型 (u1-fast) 直接不列入 chat 模型,
+  #   源注释明载 "U1 Fast belongs to image flows; chat 404 model not found" = 良性死条目, 非架构风险,
+  #   无全局 names 正则需求. 我方按上游同源策展 = static_models 白名单.
   #   2026-08-28 Zen令方案A: 白名单 = 内置 registry 3 个 chat 模型 (sensenova-6.7-flash-lite/deepseek-v4-flash/glm-5.2).
   #   2026-09-06 Zen令: 并存登记 sensenova-6.8-flash-lite (6.8 换代, 保留 6.7 兜底可回滚).
   "sensenova|sensenova-node|sensenova|https://token.sensenova.cn/v1|SENSENOVA_KEYS|20||builtin|sensenova-6.7-flash-lite sensenova-6.8-flash-lite deepseek-v4-flash glm-5.2"
@@ -113,15 +115,16 @@ declare -a PROVIDERS=(
   "amd|amd-node|amd|https://developer.amd.com.cn/radeon/api/v1|AMD_KEYS|20|"
 )
 # ── 死 provider 轨 disabled 标记 (2026-09-03 Zen令: 标记 disabled 保留代码, 可逆) ──
-# openrouter/mistral/gemini 三条内置轨 key 无效空转 (09-02 审计 CredentialHealth 全 Invalid API key,
-# 完整注册机制每 boot 都跑但交付零请求 = 纯噪音). 但 08-31/09-01 刚下令内置化 → 不删行不砍分支,
-# 仅跳过注册 + FT 绑族; key 复活后从本数组删名即恢复 (可逆, 不推翻内置化令).
-declare -a DISABLED_PROVIDERS=("gemini" "openrouter" "mistral")
+# mistral/gemini 两条内置轨 key 无效空转 (09-02 审计 CredentialHealth 全 Invalid API key,
+# 完整注册机制每 boot 都跑但交付零请求 = 纯噪音). 不删行不砍分支, 仅跳过注册 + FT 绑族;
+# key 复活后从本数组删名即恢复 (可逆, 不推翻内置化令).
+# openrouter 已于 2026-09-07 Zen令从本数组 + PROVIDERS 行 + dpv4 guard + FT 族全套删除 (彻底删行不保留).
+declare -a DISABLED_PROVIDERS=("gemini" "mistral")
 # 复核期: Zen令(2026-09-03)后 2 周 = 2026-09-17 前复核 key 是否复活; 复活即从本数组删名,
 # 勿让 dead 轨永久空转 (方案#3). 过期仅印 INFO 提醒, 不阻断 boot (fail-open).
 DISABLED_REVIEW_BY="2026-09-17"
 if [ "$(date +%Y%m%d 2>/dev/null)" -gt "${DISABLED_REVIEW_BY//-/}" ] 2>/dev/null; then
-  echo "[init] WARNING: DISABLED_PROVIDERS (gemini/openrouter/mistral) 已过复核期 $DISABLED_REVIEW_BY, 请确认 key 是否复活"
+  echo "[init] WARNING: DISABLED_PROVIDERS (gemini/mistral) 已过复核期 $DISABLED_REVIEW_BY, 请确认 key 是否复活"
 fi
 
 # 判定 provider id 是否被禁用 (ALL_FT_FAMILIES 绑族收集 + _register_multi_provider 注册 共用)
@@ -518,7 +521,7 @@ _ft_register_proxy() {
   fi
 
   # 回退单桥 (JSON 缺/空/非法): 现役逻辑. scopeId 修为家族名 (修连接 ID 哑路径 Bug).
-  # 泛化: 绑 ALL_FT_FAMILIES (nvidia+google+openrouter+sensenova+mistral+amd), 各 provider 出口都走 FT 轮换 IP.
+  # 泛化: 绑 ALL_FT_FAMILIES (nvidia+google+sensenova+mistral+amd), 各 provider 出口都走 FT 轮换 IP.
   local _PORT="${FT_PROXY_PORT:-8080}"
   local _fams=()
   for _f in "${ALL_FT_FAMILIES[@]}"; do [ -n "$_f" ] && _fams+=("$_f"); done
@@ -1354,7 +1357,7 @@ hf_snapshot() {
   #   恢复路径: git 历史检出 + Dataset 根回推. 见 docs/ops/DECISIONS.md 2026-07-31 移除决策条.
 }
 
-# ── 通用多 provider 注册函数 (NIM_KEYS 多 key 模式推广: gemini/openrouter/sensenova/mistral/amd) ──
+# ── 通用多 provider 注册函数 (NIM_KEYS 多 key 模式推广: gemini/sensenova/mistral/amd) ──
 # 2026-08-26 提升: 原仅 first-init 跑 (L1349 内联), 增量 boot 直接 exit 0 跳过 → 免费 provider 永不再注册.
 #   改成函数后 **增量+first-init 都跑**, 幂等 (node 已存在复用 id, 连接 POST 409 跳过, 模型 409 幂等)。
 # 每 provider:
@@ -1493,7 +1496,7 @@ _register_multi_provider() {
     #   目的: sensenova 模型少且明确 (内置 registry 3 个 chat 模型), 避免上游 /models 带回
     #   u1-fast 图片模型 (上游不标 supportedEndpoints → catalog 默认按 chat, 误入 chat 列表).
     # 默认: 动态枚举 (GET {base_url}/models, 过滤 embedding, 截 max) — 对模型数大/需自动发现上游的
-    #   provider (openrouter/mistral/amd/nvidia) 保留. 遍历 keys 找第一个能返回列表的 key; 全部失败
+    #   provider (mistral/amd/nvidia) 保留. 遍历 keys 找第一个能返回列表的 key; 全部失败
     #   fail-open 降级. 双路: 先裸 curl 直连公网; 空则走 FT 桥 + 信任 FT MITM CA (须 --cacert).
     if [ -n "$_static_models" ]; then
       # 方案A: 静态白名单, 每行一个模型 (原样, 不 grep 不过滤 — 白名单本身已筛好 chat 模型)
@@ -1523,9 +1526,12 @@ _register_multi_provider() {
           --cacert /tmp/ft-ca/flaretunnel_ca.crt \
           -H "Authorization: Bearer ${_fk}" "${_pburl}/models" 2>/dev/null || echo "")
       fi
-      # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回; 过滤 embedding/非 chat 防污染 combo
+      # 兼容 {data:[{id}]} 与 OpenAI 直列两种返回. 2026-09-07 Zen令定性: 只滤普适非 chat 类目
+      # (embedding/davinci/audio/rerank/moderation/whisper/tts = 对任何 provider 都不属聊天).
+      # 图像/视频流改由 per-provider 策展 (对齐上游 registry models, static_models 白名单即策展源),
+      # 不再用全局 image|video names 一刀切 —— 上游对图像流模型是"不列入 chat + 良性 chat 404"非恐慌过滤.
       _model_ids=$(printf '%s' "$_models_json" | jq -r '.data[]?.id // empty' 2>/dev/null \
-        | grep -viE 'embed|embedding|davinci|audio|image|video|rerank|moderation|whisper|tts' \
+        | grep -viE 'embed|embedding|davinci|audio|rerank|moderation|whisper|tts' \
         | head -n "$_pmax" || true)
       _mcount=$(printf '%s\n' "$_model_ids" | sed '/^$/d' | wc -l)
       echo "[init]     $_pid: 枚举 $_mcount 个模型 (截 $_pmax) (body $(printf '%s' "$_models_json" | wc -c)B, key=$([ -n "$_models_key" ] && echo ok || echo none))"
@@ -1536,7 +1542,7 @@ _register_multi_provider() {
     # 模型名 = ${_mpre:+${_mpre}/}${裸模型ID}: 实测 (2026-08-27) 双层前缀理论彻底证伪 — 两家都认裸名:
     #   sensenova 认自带前缀裸名 (sensenova-u1.5-lite→200) 或裸名 (deepseek-v4-flash), 不认双层 (→404);
     #   amd 认裸名 (DeepSeek-V4-Flash→200, used_provider=radeon-deepseek), 不认双层 (amd/→404 "Provider amd not found").
-    #   → 全 provider _mpre 空 = 枚举原样. mistral/openrouter 枚举即调用格式同样空.
+    #   → 全 provider _mpre 空 = 枚举原样. mistral 枚举即调用格式同样空.
     # 模型注册 modelId 同 combo 模型名 (带 _mpre 前缀, provider=<node.id>).
     if [ "$_mcount" -gt 0 ]; then
       _modids=()
@@ -1545,10 +1551,10 @@ _register_multi_provider() {
         _modids+=("${_mpre:+${_mpre}/}${_mm}")
         # 跨 provider 同模型 (dp4f) 收集: 枚举模型名匹配 [Dd]eep[Ss]eek+[Ff]lash 变体 →
         # 追加 "${_nid}/${_mm}" 进全局 _DPV4_ENTRIES (combo 条目: builtin 模式 _nid=内置短名, node 模式=节点 UUID).
-        # 2026-08-28 Zen令: 严格三提供商 (nvidia+sensenova+amd), 排除 openrouter
-        # (boot 02:45 实证 openrouter 枚举含 3 个 deepseek/deepseek-v4-flash-* 变体, 误收进池).
+        # 2026-08-28 Zen令: 严格三提供商 (nvidia+sensenova+amd). openrouter 已 2026-09-07 删行,
+        # 原"排除 openrouter 防 deepseek 变体误收进池"的 guard 随之成死代码, 一并移除.
         case "$_mm" in
-          *[Dd]eep[Ss]eek*[Ff]lash*) [ "$_pid" = "openrouter" ] || _DPV4_ENTRIES+=("${_nid}/${_mm}") ;;
+          *[Dd]eep[Ss]eek*[Ff]lash*) _DPV4_ENTRIES+=("${_nid}/${_mm}") ;;
         esac
       done <<< "$_model_ids"
       _strat="${_POOL_STRATEGY:-weighted}"
@@ -1606,7 +1612,7 @@ _register_multi_provider() {
   _cleanup_legacy_node "sensenova-node" "sensenova"
   _cleanup_sensenova_double_prefix
   _cleanup_legacy_node "nvidia-node" "nvidia"
-  _cleanup_legacy_node "openrouter-node" "openrouter"
+  # openrouter 已 2026-09-07 删行, 不再需 _cleanup_legacy_node "openrouter-node" (行删即无内置路径可清)
   _cleanup_legacy_node "mistral-node" "mistral"
   # 2026-09-01 Zen令: gemini 内置化, 清旧 google-node 自定义节点 (UUID 轨) + 其下连接/模型.
   _cleanup_legacy_node "google-node" "google"
@@ -1797,7 +1803,7 @@ mapfile -t CODEX_ALIVE < <(filter_alive "${NIM_CODEX_MODELS[@]}")
 upsert_combo "nim-pool"  "$_POOL_STRATEGY" "nvidia" "${POOL_ALIVE[@]}"
 upsert_combo "nim-codex" "$_CODEX_STRATEGY" "nvidia" "${CODEX_ALIVE[@]}"
 
-# ══ 通用多 provider 注册（NIM_KEYS 多 key 模式推广: gemini/openrouter/sensenova/mistral/amd）═══
+# ══ 通用多 provider 注册（NIM_KEYS 多 key 模式推广: gemini/sensenova/mistral/amd）═══
 # 已抽为函数 _register_multi_provider() 定义于增量模式段前 — 增量+first-init 都调 (2026-08-26).
 _register_multi_provider
 

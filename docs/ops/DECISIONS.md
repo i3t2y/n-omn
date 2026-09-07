@@ -819,3 +819,24 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **本地复现实验** (docs/readonly-probe-repro.py, python3 内置 sqlite3, 无 sqlite3 CLI): ①干净 WAL 库 read/write quick_check 恒 ok; ②注入空 -wal + 删 -shm 模拟崩溃残留后, readonly quick_check **依然 ok**。**结论: 当前 SQLite 版本下 WAL 残留 (缺 -shm) 不足以让 readonly 打开失败 — 否定该假设。** 且 Python sqlite3 close 自动 checkpoint, 干净关闭不留残留 — 仅文件残留检查不能推断 readonly 失败。
 - **裁决 (定性)**: 生产起不来 = **文件系统写路径故障** (ENOSPC 磁盘满 或 /data 只读挂载 EROFS/ro). 证据模式: 读成功 (CLI quick_check 过) 但写/重命名被拒 => SQLite 在"只读挂载/无空间"下同时报 `disk I/O error` + `SQLITE_READONLY` — 文件头可读 (满足 probe) 但写 WAL/checkpoint 撞只读/无空间。**非 SQLITE_CORRUPT 损坏** (quick_check 过, 且 probe 未走 corruption 分支)。OOM 告警为环境压力并行信号, 非 DB 根因 (heap 4096 已生效)。
 - **文件变更**: docs/readonly-probe-repro.py 新建 (实验脚本留存, 可复跑). 无代码改动. 出处: 生产 boot 2026-09-06 + 本地实验 + 上游 driverFactory/core/probeUtils (3.8.50 只读树). 关联: 2026-09-04 SQLITE_CORRUPT 双 A 裁定 (SQLITE_READONLY 与 SQLITE_CORRUPT 不同类, 判据仍只认 quick_check 字面量/`integrity_check_failed` 为损坏)。
+## 2026-09-07 · 图形模型按上游策展处理, 非全局 names 恐慌过滤 (Zen令)
+
+- **背景**: Zen问"OmniRoute 官方对图形模型如何处置, 图形误入语言模型是否是我们这套手工模型名单机制自造" — 源码查证 upstream 3.8.50:
+  - 上游内置 provider 模型源 = 每 provider 策展的 registry `models` 列表 (config/providers/shared.ts `RegistryEntry.models: RegistryModel[]`), 动态 `/models` 仅用于 **key 校验** (shared.ts `modelsUrl` 注释, 非 catalog 发现); AI Horde 活发现是唯一例外.
+  - senseo/sensenova registry (registry/sensenova/index.ts) 只列 3 个 chat 模型, **u1-fast 不在列**, 源注释写明 "U1 Fast belongs to image flows; chat 404 model not found" = 图像流模型, 良性死条目.
+  - **上游无任何全局 names 正则过滤图像/视频**. 3.8.50 里 `image|video|audio|whisper|tts` 那类名字过滤 (grep -viE) 是**我方 init-nim-keys.sh 自造私货**, 官方以策展代过滤.
+- **定谳**: 图形模型误入语言模型 = **我方动态枚举 + 全局 names 正则机制自造** (openrouter/nvidia/amd 动态枚举路径), 非 OmniRoute 固有问题. 裸 vanilla 部署既有"必须登记"麻烦也无"图形误入"恐惧.
+- **裁决 (两处定点改, 对齐上游策展)**:
+  1. **sensenova 模型源定性 = 策展白名单即上游 registry models 镜像** (本已如此: 与 registry/sensenova/index.ts 3 模型一致 + 6.8 并存 2026-09-06). 改注释: 排除 u1-fast = 按上游策展 (图像流不列入 chat), **非** 架构恐慌; u1-fast 走静态白名单根本没经过动态枚举过滤.
+  2. **全局名字正则缩窄**: 去掉 `image|video` 两个"谈图色变"项, 只留普适非 chat 类目 `embed|embedding|davinci|audio|rerank|moderation|whisper|tts` (对任何 provider 都不属聊天). 图像/视频流改由 per-provider 策展 (static_models 白名单 = 策展源).
+- **诚实权衡**: 去掉全局 `image|video` 后, 走动态枚举的大 provider (openrouter/amd/nvidia) 若 /models 带回图像-生成类模型, 会进 /v1/models 目录 → 按上游语义为**良性 chat 404 死条目**, 无害但或致目录冗余. 如需在特定 provider 挡特定图像模型, 走 per-provider 显式排除 (白名单/单项), 不再回全局一刀切.
+- **未动**: sensenova 白名单本就有 4 模型 (含 6.8), 未改列表仅改注释; gemini/mistral 静态白名单照旧 (本就走策展). 未测 boot (待批 commit push 后 Space 侧验证).
+- **commit**: 待批. 文件: logic/init-nim-keys.sh (L103-110 注释 + L1529-1534 正则). 出处: 源码查证 registry/{sensenova,shared.ts} 3.8.50 + Zen质疑.
+## 2026-09-07 · openrouter 彻底删除死 provider 轨 (Zen令)
+
+- **背景**: openrouter 轨 2026-08-31 内置化, 09-02 审计 CredentialHealth 全 `Invalid API key` → 2026-09-03 Zen裁"标记 disabled 保留代码" (DISABLED_PROVIDERS 数组, 复核期 2026-09-17). 09-07 Zen令升级为**彻底删行不保留**.
+- **原因 (承接当日连番定性)**: 与其维持在 disabled 数组里空转 + 复核期提醒, 不如删干净; 与同日"图形模型对齐上游策展、去全局 names 恐慌过滤"清理同向 —— 削减手工 provider 轨, 减少维护面.
+- **删除落点 (`logic/init-nim-keys.sh`)**: ① PROVIDERS 表行 openrouter (含其注释块) ② DISABLED_PROVIDERS 移除 "openrouter" → 剩 (gemini mistral) ③ dpv4 池 openrouter 排除 guard 死代码移除 (openrouter 不再进循环) ④ _cleanup_legacy_node "openrouter-node" 调用移除 ⑤ FT 绑族注释、头注释、示例列表去 openrouter. 历史叙述注释保留以存因由.
+- **连带**: OPENROUTER_KEYS Space Secret 无人读 → **Zen 侧可删** (checklist docs/xnexus-deploy-checklist.md L73 已标删). dpv4-pool 仍 = nvidia+sensenova+amd 严格三家 (openrouter 本就排除, 现在连 guard 都不用).
+- **未测**: bash -n 通过; boot 待批 commit + Space 侧验证 (manifest 锁提 Bucket → 重启 → 探针确认无 openrouter 残留). gemini/mistral 仍在 disabled 数组 (`("gemini" "mistral")`), 复核期 2026-09-17 未动.
+- **commit**: 待批. 文件: logic/init-nim-keys.sh + docs/xnexus-deploy-checklist.md + 本条. 出处: Zen令 "把openrouter删了". 关联: 2026-09-03 disabled 决策 (从保留升级为删), 2026-09-07 图形模型策展定性.

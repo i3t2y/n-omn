@@ -70,7 +70,7 @@
 | 变量 | 值来源 | 说明 |
 |------|--------|------|
 | `GEMINI_KEYS` | **Zen提供免费 key** (多行, 每行一个) | 通用表 google provider (commit 5e333e9) |
-| `OPENROUTER_KEYS` | **Zen提供免费 key** (多行) | 通用表 openrouter provider |
+| ~~`OPENROUTER_KEYS`~~ | ~~Zen提供免费 key~~ | ~~openrouter provider~~ — **2026-09-07 删行, Space Secret 可删** |
 | `SENSENOVA_KEYS` | **Zen提供免费 key** (多行) | 通用表 sensenova (商汤) provider |
 | `MISTRAL_KEYS` | **Zen提供免费 key** (多行) | 通用表 mistral provider |
 | `AMD_KEYS` | **Zen提供免费 key** (多行) | 通用表 amd provider (AMD_BASE_URL 可覆盖 base) |

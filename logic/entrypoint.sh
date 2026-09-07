@@ -116,23 +116,95 @@ fi
 # 2026-09-05 首席架构师裁 (litestream/R2 彻底废弃):
 #   · 无 R2 副本启动 → 空库启动, init 重建 NIM keys (init-nim-keys.sh 幂等)
 #   · 无 litestream 备份链; R2 退役 (Secrets 可删 R2_*)
-# ── boot 快照兜底 (保底: 启动前 quick_check 有效 DB → 覆盖 $DATA_DIR/backups/storage.last-good.sqlite) ──
-#   防 Bucket-FUSE 坏库事故: 只抄 quick_check ok 的库 = 坏库不会污染备份.
-#   本地库已坏 → 尝试备份替换 (备份也是 quick_check 过的). 两都缺 → 空库启动 init 重建.
-mkdir -p "$DATA_DIR/backups" 2>/dev/null || true
-if [ -s "$DB_PATH" ]; then
-  if command -v sqlite3 >/dev/null 2>&1 && sqlite3 "$DB_PATH" "PRAGMA quick_check;" 2>/dev/null | grep -q '^ok$'; then
-    cp "$DB_PATH" "$DATA_DIR/backups/storage.last-good.sqlite" 2>/dev/null \
-      && echo "[entrypoint] boot 快照已更新 ($DB_PATH → backups/, quick_check ok)"
-  else
-    echo "[entrypoint] ⚠ 本地库 $DB_PATH quick_check 失败/缺 sqlite3, 不更新快照"
-    # 兜底恢复: 备份非空且自身 quick_check ok → fetching 备份覆盖 (不丢上次启动的成果)
-    if [ -s "$DATA_DIR/backups/storage.last-good.sqlite" ] && command -v sqlite3 >/dev/null 2>&1 \
-       && sqlite3 "$DATA_DIR/backups/storage.last-good.sqlite" "PRAGMA quick_check;" 2>/dev/null | grep -q '^ok$'; then
-      cp "$DATA_DIR/backups/storage.last-good.sqlite" "$DB_PATH" 2>/dev/null \
-        && echo "[entrypoint] ⚠ 本地库损坏, 已用 boot 快照兜底 ($DATA_DIR/backups/ → $DB_PATH)"
-    fi
+# ── boot 快照池兜底 (2026-09-07 治本: 改掉 09-05 "裸 cp-过-FUSE + quick_check 浅检" 不安全路径) ──
+#   三缺陷闭环是 SQLITE_CORRUPT 反复的放大器, 此处一并消除:
+#     ① 快照用 sqlite .backup 事务一致生成 (本地暂存, 非裸 cp) → 坏库不固化撕裂
+#     ② 门禁用严格 PRAGMA integrity_check (非 quick_check 浅检) → 坏库当场拒收不入池
+#     ③ 多版本滚动池 N 份 + 恢复优选最新健康版 → 单档 FUSE 撕裂只废该版, 退其他健康档
+#   全池坏 → 空库启动 init 幂等重建 (设计内建兜底, 不 FATAL).
+#   诚实残留: cp 入池仍过 FUSE (挂载自身不崩溃安全), 靠"源已校验 + 多版本退档"缓解 (不根除).
+SNAP_DIR="$DATA_DIR/backups"        # 快照池目录 (Bucket FUSE, 持久真源)
+SNAP_MAX="${SNAP_MAX:-5}"           # 保最新 N 份, 滚动 GC
+SNAP_TMP="$DATA_DIR/storage.snap.tmp.db"   # 本地暂存 (ephemeral, 生成/校验不过 FUSE)
+
+# _snap_verify <path>: 严格门禁. 好库返 0, 坏库/缺 sqlite3 返非 0 (set -e 安全, 仅 if 内调)
+_snap_verify() {
+  command -v sqlite3 >/dev/null 2>&1 \
+    && sqlite3 "$1" "PRAGMA integrity_check;" 2>/dev/null | grep -q '^ok$'
+}
+
+# _snap_gen <src>: 事务一致生成 + 严格校验 → 入池 + 滚动 GC. 坏库返非 0 且不入池.
+_snap_gen() {
+  local _src="$1" _ts _dst
+  rm -f "$SNAP_TMP" 2>/dev/null || true
+  _ts="$(date +%s 2>/dev/null || echo 0)"
+  # ① 事务一致备份到本地 (坏库此处即抛错), 不过 FUSE
+  if ! sqlite3 "$_src" ".backup '$SNAP_TMP'" >/dev/null 2>&1; then
+    echo "[entrypoint] snapshot: 源库 .backup 失败 (坏/占用), 拒绝入池"
+    rm -f "$SNAP_TMP" 2>/dev/null || true
+    return 1
   fi
+  # ② 严格校验暂存, 过才入池
+  if ! _snap_verify "$SNAP_TMP"; then
+    echo "[entrypoint] snapshot: 暂存 integrity_check 不过, 丢弃 (坏库拒收, 不污染池)"
+    rm -f "$SNAP_TMP" 2>/dev/null || true
+    return 1
+  fi
+  # ③ 入池 (cp 过 FUSE; 源已校验健康副本. 若该档被 FUSE 撕, 恢复时 integrity 拒它退其他档)
+  _dst="$SNAP_DIR/db-snap.$_ts.db"
+  if cp "$SNAP_TMP" "$_dst" 2>/dev/null; then
+    echo "[entrypoint] snapshot: 健康快照已入池 (${_dst})"
+  else
+    echo "[entrypoint] snapshot: 入池拷贝失败 (FUSE 写拒), 本轮不留档"
+    rm -f "$SNAP_TMP" 2>/dev/null || true
+    return 1
+  fi
+  rm -f "$SNAP_TMP" 2>/dev/null || true
+  # 滚动 GC: 保最新 SNAP_MAX 份 (pipeline 兜 || true, 免 set -e 误杀)
+  ls -1t "$SNAP_DIR"/db-snap.*.db 2>/dev/null | tail -n "+$((SNAP_MAX+1))" | while read -r _old; do
+    rm -f "$_old" 2>/dev/null || true
+  done || true
+  return 0
+}
+
+# _snap_restore: 从池优选最新健康版种活库. 成功返 0; 池空/全坏返 1 (空库启动兜底).
+_snap_restore() {
+  local _cand _chosen=""
+  for _cand in $(ls -1t "$SNAP_DIR"/db-snap.*.db 2>/dev/null); do
+    if _snap_verify "$_cand"; then
+      _chosen="$_cand"; break
+    else
+      echo "[entrypoint] restore: 档 ${_cand} integrity_check 不过, 跳过 (退更早健康档)"
+    fi
+  done
+  # 兼容召回旧 single 快照 (若在且健康, 作最老兜底)
+  if [ -z "$_chosen" ] && [ -s "$SNAP_DIR/storage.last-good.sqlite" ] \
+     && _snap_verify "$SNAP_DIR/storage.last-good.sqlite"; then
+    _chosen="$SNAP_DIR/storage.last-good.sqlite"
+  fi
+  if [ -n "$_chosen" ]; then
+    if cp "$_chosen" "$DB_PATH" 2>/dev/null; then
+      echo "[entrypoint] restore: 从健康档 ${_chosen} 恢复活库"
+      return 0
+    fi
+    echo "[entrypoint] restore: 健康档拷贝失败 (IO), 转空库兜底"
+    return 1
+  fi
+  echo "[entrypoint] restore: 健康池为空, 空库启动 (init 幂等重建兜底)"
+  return 1
+}
+
+mkdir -p "$SNAP_DIR" 2>/dev/null || true
+if [ -s "$DB_PATH" ]; then
+  if _snap_gen "$DB_PATH"; then
+    :
+  else
+    echo "[entrypoint] ⚠ 本地库校验不过, 不更新快照; 从健康池恢复"
+    _snap_restore || true
+  fi
+else
+  echo "[entrypoint] 空库启动, 尝试从健康池恢复非空库"
+  _snap_restore || true
 fi
 # 空库启动以及 boot 快照失败都 init 重建兜底, 不 FATAL
 : > "$DATA_DIR/backups/logs/raw/.boot-ts" 2>/dev/null || true

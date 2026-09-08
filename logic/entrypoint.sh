@@ -479,6 +479,12 @@ echo "[entrypoint] omn_scheduler PID=$SCHED_PID (永续日志: 明文 stderr →
 # gate 为对外服务 = 退出停一切; 上游服务为必需 = 退出停一切;
 # init/scheduler 非致命 (仅日志告警)
 _init_logged=0
+# ── 周期快照 (2026-09-08 决策②): 隔离崩溃窗口=整 boot 期 → ≤SNAP_INTERVAL (默 6h=21600s) ──
+# boot 已有一份池档; 此后每隔 SNAP_INTERVAL 对活库再 .backup 入池. 活库运行期写, .backup 是
+# 在线备份 API, 与活动写入共存安全 (优于 boot-only 使崩溃窗口=整 boot 周期).
+SNAP_INTERVAL="${SNAP_INTERVAL:-21600}"
+_snap_nxt=$(( $(date +%s 2>/dev/null || echo 0) + SNAP_INTERVAL ))
+_snap_tick=0
 while true; do
   if ! kill -0 "$GATE_PID" 2>/dev/null; then
     echo "[entrypoint] gate exited. 停止其余并退出."; _shutdown; exit 1
@@ -554,6 +560,21 @@ while true; do
       if [ "$_ft_abandoned" != 1 ] && [ -n "$_new_pids" ]; then
         FT_PIDS="${_new_pids# }"; FT_PORTS="${_new_ports# }"; FT_NAMES="${_new_names# }"; export FT_PIDS FT_PORTS FT_NAMES
       fi
+    fi
+  fi
+  # ── 周期快照 (与监督同轮, 每 60 ticks 检一次日期省子进程; 到点且活库在则 _snap_gen) ──
+  # 坏库/生成失败本周期不留档, 池内上份健康版仍保底; 不中断监督 (guard || echo).
+  _snap_tick=$(( (_snap_tick + 1) % 60 ))
+  if [ "$_snap_tick" -eq 0 ]; then
+    _now=$(( $(date +%s 2>/dev/null || echo 0) ))
+    if [ "$_now" -ge "$_snap_nxt" ]; then
+      if [ -s "$DB_PATH" ]; then
+        echo "[entrypoint] 周期快照: 距上份 ≥${SNAP_INTERVAL}s, 生成新池档..."
+        _snap_gen "$DB_PATH" || echo "[entrypoint] 周期快照: 活库不佳/生成失败, 本周期不留档 (池内上份健康版仍保底)"
+      else
+        echo "[entrypoint] 周期快照: 活库不存在, 跳过"
+      fi
+      _snap_nxt=$(( _now + SNAP_INTERVAL ))
     fi
   fi
   sleep 1

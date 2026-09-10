@@ -1,0 +1,48 @@
+# CodeBuddy 触发链(omn 仓,2026-09-10 接入,模板抄自 npc-lab)
+# 事件:issue/PR 评论 @npc/CodeBuddy 触发对应流水线
+# 角色定义在 .cnb/settings.yml;输入 CNB_NPC_SLUG/CNB_NPC_NAME/CNB_NPC_PROMPT
+
+.npc_template: &npc
+  - docker:
+      image: debian:sid
+    stages:
+      - name: NPC 响应
+        script: |
+          echo "=== CodeBuddy 启航 ==="
+          echo "Repo: $CNB_NPC_SLUG"
+          echo "NPC: $CNB_NPC_NAME"
+          echo "Prompt: $CNB_NPC_PROMPT"
+          echo "======================="
+
+$:
+  # api_trigger_npc: 只适用"问答"类(官方文档 2026-09-08 实锤)
+  # 干活(写代码/开 PR)必须走 issue 评论 @npc 召唤 + workMode
+  api_trigger_npc:
+    - docker:
+        image: cnbcool/default-npc:latest
+      stages:
+        - name: npc-go
+          type: npc:go
+          options:
+            role: CodeBuddy
+            systemPrompt: "你是 CodeBuddy, omn(n-omn) 网关仓的 AI 执行代理。"
+            userPrompt: $userPrompt
+  issue.comment@npc: *npc
+  pull_request.comment@npc: *npc
+
+# 仓自身 push/PR 心跳
+main:
+  push:
+    - name: heartbeat
+      docker:
+        image: debian:sid
+      stages:
+        - name: echo
+          script: echo "omn push heartbeat"
+  pull_request:
+    - name: pr-ping
+      docker:
+        image: debian:sid
+      stages:
+        - name: echo
+          script: echo "omn PR arrived"

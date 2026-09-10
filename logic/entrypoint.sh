@@ -43,6 +43,22 @@ STREAM_READINESS_TIMEOUT_MS="${STREAM_READINESS_TIMEOUT_MS:-180000}"
 export STREAM_READINESS_TIMEOUT_MS
 echo "[entrypoint] STREAM_READINESS_TIMEOUT_MS=$STREAM_READINESS_TIMEOUT_MS (M7 外科单注, wiki §15 实证)"
 
+# ── 4b forward-fallback 治暴 (2026-09-10 Issue #4): 单请求预算 env 导出 ──────────
+# 依据 docs/ops/k3-故障诊断-2026-09-10.md L2 "60 分钟空转风暴": 上游 NIM 对 k3 掐断时,
+#   本侧对同一 body 逐 key 全额重放, 单次 180s × 20+ key = 小时级空转。
+# gate 是透明代理 (换 key 在上游进程内), 故护栏按**会话**记账: 同一对话连续重放累计
+#   超 3 次尝试 / 累计超 90s / 退化空响应 → gate 直接回明确 502, 不再放行下一次重放。
+# 三个变量在 gate.js 有同样默认值; 此处显式导出=让 Space Variable 可覆盖, 且 boot 日志可核。
+#   · GATE_FALLBACK_MAX_ATTEMPTS      单请求最多尝试几次 (默认 3; ≤0 关闭)
+#   · GATE_FALLBACK_TOTAL_TIMEOUT_MS  单请求 fallback 累计墙钟 ms (默认 90000=90s; ≤0 关闭)
+#   · GATE_EMPTY_RESPONSE_RETRY=1/0   是否允许"退化空响应"再换 key 试一次 (默认 1=允许)
+#   · GATE_EMPTY_RESPONSE_MAX_RETRIES 允许重试次数 (默认 1)
+export GATE_FALLBACK_MAX_ATTEMPTS="${GATE_FALLBACK_MAX_ATTEMPTS:-3}"
+export GATE_FALLBACK_TOTAL_TIMEOUT_MS="${GATE_FALLBACK_TOTAL_TIMEOUT_MS:-90000}"
+export GATE_EMPTY_RESPONSE_RETRY="${GATE_EMPTY_RESPONSE_RETRY:-1}"
+export GATE_EMPTY_RESPONSE_MAX_RETRIES="${GATE_EMPTY_RESPONSE_MAX_RETRIES:-1}"
+echo "[entrypoint] fallback 治暴: maxAttempts=$GATE_FALLBACK_MAX_ATTEMPTS totalTimeout=${GATE_FALLBACK_TOTAL_TIMEOUT_MS}ms emptyRetry=$GATE_EMPTY_RESPONSE_RETRY/$GATE_EMPTY_RESPONSE_MAX_RETRIES (#4b)"
+
 OR_PID=""; INIT_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
 # FT_PIDS = 空格分隔多桥 PID 串 (多桥模式); 单桥回退时仅一元素. trap/看门狗遍历此串.
 FT_PIDS=""

@@ -879,3 +879,32 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
   3. 最次: 快照加**严格 `integrity_check`** (非 quick_check) + 多份 — 是缓冲非治本 (仍可能 FUSE 撕)。
 - **诚实边界**: R2 世代已退役, 无法 100% 证实 R1/R2; 但两读法收敛同一治本点 = 不安全拷贝路径. 退役 R2 bucket 若在可取证据判 R1/R2, 但只作证明不改治法。
 - **commit**: 待批. 文件: docs/ops/DECISIONS.md (本条追加, 只增). 出处: Zen再推 "2不治本、未改前未出现" + entrypoint L119-137 (cp/quick_check) + 09-05 收编. 关联: 上层分层结论条, 2026-09-07-sqlite-corrupt-write-path.md, e7b16b3.
+
+## 2026-09-10 · #4b fallback 治暴: 会话级 尝试次数上限 + 总墙钟墙 + 退化空响应护栏 (gate 层, PR 待 Zen 裁决)
+
+- **背景 (Issue #4, 依据 docs/ops/k3-故障诊断-2026-09-10.md §三 L2)**: 上游 NIM 对 k3 长请求掐断时, 本侧对同一 body 逐 key 全额重放, 单次等待窗 180s × 20+ key = 小时级空转风暴 ("两个问题的乘积, 不是和")。诊断报告 §五 已列改进方向 (总预算/重放去重/快速终止/止损闸), 本 PR 落其中"单请求总预算 + 空响应护栏"两条。
+- **上游 3.8.50 实证 (只读对照树, 本侧不改上游 src)**: `combo/comboConfig.ts:121 maxGlobalAttempts=30` (硬顶 200, `comboPredicates.ts:103`) / `:180 comboTimeoutMs=0` (=不限总墙钟) / `:154 maxSetRetries=0`; `combo/validateQuality.ts:738` 只把"无 content 且无 tool_calls"判空 → **上游"能配"但生产未配, 且 quality gate 不覆盖"有 tool_calls 但 content 全空"**。
+- **关键约束 (定层位)**: ① 上游 `comboTimeoutMs`/`maxGlobalAttempts` 是 **DB 内 per-combo 配置, 非 env**, 本侧"只改 logic/ 层"无法直接设; ② gate 是**透明代理** —— 上游换 key 发生在**上游进程内部**, gate 每次只看到**一个** response head, 故"请求内计数"恒为 1, **拦不住风暴**。→ 可观测口径只能是**同一会话的连续重放** (消费端带同一会话指纹反复进 gate) 的累计。
+- **决策 (落地口径)**: gate 新增会话级预算账本 (`logic/policy-guard.js` + `gate.js` 接线), 三护栏:
+  1. **尝试次数上限** `GATE_FALLBACK_MAX_ATTEMPTS` (默认 3): 同会话累计放行上游尝试数超限 → 直接 502, 不再放行下一次重放 (等价"不再等下一个 key")。
+  2. **总墙钟墙** `GATE_FALLBACK_TOTAL_TIMEOUT_MS` (默认 90000=90s, env 可配): 同会话首次失败起累计超期 → 直接 502 (不再等下一个 key 的 240s)。
+  3. **tool_calls 后空响应护栏** `GATE_EMPTY_RESPONSE_RETRY`/`GATE_EMPTY_RESPONSE_MAX_RETRIES` (默认 1/1): 上游 2xx 但 `tool_calls` 有而 `content`/`reasoning` 全空 = 退化, 记一次; 同会话再来 → Deferred-head (仅对已知退化会话 hold ≤2s) 收成明确 502, 不静默放空 200。**非 2xx 错误体不判退化** (交既有错误路径)。
+- **会话指纹** `resolveSessionKey`: `x-session-id`/`x-conversation-id` 等头 → body `conversation_id`/`session_id` → 前两条 messages 指纹 → 连接+模型兜底。
+- **为什么防住了什么场景 (一行一条)**: ① 次数上限 → 防"上游 combo 把单请求放大成 20+ 次同体重放"; ② 90s 墙钟 → 防"每个 key 等满 180s 的算术级空转 (600s 级)"; ③ 空响应护栏 → 防"tool_calls 后 content 空"的退化 200 被静默透传给消费端 (agent loop 因此断链却不报错)。
+- **不动**: 上游 src (只读对照) / `.cnb*` / 部署文件 / `docs/` 其它档 (仅本条 + STATUS 追加)。
+- **验收 (本 PR 自测)**: `logic/tests/policy-guard.test.js` 16 例 (次数/墙钟/退化/SSE 探针/跨 chunk 断行/风暴截断) + `logic/tests/gate-fallback.e2e.test.js` 6 例 (起真 gate + 假上游: 正常流 200 不误伤 / 退化同会话 502 / 次数上限第 4 次拦 / 墙钟墙 / Deferred-head 只放真内容) 全绿。
+- **commit**: 待批。文件: `logic/gate.js` (diff) + `logic/policy-guard.js` (新增) + `logic/entrypoint.sh` (env 导出注释) + `logic/tests/*` (新增) + 本条 + `docs/ops/STATUS.md` (env 注释)。关联: docs/ops/k3-故障诊断-2026-09-10.md, 2026-07-25 ctx-guard (同 gate 层前置拦截思路), `docs/audit/2026-07-25-ctx-guard-oom-fix-landed.md`。
+
+## 2026-09-10 · #4b fallback 治暴: 拦截口径修正 — 按"连续失败"记账, 不按 head 计数 (PR #13 评测退化归因)
+
+- **触发**: PR #13 (commit 77adcdc) 评测 0.8760 vs 基线 0.8700, CI 重叠 [0.806,0.936] vs [0.804,0.924] (证据不足以判退化), 但 judge_fused=0.614 (judge 0.440) 提示改动可能对"正常请求"有副作用 → 逐项复核 diff 后确认真退化面。
+- **实测 (gate.js 起真实例 + 假上游, 复现口径见 logic/tests/session-budget.test.js + e2e)**:
+  1. **正常对话 3 问后永久 502**: 原实现对"上游 response head 到达"计数, 达 `maxAttempts=3` 即置 denied 且**永不清零** → 同一 `x-session-id` (或同 model + 前两条 messages 相同, 如共享 system prompt) 的正常会话第 4 次起被 502 拒, 且此前**上游零调用**。
+  2. **墙钟把长会话误杀**: `totalTimeoutMs` 自"会话首次进入 gate"起算, 一个 90s+ 的正常长会话被判 `fallback_total_timeout`。
+  3. **上游 429/5xx 计入尝试** → 429×3 后即使上游恢复, 该会话仍被永久 502 (重试预算被"客户端重试"提前耗尽)。
+  4. **Deferred-head 误伤正常流**: hold 触发条件含 `emptyResponses > 0 || attempts > 1`, 叠加 2/3 后, 正常流只要前 1s 内没吐 content (tool_calls-first 或慢首 token) 就被收成 502, 真回复被丢。
+- **修正 (本次 commit)**: 拦截口径 = **同一会话连续失败数** `failures`。失败只认两种: ① 上游 2xx 却给不出有效内容 (退化空响应 / 零内容); ② 上游 4xx/5xx 失败响应。**正常内容到达 → `clearSessionFailure` 清零** (会话自愈; 已 `denied` 的保持粘住, 防风暴回潮)。墙钟改为"自首次失败起算"(`clockArmed`)。`recordSessionAttempt` (head 计数) 降级为**证据**, 不参与拦截。Deferred-head hold 条件收窄为 `failures > 0`。
+- **治暴能力不退化 (回归守)**: 坏会话 (每次响应都失败) 仍在 3 次内收口 (测试 `治暴能力不退化` 断言 passed=3, 不放到 20+); 退化空响应会话第 2 次退化即明确 502; 90s 墙钟自首次失败起算仍生效。
+- **诚实边界 (本轮实测发现, 未在本 PR 覆盖)**: ① 同一客户端并发请求共用指纹时, 并发失败会被并成同一会话 → 可能一起被拒 (需 4xx/5xx 连续才触发, 概率低); ② 若上游卡在坏 key 上**既不返回也不换 key**, 消费端不重放 → gate 无新增观测, 90s/3 次都不触发, 兜底仍靠 `GATE_UPSTREAM_TIMEOUT_MS`; ③ `resolveSessionKey` 的 messages 指纹只取前两条 (共享 system prompt 的不同会话会落同一账本), 修正后仅影响"失败计数"粒度, 不再单独致 502。
+- **验证**: `logic/tests/*` **32 例全绿** (含新增 `session-budget.test.js` 10 例: 正常 10 次全放行 / head 不计数 / 连续失败 3 次收口 / 自愈清零 / 墙钟自首次失败 / denied 粘住 / TTL 回收 / classifyProbeFailure), e2e 6 例 (正常流不误伤 / 同会话退化 502 / 次数上限 / 墙钟 / Deferred-head 真回复零丢失)。
+- **commit**: 本 PR #13 追加。文件: `logic/policy-guard.js` (记账口径 + classifyProbeFailure) + `logic/gate.js` (接线) + `logic/tests/session-budget.test.js` (新增) + 本条 + `docs/ops/STATUS.md`。关联: 上一条 2026-09-10 #4b 决策条 (口径以本条为准), PR #13, Issue #4。

@@ -19,6 +19,7 @@ const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
+const policyGuard = require('./policy-guard.js');
 
 const INTERNAL_PSK = process.env.INTERNAL_PSK || '';
 const ADMIN_ENABLED = process.env.GATE_ADMIN_ENABLED === '1';   // 纯布尔开关: 仅确置 '1' 开后台; 未设/'0'/任意他值均关 (保守 fail-closed)
@@ -50,6 +51,121 @@ const FT_BRIDGES = FT_PORTS_LIST.length > 0 ? FT_PORTS_LIST : [8080];  // FT 未
 const CTX_GUARD_ENABLED = process.env.GATE_CTX_GUARD_ENABLED !== '0';
 const CTX_MAX_BYTES = parseInt(process.env.GATE_CTX_MAX_BYTES || '1500000', 10) || 1500000;
 const CTX_BYTES_PER_TOKEN = parseInt(process.env.GATE_CTX_BYTES_PER_TOKEN || '8', 10) || 8;
+
+// ── #4b fallback 治暴配置 (2026-09-10 裁): 限尝试次数 + 总超时墙 + 空响应护栏 ─────────
+// 依据 docs/ops/k3-故障诊断-2026-09-10.md L2: 上游 NIM 对 k3 长请求掐断时, 本侧逐 key 全额重放
+//   同一 body, 把"上游慢"放大成 80 分钟级空转风暴 (单次等待 180s × 20+ key)。
+//   本层不做"换 key"本身 (换 key 由上游 combo 做), 也无从按"单个 HTTP 请求"计数 ——
+//   gate 是透明代理, 上游换 key 发生在上游进程内, 同一客户请求对 gate 只产生**一个** response head。
+//   故记账口径 = **同一会话的连续重放** (消费端带同一会话指纹反复进 gate), 由 gate 兜底截断:
+//   上游自身预算 (见下) 是第一道, gate 会话级预算 是第二道。
+// 上游 3.8.50 实证 (只读对照树, 本侧不改):
+//   · open-sse/services/combo/comboConfig.ts:121 maxGlobalAttempts=30 (硬顶 200, comboPredicates.ts:103)
+//   · comboConfig.ts:180 comboTimeoutMs=0 (= 不限总墙钟, 仅 COMBO_LOOP_SAFETY_TIMEOUT_MS=10min 兜底)
+//   · comboConfig.ts:154 maxSetRetries=0 (同 set 不重跑)
+//   · validateQuality.ts:738 "empty content and no tool_calls" 已把空响应判 quality 不合格并换 target
+//   → 上游"能配"但生产未配; 本 PR 把 `GATE_FALLBACK_*` 落成 gate 侧默认 + entrypoint 显式导出, 无需改上游 src。
+// ── GATE_FALLBACK_MAX_ATTEMPTS: 同一会话连续失败几次后拒放行 ──
+//   语义 (2026-09-10 修正): 只对**失败**记账 —— 上游 2xx 却给不出有效内容 (退化空响应 / 零内容)
+//   或 4xx/5xx 失败响应, 这才算一次失败。连续失败达上限 → 直接 502, 不再放行下一次重放
+//   (等价"不再等下一个 key")。**正常完成即清零**, 所以"连续 3 问正常对话"不会被误伤。
+//   为什么不是"按上游 response head 计数": gate 是透明代理, 上游 combo 换 key 在上游进程内完成,
+//   gate 每次只看到一个 head → 按 head 计数恒为 1 拦不住风暴, 对普通客户端却会误杀长会话。
+//   默认 3 = Issue #4 验收口径 (单请求最多尝试 3 个 key)。≤0 = 关闭本护栏。
+// ── GATE_FALLBACK_TOTAL_TIMEOUT_MS: 同一会话 fallback 累计墙钟 ──
+//   从该会话**首次失败**起算 (正常请求不计时, 否则长会话满 90s 会被墙钟误杀);
+//   超过即放弃并回 502 (而不是再等下一个 key 的 240s)。env 可配, 默认 90000=90s。
+// ── GATE_EMPTY_RESPONSE_RETRY: tool_calls 后空响应护栏 ──
+//   上游若返回 "HTTP 200 + 只有 tool_calls + content 全空" 的退化应答, 上游 quality gate 不拦
+//   (它只把 "无 content 且无 tool_calls" 判空, validateQuality.ts:738)。gate 侧记一次"上游退化",
+//   同会话再退化 → 明确 502 报给消费端, 不静默放空 200 (Deferred-head, 见 handleDegenerateHold)。
+// 消费端 gate 无 key 可换 (key 池在上游), 故本组仅"数次数 + 掐墙钟 + 判退化", 不实现 key 轮换。
+const FALLBACK_GUARD_ENABLED = process.env.GATE_FALLBACK_GUARD_ENABLED !== '0';
+const FALLBACK_MAX_ATTEMPTS = parseInt(process.env.GATE_FALLBACK_MAX_ATTEMPTS || '3', 10);
+const FALLBACK_TOTAL_TIMEOUT_MS = parseInt(process.env.GATE_FALLBACK_TOTAL_TIMEOUT_MS || '90000', 10) || 90000;
+const EMPTY_RESPONSE_RETRY_ENABLED = process.env.GATE_EMPTY_RESPONSE_RETRY !== '0';
+const EMPTY_RESPONSE_MAX_RETRIES = parseInt(process.env.GATE_EMPTY_RESPONSE_MAX_RETRIES || '1', 10);
+const FALLBACK_SESSION_TTL_MS = parseInt(process.env.GATE_FALLBACK_SESSION_TTL_MS || '600000', 10) || 600000;
+const FALLBACK_MAX_SESSIONS = parseInt(process.env.GATE_FALLBACK_MAX_SESSIONS || '5000', 10) || 5000;
+// ── 会话级账本 (为什么不是"请求级") ─────────────────────────────
+// gate 是透明代理: 上游 combo 的换 key 重放发生在上游进程内, gate 每次只看到**一个**响应头,
+//   故"请求内计数"永远停在 1, 拦不住风暴。可观测口径 = 同一会话连续重放 (消费端带同一会话指纹
+//   反复进 gate)。护栏据此记账: 连续**失败**超 3 / 首次失败起累计超 90s / 退化空响应 → 直接拒。
+//   证伪条件: 若上游卡在某个坏 key 上不返回也不换 key, 消费端不会自动重放 → gate 侧无新增观测,
+//   此时 90s / 3 次都不会触发, 兜底仍由 GATE_UPSTREAM_TIMEOUT_MS (单请求上游超时) 承担。
+const fallbackLedger = policyGuard.createSessionLedger({
+  enabled: FALLBACK_GUARD_ENABLED,
+  maxAttempts: FALLBACK_MAX_ATTEMPTS,
+  totalTimeoutMs: FALLBACK_TOTAL_TIMEOUT_MS,
+  emptyResponseRetry: EMPTY_RESPONSE_RETRY_ENABLED,
+  emptyResponseMaxRetries: EMPTY_RESPONSE_MAX_RETRIES,
+  maxSessions: FALLBACK_MAX_SESSIONS,
+});
+
+// ── 会话指纹: 让"同一对话的连续重放"落同一账本 ──────────────────
+// 优先级: 显式 session/conversation 头 → body.conversation_id / session_id
+//        → messages 指纹哈希 (同对话同样前缀) → 连接+模型兜底 (最后手段)。
+function resolveSessionKey(req, bodyBuf) {
+  const h = req.headers || {};
+  for (const name of ['x-session-id', 'x-conversation-id', 'x-omniroute-session-id', 'session_id']) {
+    const v = h[name];
+    if (typeof v === 'string' && v.trim().length > 0) return `h:${v.trim()}`;
+  }
+  if (bodyBuf && bodyBuf.length > 0) {
+    try {
+      const j = JSON.parse(bodyBuf.toString('utf8'));
+      const cid = j && (j.conversation_id || j.session_id);
+      if (typeof cid === 'string' && cid.trim().length > 0) return `b:${cid.trim()}`;
+      const msgs = j && j.messages;
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        const fp = crypto.createHash('sha256').update(JSON.stringify(msgs.slice(0, 2))).digest('hex').slice(0, 16);
+        return `m:${fp}:${j.model || ''}`;
+      }
+    } catch { /* 非 JSON body, 走兜底 */ }
+  }
+  return `f:${req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || 'anon'}:${req._normPath || ''}`;
+}
+
+// 读 body 前缀 (最多 maxBytes) 并**原样重放给下游**: 用 PassThrough 承接已读字节,
+// 之后 req 剩余字节 pipe 进去, 下游 req.pipe 改读该 PassThrough —— body 语义零改动, 不走 unshift
+// (unshift 在 pause 中的 IncomingMessage 上不可靠, 会致下游 400)。
+const { PassThrough } = require('stream');
+function readBodyPrefix(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const want = Math.min(parseInt(req.headers['content-length'] || '0', 10) || maxBytes, maxBytes);
+    const chunks = [];
+    let got = 0;
+    let settled = false;
+    const onData = (c) => {
+      if (settled) return;
+      chunks.push(c); got += c.length;
+      if (got >= want) finish();
+    };
+    const onEnd = () => finish();
+    const onErr = (e) => { if (settled) return; settled = true; cleanup(); reject(e); };
+    function cleanup() {
+      req.off('data', onData); req.off('end', onEnd); req.off('error', onErr);
+    }
+    function finish() {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      const buf = Buffer.concat(chunks);
+      // 下游读的"替身 body": 已读字节 + 后续 req 剩余字节
+      const replay = new PassThrough();
+      if (buf.length > 0) replay.write(buf);
+      req.on('data', (c) => replay.write(c));
+      req.on('end', () => replay.end());
+      req.on('error', (e) => replay.destroy(e));
+      req._fgBodyStream = replay;
+      req.resume();
+      resolve(buf);
+    }
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onErr);
+  });
+}
 
 // ── fail-closed: PSK 必须非空且最小长度 ──────────────────────
 if (!INTERNAL_PSK || INTERNAL_PSK.length < 16) {
@@ -230,9 +346,176 @@ app.use('/v1', (req, res, next) => {
 });
 
 // ── SSE 透传代理: 手写 http, 逐块 pipe, 客户端断开 abort 上游 ─
-function proxyV1(req, res) {
+// ── #4b: 终态记账 ────────────────────────────────────────────────
+// 只判"上游 2xx 但给不出有效内容"这一种退化 —— 非 2xx 的错误响应本身已明确, 不重复记账。
+// 判定口径 (保守, 宁放过不误伤):
+//   · 非 2xx (statusCode >= 300) → 不是退化, 交既有错误路径 (也不记空响应)。
+//   · sawNonPingContent = true   → 有真内容, 绝不判退化。
+//   · sawError                   → 流内报错, 交既有错误路径。
+//   · 2xx 且零星/空              → 记一次退化; 同会话再来即拒 (不静默放空 200)。
+function recordFallbackOutcome(req, verdict, statusCode) {
+  if (!verdict || !req._fgSessionKey) return;
+  if (typeof statusCode === 'number' && statusCode >= 300) return;
+  const key = req._fgSessionKey;
+  const reason = policyGuard.classifyProbeFailure(verdict);   // 纯函数: 真内容/流内错误 → 'ok'
+  if (reason === 'ok') {
+    // 正常内容到达 → 清零该会话失败计数 (会话自愈; 已 denied 的保持粘住, 见 clearSessionFailure)
+    policyGuard.clearSessionFailure(fallbackLedger, key);
+    return;
+  }
+  const r = policyGuard.recordSessionFailure(fallbackLedger, key, { reason });
+  logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
+    httpStatus: verdict.degenerateEmpty ? 200 : 502,
+    errorCode: verdict.degenerateEmpty ? 'upstream_degenerate_empty_response' : 'upstream_empty_response',
+    abortSource: 'gate_fallback_guard', destroyInitiator: verdict.degenerateEmpty ? null : 'upstream',
+    msg: `fallback_guard_${verdict.degenerateEmpty ? 'degenerate_empty_response' : 'empty_response'} session=${key.slice(0, 24)} failures=${r.failures} denied=${Boolean(r.denied)}` });
+}
+
+// ── #4b 透传: 上游 → 客户端的原样逐块转发 (原 proxyV1 内联逻辑抽出, 零语义改动) ──
+function writeUpstreamChunk(res, upstreamRes, chunk) {
+  if (!res.write(chunk)) {
+    upstreamRes.pause();
+    res.once('drain', () => upstreamRes.resume());
+  }
+}
+
+function passThroughUpstream(req, res, upstreamRes, fgProbe) {
+  req._socketPhase = 'streaming';
+  if (!res.headersSent) res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
+  const pass = (chunk) => {
+    if (fgProbe) fgProbe.feed(chunk, String(upstreamRes.headers['content-type'] || ''));
+    writeUpstreamChunk(res, upstreamRes, chunk);
+  };
+  upstreamRes.on('data', pass);
+  upstreamRes.on('end', () => {
+    // 若 hold 窗口已吞掉首批 chunk, 这里补发 (避免丢内容)
+    const buffered = upstreamRes._fgBuffered;
+    if (Array.isArray(buffered)) {
+      upstreamRes._fgBuffered = null;
+      for (const c of buffered) pass(c);
+    }
+    if (!res.writableEnded) res.end();
+    if (fgProbe) recordFallbackOutcome(req, fgProbe.verdict(), upstreamRes.statusCode);
+    if (res.headersSent) {
+      logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
+        httpStatus: res.statusCode || 200, level: 'info', msg: 'upstream_completed' });
+    }
+  });
+}
+
+// ── #4b Deferred-head: 只在"空响应重试配额已用尽"的请求上启用 ──────────────────
+// 目的: 上游第二次仍给"退化空响应"时, 消费端不该静默收一个空 200。
+// 做法: 先缓冲首批 chunk (上限 EMPTY_HEAD_HOLD_MS 或 EMPTY_HEAD_MAX_BYTES), 期间:
+//   · 探针见到真内容/非退化 → 立即写 head + 补发缓冲, 转入正常逐块透传 (真回复零丢失);
+//   · 探针判定退化 或 宽限窗到期仍无内容 → 丢弃上游流, 回明确 502 (带诊断, 不静默)。
+// 正常请求 (配额未用尽) 永不走此路 → 零额外延迟、零缓冲。
+const EMPTY_HEAD_HOLD_MS = parseInt(process.env.GATE_EMPTY_HEAD_HOLD_MS || '2000', 10) || 2000;
+const EMPTY_HEAD_MAX_BYTES = parseInt(process.env.GATE_EMPTY_HEAD_MAX_BYTES || '65536', 10) || 65536;
+
+function handleDegenerateHold(req, res, upstreamRes, fgProbe) {
+  req._socketPhase = 'streaming';
+  const buffered = [];
+  upstreamRes._fgBuffered = buffered;
+  let bufferedBytes = 0;
+  let settled = false;
+
+  const finishPassThrough = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    upstreamRes.removeListener('data', onData);
+    upstreamRes.removeListener('end', onEnd);
+    if (!res.headersSent) res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
+    for (const c of buffered) writeUpstreamChunk(res, upstreamRes, c);
+    buffered.length = 0;
+    upstreamRes._fgBuffered = null;
+    passThroughUpstream(req, res, upstreamRes, fgProbe);
+  };
+
+  const finishReject = (verdict) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    upstreamRes.removeListener('data', onData);
+    upstreamRes.removeListener('end', onEnd);
+    try { upstreamRes.destroy(); } catch { /* best effort */ }
+    buffered.length = 0;
+    upstreamRes._fgBuffered = null;
+    logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 502,
+      errorCode: 'upstream_degenerate_empty_response', abortSource: 'gate_fallback_guard',
+      destroyInitiator: 'gate_fallback_guard',
+      msg: `fallback_guard_degenerate_reject code=${verdict ? verdict.code : 'hold_timeout'}` });
+    if (!res.headersSent) {
+      res.status(502).json({ error: {
+        type: 'upstream_degenerate_empty_response',
+        message: 'Upstream returned a degenerate empty completion after tool_calls; the same-request retry budget is exhausted, so gate is surfacing an explicit error instead of a silent empty 200.',
+        upstream_code: verdict ? verdict.code : 'hold_timeout',
+        session: req._fgSessionKey ? req._fgSessionKey.slice(0, 24) : null,
+      } });
+    } else if (!res.writableEnded) {
+      res.end();
+    }
+  };
+
+  const timer = setTimeout(() => finishReject(null), EMPTY_HEAD_HOLD_MS);
+
+  const onData = (chunk) => {
+    fgProbe.feed(chunk, String(upstreamRes.headers['content-type'] || ''));
+    buffered.push(chunk);
+    bufferedBytes += chunk.length;
+    const v = fgProbe.verdict();
+    if (v.degenerateEmpty && !v.sawContentText) {
+      // 已明确判定"tool_calls 后空 content" → 提前收口, 不等满窗
+      finishReject(v);
+      return;
+    }
+    if (v.sawContentText || bufferedBytes >= EMPTY_HEAD_MAX_BYTES) finishPassThrough();
+  };
+  const onEnd = () => {
+    const v = fgProbe.verdict();
+    if (!v.sawNonPingContent && !v.sawToolCalls) finishReject(v);
+    else finishPassThrough();
+  };
+  upstreamRes.on('data', onData);
+  upstreamRes.on('end', onEnd);
+}
+
+async function proxyV1(req, res) {
   // app.use('/v1', ...) mount 下 req.path 被 Express strip '/v1' 前缀; 用 originalUrl 保完整 (含 query).
   const upstreamPath = req.originalUrl;
+  // #4b: 会话指纹需读 body 里的 conversation_id / messages 前缀 —— 用 PassThrough 重放
+  //   已读字节 (见 readBodyPrefix), 后续 pipe 读它, body 语义零改动。仅 POST 需要。
+  if (req.method === 'POST') {
+    let prefix = Buffer.alloc(0);
+    try { prefix = await readBodyPrefix(req, 65536); }
+    catch (e) { logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 400,
+      errorCode: 'body_read_error', abortSource: 'gate_body_read', msg: `body_prefix_read_failed ${e?.message || e}` });
+      if (!res.headersSent) return res.status(400).json({ error: 'bad_request', detail: 'failed to read request body' });
+      return; }
+    req._fgSessionKey = resolveSessionKey(req, prefix);
+  }
+  // ── #4b fallback 治暴: 会话级预算账本 (key 见 resolveSessionKey) ──
+  // 记账口径 = 同一会话的连续重放 (gate 是透明代理, 上游换 key 发生在上游内, 见 policy-guard.js 头注)。
+  // 放行前先问会话账本: 次数超限 / 墙钟已过 / 已判退化 → 直接 502, 不再把请求交给上游
+  // (等价"不再等下一个 key 的 240s")。GET/OPTIONS 等无会话语义的请求不拦。
+  const fgGuardApplies = req.method === 'POST';
+  if (fgGuardApplies && req._fgSessionKey) {
+    const fgGate = policyGuard.canSessionAttempt(fallbackLedger, req._fgSessionKey);
+    if (!fgGate.allow) {
+      logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 502,
+        errorCode: fgGate.reason, abortSource: 'gate_fallback_guard', destroyInitiator: null,
+        msg: `fallback_guard_reject before_upstream attempts=${fgGate.detail.attempts ?? 0}` });
+      return res.status(502).json({ error: {
+        type: fgGate.reason,
+        message: fgGate.reason === 'fallback_total_timeout'
+          ? `Fallback wall-clock budget (${fgGate.detail.totalTimeoutMs}ms) exhausted for this conversation; refusing to start another multi-minute key rotation.`
+          : fgGate.reason === 'empty_response_retry_exhausted'
+            ? 'Upstream keeps returning degenerate empty completions (no content after tool_calls) for this conversation; refusing to pass another silent empty 200.'
+            : `Fallback attempt budget (max ${fgGate.detail.maxAttempts}) exhausted for this conversation; refusing further key rotation.`,
+        budget: fgGate.detail,
+      } });
+    }
+  }
   const headers = { ...req.headers };
   delete headers.host;
   headers.host = `127.0.0.1:${OR_PORT}`;
@@ -246,22 +529,31 @@ function proxyV1(req, res) {
     timeout: UPSTREAM_TIMEOUT_MS,
   }, (upstreamRes) => {
     req._socketPhase = 'streaming';   // 已收 response head → 进入流相 (含 SSE 逐块)
-    res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
-    upstreamRes.on('data', (chunk) => {
-      if (!res.write(chunk)) {
-        upstreamRes.pause();
-        res.once('drain', () => upstreamRes.resume());
+    // #4b: 响应头已到 → 记一次"上游尝试"观测。注意: 这是**证据**不是拦截口径 —— head 到 ≠ 失败,
+    //   且透明代理下按 head 计数恒为 1 (换 key 在上游进程内), 真计数在终态 (recordFallbackOutcome):
+    //   只对"2xx 却给不出内容"与"4xx/5xx 失败"记失败, 达上限才拒。普通客户端连续对话不受影响。
+    if (req._fgSessionKey) {
+      const fgState0 = policyGuard.recordSessionAttempt(fallbackLedger, req._fgSessionKey);
+      if (upstreamRes.statusCode >= 400) {
+        policyGuard.recordSessionFailure(fallbackLedger, req._fgSessionKey,
+          { reason: `upstream_status_${upstreamRes.statusCode}` });
       }
-    });
-    upstreamRes.on('end', () => {
-      if (!res.writableEnded) res.end();
-      // 正常成功/非 aborted 完成路径 logGate (此前只记 error/timeout 分支, 正常 200 不出日志
-      // 致永续日志健康镜态 staging 零内容 — Zen 2026-07-29 探针验证暴露此漏). 成功也记一行.
-      if (!aborted && res.headersSent) {
-        logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
-          httpStatus: res.statusCode || 200, level: 'info', msg: 'upstream_completed' });
-      }
-    });
+    }
+    // #4b 空响应护栏: 边转发边探针, 判"非 ping 内容有没有出现" + "是否 tool_calls 后空 content"。
+    // 只旁路观测, 不缓冲、不改写 (零内存放大, 仍逐块转发), 只在 end 时给结论。
+    // 只对 POST + 2xx 起探针 (非 2xx 的错误体不是"空响应", 交既有错误路径)。
+    const fgProbe = (req.method === 'POST' && upstreamRes.statusCode < 300)
+      ? policyGuard.createStreamProbe() : null;
+    // #4b Deferred-head 窗口: 正常情况下 head 立刻透传 (零改动既有语义); 仅对"有退化风险的会话"
+    //   (此前已出现退化空响应, 或本次已是同会话第 ≥2 次尝试) 先缓冲到"确认真有内容"或 2s 宽限窗到期,
+    //   期间若探针判定"退化空响应" → 直接改回明确 502 (消费端不静默收空 200); 见到真内容立即透传。
+    //   成本: 仅风险会话多留 ≤2s; 正常请求零延迟、零缓冲。判定保守, 只对"确无内容"收口。
+    const fgSessionState = req._fgSessionKey ? fallbackLedger.get(req._fgSessionKey) : null;
+    // 只在"本会话已出现过失败"时启用 Deferred-head (首轮正常请求零延迟, 见 handleDegenerateHold)。
+    const fgHoldHead = Boolean(fgProbe && upstreamRes.statusCode < 300 && fgSessionState &&
+      fgSessionState.failures > 0 && !shuttingDown);
+    if (fgHoldHead) handleDegenerateHold(req, res, upstreamRes, fgProbe);
+    else passThroughUpstream(req, res, upstreamRes, fgProbe);
     upstreamRes.on('error', (e) => {
       // 上游响应流中途错 (已 head, 非 connect 错): fallback 502 + 结构化日志
       // task#23: 复用 classifyAbortSource (非硬码 'upstream_error'); 流相 elapsedMs 多 >5000 → 落 upstream_error
@@ -349,7 +641,9 @@ function proxyV1(req, res) {
 
   // 转发 body: 有 body 用 pipe 自动 end; 无 body (GET/OPTIONS) 须显式 end 发请求 (req 在 Express 已 end
   // 但 pipe 不一定触发 destination end; 显式收尾确保上游收到完整请求).
-  if (req.readable && (req.headers['content-length'] || req.headers['transfer-encoding'])) {
+  if (req._fgBodyStream) {
+    req._fgBodyStream.pipe(upstreamReq);
+  } else if (req.readable && (req.headers['content-length'] || req.headers['transfer-encoding'])) {
     req.pipe(upstreamReq);
   } else {
     upstreamReq.end();

@@ -2,6 +2,30 @@
 
 > 每轮部署/验证后更新。SSOT = 本文件 + 对应 ops/incidents/ + audit/。§1 拓扑(2026-08-24/29 修订): 单 Space 单桶, xnexus/o = 唯一 Space 兼生产, R2 bucket = omn-data, 此处记生产态。旧 nomke/nonoke 两 Space 段历史存档不改不回。
 
+## gate 环境变量参考 (logic/gate.js, 2026-09-10 补 #4b)
+
+> 新增变量统一在 entrypoint.sh 显式导出 (Space Variable 可覆盖); 未设则用 gate.js 内默认值。
+
+| 变量 | 默认 | 作用 / 防住什么场景 |
+|---|---|---|
+| `GATE_FALLBACK_GUARD_ENABLED` | `1` | 总开关; `0` 关掉全部 fallback 治暴护栏 |
+| `GATE_FALLBACK_MAX_ATTEMPTS` | `3` | 同一会话**连续失败**几次后拒放行 (失败 = 2xx 却给不出内容, 或 4xx/5xx); 正常完成即清零 (`≤0` 关闭) |
+| `GATE_FALLBACK_TOTAL_TIMEOUT_MS` | `90000` | 同一会话 fallback 累计墙钟, **自该会话首次失败起算** (正常请求不计时); 防"每 key 等满 180s → 600s 级空转" (`≤0` 关闭) |
+| `GATE_EMPTY_RESPONSE_RETRY` | `1` | 是否允许"tool_calls 后 content 全空"的退化响应再换 key 试一次 |
+| `GATE_EMPTY_RESPONSE_MAX_RETRIES` | `1` | 上述重试次数; 用尽后同会话再来 → 明确 502 (不静默放空 200) |
+| `GATE_EMPTY_HEAD_HOLD_MS` | `2000` | 仅对"已知退化会话"延迟透传 response head 的判定窗口 (正常请求零延迟) |
+| `GATE_EMPTY_HEAD_MAX_BYTES` | `65536` | 上述窗口内最多缓冲的字节数 |
+| `GATE_FALLBACK_SESSION_TTL_MS` | `600000` | 会话账本回收时限 (防内存增长) |
+| `GATE_FALLBACK_MAX_SESSIONS` | `5000` | 会话账本容量上限 |
+
+会话指纹 = `x-session-id`/`x-conversation-id` 等头 → body `conversation_id`/`session_id` → 前两条 messages 指纹 → 连接+模型兜底。
+
+> 拦截口径 (2026-09-10 修正): 只对**失败**记账 —— 上游 2xx 却给不出有效内容 (退化空响应 / 零内容),
+> 或 4xx/5xx 失败响应。**正常完成清零** → 普通客户端"连续 3 问正常对话"不会被误判成"重放风暴"永久 502。
+> 上游 response head 到达次数 (`attempts`) 仅作可观测证据, **不参与拦截** (透明代理下按 head 计数恒为 1)。
+> 兜底边界: 若上游卡在坏 key 上既不返回也不换 key, 消费端不重放 → gate 无新增观测, 此时由
+> `GATE_UPSTREAM_TIMEOUT_MS` (单请求上游超时) 承担兜底, 本护栏不覆盖。
+
 ## 2026-09-07 · 🔴 红旗: SQLite 写路径真损坏 (SQLITE_CORRUPT) — usage/callLogs 持续写失败, 非 ghost-table 噪声
 
 **判断升级(区别于 09-05 良性分类)**: 历 `compression_run_telemetry no such table` = 上游幽灵表懒建 bug(**良性**, 见 [[sqlite-corrupt-ghost-table-2026-09-05]], 判据只认字面量/integrity_check)。**本 boot(2026-09-07 09:23 起)出现真损坏字面量, 与幽灵表并存但两码事**:

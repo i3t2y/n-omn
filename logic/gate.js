@@ -20,6 +20,7 @@ const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
 const policyGuard = require('./policy-guard.js');
+const routeSplit = require('./route-split.js');
 
 const INTERNAL_PSK = process.env.INTERNAL_PSK || '';
 const ADMIN_ENABLED = process.env.GATE_ADMIN_ENABLED === '1';   // 纯布尔开关: 仅确置 '1' 开后台; 未设/'0'/任意他值均关 (保守 fail-closed)
@@ -87,6 +88,16 @@ const EMPTY_RESPONSE_RETRY_ENABLED = process.env.GATE_EMPTY_RESPONSE_RETRY !== '
 const EMPTY_RESPONSE_MAX_RETRIES = parseInt(process.env.GATE_EMPTY_RESPONSE_MAX_RETRIES || '1', 10);
 const FALLBACK_SESSION_TTL_MS = parseInt(process.env.GATE_FALLBACK_SESSION_TTL_MS || '600000', 10) || 600000;
 const FALLBACK_MAX_SESSIONS = parseInt(process.env.GATE_FALLBACK_MAX_SESSIONS || '5000', 10) || 5000;
+
+// ── #16 调用前缀/路径分流 (2026-09-11 裁): 只择路, 不限流 ──────────────────
+// 把「重访问热点」(health / models / bucket 校验探针) 与「推理类 payload」分流:
+//   probe 快路径跳过两处重活 —— (a) 不读 body 前缀 (探针无 body, 也就无会话指纹),
+//   (b) 不进 fallback 会话账本 (账本只对 POST 语义服务)。
+// 唯一限流器仍是上游 requestQueue (gate.js:15 契约), 本开关零限流语义。
+// 判据/分流规则全在 route-split.js (纯函数零依赖, 可独立单测)。
+// 默认 '1' 开; 设 '0' 一键回退到旧行为 (全量走原路径, 便于灰度/排障)。
+const ROUTE_SPLIT_ENABLED = process.env.GATE_ROUTE_SPLIT_ENABLED !== '0';
+const ROUTE_SPLIT_STRICT = process.env.GATE_ROUTE_SPLIT_STRICT === '1';  // 诊断用: 打全部 lane 日志, 非仅 probe
 // ── 会话级账本 (为什么不是"请求级") ─────────────────────────────
 // gate 是透明代理: 上游 combo 的换 key 重放发生在上游进程内, gate 每次只看到**一个**响应头,
 //   故"请求内计数"永远停在 1, 拦不住风暴。可观测口径 = 同一会话连续重放 (消费端带同一会话指纹
@@ -226,6 +237,9 @@ function logGate(req, fields) {
       abortSource: fields.abortSource || null,
       socketPhase: fields.socketPhase || null,
       destroyInitiator: fields.destroyInitiator || null,
+      // #16 路径分流 (纯增量字段: 既有键零改; 未分流时 lane=null)
+      lane: req?._gateLane || null,
+      route_reason: req?._gateRouteReason || null,
       msg: fields.msg || null,
     });
     process.stderr.write(line + '\n');
@@ -483,9 +497,26 @@ function handleDegenerateHold(req, res, upstreamRes, fgProbe) {
 async function proxyV1(req, res) {
   // app.use('/v1', ...) mount 下 req.path 被 Express strip '/v1' 前缀; 用 originalUrl 保完整 (含 query).
   const upstreamPath = req.originalUrl;
+  // ── #16 路径分流: 先定 lane (纯函数, 零 I/O) ─────────────────────────
+  // probe = 无 body 的轻读热点 → 快路径 (不读 body 前缀 + 不进 fallback 账本)。
+  // 拿不准一律 inference (fail-safe, 见 route-split.js 头注): probe 快路径会跳过护栏,
+  //   误判成 probe = 该护的没护; 反向误判只损失一点性能。
+  const split = ROUTE_SPLIT_ENABLED
+    ? routeSplit.classifyLane({ method: req.method, path: upstreamPath })
+    : { lane: 'inference', reason: 'route_split_disabled', path: upstreamPath, method: req.method };
+  req._gateLane = split.lane;
+  req._gateRouteReason = split.reason;
+  const isProbe = split.lane === 'probe';
+  // probe 只择路: 不读 body (探针无 body) → 不走 readBodyPrefix。
+  // 审计: probe 命中常规静默 (只记 logGate 的 lane 字段), STRICT 时全 lane 打点便于核对分流。
+  if (isProbe || ROUTE_SPLIT_STRICT) {
+    logGate(req, { elapsedMs: 0, httpStatus: null, level: 'info',
+      abortSource: 'gate_route_split', msg: `lane=${split.lane} route_reason=${split.reason}` });
+  }
   // #4b: 会话指纹需读 body 里的 conversation_id / messages 前缀 —— 用 PassThrough 重放
   //   已读字节 (见 readBodyPrefix), 后续 pipe 读它, body 语义零改动。仅 POST 需要。
-  if (req.method === 'POST') {
+  // #16: probe 快路径跳过此段 (无 body 可读, 也无须会话指纹)。
+  if (req.method === 'POST' && !isProbe) {
     let prefix = Buffer.alloc(0);
     try { prefix = await readBodyPrefix(req, 65536); }
     catch (e) { logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 400,
@@ -498,7 +529,8 @@ async function proxyV1(req, res) {
   // 记账口径 = 同一会话的连续重放 (gate 是透明代理, 上游换 key 发生在上游内, 见 policy-guard.js 头注)。
   // 放行前先问会话账本: 次数超限 / 墙钟已过 / 已判退化 → 直接 502, 不再把请求交给上游
   // (等价"不再等下一个 key 的 240s")。GET/OPTIONS 等无会话语义的请求不拦。
-  const fgGuardApplies = req.method === 'POST';
+  // #16: probe 快路径不进账本 (账本只对 POST 语义服务, 探针本就不参与 fallback 治暴)。
+  const fgGuardApplies = req.method === 'POST' && !isProbe;
   if (fgGuardApplies && req._fgSessionKey) {
     const fgGate = policyGuard.canSessionAttempt(fallbackLedger, req._fgSessionKey);
     if (!fgGate.allow) {

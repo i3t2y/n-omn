@@ -42,14 +42,14 @@ fi
 #     2026-08-25 换 Bucket (Zen批 B): 旧 Space 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
 #     Bucket 非版本化无 commit_id/revision → 无 atomic 快照. 竞速根治手工补回:
 #       manifest.json = 提交点 (记 n-omn@SHA + 每文件 sha256), 由 CI 推文件后最后写.
-#       boot 先拉 manifest + 9 件, 逐文件校验 sha256 与 manifest 一致 = 同点全件.
+#       boot 先拉 manifest + 10 件, 逐文件校验 sha256 与 manifest 一致 = 同点全件.
 #       不一致 (manifest 旧文件新 或 文件旧 manifest 新) = 撞到 push 窗口 → fail 退出,
 #       下个 boot 重拉自愈 (push 完成 manifest 更新后再拉即对). 竞速面被哈希抓住.
 echo "[start] 同步 Bucket: $LOGIC_BUCKET_REPO"
 mkdir -p /tmp/logic
 
 _logic_err=/tmp/.logic.err; : > "$_logic_err"
-# 3.1 拉 manifest + 9 件 (8 业务 + flaretunnel 二进制) + 校验 sha256 (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
+# 3.1 拉 manifest + 10 件 (9 业务 + flaretunnel 二进制) + 校验 sha256 (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
 #     flaretunnel 二进制 = 逻辑层资产 (entrypoint L217 注释), 源 flaretunnel/FlareTunnel.go 编译,
 #     与 8 件同批上传同 manifest 校验 (旧 Space 删后迁 Bucket 时未随迁, boot WARN 跳 FT 根因).
 if command -v python3 >/dev/null 2>&1; then
@@ -59,7 +59,7 @@ from huggingface_hub import download_bucket_files
 repo = os.environ["LOGIC_BUCKET_REPO"]
 files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
          "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
-         "flaretunnel"]
+         "route-split.js","flaretunnel"]
 local = "/tmp/logic"
 try:
     download_bucket_files(repo, files=[("manifest.json", f"{local}/manifest.json")] + [(f, f"{local}/{f}") for f in files])

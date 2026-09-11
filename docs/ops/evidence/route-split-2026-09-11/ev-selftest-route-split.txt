@@ -1,0 +1,10 @@
+✔ 大小写不敏感方法: post → inference, get → probe (0.231688ms)
+✔ hasBody 缺省由方法推断: POST 视作有 body (0.123119ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 736.597433

@@ -1,0 +1,22 @@
+# 通道 C: 三处部署清单实读 (2026-09-11 route-split 9→10)
+## 生成: 本仓工作区实读 (git 待推)
+
+### 1) .github/workflows/sync-logic-xnexus.yml (上传段 + 回读校验段)
+58:          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
+59-                   "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
+60-                   "route-split.js","flaretunnel"]
+--
+105:          files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
+106-                   "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
+107-                   "route-split.js","flaretunnel"]
+
+### 2) space/start.sh (boot 拉取段)
+60:files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
+61-         "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
+62-         "route-split.js","flaretunnel"]
+
+### 3) 三处文件集一致性 (排序后互 diff, 空=一致)
+yml 段数: 2 | 文件数: 10
+start.sh 文件数: 10
+diff yml-vs-start.sh: 一致 (空集)
+含 route-split.js: True

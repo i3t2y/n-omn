@@ -1,0 +1,10 @@
+✔ classifyProbeFailure: 真内容/流内错误 → 不记账; 退化/零内容 → 记账 (0.301101ms)
+✔ 治暴能力不退化: 坏会话 (每次都失败) 仍在 3 次内收口, 不放到 20+ (0.355876ms)
+ℹ tests 48
+ℹ suites 0
+ℹ pass 48
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1978.424095

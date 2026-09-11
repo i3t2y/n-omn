@@ -17,8 +17,12 @@
 | `GATE_EMPTY_HEAD_MAX_BYTES` | `65536` | 上述窗口内最多缓冲的字节数 |
 | `GATE_FALLBACK_SESSION_TTL_MS` | `600000` | 会话账本回收时限 (防内存增长) |
 | `GATE_FALLBACK_MAX_SESSIONS` | `5000` | 会话账本容量上限 |
+| `GATE_ROUTE_SPLIT_ENABLED` | `1` | **#16** 调用前缀/路径分流总开关; `0` 一键回退旧行为 (全量走原路径)。probe 快路径 = 无 body 读热点跳过 body 前缀读 + fallback 账本 (只择路, 不限流) |
+| `GATE_ROUTE_SPLIT_STRICT` | `0` | **#16** 诊断用: `1` 时打全部 lane 日志 (非仅 probe 命中), 便于核对分流 |
 
 会话指纹 = `x-session-id`/`x-conversation-id` 等头 → body `conversation_id`/`session_id` → 前两条 messages 指纹 → 连接+模型兜底。
+
+**#16 路径分流 (2026-09-11)**: `probe` = 无 body 读热点 (`/healthz` `/v1` `/v1/models` `/v1/providers` `/v1/status` `/v1/health` 及只读子路径, 子路径含推理词除外) → 快路径; `inference` = 带 body 或推理前缀; `other` = 其余 (常规代理)。判据全在 `logic/route-split.js` (纯函数, 不解析 body), 拿不准一律归 `inference` (fail-safe)。审计: `logGate` 的 `lane`/`route_reason` 字段 + `abortSource=gate_route_split` 行。证据见 `docs/ops/evidence/route-split-2026-09-11/`。
 
 > 拦截口径 (2026-09-10 修正): 只对**失败**记账 —— 上游 2xx 却给不出有效内容 (退化空响应 / 零内容),
 > 或 4xx/5xx 失败响应。**正常完成清零** → 普通客户端"连续 3 问正常对话"不会被误判成"重放风暴"永久 502。

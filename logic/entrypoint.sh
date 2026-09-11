@@ -59,6 +59,17 @@ export GATE_EMPTY_RESPONSE_RETRY="${GATE_EMPTY_RESPONSE_RETRY:-1}"
 export GATE_EMPTY_RESPONSE_MAX_RETRIES="${GATE_EMPTY_RESPONSE_MAX_RETRIES:-1}"
 echo "[entrypoint] fallback 治暴: maxAttempts=$GATE_FALLBACK_MAX_ATTEMPTS totalTimeout=${GATE_FALLBACK_TOTAL_TIMEOUT_MS}ms emptyRetry=$GATE_EMPTY_RESPONSE_RETRY/$GATE_EMPTY_RESPONSE_MAX_RETRIES (#4b)"
 
+# ── #16 调用前缀/路径分流 (2026-09-11 Issue #16): 只择路, 不限流 ──────────────
+# gate 侧把「重访问热点」(health / v1/models / bucket 校验探针) 与推理 payload 分流:
+#   probe 快路径跳过 (a) body 前缀读 (b) fallback 会话账本 —— 均与探针语义无关的重活。
+# 唯一限流器仍是上游 requestQueue, 本开关零限流语义 (route-split.js 头注)。
+# 变量在 gate.js 有同样默认值; 此处显式导出 = Space Variable 可覆盖, boot 日志可核。
+#   · GATE_ROUTE_SPLIT_ENABLED=1/0   总开关 (默认 1; 0 一键回退旧行为)
+#   · GATE_ROUTE_SPLIT_STRICT=1      诊断用 (默认 0): 打全部 lane 日志, 非仅 probe
+export GATE_ROUTE_SPLIT_ENABLED="${GATE_ROUTE_SPLIT_ENABLED:-1}"
+export GATE_ROUTE_SPLIT_STRICT="${GATE_ROUTE_SPLIT_STRICT:-0}"
+echo "[entrypoint] 路径分流: enabled=$GATE_ROUTE_SPLIT_ENABLED strict=$GATE_ROUTE_SPLIT_STRICT (probe 快路径: health/models/bucket 探针; 不限流) (#16)"
+
 OR_PID=""; INIT_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
 # FT_PIDS = 空格分隔多桥 PID 串 (多桥模式); 单桥回退时仅一元素. trap/看门狗遍历此串.
 FT_PIDS=""

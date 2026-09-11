@@ -1,0 +1,8 @@
+=== HTTP 结果 ===
+GET /v1/models        => 200 {"data":[{"id":"m1"}]}
+GET /v1/bucket/health => 200 {"data":[{"id":"m1"}]}
+GET /v1/status        => 200 {"data":[{"id":"m1"}]}
+=== gate stderr 审计行 (通道 B 实证) ===
+{"ts":1789159819879,"level":"info","component":"gate","stage":"upstream_proxy","requestId":"d74b2bdc915e0591","method":"GET","path":"/v1/models","upstream_path":null,"upstream_target":"127.0.0.1:44165","elapsedMs":0,"httpStatus":null,"errorCode":null,"abortSource":"gate_route_split","socketPhase":null,"destroyInitiator":null,"lane":"probe","route_reason":"probe_exact","msg":"lane=probe route_reason=probe_exact"}
+{"ts":1789159819891,"level":"info","component":"gate","stage":"upstream_proxy","requestId":"710aba2814cc89ce","method":"GET","path":"/v1/bucket/health","upstream_path":null,"upstream_target":"127.0.0.1:44165","elapsedMs":0,"httpStatus":null,"errorCode":null,"abortSource":"gate_route_split","socketPhase":null,"destroyInitiator":null,"lane":"probe","route_reason":"probe_prefix","msg":"lane=probe route_reason=probe_prefix"}
+{"ts":1789159819892,"level":"info","component":"gate","stage":"upstream_proxy","requestId":"7a40129f2601a818","method":"GET","path":"/v1/status","upstream_path":null,"upstream_target":"127.0.0.1:44165","elapsedMs":0,"httpStatus":null,"errorCode":null,"abortSource":"gate_route_split","socketPhase":null,"destroyInitiator":null,"lane":"probe","route_reason":"probe_exact","msg":"lane=probe route_reason=probe_exact"}

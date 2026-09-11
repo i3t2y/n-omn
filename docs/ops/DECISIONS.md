@@ -908,3 +908,18 @@ SPACE_REPO_ID=xnexus/o python3 /home/laisi/old/new/omn-ops/scripts/space_ctl.py 
 - **诚实边界 (本轮实测发现, 未在本 PR 覆盖)**: ① 同一客户端并发请求共用指纹时, 并发失败会被并成同一会话 → 可能一起被拒 (需 4xx/5xx 连续才触发, 概率低); ② 若上游卡在坏 key 上**既不返回也不换 key**, 消费端不重放 → gate 无新增观测, 90s/3 次都不触发, 兜底仍靠 `GATE_UPSTREAM_TIMEOUT_MS`; ③ `resolveSessionKey` 的 messages 指纹只取前两条 (共享 system prompt 的不同会话会落同一账本), 修正后仅影响"失败计数"粒度, 不再单独致 502。
 - **验证**: `logic/tests/*` **32 例全绿** (含新增 `session-budget.test.js` 10 例: 正常 10 次全放行 / head 不计数 / 连续失败 3 次收口 / 自愈清零 / 墙钟自首次失败 / denied 粘住 / TTL 回收 / classifyProbeFailure), e2e 6 例 (正常流不误伤 / 同会话退化 502 / 次数上限 / 墙钟 / Deferred-head 真回复零丢失)。
 - **commit**: 本 PR #13 追加。文件: `logic/policy-guard.js` (记账口径 + classifyProbeFailure) + `logic/gate.js` (接线) + `logic/tests/session-budget.test.js` (新增) + 本条 + `docs/ops/STATUS.md`。关联: 上一条 2026-09-10 #4b 决策条 (口径以本条为准), PR #13, Issue #4。
+
+## 2026-09-11 · #16 调用前缀/路径分流 (route-split): 只择路不限流
+
+- **触发**: Issue #16 (重派 #5, 基于干净 main `6e551e8`; 前身 PR #12 因与 #13 撞逻辑域被关)。
+- **范围**: `logic/gate.js` 的调用前缀/路径分流 —— 把**重访问热点** (`health` / `/v1/models` / bucket 校验探针 / `providers` / `status`) 与**推理类 payload** 分流, 轻请求走 `probe` 快路径。
+- **只择路不限流 (范围铁律)**: 本 PR 零限流语义。28 RPM / 1 并发 / 2200ms 仍由上游 `requestQueue` 执行 (`gate.js:15` 契约未动)。probe 快路径只跳过两处与探针语义无关的重活: ① `readBodyPrefix` (探针无 body, 也就无会话指纹); ② fallback 会话账本 (账本只对 POST 语义服务)。
+- **三 lane**: `probe` (无 body 读热点) / `inference` (有 body 或推理前缀) / `other` (未知读路径 / 非读方法无 body)。判定全在新增 `logic/route-split.js`, 纯函数零依赖零 I/O, 只读 method + 归一化 path, **不解析 body**。
+- **fail-safe (保守优先)**: 拿不准一律归 `inference`。probe 仅在「方法无 body 且路径命中白名单」时成立。理由: probe 快路径会跳过失效应护栏, 误判成 probe = 该护的没护; 反向误判只损失一点性能。防误伤闸: `/v1/models/x/completions` 形似模型子路径的推理端点 → 子路径含推理词 (`completions|messages|embeddings|…`) 一律判 `inference`。
+- **可回退**: `GATE_ROUTE_SPLIT_ENABLED=0` 一键回退旧行为 (全量走原路径); 默认 `1` 开。`GATE_ROUTE_SPLIT_STRICT=1` 诊断用 (打全部 lane 日志, 非仅 probe)。两变量在 `entrypoint.sh` 显式导出 (Space Variable 可覆盖)。
+- **审计 (纯增量字段)**: `logGate` 增 `lane` / `route_reason` 两键, **既有键零改**; probe 命中或 STRICT 时打一行 `abortSource=gate_route_split msg="lane=probe route_reason=…"`。可用 `grep 'lane=probe' <run.log>` 核对分流。
+- **部署清单 9→10 件**: 新增文件 = 逻辑层新增件, **同步改三处** —— `sync-logic-xnexus.yml` 上传段 + 回读校验段, `space/start.sh` boot 段; 三处逐字同集 (C 通道实读互 diff 为证)。此为 2026-09-11 `policy-guard.js` 漏件事故 (三处同漏 → HF 重启循环) 的直接对症防复发动作。
+- **不动**: 上游 src (只读对照) / `.cnb*` / 其余 `docs/` 档 (仅本条 + STATUS env 表 + evidence/ 新增)。
+- **验收 (本 PR 自测)**: `logic/tests/*` **48 例全绿** (32 既有零改 + 新增 16: `route-split.test.js` 11 纯函数 + `route-split.e2e.test.js` 5 端到端)。e2e 专门回归: ① probe 快路径上游收到完整请求; ② probe 不进账本 (同路径连打 6 次仍 200, `MAX_ATTEMPTS=1` 下); ③ **inference 仍受保护** (POST 失败达上限 → 502); ④ 开关 `0` 回退不破; ⑤ 审计行 `lane=probe` 逐字。
+- **证据**: `docs/ops/evidence/route-split-2026-09-11/` (自检 ×2 + B 通道 probe 审计行 + C 通道三清单实读)。
+- **commit**: 本 PR #16。文件: `logic/route-split.js` (新增) + `logic/gate.js` (接线) + `logic/entrypoint.sh` (env 导出) + `logic/tests/route-split*.test.js` (新增) + 三处部署清单 (9→10) + 本条 + `docs/ops/STATUS.md`。关联: PR #12 (前身, 已关), PR #13 (#4b fallback 治暴), 2026-09-11 policy-guard 漏件事故。

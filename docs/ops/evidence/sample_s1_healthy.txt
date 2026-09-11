@@ -1,0 +1,8 @@
+# S1 健康: stream 有非空 content delta + 非 stream message.content 非空 → 双绿
+# 复现: bash tools/mock/repro_k3_probe.sh (本地 mock, 不触网)
+# 同一轮完整记录: docs/ops/evidence/verify-transcript.txt
+
+2026-09-10T11:26:11Z PROBE-START endpoint=http://<mock>/ok model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:11Z PROBE mode=stream   ok=1 http=200  ms=2      verdict=ok detail=stream_nonempty_delta
+2026-09-10T11:26:11Z PROBE mode=nostream ok=1 http=200  ms=0      verdict=ok detail=nonempty_content
+# exit=0  (健康 0 / DEGRADED 2 / 参数环境错 3)

@@ -1,0 +1,8 @@
+# S2 超时: mock 睡 10s, 探针 --timeout 3 到点即断 
+# 复现: bash tools/mock/repro_k3_probe.sh (本地 mock, 不触网)
+# 同一轮完整记录: docs/ops/evidence/verify-transcript.txt
+
+2026-09-10T11:26:11Z PROBE-START endpoint=http://<mock>/slow model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:14Z PROBE mode=stream   ok=0 http=-    ms=3004   verdict=timeout detail=socket_timeout
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=-    ms=3003   verdict=timeout detail=socket_timeout
+# exit=2  (健康 0 / DEGRADED 2 / 参数环境错 3)

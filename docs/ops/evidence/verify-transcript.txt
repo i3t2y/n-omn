@@ -1,0 +1,54 @@
+# k3_probe 可重跑验证记录 (verify transcript)
+
+> 生成: 2026-09-10 · PR #10 (issue #7) · 复核: npc/CodeBuddy
+> 复现: `bash tools/mock/repro_k3_probe.sh` — 本地 mock 上游 (tools/mock/mock_k3_upstream.py),
+>   **不触网 / 不需真 PSK / 零副作用**; 端口归一为 `<mock>`, 时间为当次运行实值。
+> 覆盖: S1 健康 / S2 超时 / S3 上游 5xx / S4 假成功空流 + dry-run 状态机 + switch 真链路全周期。
+> 边界: 本记录证明**判据与状态机**正确; 生产可用性须由 cron 消费 stdout 长期观测得出。
+
+$ python3 tools/k3_probe.py --once --endpoint <mock>/ok
+2026-09-10T11:26:11Z PROBE-START endpoint=http://<mock>/ok model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:11Z PROBE mode=stream   ok=1 http=200  ms=2      verdict=ok detail=stream_nonempty_delta
+2026-09-10T11:26:11Z PROBE mode=nostream ok=1 http=200  ms=0      verdict=ok detail=nonempty_content
+# exit=0  (健康 0 / DEGRADED 2 / 参数环境错 3)
+
+$ python3 tools/k3_probe.py --once --endpoint <mock>/slow
+2026-09-10T11:26:11Z PROBE-START endpoint=http://<mock>/slow model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:14Z PROBE mode=stream   ok=0 http=-    ms=3004   verdict=timeout detail=socket_timeout
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=-    ms=3003   verdict=timeout detail=socket_timeout
+# exit=2  (健康 0 / DEGRADED 2 / 参数环境错 3)
+
+$ python3 tools/k3_probe.py --once --endpoint <mock>/err
+2026-09-10T11:26:17Z PROBE-START endpoint=http://<mock>/err model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:17Z PROBE mode=stream   ok=0 http=503  ms=3      verdict=http_error detail=http_503
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=503  ms=0      verdict=http_error detail=http_503
+# exit=2  (健康 0 / DEGRADED 2 / 参数环境错 3)
+
+$ python3 tools/k3_probe.py --once --endpoint <mock>/empty
+2026-09-10T11:26:17Z PROBE-START endpoint=http://<mock>/empty model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:17Z PROBE mode=stream   ok=0 http=200  ms=2      verdict=empty_stream detail=done_without_content
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=200  ms=0      verdict=empty_content detail=blank_message
+# exit=2  (健康 0 / DEGRADED 2 / 参数环境错 3)
+
+$ python3 tools/k3_probe.py --dry-run   # 离线演示状态机 (不触网)
+2026-09-10T11:26:17Z DRYRUN begin endpoint=https://omn.360710.xyz/v1/chat/completions model=nvidia/moonshotai/kimi-k3
+2026-09-10T11:26:17Z PROBE mode=stream   ok=1 http=200  ms=210    verdict=ok detail=dryrun
+2026-09-10T11:26:17Z PROBE mode=nostream ok=1 http=200  ms=210    verdict=ok detail=dryrun
+2026-09-10T11:26:17Z PROBE mode=stream   ok=0 http=-    ms=30000  verdict=timeout detail=dryrun
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=-    ms=30000  verdict=timeout detail=dryrun
+2026-09-10T11:26:17Z PROBE mode=stream   ok=0 http=503  ms=503    verdict=http_error detail=dryrun
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=503  ms=503    verdict=http_error detail=dryrun
+2026-09-10T11:26:17Z PROBE mode=stream   ok=0 http=-    ms=12     verdict=empty_stream detail=dryrun
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=-    ms=12     verdict=empty_stream detail=dryrun
+2026-09-10T11:26:17Z SIGNAL K3_DEGRADED streak=3 reason=empty_stream
+2026-09-10T11:26:18Z PROBE mode=stream   ok=1 http=200  ms=180    verdict=ok detail=dryrun
+2026-09-10T11:26:18Z PROBE mode=nostream ok=1 http=200  ms=180    verdict=ok detail=dryrun
+2026-09-10T11:26:18Z PROBE mode=stream   ok=1 http=200  ms=205    verdict=ok detail=dryrun
+2026-09-10T11:26:18Z PROBE mode=nostream ok=1 http=200  ms=205    verdict=ok detail=dryrun
+2026-09-10T11:26:18Z SIGNAL K3_RECOVERED streak=2 reason=consecutive_ok
+2026-09-10T11:26:18Z DRYRUN end final_degraded=False
+
+$ python3 tools/k3_probe.py --interval 1 --endpoint <mock>/switch  # 真链路全周期
+2026-09-10T11:26:20Z SIGNAL K3_DEGRADED streak=3 reason=empty_content
+2026-09-10T11:26:22Z SIGNAL K3_RECOVERED streak=2 reason=consecutive_ok
+# 期望: 3 连败 → SIGNAL K3_DEGRADED; 2 连胜 → SIGNAL K3_RECOVERED

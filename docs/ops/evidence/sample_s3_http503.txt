@@ -1,0 +1,8 @@
+# S3 上游 5xx: mock 直回 503 
+# 复现: bash tools/mock/repro_k3_probe.sh (本地 mock, 不触网)
+# 同一轮完整记录: docs/ops/evidence/verify-transcript.txt
+
+2026-09-10T11:26:17Z PROBE-START endpoint=http://<mock>/err model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:17Z PROBE mode=stream   ok=0 http=503  ms=3      verdict=http_error detail=http_503
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=503  ms=0      verdict=http_error detail=http_503
+# exit=2  (健康 0 / DEGRADED 2 / 参数环境错 3)

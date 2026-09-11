@@ -1,0 +1,8 @@
+# S4 假成功 200: 空 SSE 流 (done_without_content) / 空 reply (blank_message) 
+# 复现: bash tools/mock/repro_k3_probe.sh (本地 mock, 不触网)
+# 同一轮完整记录: docs/ops/evidence/verify-transcript.txt
+
+2026-09-10T11:26:17Z PROBE-START endpoint=http://<mock>/empty model=nvidia/moonshotai/kimi-k3 timeout=3.0s
+2026-09-10T11:26:17Z PROBE mode=stream   ok=0 http=200  ms=2      verdict=empty_stream detail=done_without_content
+2026-09-10T11:26:17Z PROBE mode=nostream ok=0 http=200  ms=0      verdict=empty_content detail=blank_message
+# exit=2  (健康 0 / DEGRADED 2 / 参数环境错 3)

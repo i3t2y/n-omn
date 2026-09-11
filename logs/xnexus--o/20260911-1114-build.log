@@ -1,0 +1,36 @@
+data: {"data":"===== Build Queued at 2026-09-11 11:10:17 / Commit SHA: e240435 =====\n","timestamp":"2026-09-11T11:10:17Z"}
+
+data: {"data":"--> FROM ghcr.io/i3t2y/omn-base@sha256:db9037a71379569fa3a86b0760df972fd8413cc07f0a58b64e575bbf28a1718b","timestamp":"2026-09-11T11:10:22.010Z"}
+
+data: {"data":"DONE 0.0s\n","timestamp":"2026-09-11T11:10:22.010Z"}
+
+data: {"data":"DONE 17.3s\n","timestamp":"2026-09-11T11:10:39.259Z"}
+
+data: {"data":"DONE 17.4s\n","timestamp":"2026-09-11T11:10:39.402Z"}
+
+data: {"data":"DONE 28.0s\n","timestamp":"2026-09-11T11:10:49.990Z"}
+
+data: {"data":"DONE 28.5s\n","timestamp":"2026-09-11T11:10:50.473Z"}
+
+data: {"data":"DONE 28.7s\n","timestamp":"2026-09-11T11:10:50.696Z"}
+
+data: {"data":"DONE 29.2s\n","timestamp":"2026-09-11T11:10:51.184Z"}
+
+data: {"data":"DONE 29.4s\n","timestamp":"2026-09-11T11:10:51.378Z"}
+
+data: {"data":"DONE 29.6s\n","timestamp":"2026-09-11T11:10:51.565Z"}
+
+data: {"data":"DONE 29.6s\n","timestamp":"2026-09-11T11:10:51.749Z"}
+
+data: {"data":"--> COPY --chmod=755 start.sh /start.sh","timestamp":"2026-09-11T11:10:51.749Z"}
+
+data: {"data":"DONE 0.0s\n","timestamp":"2026-09-11T11:10:51.749Z"}
+
+data: {"data":"--> Pushing image","timestamp":"2026-09-11T11:10:51.749Z"}
+
+data: {"data":"DONE 1.1s\n","timestamp":"2026-09-11T11:10:52.790Z"}
+
+data: {"data":"--> Exporting cache","timestamp":"2026-09-11T11:10:52.790Z"}
+
+data: {"data":"DONE 1.0s\n","timestamp":"2026-09-11T11:10:53.615Z"}
+

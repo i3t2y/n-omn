@@ -46,6 +46,10 @@ evidence/
                                                logs/xnexus--o/20260911-1114-run.log 本地副本)
   ev-build.log                               ← HF Rebuild 日志 (20260911-1114-build.log)
 tools/
+  README.md                                  ← 【新增】日志与仓内文件抓取的完整方法: 三条通道
+                                                (A=Actions 抓 HF 日志 / B=读 evidence 分支 /
+                                                C=CNB CLI 读仓内文件), 含可复制命令、rc 分账、
+                                                快照语义、7 天保留、脱敏闸与全部坑位
   fetch.sh / get.py                          ← 经 CNB CLI 取仓内文件内容的助手 (材料来源可复现)
 ```
 

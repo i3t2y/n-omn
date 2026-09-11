@@ -45,7 +45,7 @@ jobs:
           echo "built: $(ls -la flaretunnel | awk '{print $5, $9}') sha256=$(sha256sum flaretunnel | cut -d' ' -f1)"
           test -x flaretunnel
 
-      - name: Upload logic files to Bucket (9 files + flaretunnel binary, flat layout) + write manifest
+      - name: Upload logic files to Bucket (8 logic files + flaretunnel = 9 件, flat layout) + write manifest
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           BUCKET_ID: xnexus/logic
@@ -56,7 +56,8 @@ jobs:
           from huggingface_hub import batch_bucket_files
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
-                   "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
+                   "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
+                   "flaretunnel"]
           # flaretunnel 二进制源在 tools/flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余 8 件在 logic/
           def src_path(f):
               return "tools/flaretunnel/flaretunnel" if f == "flaretunnel" else f"logic/{f}"
@@ -102,9 +103,10 @@ jobs:
           from huggingface_hub import download_bucket_files
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
-                   "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
+                   "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
+                   "flaretunnel"]
           os.makedirs("/tmp/verify", exist_ok=True)
-          # 拉 manifest + 8 件 (对齐 boot 拉取路径, 验的是 boot 会看到的同一份)
+          # 拉 manifest + 9 件 (对齐 boot 拉取路径, 验的是 boot 会看到的同一份)
           download_bucket_files(bucket, files=[("manifest.json","/tmp/verify/manifest.json")] + [(f, f"/tmp/verify/{f}") for f in files],
                                 token=os.environ["HF_TOKEN"])
           manifest = json.load(open("/tmp/verify/manifest.json"))

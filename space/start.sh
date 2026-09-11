@@ -42,7 +42,7 @@ fi
 #     2026-08-25 换 Bucket (Zen批 B): 旧 Space 锁后 Dataset 拉 403, 迁 xnexus/logic Bucket.
 #     Bucket 非版本化无 commit_id/revision → 无 atomic 快照. 竞速根治手工补回:
 #       manifest.json = 提交点 (记 n-omn@SHA + 每文件 sha256), 由 CI 推文件后最后写.
-#       boot 先拉 manifest + 8 件, 逐文件校验 sha256 与 manifest 一致 = 同点全件.
+#       boot 先拉 manifest + 9 件, 逐文件校验 sha256 与 manifest 一致 = 同点全件.
 #       不一致 (manifest 旧文件新 或 文件旧 manifest 新) = 撞到 push 窗口 → fail 退出,
 #       下个 boot 重拉自愈 (push 完成 manifest 更新后再拉即对). 竞速面被哈希抓住.
 echo "[start] 同步 Bucket: $LOGIC_BUCKET_REPO"
@@ -58,7 +58,8 @@ import os, hashlib, json, sys
 from huggingface_hub import download_bucket_files
 repo = os.environ["LOGIC_BUCKET_REPO"]
 files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
-         "helper.sh","omn_redact.py","omn_scheduler.py","flaretunnel"]
+         "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
+         "flaretunnel"]
 local = "/tmp/logic"
 try:
     download_bucket_files(repo, files=[("manifest.json", f"{local}/manifest.json")] + [(f, f"{local}/{f}") for f in files])

@@ -1,0 +1,2806 @@
+data: {"data":"===== Application Startup at 2026-09-12 04:07:58 =====\n","timestamp":"2026-09-12T04:07:58Z"}
+
+data: {"data":"[start] >>> 启动 2026-09-12 04:08:41 <<<","timestamp":"2026-09-12T04:08:41.113Z"}
+
+data: {"data":"[start] 基础镜像: ghcr.io/i3t2y/omn-base@sha256:db9037a71379569fa3a86b0760df972fd8413cc07f0a58b64e575bbf28a1718b","timestamp":"2026-09-12T04:08:41.113Z"}
+
+data: {"data":"[start] 镜像 B 模式：工具链已就绪","timestamp":"2026-09-12T04:08:41.113Z"}
+
+data: {"data":"[start] 同步 Bucket: xnexus/logic","timestamp":"2026-09-12T04:08:41.113Z"}
+
+data: {"data":"[start] Bucket 校验通过 (n-omn@2e55db3 10 件 sha256 全对)","timestamp":"2026-09-12T04:08:41.976Z"}
+
+data: {"data":"[start] 逻辑注入完成","timestamp":"2026-09-12T04:08:42.702Z"}
+
+data: {"data":"[start] 移交控制权给逻辑层","timestamp":"2026-09-12T04:08:42.705Z"}
+
+data: {"data":"[entrypoint] boot 编排日志 tee -> /data/backups/logs/raw/entrypoint.log (_raw → capture_loop entrypoint 源 → omn_redact → save/entrypoint/)","timestamp":"2026-09-12T04:08:42.788Z"}
+
+data: {"data":"[entrypoint] STREAM_READINESS_TIMEOUT_MS=180000 (M7 外科单注, wiki §15 实证)","timestamp":"2026-09-12T04:08:42.788Z"}
+
+data: {"data":"[entrypoint] fallback 治暴: maxAttempts=3 totalTimeout=90000ms emptyRetry=1/1 (#4b)","timestamp":"2026-09-12T04:08:42.788Z"}
+
+data: {"data":"[entrypoint] 路径分流: enabled=1 strict=0 (probe 快路径: health/models/bucket 探针; 不限流) (#16)","timestamp":"2026-09-12T04:08:42.788Z"}
+
+data: {"data":"[entrypoint] 上游服务启动 | PORT=20128 EXPOSED=7860 DATA=/data (ephemeral, Bucket 挂载是持久真源)","timestamp":"2026-09-12T04:08:42.788Z"}
+
+data: {"data":"[entrypoint] lock acquired (flock /data/.omn.lock, fd 9).","timestamp":"2026-09-12T04:08:42.798Z"}
+
+data: {"data":"[entrypoint] snapshot: 健康快照已入池 (/data/backups/db-snap.1789186122.db)","timestamp":"2026-09-12T04:08:45.801Z"}
+
+data: {"data":"[entrypoint] FT: FLARETUNNEL_ENABLED=1, 启动 FlareTunnel 本地桥 (档位A)...","timestamp":"2026-09-12T04:08:45.831Z"}
+
+data: {"data":"[entrypoint] FT: 单桥回退 PID=87 (127.0.0.1:8080, 30/30 Worker round-robin, log→/data/backups/logs/raw/flaretunnel.log)","timestamp":"2026-09-12T04:08:45.842Z"}
+
+data: {"data":"[entrypoint] FT: CA 就绪, NODE_EXTRA_CA_CERTS=/tmp/ft-ca/flaretunnel_ca.crt 已 export (先于 §2 上游启动, 红线②满足)","timestamp":"2026-09-12T04:08:46.345Z"}
+
+data: {"data":"[entrypoint] 上游服务 PID=96 (heap --max-old-space-size=4096)","timestamp":"2026-09-12T04:08:46.351Z"}
+
+data: {"data":"▲ Next.js 16.3.1","timestamp":"2026-09-12T04:08:46.624Z"}
+
+data: {"data":"- Local:         http://localhost:20128","timestamp":"2026-09-12T04:08:46.624Z"}
+
+data: {"data":"- Network:       http://0.0.0.0:20128","timestamp":"2026-09-12T04:08:46.624Z"}
+
+data: {"data":"✓ Ready in 0ms","timestamp":"2026-09-12T04:08:46.625Z"}
+
+data: {"data":"✓ Running next.config took 1.6ms","timestamp":"2026-09-12T04:08:46.627Z"}
+
+data: {"data":"[DB] Changing cache_size from 65536KB to 16384KB","timestamp":"2026-09-12T04:08:47.085Z"}
+
+data: {"data":"[DB] cache_size changed to 16384KB","timestamp":"2026-09-12T04:08:47.085Z"}
+
+data: {"data":"[DB] SQLite database ready: /data/storage.sqlite (DATA_DIR=/data, SQLITE_FILE=/data/storage.sqlite)","timestamp":"2026-09-12T04:08:47.203Z"}
+
+data: {"data":"[CREDENTIALS] No external credentials file found, using defaults.","timestamp":"2026-09-12T04:08:47.848Z"}
+
+data: {"data":"[STARTUP] Global fetch proxy patch initialized","timestamp":"2026-09-12T04:08:47.854Z"}
+
+data: {"data":"[STARTUP] JWT_SECRET restored from persistent store","timestamp":"2026-09-12T04:08:47.857Z"}
+
+data: {"data":"[proxyLogger] Loaded 200 proxy logs from SQLite","timestamp":"2026-09-12T04:08:48.021Z"}
+
+data: {"data":"[Shutdown] Graceful shutdown handlers registered.","timestamp":"2026-09-12T04:08:48.027Z"}
+
+data: {"data":"[STARTUP] Spend batch writer started","timestamp":"2026-09-12T04:08:48.028Z"}
+
+data: {"data":"[STARTUP] Guardrail registry initialized","timestamp":"2026-09-12T04:08:48.028Z"}
+
+data: {"data":"[STARTUP] Builtin skill handlers registered","timestamp":"2026-09-12T04:08:48.028Z"}
+
+data: {"data":"[STARTUP] Quota cache background refresh started","timestamp":"2026-09-12T04:08:48.029Z"}
+
+data: {"data":"[ProviderLimitsSync] Scheduler started — interval: 70m","timestamp":"2026-09-12T04:08:48.030Z"}
+
+data: {"data":"[STARTUP] Provider limits sync scheduler started","timestamp":"2026-09-12T04:08:48.030Z"}
+
+data: {"data":"[INFO] [QuotaAutoPing] scheduler started","timestamp":"2026-09-12T04:08:48.048Z"}
+
+data: {"data":"[STARTUP] Quota auto-ping scheduler started (opt-in, no-op until enabled)","timestamp":"2026-09-12T04:08:48.048Z"}
+
+data: {"data":"[ModelSync] Scheduler started — interval: 24h","timestamp":"2026-09-12T04:08:48.055Z"}
+
+data: {"data":"[STARTUP] Cloud/model sync background bootstrap initialized","timestamp":"2026-09-12T04:08:48.063Z"}
+
+data: {"data":"[BATCH] Initializing batch processor polling...","timestamp":"2026-09-12T04:08:48.071Z"}
+
+data: {"data":"[STARTUP] Batch processor started","timestamp":"2026-09-12T04:08:48.071Z"}
+
+data: {"data":"[STARTUP] Runtime settings hydrated: payloadRules, modelAliases, backgroundDegradation, cliCompatProviders, cacheControl, usageTracking, healthCheckLogs, thoughtSignature, modelsDevSync, corsOrigins, ccBridgeTransforms, systemTransforms, authzBypass, bannedSignals","timestamp":"2026-09-12T04:08:48.085Z"}
+
+data: {"data":"[STARTUP] Model alias seed: applied=0, skipped=5, removed=0, failed=0","timestamp":"2026-09-12T04:08:48.088Z"}
+
+data: {"data":"[HOT_RELOAD] Runtime config hot-reload started (poll=5000ms, fsWatch=on)","timestamp":"2026-09-12T04:08:48.090Z"}
+
+data: {"data":"[CredentialHealth] Starting credential health check (initial delay 30s, interval 300s)","timestamp":"2026-09-12T04:08:48.190Z"}
+
+data: {"data":"[STARTUP] Credential health scheduler started","timestamp":"2026-09-12T04:08:48.190Z"}
+
+data: {"data":"[COMPLIANCE] Audit log table initialized","timestamp":"2026-09-12T04:08:48.192Z"}
+
+data: {"data":"[STARTUP] Scheduled VACUUM initialized (#4437)","timestamp":"2026-09-12T04:08:48.200Z"}
+
+data: {"data":"[Cleanup] Background cleanup scheduler started (every 6 hours).","timestamp":"2026-09-12T04:08:48.201Z"}
+
+data: {"data":"[INFO] [MEMORY_MANAGER] Registered backend {\"id\":\"sqlite\",\"displayName\":\"SQLite\"}","timestamp":"2026-09-12T04:08:48.269Z"}
+
+data: {"data":"[AutoRefreshDaemon] Started — checking 0 credentials every 900s","timestamp":"2026-09-12T04:08:48.276Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Starting periodic sync every 86400s","timestamp":"2026-09-12T04:08:48.276Z"}
+
+data: {"data":"[PRICING_SYNC] Disabled (set PRICING_SYNC_ENABLED=true to enable)","timestamp":"2026-09-12T04:08:48.291Z"}
+
+data: {"data":"[STARTUP] Arena ELO sync initialized","timestamp":"2026-09-12T04:08:48.295Z"}
+
+data: {"data":"[ConnectionRecovery] Starting proactive cooldown recovery (tick every 60s)","timestamp":"2026-09-12T04:08:48.298Z"}
+
+data: {"data":"[OpenRouterProviderStats] Starting periodic sync every 86400s","timestamp":"2026-09-12T04:08:48.299Z"}
+
+data: {"data":"[STARTUP] OpenRouter provider stats sync initialized","timestamp":"2026-09-12T04:08:48.304Z"}
+
+data: {"data":"[STARTUP] Live dashboard WebSocket daemon bootstrap invoked","timestamp":"2026-09-12T04:08:48.310Z"}
+
+data: {"data":"[STARTUP] Embedded services bootstrap complete","timestamp":"2026-09-12T04:08:48.342Z"}
+
+data: {"data":"[MODELS_DEV] Disabled (enable via Settings > AI or MODELS_DEV_SYNC_ENABLED=1)","timestamp":"2026-09-12T04:08:48.342Z"}
+
+data: {"data":"[INFO] [MEMORY_MANAGER] Configured backends {\"primary\":\"sqlite\",\"fallbacks\":[]}","timestamp":"2026-09-12T04:08:48.343Z"}
+
+data: {"data":"[INFO] [SQLITE_BACKEND] sqlite.backend.initialized","timestamp":"2026-09-12T04:08:48.344Z"}
+
+data: {"data":"[INFO] [MEMORY_MANAGER] Initialized backend {\"id\":\"sqlite\"}","timestamp":"2026-09-12T04:08:48.344Z"}
+
+data: {"data":"[EmbedWsProxy] Listening on 127.0.0.1:20131","timestamp":"2026-09-12T04:08:51.560Z"}
+
+data: {"data":"[LiveWS] Dashboard WebSocket server listening on 127.0.0.1:20132","timestamp":"2026-09-12T04:08:51.561Z"}
+
+data: {"data":"[STARTUP] Model catalog cache warmed","timestamp":"2026-09-12T04:08:51.633Z"}
+
+data: {"data":"[LocalHealthCheck] Starting local provider health check (initial delay 15s)","timestamp":"2026-09-12T04:08:52.147Z"}
+
+data: {"data":"[entrypoint] ✓ 就绪","timestamp":"2026-09-12T04:08:52.165Z"}
+
+data: {"data":"[entrypoint] ⚠ 版本不齐 实跑=unknown 期望=3.8.50 (非致命, 上游迁移自动前滚)","timestamp":"2026-09-12T04:08:52.196Z"}
+
+data: {"data":"[entrypoint] Init PID=120","timestamp":"2026-09-12T04:08:52.196Z"}
+
+data: {"data":"[entrypoint] 全部就绪：OR=96 Init=120 Gate→:7860 (background, entrypoint 持 PID 1 主监)","timestamp":"2026-09-12T04:08:52.196Z"}
+
+data: {"data":"[init]   gemini: DISABLED (key 无效空转), 跳过 FT 绑族","timestamp":"2026-09-12T04:08:52.207Z"}
+
+data: {"data":"[init]   mistral: DISABLED (key 无效空转), 跳过 FT 绑族","timestamp":"2026-09-12T04:08:52.207Z"}
+
+data: {"data":"[init] NIM_PROFILE=balanced -> pool 意向 7 个模型","timestamp":"2026-09-12T04:08:52.208Z"}
+
+data: {"data":"[init] 动态限流 RPM=300 concurrent=96 interval=200ms (alive_keys=32, per_key_rpm=35 per_key_conc=3)","timestamp":"2026-09-12T04:08:52.213Z"}
+
+data: {"data":"[init] pool strategy=p2c | codex strategy=priority","timestamp":"2026-09-12T04:08:52.220Z"}
+
+data: {"data":"[init] body limit: raw=4 -> maxBodySizeMb=4","timestamp":"2026-09-12T04:08:52.220Z"}
+
+data: {"data":"[init] Starting NIM 上游 initializer v4.3.2 (profile=balanced, mode=NORMAL) on node v26.7.0...","timestamp":"2026-09-12T04:08:52.228Z"}
+
+data: {"data":"[init] BASE_URL=http://127.0.0.1:20128","timestamp":"2026-09-12T04:08:52.228Z"}
+
+data: {"data":"[init] Waiting for 上游...","timestamp":"2026-09-12T04:08:52.228Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] synced 100 model intelligence entries from Arena leaderboards","timestamp":"2026-09-12T04:08:52.301Z"}
+
+data: {"data":"[ARENA_ELO_SYNC] Initial sync complete: 100 model intelligence entries","timestamp":"2026-09-12T04:08:52.302Z"}
+
+data: {"data":"[init] 上游 up (after 0s).","timestamp":"2026-09-12T04:08:52.323Z"}
+
+data: {"data":"[init] version: unknown","timestamp":"2026-09-12T04:08:52.422Z"}
+
+data: {"data":"[init] Logging in...","timestamp":"2026-09-12T04:08:52.422Z"}
+
+data: {"data":"[entrypoint] gate 依赖已就绪 (require('express') 命中, 跳 npm install)","timestamp":"2026-09-12T04:08:52.502Z"}
+
+data: {"data":"[entrypoint] starting gate on port 7860...","timestamp":"2026-09-12T04:08:52.502Z"}
+
+data: {"data":"[entrypoint] helper.sh 装依赖 (boto3 插件包)...","timestamp":"2026-09-12T04:08:52.505Z"}
+
+data: {"data":"[helper] 补包完成 (全件已入 base, helper 留框架)","timestamp":"2026-09-12T04:08:52.507Z"}
+
+data: {"data":"[entrypoint] gate PID=160, stderr → /data/backups/logs/raw/gate-stderr.log","timestamp":"2026-09-12T04:08:52.507Z"}
+
+data: {"data":"[entrypoint] omn_scheduler PID=161 (永续日志: 明文 stderr → Bucket backups/logs/raw)","timestamp":"2026-09-12T04:08:52.508Z"}
+
+data: {"data":"[gate] admin UI: enabled (GATE_ADMIN_ENABLED 开关状态).","timestamp":"2026-09-12T04:08:52.932Z"}
+
+data: {"data":"[gate] FT bridges: 8080 (FT_PORTS env, 首桥代整体; /v1/ft/metrics 反代 FT 本地端).","timestamp":"2026-09-12T04:08:52.932Z"}
+
+data: {"data":"[gate] listening on 0.0.0.0:7860 -> 127.0.0.1:20128","timestamp":"2026-09-12T04:08:52.943Z"}
+
+data: {"data":"[ModelSync] No connections with autoSync enabled — skipping cycle","timestamp":"2026-09-12T04:08:53.121Z"}
+
+data: {"data":"[init] Logged in.","timestamp":"2026-09-12T04:08:53.137Z"}
+
+data: {"data":"[init] OMNIROUTE_API_KEY env set, skip /api/keys.","timestamp":"2026-09-12T04:08:53.158Z"}
+
+data: {"data":"[init] NIM_PROBE_ENABLED=0 → 跳 probe (register-and-go; 对齐 miztertea 惰性检测, runtime LocalHealthCheck+executor failover 兜底死 key)","timestamp":"2026-09-12T04:08:53.159Z"}
+
+data: {"data":"[init] Registering NIM keys (auth_dead skip, INDEX 递增编号不塌)...","timestamp":"2026-09-12T04:08:53.159Z"}
+
+data: {"data":"[OpenRouterProviderStats] Initial sync complete: 119 providers","timestamp":"2026-09-12T04:08:53.242Z"}
+
+data: {"data":"[init] nim-01 OK","timestamp":"2026-09-12T04:08:53.659Z"}
+
+data: {"data":"[init] nim-02 OK","timestamp":"2026-09-12T04:08:54.256Z"}
+
+data: {"data":"[init] nim-03 OK","timestamp":"2026-09-12T04:08:54.636Z"}
+
+data: {"data":"[init] nim-04 OK","timestamp":"2026-09-12T04:08:54.997Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.053Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.053Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.078Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.078Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.090Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.090Z"}
+
+data: {"data":"[init] nim-05 OK","timestamp":"2026-09-12T04:08:55.462Z"}
+
+data: {"data":"[init] nim-06 OK","timestamp":"2026-09-12T04:08:55.809Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.849Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.849Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.872Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:55.873Z"}
+
+data: {"data":"[init] nim-07 OK","timestamp":"2026-09-12T04:08:56.219Z"}
+
+data: {"data":"[init] nim-08 OK","timestamp":"2026-09-12T04:08:56.594Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:56.624Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:56.624Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:56.647Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:56.647Z"}
+
+data: {"data":"[init] nim-09 OK","timestamp":"2026-09-12T04:08:57.055Z"}
+
+data: {"data":"[init] nim-10 OK","timestamp":"2026-09-12T04:08:57.484Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:57.563Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:57.563Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:57.589Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:57.589Z"}
+
+data: {"data":"[init] nim-11 OK","timestamp":"2026-09-12T04:08:57.937Z"}
+
+data: {"data":"[init] nim-12 OK","timestamp":"2026-09-12T04:08:58.294Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:58.357Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:58.357Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:58.370Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:58.370Z"}
+
+data: {"data":"[init] nim-13 OK","timestamp":"2026-09-12T04:08:58.731Z"}
+
+data: {"data":"[init] nim-14 OK","timestamp":"2026-09-12T04:08:59.099Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.136Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.136Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.157Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.157Z"}
+
+data: {"data":"[init] nim-15 OK","timestamp":"2026-09-12T04:08:59.518Z"}
+
+data: {"data":"[init] nim-16 OK","timestamp":"2026-09-12T04:08:59.863Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.920Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.920Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.930Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:08:59.930Z"}
+
+data: {"data":"[init] nim-17 OK","timestamp":"2026-09-12T04:09:00.282Z"}
+
+data: {"data":"[init] nim-18 OK","timestamp":"2026-09-12T04:09:00.653Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:00.693Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:00.694Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:00.714Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:00.714Z"}
+
+data: {"data":"[init] nim-19 OK","timestamp":"2026-09-12T04:09:01.071Z"}
+
+data: {"data":"[init] nim-20 OK","timestamp":"2026-09-12T04:09:01.432Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:01.498Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:01.498Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:01.510Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:01.511Z"}
+
+data: {"data":"[init] nim-21 OK","timestamp":"2026-09-12T04:09:01.882Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:01.942Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:01.942Z"}
+
+data: {"data":"[init] nim-22 OK","timestamp":"2026-09-12T04:09:02.294Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:02.321Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:02.321Z"}
+
+data: {"data":"[init] nim-23 OK","timestamp":"2026-09-12T04:09:02.688Z"}
+
+data: {"data":"[init] nim-24 OK","timestamp":"2026-09-12T04:09:03.110Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.124Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.125Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.138Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.138Z"}
+
+data: {"data":"[init] nim-25 OK","timestamp":"2026-09-12T04:09:03.518Z"}
+
+data: {"data":"[init] nim-26 OK","timestamp":"2026-09-12T04:09:03.869Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.929Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.929Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.944Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:03.944Z"}
+
+data: {"data":"[init] nim-27 OK","timestamp":"2026-09-12T04:09:04.323Z"}
+
+data: {"data":"[init] nim-28 OK","timestamp":"2026-09-12T04:09:04.681Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:04.738Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:04.738Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:04.748Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:04.749Z"}
+
+data: {"data":"[init] nim-29 OK","timestamp":"2026-09-12T04:09:05.108Z"}
+
+data: {"data":"[init] nim-30 OK","timestamp":"2026-09-12T04:09:05.489Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:05.583Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:05.584Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:05.608Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:05.608Z"}
+
+data: {"data":"[init] nim-31 OK","timestamp":"2026-09-12T04:09:05.963Z"}
+
+data: {"data":"[init] nim-32 OK","timestamp":"2026-09-12T04:09:06.343Z"}
+
+data: {"data":"[init] Keys: 32 registered, 0 skipped, 0 failed. (probe: 0 alive / 0 dead-skipped)","timestamp":"2026-09-12T04:09:06.343Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:06.387Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:06.387Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:06.408Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:06.408Z"}
+
+data: {"data":"[init] gc_stale: 无待删连接 (当前 NIM_KEYS=32, 增量幂等)","timestamp":"2026-09-12T04:09:06.448Z"}
+
+data: {"data":"[init] clear_stale: 无陈旧错态 (Autopilot issues=0 stale_connection_error)","timestamp":"2026-09-12T04:09:06.516Z"}
+
+data: {"data":"[init] Fetching provider IDs...","timestamp":"2026-09-12T04:09:06.516Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:06.525Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for nvidia: disabled","timestamp":"2026-09-12T04:09:06.525Z"}
+
+data: {"data":"[init] Provider IDs: 32","timestamp":"2026-09-12T04:09:06.546Z"}
+
+data: {"data":"[init] FT proxy flaretunnel-8080: 建 ✓ (host=127.0.0.1:8080 → id=b6293264-d63b-41a6-a748-fee78901e08e, HTTP 201)","timestamp":"2026-09-12T04:09:06.577Z"}
+
+data: {"data":"[init] FT proxy flaretunnel-8080: 绑族 ✓ (provider scope, scopeIds=[nvidia sensenova amd], updated=3)","timestamp":"2026-09-12T04:09:06.640Z"}
+
+data: {"data":"[init] FT bridge healthz: {\"blacklist_patterns\":0,\"current_index\":2,\"rotation_mode\":\"round-robin\",\"stats\":{\"dew-ruby-ft1\":{\"name\":\"dew-ruby-ft1\",\"url\":\"https://1.f09.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186137},\"dew-ruby-ft2\":{\"name\":\"dew-ruby-ft2\",\"url\":\"https://2.f09.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186141},\"dew-ruby-ft3\":{\"name\":\"dew-ruby-ft3\",\"url\":\"https://3.f09.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186145},\"elf-nest-ft1\":{\"name\":\"elf-nest-ft1\",\"url\":\"https://1.f10.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186138},\"elf-nest-ft2\":{\"name\":\"elf-nest-ft2\",\"url\":\"https://2.f10.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186141},\"elf-nest-ft3\":{\"name\":\"elf-nest-ft3\",\"url\":\"https://3.f10.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186146},\"fire-toy-ft1\":{\"name\":\"fire-toy-ft1\",\"url\":\"https://1.f02.cc.cd\",\"requests\":2,\"successes\":2,\"failures\":0,\"last_status\":200,\"last_used\":1789186146},\"fire-toy-ft2\":{\"name\":\"fire-toy-ft2\",\"url\":\"https://2.f02.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186138},\"fire-toy-ft3\":{\"name\":\"fire-toy-ft3\",\"url\":\"https://3.f02.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186142},\"gift-gem-ft1\":{\"name\":\"gift-gem-ft1\",\"url\":\"https://1.f04.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186135},\"gift-gem-ft2\":{\"name\":\"gift-gem-ft2\",\"url\":\"https://2.f04.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186139},\"gift-gem-ft3\":{\"name\":\"gift-gem-ft3\",\"url\":\"https://3.f04.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186143},\"hop-rose-ft1\":{\"name\":\"hop-rose-ft1\",\"url\":\"https://1.f07.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186136},\"hop-rose-ft2\":{\"name\":\"hop-rose-ft2\",\"url\":\"https://2.f07.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186140},\"hop-rose-ft3\":{\"name\":\"hop-rose-ft3\",\"url\":\"https://3.f07.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186144},\"kind-tree-ft1\":{\"name\":\"kind-tree-ft1\",\"url\":\"https://1.f01.cc.cd\",\"requests\":2,\"successes\":2,\"failures\":0,\"last_status\":200,\"last_used\":1789186146},\"kind-tree-ft2\":{\"name\":\"kind-tree-ft2\",\"url\":\"https://2.f01.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186138},\"kind-tree-ft3\":{\"name\":\"kind-tree-ft3\",\"url\":\"https://3.f01.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186142},\"leaf-fish-ft1\":{\"name\":\"leaf-fish-ft1\",\"url\":\"https://1.f06.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186136},\"leaf-fish-ft2\":{\"name\":\"leaf-fish-ft2\",\"url\":\"https://2.f06.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186140},\"leaf-fish-ft3\":{\"name\":\"leaf-fish-ft3\",\"url\":\"https://3.f06.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186144},\"pink-tree-ft1\":{\"name\":\"pink-tree-ft1\",\"url\":\"https://1.f03.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186134},\"pink-tree-ft2\":{\"name\":\"pink-tree-ft2\",\"url\":\"https://2.f03.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186138},\"pink-tree-ft3\":{\"name\":\"pink-tree-ft3\",\"url\":\"https://3.f03.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186142},\"rain-wave-ft1\":{\"name\":\"rain-wave-ft1\",\"url\":\"https://1.f05.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186135},\"rain-wave-ft2\":{\"name\":\"rain-wave-ft2\",\"url\":\"https://2.f05.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186139},\"rain-wave-ft3\":{\"name\":\"rain-wave-ft3\",\"url\":\"https://3.f05.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186143},\"ray-kind-ft1\":{\"name\":\"ray-kind-ft1\",\"url\":\"https://1.f08.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186137},\"ray-kind-ft2\":{\"name\":\"ray-kind-ft2\",\"url\":\"https://2.f08.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186141},\"ray-kind-ft3\":{\"name\":\"ray-kind-ft3\",\"url\":\"https://3.f08.cc.cd\",\"requests\":1,\"successes\":1,\"failures\":0,\"last_status\":200,\"last_used\":1789186145}},\"status\":\"ok\",\"worker_stats\":30,\"workers\":30}","timestamp":"2026-09-12T04:09:06.650Z"}
+
+data: {"data":"[init] Resilience (RPM=300, concurrent=96, interval=200ms)...","timestamp":"2026-09-12T04:09:06.650Z"}
+
+data: {"data":"[init] Resilience PATCH body keys=[requestQueue] requestQueue.keys=[concurrentRequests,maxWaitMs,minTimeBetweenRequestsMs,requestsPerMinute] (无顶层 useUpstream429BreakerHints)","timestamp":"2026-09-12T04:09:06.662Z"}
+
+data: {"data":"[bottleneck-patch] Applied doExpire fix for Bottleneck v2.19.5","timestamp":"2026-09-12T04:09:06.689Z"}
+
+data: {"data":"[bottleneck-patch] Applied _startHeartbeat fix for Bottleneck v2.19.5","timestamp":"2026-09-12T04:09:06.691Z"}
+
+data: {"data":"[init] Resilience PATCH HTTP 200 (dur=34ms)","timestamp":"2026-09-12T04:09:06.703Z"}
+
+data: {"data":"[init] Resilience 读回: RPM=300 minMs=200 concurrent=96 maxWaitMs=300000 (预期 300/200/96/300000)","timestamp":"2026-09-12T04:09:06.744Z"}
+
+data: {"data":"[init] ✓ Resilience 读回全字段一致 (300/96/200/300000 已落定)","timestamp":"2026-09-12T04:09:06.744Z"}
+
+data: {"data":"[init] Routing + maxBodySizeMb=4...","timestamp":"2026-09-12T04:09:06.744Z"}
+
+data: {"data":"[init] Settings HTTP 200","timestamp":"2026-09-12T04:09:06.773Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos HTTP 200 :: combos=[b98a050a-c15c-49cd-b78b-0662de450507\tnim-pool\tp2c;ecb75f74-2fed-43ae-8436-11c6ef7105f8\tnim-codex\tpriority;f07713d7-8ece-4c31-8b23-83c69e47c128\tsensenova-pool\tp2c;e5f70d9a-82aa-4dd5-8cd7-b56874785264\tamd-pool\tp2c;43e5b233-c99e-4814-ac4e-8f69fe03222f\tdp4f-pool\tp2c;]","timestamp":"2026-09-12T04:09:06.843Z"}
+
+data: {"data":"04:09:09.441 [AUTO] auto/:free matched no connected models; returning an empty pool. Set OMNIROUTE_AUTO_FREE_FALLBACK_TO_FULL_POOL=true to restore the legacy \"use full pool\" behavior.","timestamp":"2026-09-12T04:09:09.442Z"}
+
+data: {"data":"04:09:09.788 [AUTO] auto/coding:free matched no connected models; returning an empty pool. Set OMNIROUTE_AUTO_FREE_FALLBACK_TO_FULL_POOL=true to restore the legacy \"use full pool\" behavior.","timestamp":"2026-09-12T04:09:09.788Z"}
+
+data: {"data":"04:09:10.562 [AUTO] auto/minimax matched no connected models; returning an empty pool.","timestamp":"2026-09-12T04:09:10.562Z"}
+
+data: {"data":"04:09:10.580 [AUTO] auto/mimo matched no connected models; returning an empty pool.","timestamp":"2026-09-12T04:09:10.581Z"}
+
+data: {"data":"04:09:10.600 [AUTO] auto/zai matched no connected models; returning an empty pool.","timestamp":"2026-09-12T04:09:10.601Z"}
+
+data: {"data":"04:09:10.674 [AUTO] auto/gemini matched no connected models; returning an empty pool.","timestamp":"2026-09-12T04:09:10.675Z"}
+
+data: {"data":"[init] [readonly] GET /api/combos/auto HTTP 200 :: auto=[\t\t\t0]","timestamp":"2026-09-12T04:09:10.683Z"}
+
+data: {"data":"[init] [readonly] GET /api/providers HTTP 200 :: providers=059dd00a-2c79-4110-8ea5-6a1c84fb2ec0\tnvidia;0a8ea743-a7eb-4191-aefd-0a93442ff273\tnvidia;1ea09b46-021f-48f2-a98c-5527c03a0055\tsensenova;1ea3cc9f-0d9d-4406-beec-299a28e69148\tnvidia;1fdb4aba-f383-426c-ab29-ddcc436b2214\tnvidia;21a0eadd-4bac-4851-b951-d68a2189a595\topenai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a;2d2b5422-8715-4ed1-8849-29a724fe4fca\tnvidia;2eaf3faa-b3e8-49da-a29e-6749c52aaaaa\tnvidia;2ed88677-2151-4afb-8ad4-7f2490a65456\tnvidia;3be38968-2b80-47a5-9914-303fccd00d31\tnvidia;46ccbd27-4220-44c2-8e83-80719e23f65a\tsensenova;46d103b6-7825-4b07-8d58-e992372131aa\tnvidia;4a654921-05cb-4b4e-841e-e9c5d482c803\topenai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a;4f414294-b43d-4442-b36d-fb92d11843ad\tnvidia;548c3212-e7fc-4a8a-951a-d44a4ca76bd0\tnvidia;584f76b6-c4a8-4117-8c97-d083dc665c98\tnvidia;5bb7bc42-4726-4bc8-a751-44fefe5dc976\tnvidia;6481dfb6-3a9f-4759-b2a1-0b5a882c0d64\tnvidia;6c4c1f47-ab16-411e-b90b-4c039a5aa257\tnvidia;6e92aa57-2305-448f-af01-65609680f145\tnvidia;703fdd50-8e17-43c1-aa8d-77677e676d4b\tnvidia;71f8d0aa-e0ec-4901-8ad7-7aeec5f883f5\tnvidia;731f7b83-23a7-4397-82ee-39d98cf5e596\tnvidia;732fd15d-78b9-4bea-b1cc-f536cb486e6f\topenai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a;7c8111dc-0d9c-4517-bd3d-7814bcce9a3f\tnvidia;a1eec9c7-bfdb-41df-a75f-66bfab79787d\tnvidia;a88f3d57-b4b8-4b20-8ed5-64f27b53d062\tnvidia;a8a67f1e-75d5-4883-b095-ca3b773f0974\tnvidia;a97390ed-0263-4c46-b760-2353756039b3\tnvidia;b4c7899c-3fbd-4ff1-b155-dca3e79bc766\tnvidia;b52665ae-b3a1-4e68-8af2-83ca4461275c\tnvidia;baf9dddb-2306-427b-8c22-cfa2dbf78feb\tnvidia;bd6aef18-9acd-4341-b6ee-94a1804f9bea\tnvidia;beb9aa59-7970-44c4-847d-2432cd1ecf3f\taihorde;c7c324a1-b607-4bed-97c5-6fb454db9857\tnvidia;c9ceba2e-f9ef-41b9-85f6-200b75709b2a\tnvidia;d1522ef4-1676-480f-a5bc-70b882d5c9aa\topenai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a;da7427f5-940f-406d-9b9e-da18e716203f\tnvidia;e1a784b2-51d9-4674-9f90-c83c751b79c1\tsensenova;fc1ccd06-c30f-4faf-a985-c4c68e7ea6de\topenai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a;ffe6a227-fd3a-4f22-934c-78d77ddaae55\tnvidia;","timestamp":"2026-09-12T04:09:10.720Z"}
+
+data: {"data":"[init] [readonly] 三份 GET 完 — Restart B 写跳据此结构 (POST/PUT/PATCH), Restart A 仅读不写.","timestamp":"2026-09-12T04:09:10.720Z"}
+
+data: {"data":"[init] Compression globally disabled (enabled=false; per-combo 启用路径不受影响)...","timestamp":"2026-09-12T04:09:10.720Z"}
+
+data: {"data":"[init] Compression HTTP 200","timestamp":"2026-09-12T04:09:10.751Z"}
+
+data: {"data":"[init] Resetting circuit breakers (first-init clean start)...","timestamp":"2026-09-12T04:09:10.752Z"}
+
+data: {"data":"[init] CB reset HTTP 200","timestamp":"2026-09-12T04:09:10.767Z"}
+
+data: {"data":"[init] per-model 200K override (real_context=200000)...","timestamp":"2026-09-12T04:09:10.768Z"}
+
+data: {"data":"[init] override: 7 applied, 0 failed.","timestamp":"2026-09-12T04:09:11.086Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-09-12T04:09:11.086Z"}
+
+data: {"data":"[init]   PROFILE=balanced MODE=NORMAL KEYS=32 RPM=300 BODY=4 MB","timestamp":"2026-09-12T04:09:11.086Z"}
+
+data: {"data":"[init]   POOL_STRATEGY=p2c REAL_CONTEXT=200000 (per-model override 应用, monitor 自动回写禁用)","timestamp":"2026-09-12T04:09:11.087Z"}
+
+data: {"data":"[init] ─────────────────────────────────────────────","timestamp":"2026-09-12T04:09:11.087Z"}
+
+data: {"data":"[init] Incremental mode.","timestamp":"2026-09-12T04:09:11.094Z"}
+
+data: {"data":"[init] check_nim_model_health...","timestamp":"2026-09-12T04:09:11.099Z"}
+
+data: {"data":"[init]   minimaxai/minimax-m3 — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-09-12T04:09:11.150Z"}
+
+data: {"data":"[init]   zhipuai/glm-5.3 — DEPRECATED（NVIDIA 目录无）","timestamp":"2026-09-12T04:09:11.163Z"}
+
+data: {"data":"[init] 2 deprecated / 82 available","timestamp":"2026-09-12T04:09:11.165Z"}
+
+data: {"data":"[init] upsert nim-pool: existed -> PUT combos/b98a050a-c15c-49cd-b78b-0662de450507 HTTP 200","timestamp":"2026-09-12T04:09:11.249Z"}
+
+data: {"data":"[init] upsert nim-codex: existed -> PUT combos/ecb75f74-2fed-43ae-8436-11c6ef7105f8 HTTP 200","timestamp":"2026-09-12T04:09:11.320Z"}
+
+data: {"data":"[init] context_accumulator_update: 增量累积每模型成功/失败口径...","timestamp":"2026-09-12T04:09:11.320Z"}
+
+data: {"data":"[init]   列探测 input=tokens_in output=tokens_out","timestamp":"2026-09-12T04:09:11.344Z"}
+
+data: {"data":"[init]   checkpoint last_ts=2026-09-11T23:09:31.438Z","timestamp":"2026-09-12T04:09:11.352Z"}
+
+data: {"data":"[init]   checkpoint -> ctx_last_log_ts=2026-09-12T04:02:03.499Z","timestamp":"2026-09-12T04:09:11.438Z"}
+
+data: {"data":"[init]   累积更新 1 个模型。","timestamp":"2026-09-12T04:09:11.438Z"}
+
+data: {"data":"[init] ═══累积 real_context 推荐（跨淘汰周期保留）═══","timestamp":"2026-09-12T04:09:11.444Z"}
+
+data: {"data":"[init]   model | last_ok | first_fail | ok/fail_n | conf | rec_ctx","timestamp":"2026-09-12T04:09:11.444Z"}
+
+data: {"data":"[init]   deepseek-ai/deepseek-v4-flash-0731 | 238941 | 0 | 801/272 | high | 215046","timestamp":"2026-09-12T04:09:11.444Z"}
+
+data: {"data":"[init]   moonshotai/kimi-k3 | 318036 | 0 | 2248/107 | high | 286232","timestamp":"2026-09-12T04:09:11.445Z"}
+
+data: {"data":"[init]   moonshotai/kimi-k2.6 | - | - | 0/0 | insufficient | -","timestamp":"2026-09-12T04:09:11.445Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-super-120b-a12b | 161 | - | 4/0 | insufficient | 144","timestamp":"2026-09-12T04:09:11.445Z"}
+
+data: {"data":"[init]   nvidia/nemotron-3-ultra-550b-a55b | 20 | - | 1/0 | insufficient | 18","timestamp":"2026-09-12T04:09:11.445Z"}
+
+data: {"data":"[init] ═════════════════════════════════════════","timestamp":"2026-09-12T04:09:11.445Z"}
+
+data: {"data":"[init] General multi-provider registration...","timestamp":"2026-09-12T04:09:11.445Z"}
+
+data: {"data":"[init]   nvidia: legacy 内置轨独占, 通用表跳过 (双轨收敛单轨)","timestamp":"2026-09-12T04:09:11.450Z"}
+
+data: {"data":"[init]   gemini: DISABLED, 跳过注册 (key 无效空转, 保留代码待复活)","timestamp":"2026-09-12T04:09:11.450Z"}
+
+data: {"data":"[init]   sensenova: 建节点+连接+枚举模型 (base=https://token.sensenova.cn/v1, max=20, mode=builtin)...","timestamp":"2026-09-12T04:09:11.456Z"}
+
+data: {"data":"[init]     sensenova: builtin 模式, 不建 node, _nid=sensenova (短名)","timestamp":"2026-09-12T04:09:11.457Z"}
+
+data: {"data":"[init]     sensenova/sensenova-01 OK","timestamp":"2026-09-12T04:09:11.809Z"}
+
+data: {"data":"[init]     sensenova/sensenova-02 OK","timestamp":"2026-09-12T04:09:12.161Z"}
+
+data: {"data":"[init]     sensenova/sensenova-03 OK","timestamp":"2026-09-12T04:09:12.521Z"}
+
+data: {"data":"[init]     sensenova: 3 keys → 3 registered, 0 skipped, 0 failed","timestamp":"2026-09-12T04:09:12.521Z"}
+
+data: {"data":"[init]     sensenova: 静态白名单 3 个模型 (方案A, 不枚举上游)","timestamp":"2026-09-12T04:09:12.526Z"}
+
+data: {"data":"[init] upsert sensenova-pool: existed -> PUT combos/f07713d7-8ece-4c31-8b23-83c69e47c128 HTTP 200","timestamp":"2026-09-12T04:09:12.672Z"}
+
+data: {"data":"[init]     sensenova: 无白名单外残留, 跳过","timestamp":"2026-09-12T04:09:12.706Z"}
+
+data: {"data":"[init]   mistral: DISABLED, 跳过注册 (key 无效空转, 保留代码待复活)","timestamp":"2026-09-12T04:09:12.706Z"}
+
+data: {"data":"[init]   amd: 建节点+连接+枚举模型 (base=https://developer.amd.com.cn/radeon/api/v1, max=20, mode=node)...","timestamp":"2026-09-12T04:09:12.713Z"}
+
+data: {"data":"[init]     amd: node amd-node 复用 id=openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a (baseUrl 已刷新=https://developer.amd.com.cn/radeon/api/v1)","timestamp":"2026-09-12T04:09:12.767Z"}
+
+data: {"data":"[init]     amd: node openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a 补绑 FT 桥 ✓ (provider scope, updated=1)","timestamp":"2026-09-12T04:09:12.796Z"}
+
+data: {"data":"[init]     amd/amd-01 OK","timestamp":"2026-09-12T04:09:13.161Z"}
+
+data: {"data":"[init]     amd/amd-02 OK","timestamp":"2026-09-12T04:09:13.657Z"}
+
+data: {"data":"[init]     amd/amd-03 OK","timestamp":"2026-09-12T04:09:14.106Z"}
+
+data: {"data":"[init]     amd/amd-04 OK","timestamp":"2026-09-12T04:09:14.486Z"}
+
+data: {"data":"[init]     amd/amd-05 OK","timestamp":"2026-09-12T04:09:14.853Z"}
+
+data: {"data":"[init]     amd: 5 keys → 5 registered, 0 skipped, 0 failed","timestamp":"2026-09-12T04:09:14.853Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:14.868Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:14.868Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:14.877Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:14.877Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:15.001Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:15.001Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:15.542Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:15.542Z"}
+
+data: {"data":"[init]     amd: 枚举 4 个模型 (截 20) (body 4010B, key=ok)","timestamp":"2026-09-12T04:09:15.628Z"}
+
+data: {"data":"[ModelSync] Codex profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:15.756Z"}
+
+data: {"data":"[ModelSync] Claude profile auto-sync skipped for openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a: disabled","timestamp":"2026-09-12T04:09:15.756Z"}
+
+data: {"data":"[init] upsert amd-pool: existed -> PUT combos/e5f70d9a-82aa-4dd5-8cd7-b56874785264 HTTP 200","timestamp":"2026-09-12T04:09:15.855Z"}
+
+data: {"data":"[init] dp4f-pool: 跨 provider 条目 4 条 → sensenova/deepseek-v4-flash openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a/DeepSeek-V4-Flash openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a/DeepSeek-V4-Flash-Vision-Exp nvidia/deepseek-ai/deepseek-v4-flash-0731","timestamp":"2026-09-12T04:09:15.883Z"}
+
+data: {"data":"[init] dp4f-pool: 无旧名 dpv4flash-pool 残留, 跳过","timestamp":"2026-09-12T04:09:15.975Z"}
+
+data: {"data":"[init] upsert dp4f-pool: existed -> PUT combos/43e5b233-c99e-4814-ac4e-8f69fe03222f HTTP 200","timestamp":"2026-09-12T04:09:15.998Z"}
+
+data: {"data":"[init] cleanup sensenova: 无旧 provider-node sensenova-node, 跳过节点清理","timestamp":"2026-09-12T04:09:16.022Z"}
+
+data: {"data":"[init] cleanup sensenova: 无双重前缀残留, 跳过","timestamp":"2026-09-12T04:09:16.042Z"}
+
+data: {"data":"[init] cleanup nvidia: 无旧 provider-node nvidia-node, 跳过节点清理","timestamp":"2026-09-12T04:09:16.062Z"}
+
+data: {"data":"[init] cleanup mistral: 无旧 provider-node mistral-node, 跳过节点清理","timestamp":"2026-09-12T04:09:16.087Z"}
+
+data: {"data":"[init] cleanup google: 无旧 provider-node google-node, 跳过节点清理","timestamp":"2026-09-12T04:09:16.112Z"}
+
+data: {"data":"[init] General multi-provider registration done.","timestamp":"2026-09-12T04:09:16.112Z"}
+
+data: {"data":"[init] snapshot → /data/backups/config (Bucket 挂载直写, 无 HF API)","timestamp":"2026-09-12T04:09:16.114Z"}
+
+data: {"data":"[init] snapshot: init_vars.json written","timestamp":"2026-09-12T04:09:16.271Z"}
+
+data: {"data":"[init] snapshot 完成: 6 件于 /data/backups/config","timestamp":"2026-09-12T04:09:16.286Z"}
+
+data: {"data":"[init] Done (incremental). v4.3.2","timestamp":"2026-09-12T04:09:16.286Z"}
+
+data: {"data":"[heapwatch] heapUsed=426MB heap_size_limit=4192MB pressure=0.102 rss=780MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:16.392Z"}
+
+data: {"data":"[entrypoint] NIM init 已退出 rc=0 (正常完成).","timestamp":"2026-09-12T04:09:16.668Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=780MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:17.454Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:09:18.197Z"}
+
+data: {"data":"[Cleanup] Starting auto-cleanup...","timestamp":"2026-09-12T04:09:18.220Z"}
+
+data: {"data":"[Cleanup] Deleted 0 quota_snapshots older than 90 days","timestamp":"2026-09-12T04:09:18.221Z"}
+
+data: {"data":"[Cleanup] Deleted 0 call_logs older than 90 days","timestamp":"2026-09-12T04:09:18.223Z"}
+
+data: {"data":"[Aggregation] usage_history rollup: 0 rows for dates before 2025-09-12","timestamp":"2026-09-12T04:09:18.224Z"}
+
+data: {"data":"[Cleanup] Deleted 0 usage_history older than 365 days","timestamp":"2026-09-12T04:09:18.225Z"}
+
+data: {"data":"[Cleanup] Deleted 0 compression_analytics older than 30 days","timestamp":"2026-09-12T04:09:18.226Z"}
+
+data: {"data":"[Cleanup] Deleted 0 mcp_tool_audit older than 30 days","timestamp":"2026-09-12T04:09:18.227Z"}
+
+data: {"data":"[Cleanup] Deleted 0 config_audit_log older than 30 days","timestamp":"2026-09-12T04:09:18.227Z"}
+
+data: {"data":"[Cleanup] Deleted 0 a2a_task_events older than 30 days","timestamp":"2026-09-12T04:09:18.228Z"}
+
+data: {"data":"[Cleanup] Deleted 0 memory_entries older than 180 days","timestamp":"2026-09-12T04:09:18.230Z"}
+
+data: {"data":"[Cleanup] Deleted 0 domain_cost_history older than 30 days","timestamp":"2026-09-12T04:09:18.230Z"}
+
+data: {"data":"[Cleanup] Deleted 0 compression_cache_stats older than 30 days","timestamp":"2026-09-12T04:09:18.231Z"}
+
+data: {"data":"[Cleanup] Deleted 0 xp_audit_log older than 30 days","timestamp":"2026-09-12T04:09:18.239Z"}
+
+data: {"data":"[Cleanup] Error cleaning compression_run_telemetry: SqliteError: no such table: compression_run_telemetry","timestamp":"2026-09-12T04:09:18.244Z"}
+
+data: {"data":"    at Object.prepare (.build/next/server/chunks/src_02l7t6d._.js:1:5138)","timestamp":"2026-09-12T04:09:18.245Z"}
+
+data: {"data":"    at D (.build/next/server/chunks/src_lib_0ya2t7z._.js:1:5135)","timestamp":"2026-09-12T04:09:18.245Z"}
+
+data: {"data":"    at h (.build/next/server/chunks/src_lib_0ya2t7z._.js:1:6179)","timestamp":"2026-09-12T04:09:18.245Z"}
+
+data: {"data":"    at async Timeout._onTimeout (.build/next/server/chunks/src_lib_0ya2t7z._.js:1:11728) {","timestamp":"2026-09-12T04:09:18.245Z"}
+
+data: {"data":"  code: 'SQLITE_ERROR'","timestamp":"2026-09-12T04:09:18.245Z"}
+
+data: {"data":"}","timestamp":"2026-09-12T04:09:18.245Z"}
+
+data: {"data":"[Cleanup] Deleted 0 proxy_logs older than 90 days","timestamp":"2026-09-12T04:09:18.245Z"}
+
+data: {"data":"[Cleanup] Deleted 0 expired ccr_blocks","timestamp":"2026-09-12T04:09:18.247Z"}
+
+data: {"data":"[Cleanup] Auto-cleanup complete: 0 deleted, 1 errors","timestamp":"2026-09-12T04:09:18.247Z"}
+
+data: {"data":"[Cleanup] Deleted 0 proxy_logs older than 90 days","timestamp":"2026-09-12T04:09:18.250Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:09:19.029Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:09:19.110Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:09:19.199Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:09:19.211Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:09:19.815Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:19.856Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:19.867Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:09:20.992Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:09:21.058Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:09:21.112Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.137Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.143Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.151Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.159Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.166Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.187Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.196Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.206Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.213Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.221Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.244Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.251Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.258Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.269Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.280Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.304Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.312Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.322Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.362Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.385Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.408Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.422Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.431Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.438Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.444Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.462Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.470Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.481Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.486Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:09:21.493Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=782MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:21.929Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=785MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:22.171Z"}
+
+data: {"data":"[heapwatch] heapUsed=7MB heap_size_limit=4192MB pressure=0.002 rss=785MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:25.101Z"}
+
+data: {"data":"[heapwatch] heapUsed=299MB heap_size_limit=4192MB pressure=0.071 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:46.402Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:47.458Z"}
+
+data: {"data":"[ProxyHealth] Starting proxy health scheduler (interval: 600000ms)","timestamp":"2026-09-12T04:09:48.971Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 18 tested, 1 alive, 17 blocked by target, 0 inconclusive, 0 auto-removed, 0 auto-disabled","timestamp":"2026-09-12T04:09:50.669Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:51.932Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:09:52.174Z"}
+
+data: {"data":"[heapwatch] heapUsed=303MB heap_size_limit=4192MB pressure=0.072 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:16.399Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:17.459Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:21.935Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:22.177Z"}
+
+data: {"data":"[heapwatch] heapUsed=303MB heap_size_limit=4192MB pressure=0.072 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:46.401Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:47.460Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:51.936Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:10:52.178Z"}
+
+data: {"data":"[heapwatch] heapUsed=303MB heap_size_limit=4192MB pressure=0.072 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:16.402Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:17.467Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:21.942Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:22.185Z"}
+
+data: {"data":"[heapwatch] heapUsed=304MB heap_size_limit=4192MB pressure=0.072 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:46.400Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:47.469Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:51.946Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:11:52.189Z"}
+
+data: {"data":"[heapwatch] heapUsed=303MB heap_size_limit=4192MB pressure=0.072 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:16.401Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:17.471Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:21.946Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:22.191Z"}
+
+data: {"data":"[heapwatch] heapUsed=304MB heap_size_limit=4192MB pressure=0.072 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:46.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:47.478Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:51.953Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:12:52.199Z"}
+
+data: {"data":"[heapwatch] heapUsed=304MB heap_size_limit=4192MB pressure=0.073 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:16.404Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:17.483Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:21.959Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:22.204Z"}
+
+data: {"data":"[heapwatch] heapUsed=304MB heap_size_limit=4192MB pressure=0.072 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:46.402Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:47.486Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:51.960Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:13:52.207Z"}
+
+data: {"data":"[heapwatch] heapUsed=304MB heap_size_limit=4192MB pressure=0.073 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:17.486Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:14:21.513Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:22.014Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.031Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.039Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.045Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.053Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.072Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.078Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.087Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.095Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.101Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.119Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.125Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.132Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.139Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.145Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.161Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.167Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.175Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.180Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.186Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.202Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.208Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.215Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.220Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.227Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=671MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:22.238Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.244Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.252Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.258Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.263Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.270Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.422Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:22.429Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:14:23.185Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:14:23.192Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:14:23.471Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:14:23.492Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:14:24.295Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:14:24.305Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:14:24.332Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:14:24.440Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:14:25.568Z"}
+
+data: {"data":"[heapwatch] heapUsed=295MB heap_size_limit=4192MB pressure=0.070 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:46.402Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:47.491Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:51.966Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:14:52.212Z"}
+
+data: {"data":"[heapwatch] heapUsed=297MB heap_size_limit=4192MB pressure=0.071 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:16.404Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:17.495Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:22.742Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:22.742Z"}
+
+data: {"data":"[heapwatch] heapUsed=298MB heap_size_limit=4192MB pressure=0.071 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:46.403Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:47.495Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:51.969Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:15:52.216Z"}
+
+data: {"data":"[heapwatch] heapUsed=297MB heap_size_limit=4192MB pressure=0.071 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:16.403Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:17.502Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:21.976Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:22.223Z"}
+
+data: {"data":"[heapwatch] heapUsed=297MB heap_size_limit=4192MB pressure=0.071 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:46.404Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:47.506Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:51.980Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:16:52.228Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:16.405Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:17.507Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:21.982Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:22.229Z"}
+
+data: {"data":"[heapwatch] heapUsed=295MB heap_size_limit=4192MB pressure=0.070 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:46.406Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:47.515Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:51.989Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:17:52.236Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:16.403Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:17.520Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:21.994Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:22.240Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:46.405Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:47.522Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:51.995Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:18:52.242Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:17.522Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:21.995Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:22.242Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:19:25.572Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:19:26.395Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:19:27.604Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:19:27.611Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:19:27.618Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:19:27.625Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:27.663Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:27.673Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:19:28.456Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:19:28.718Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:19:28.753Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.769Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.775Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.781Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.788Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.795Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.811Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.818Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.823Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.828Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.834Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.854Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.863Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.874Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.883Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.900Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.921Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.930Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.938Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:28.945Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.021Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.038Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.044Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.049Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.055Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.084Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.102Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.108Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.113Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.118Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:19:29.123Z"}
+
+data: {"data":"[heapwatch] heapUsed=297MB heap_size_limit=4192MB pressure=0.071 rss=623MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:46.405Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=623MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:47.523Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 18 tested, 1 alive, 17 blocked by target, 0 inconclusive, 0 auto-removed, 0 auto-disabled","timestamp":"2026-09-12T04:19:50.693Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=630MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:52.001Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=630MB shed_threshold=0.75","timestamp":"2026-09-12T04:19:52.246Z"}
+
+data: {"data":"[heapwatch] heapUsed=300MB heap_size_limit=4192MB pressure=0.072 rss=630MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:16.405Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=630MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:17.526Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=630MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:22.004Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=630MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:22.249Z"}
+
+data: {"data":"[heapwatch] heapUsed=300MB heap_size_limit=4192MB pressure=0.072 rss=679MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:46.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=679MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:47.528Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=679MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:52.005Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=679MB shed_threshold=0.75","timestamp":"2026-09-12T04:20:52.251Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=678MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:16.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=678MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:17.534Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=678MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:22.012Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=678MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:22.258Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:46.405Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:47.536Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:52.016Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:21:52.261Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:16.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:17.538Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:22.017Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:22.263Z"}
+
+data: {"data":"[heapwatch] heapUsed=297MB heap_size_limit=4192MB pressure=0.071 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:46.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:47.545Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:52.024Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:22:52.267Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:16.415Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:17.550Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:22.030Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:22.272Z"}
+
+data: {"data":"[heapwatch] heapUsed=297MB heap_size_limit=4192MB pressure=0.071 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:46.405Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:47.552Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:52.032Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:23:52.274Z"}
+
+data: {"data":"[heapwatch] heapUsed=297MB heap_size_limit=4192MB pressure=0.071 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:16.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:17.552Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:22.033Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=665MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:22.275Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:24:29.146Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.323Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.329Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.336Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.343Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.361Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.368Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.376Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.383Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.389Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.407Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.414Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.421Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.430Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.437Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.454Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.461Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.469Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.477Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.483Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.502Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.508Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.513Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.520Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.526Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.543Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.549Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.556Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.561Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.566Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.583Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:30.589Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:24:31.663Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:24:31.680Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:24:31.735Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:24:31.754Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:24:32.543Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:24:32.562Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:24:32.644Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:24:32.668Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:24:33.692Z"}
+
+data: {"data":"[heapwatch] heapUsed=284MB heap_size_limit=4192MB pressure=0.068 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:46.405Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:47.558Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=614MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:52.039Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=614MB shed_threshold=0.75","timestamp":"2026-09-12T04:24:52.280Z"}
+
+data: {"data":"[heapwatch] heapUsed=286MB heap_size_limit=4192MB pressure=0.068 rss=614MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:16.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=614MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:17.562Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=614MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:22.041Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=614MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:22.283Z"}
+
+data: {"data":"[heapwatch] heapUsed=286MB heap_size_limit=4192MB pressure=0.068 rss=671MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:46.408Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=671MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:47.563Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=671MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:52.042Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=671MB shed_threshold=0.75","timestamp":"2026-09-12T04:25:52.284Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:16.411Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:17.570Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:22.050Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=673MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:22.292Z"}
+
+data: {"data":"[heapwatch] heapUsed=282MB heap_size_limit=4192MB pressure=0.067 rss=670MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:46.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=670MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:47.572Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:52.053Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:26:52.295Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:16.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:17.574Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:22.055Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:22.297Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:46.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:47.582Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:52.062Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:27:52.305Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:17.588Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:22.068Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:22.309Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:46.410Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:47.591Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:52.070Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:28:52.312Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:16.408Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:17.592Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:22.071Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:22.312Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:29:33.706Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:29:34.576Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:29:35.768Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:29:35.775Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:29:35.781Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:29:35.788Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:35.824Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:35.832Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:29:36.745Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:29:36.829Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:29:36.955Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:36.972Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:36.979Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:36.986Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:36.991Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:36.998Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.017Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.027Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.037Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.048Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.104Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.139Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.201Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.207Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.213Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.219Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.236Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.242Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.249Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.255Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.261Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.282Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.289Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.298Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.306Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.313Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.334Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.342Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.348Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.355Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:29:37.361Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:46.398Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:47.598Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 18 tested, 1 alive, 17 blocked by target, 0 inconclusive, 0 auto-removed, 0 auto-disabled","timestamp":"2026-09-12T04:29:50.683Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=625MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:52.077Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=625MB shed_threshold=0.75","timestamp":"2026-09-12T04:29:52.319Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:17.601Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:22.081Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:22.322Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:46.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:47.602Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:52.082Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:30:52.324Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:16.408Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:17.609Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:22.090Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:22.331Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:46.419Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:47.614Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:52.094Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:31:52.333Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:16.410Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:17.615Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:22.095Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:22.335Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:46.408Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:47.622Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:52.103Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:32:52.342Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:16.612Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:17.628Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:22.108Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:22.347Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:46.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:47.629Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:52.110Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:33:52.349Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:17.630Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:22.110Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:22.350Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:34:37.384Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.585Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.594Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.601Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.608Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.627Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.634Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.641Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.647Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.653Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.669Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.677Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.684Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.692Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.701Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.722Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.730Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.737Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.744Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.750Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.769Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.776Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.783Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.791Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.796Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.812Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.818Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.824Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.830Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.835Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.855Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:38.861Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:34:39.921Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:34:40.564Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:34:41.265Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:34:41.285Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:34:42.157Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:34:42.267Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:34:42.290Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:34:42.327Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:34:43.727Z"}
+
+data: {"data":"[heapwatch] heapUsed=284MB heap_size_limit=4192MB pressure=0.068 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:46.398Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:47.635Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:52.116Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:34:52.356Z"}
+
+data: {"data":"[heapwatch] heapUsed=286MB heap_size_limit=4192MB pressure=0.068 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:17.639Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:22.120Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:22.359Z"}
+
+data: {"data":"[heapwatch] heapUsed=286MB heap_size_limit=4192MB pressure=0.068 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:46.408Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:47.640Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:52.122Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T04:35:52.361Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=669MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=669MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:17.647Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=669MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:22.126Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=669MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:22.368Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=669MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:46.411Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=669MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:47.652Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=669MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:52.130Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:36:52.373Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:16.408Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:17.654Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:22.133Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:22.374Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:46.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:47.654Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:52.132Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:37:52.375Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:16.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:17.660Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=659MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:22.138Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=659MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:22.379Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=659MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:46.410Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=659MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:47.663Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:52.140Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:38:52.382Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:16.414Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:17.663Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:22.141Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:22.383Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:39:43.747Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:39:44.609Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:39:45.699Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:39:45.806Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:39:45.813Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:39:45.820Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:45.855Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:45.865Z"}
+
+data: {"data":"[heapwatch] heapUsed=285MB heap_size_limit=4192MB pressure=0.068 rss=605MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:46.401Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:39:46.896Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:39:47.235Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=605MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:47.670Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:39:48.029Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.046Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.055Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.062Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.068Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.074Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.094Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.104Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.114Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.123Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.134Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.217Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.227Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.252Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.302Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.311Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.331Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.338Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.345Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.354Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.361Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.379Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.386Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.392Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.401Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.408Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.425Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.432Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.438Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.447Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:39:48.454Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 18 tested, 1 alive, 17 blocked by target, 0 inconclusive, 0 auto-removed, 0 auto-disabled","timestamp":"2026-09-12T04:39:50.957Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=626MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:52.147Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=626MB shed_threshold=0.75","timestamp":"2026-09-12T04:39:52.389Z"}
+
+data: {"data":"[heapwatch] heapUsed=296MB heap_size_limit=4192MB pressure=0.071 rss=626MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:16.413Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=626MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:17.674Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=626MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:22.151Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=626MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:22.392Z"}
+
+data: {"data":"[heapwatch] heapUsed=293MB heap_size_limit=4192MB pressure=0.070 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:46.412Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:47.676Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:52.153Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:40:52.394Z"}
+
+data: {"data":"[heapwatch] heapUsed=295MB heap_size_limit=4192MB pressure=0.070 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:16.418Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:17.684Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:22.160Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:22.402Z"}
+
+data: {"data":"[heapwatch] heapUsed=295MB heap_size_limit=4192MB pressure=0.070 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:46.414Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:47.690Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:52.164Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=675MB shed_threshold=0.75","timestamp":"2026-09-12T04:41:52.406Z"}
+
+data: {"data":"[ProviderLimitsSync] Cycle complete: 0/0 synced in 31ms","timestamp":"2026-09-12T04:42:04.882Z"}
+
+data: {"data":"[heapwatch] heapUsed=298MB heap_size_limit=4192MB pressure=0.071 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:16.403Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:17.692Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:22.166Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:22.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=298MB heap_size_limit=4192MB pressure=0.071 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:46.415Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=617MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:47.694Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:52.166Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:42:52.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=293MB heap_size_limit=4192MB pressure=0.070 rss=616MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:16.411Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=616MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:17.698Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=603MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:22.172Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=603MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:22.415Z"}
+
+data: {"data":"[heapwatch] heapUsed=293MB heap_size_limit=4192MB pressure=0.070 rss=603MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:46.412Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=603MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:47.702Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:52.176Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:43:52.418Z"}
+
+data: {"data":"[heapwatch] heapUsed=293MB heap_size_limit=4192MB pressure=0.070 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:16.411Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:17.702Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:22.177Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:22.420Z"}
+
+data: {"data":"[heapwatch] heapUsed=294MB heap_size_limit=4192MB pressure=0.070 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:46.412Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=604MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:47.709Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:44:48.579Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:49.901Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:49.909Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:49.916Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:49.922Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.093Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.100Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.107Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.113Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.119Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.138Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.145Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.152Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.157Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.163Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.181Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.187Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.194Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.206Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.213Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.231Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.237Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.244Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.254Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.260Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.281Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.287Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.295Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.303Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.310Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.331Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:50.338Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:44:51.047Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:44:51.257Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:44:51.482Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:44:51.511Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=612MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:52.184Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:44:52.357Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=612MB shed_threshold=0.75","timestamp":"2026-09-12T04:44:52.428Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:44:52.502Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:44:52.564Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:44:52.573Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:44:53.706Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:16.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:17.713Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:22.189Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:22.432Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:46.415Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=613MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:47.715Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:52.191Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:45:52.434Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:16.412Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:17.722Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:22.193Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:22.442Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:46.421Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:47.728Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:52.198Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:46:52.447Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:16.411Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:17.731Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:22.200Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:22.450Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.067 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:46.412Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:47.731Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:52.200Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:47:52.450Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:16.411Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:17.738Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:22.207Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:22.456Z"}
+
+data: {"data":"[heapwatch] heapUsed=284MB heap_size_limit=4192MB pressure=0.068 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:46.413Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:47.742Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:52.210Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:48:52.460Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:16.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:17.742Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:22.212Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:22.460Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:46.413Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:47.749Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 18 tested, 1 alive, 17 blocked by target, 0 inconclusive, 0 auto-removed, 0 auto-disabled","timestamp":"2026-09-12T04:49:50.716Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:52.218Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:49:52.467Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:49:53.709Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:49:54.538Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:49:55.702Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:49:55.708Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:49:55.715Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:49:55.816Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:55.849Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:55.855Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:49:56.582Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:49:56.703Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:49:56.890Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:56.910Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:56.919Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:56.927Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:56.936Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:56.948Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.015Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.035Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.041Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.096Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.104Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.121Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.127Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.134Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.140Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.148Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.166Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.173Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.179Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.185Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.193Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.210Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.217Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.224Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.229Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.235Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.252Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.260Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.266Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.271Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:49:57.277Z"}
+
+data: {"data":"[heapwatch] heapUsed=291MB heap_size_limit=4192MB pressure=0.069 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:16.414Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:17.752Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:22.222Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:22.472Z"}
+
+data: {"data":"[heapwatch] heapUsed=292MB heap_size_limit=4192MB pressure=0.070 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:46.414Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:47.754Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:52.224Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=618MB shed_threshold=0.75","timestamp":"2026-09-12T04:50:52.474Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:16.415Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:17.762Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:22.232Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:22.481Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:46.414Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:47.768Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:52.234Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:51:52.486Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:16.413Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:17.770Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:22.236Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:22.488Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:46.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:47.771Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:52.237Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:52:52.489Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:16.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:17.778Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:22.242Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:22.495Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:46.413Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:47.781Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:52.246Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:53:52.497Z"}
+
+data: {"data":"[heapwatch] heapUsed=291MB heap_size_limit=4192MB pressure=0.069 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:16.413Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:17.782Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:22.248Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=662MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:22.499Z"}
+
+data: {"data":"[heapwatch] heapUsed=291MB heap_size_limit=4192MB pressure=0.069 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:46.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=663MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:47.789Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:52.256Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=661MB shed_threshold=0.75","timestamp":"2026-09-12T04:54:52.505Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T04:54:57.290Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.584Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.592Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.601Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.607Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.627Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.634Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.641Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.650Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.656Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.674Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.682Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.689Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.823Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.832Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.852Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.860Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.866Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.874Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.882Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.901Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.912Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.921Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.927Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.933Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.947Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.955Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.960Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.968Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:58.976Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:59.009Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:54:59.017Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:55:00.058Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:55:00.116Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T04:55:00.954Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T04:55:00.975Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:55:01.770Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:55:01.807Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:55:01.844Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:55:02.020Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T04:55:03.142Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:16.414Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:17.794Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:22.259Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:22.510Z"}
+
+data: {"data":"[heapwatch] heapUsed=284MB heap_size_limit=4192MB pressure=0.068 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:46.418Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:47.795Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:52.261Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=611MB shed_threshold=0.75","timestamp":"2026-09-12T04:55:52.511Z"}
+
+data: {"data":"[heapwatch] heapUsed=286MB heap_size_limit=4192MB pressure=0.068 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:16.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:17.804Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:22.265Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:22.518Z"}
+
+data: {"data":"[heapwatch] heapUsed=286MB heap_size_limit=4192MB pressure=0.068 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:46.425Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:47.808Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:52.269Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=666MB shed_threshold=0.75","timestamp":"2026-09-12T04:56:52.523Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:16.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:17.810Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:22.272Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:22.526Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:46.420Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:47.810Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:52.273Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=668MB shed_threshold=0.75","timestamp":"2026-09-12T04:57:52.527Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:16.419Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:17.816Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:22.280Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:22.533Z"}
+
+data: {"data":"[heapwatch] heapUsed=284MB heap_size_limit=4192MB pressure=0.068 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:46.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:47.820Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:52.284Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:58:52.537Z"}
+
+data: {"data":"[heapwatch] heapUsed=283MB heap_size_limit=4192MB pressure=0.068 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:16.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:17.822Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:22.286Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:22.538Z"}
+
+data: {"data":"[heapwatch] heapUsed=284MB heap_size_limit=4192MB pressure=0.068 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:46.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=660MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:47.826Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 18 tested, 1 alive, 17 blocked by target, 0 inconclusive, 0 auto-removed, 0 auto-disabled","timestamp":"2026-09-12T04:59:50.696Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:52.293Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=664MB shed_threshold=0.75","timestamp":"2026-09-12T04:59:52.542Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T05:00:03.157Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:00:03.978Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:00:05.444Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:00:05.451Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:00:05.458Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:00:05.464Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:05.498Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:05.513Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:00:06.295Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:00:06.565Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:00:08.993Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.012Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.019Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.025Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.031Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.153Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.191Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.205Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.216Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.227Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.238Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.328Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.335Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.342Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.348Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.355Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.375Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.381Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.388Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.395Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.400Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.421Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.427Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.435Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.441Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.447Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.468Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.473Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.480Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.485Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:00:09.491Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:16.407Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:17.831Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:22.299Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:22.547Z"}
+
+data: {"data":"[heapwatch] heapUsed=291MB heap_size_limit=4192MB pressure=0.069 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:46.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=610MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:47.833Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=607MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:52.301Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=607MB shed_threshold=0.75","timestamp":"2026-09-12T05:00:52.549Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=658MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:16.419Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=658MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:17.833Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=658MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:22.301Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=658MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:22.549Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=658MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:46.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=658MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:47.837Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:52.306Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:01:52.555Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:16.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:17.837Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:22.309Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:22.559Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:46.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:47.838Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:52.309Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:02:52.560Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:16.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:17.845Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:22.316Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:22.566Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:46.419Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:47.849Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:52.320Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:03:52.571Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:16.419Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:17.850Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:22.322Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=655MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:22.572Z"}
+
+data: {"data":"[heapwatch] heapUsed=289MB heap_size_limit=4192MB pressure=0.069 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:46.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:47.858Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:52.327Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:04:52.580Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T05:05:09.515Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:10.988Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:10.995Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.003Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.010Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.028Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.034Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.040Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.048Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.053Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.071Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.077Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.082Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.089Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.095Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.113Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.120Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.127Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.154Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.161Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.179Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.187Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.193Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.199Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.207Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.224Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.232Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.242Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.248Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.258Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.280Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:11.288Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:05:12.281Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:05:12.408Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:05:12.423Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:05:12.449Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:05:13.240Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:05:13.360Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:05:13.489Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:05:13.839Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:05:14.666Z"}
+
+data: {"data":"[heapwatch] heapUsed=284MB heap_size_limit=4192MB pressure=0.068 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:16.408Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:17.862Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:22.332Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:22.585Z"}
+
+data: {"data":"[heapwatch] heapUsed=285MB heap_size_limit=4192MB pressure=0.068 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:46.416Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:47.863Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:52.335Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=606MB shed_threshold=0.75","timestamp":"2026-09-12T05:05:52.587Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:16.418Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:17.862Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:22.336Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:22.586Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:46.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:47.868Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:52.341Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:06:52.592Z"}
+
+data: {"data":"[heapwatch] heapUsed=290MB heap_size_limit=4192MB pressure=0.069 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:16.419Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:17.872Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:22.344Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:22.595Z"}
+
+data: {"data":"[heapwatch] heapUsed=291MB heap_size_limit=4192MB pressure=0.069 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:46.418Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:47.872Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:52.346Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:07:52.596Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:16.419Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:17.879Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:22.351Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=667MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:22.602Z"}
+
+data: {"data":"[heapwatch] heapUsed=288MB heap_size_limit=4192MB pressure=0.069 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:46.418Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=656MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:47.880Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:52.352Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=657MB shed_threshold=0.75","timestamp":"2026-09-12T05:08:52.602Z"}
+
+data: {"data":"[proxyLogger] Loaded 200 proxy logs from SQLite","timestamp":"2026-09-12T05:09:01.648Z"}
+
+data: {"data":"[REDIS] REDIS_URL is not set in production. Using in-memory rate limiting.","timestamp":"2026-09-12T05:09:01.651Z"}
+
+data: {"data":"[SSE] Translators initialized","timestamp":"2026-09-12T05:09:01.693Z"}
+
+data: {"data":"[INFO] [PLUGIN_MANAGER] manager.loadAll {\"count\":0}","timestamp":"2026-09-12T05:09:01.889Z"}
+
+data: {"data":"🛡️ [RATE-LIMIT] Loaded 0 explicit + 41 auto-enabled protection(s)","timestamp":"2026-09-12T05:09:01.947Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-09-12T05:09:01.968Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:09:01.719Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/chat/completions | nvidia/moonshotai/kimi-k3 | 227 msgs | 26 tools\",\"msg\":\"📥 POST /v1/chat/completions | nvidia/moonshotai/kimi-k3 | 227 msgs | 26 tools\"}","timestamp":"2026-09-12T05:09:02.547Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:09:01.858Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: moonshotai/kimi-k3\"}","timestamp":"2026-09-12T05:09:02.547Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:09:01.873Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:2e7bb... has no available affinity target\"}","timestamp":"2026-09-12T05:09:02.547Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:09:01.874Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: ***...\"}","timestamp":"2026-09-12T05:09:02.547Z"}
+
+data: {"data":"[heapwatch] heapUsed=357MB heap_size_limit=4192MB pressure=0.085 rss=771MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:16.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=771MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:17.882Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=771MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:22.354Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=771MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:22.603Z"}
+
+data: {"data":"[heapwatch] heapUsed=357MB heap_size_limit=4192MB pressure=0.085 rss=772MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:46.422Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=772MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:47.887Z"}
+
+data: {"data":"[ProxyHealth] Sweep complete: 18 tested, 1 alive, 17 blocked by target, 0 inconclusive, 0 auto-removed, 0 auto-disabled","timestamp":"2026-09-12T05:09:50.691Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=763MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:52.361Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=763MB shed_threshold=0.75","timestamp":"2026-09-12T05:09:52.603Z"}
+
+data: {"data":"[CredentialHealth] Testing 41/41 connections...","timestamp":"2026-09-12T05:10:14.682Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:14.736Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:10:15.862Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:10:15.869Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:10:15.875Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:10:15.882Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:15.908Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:16.258Z"}
+
+data: {"data":"[05:10:16] 📊 \u001b[32m[USAGE] NVIDIA | in=135521 | out=177 | account=bd6aef18...\u001b[0m","timestamp":"2026-09-12T05:10:16.330Z"}
+
+data: {"data":"[STREAM] Empty assistant response after tool_calls completion (nvidia:moonshotai/kimi-k3) — sessionId=a9aa1c72a816e464","timestamp":"2026-09-12T05:10:16.332Z"}
+
+data: {"data":"[05:10:16] 🌊 [STREAM] NVIDIA | moonshotai/kimi-k3 | 73868ms | complete","timestamp":"2026-09-12T05:10:16.375Z"}
+
+data: {"data":"[heapwatch] heapUsed=328MB heap_size_limit=4192MB pressure=0.078 rss=740MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:16.408Z"}
+
+data: {"data":"[INFO] [SKILLS_INJECTION] skills.injection.skipped {\"apiKeyId\":\"env-key\",\"reason\":\"no_enabled_skills\"}","timestamp":"2026-09-12T05:10:17.046Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:10:16.884Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"HTTP\",\"method\":\"POST\",\"path\":\"/v1/chat/completions | nvidia/moonshotai/kimi-k3 | 229 msgs | 26 tools\",\"msg\":\"📥 POST /v1/chat/completions | nvidia/moonshotai/kimi-k3 | 229 msgs | 26 tools\"}","timestamp":"2026-09-12T05:10:17.143Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:10:16.979Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"ROUTING\",\"msg\":\"Provider: nvidia, Model: moonshotai/kimi-k3\"}","timestamp":"2026-09-12T05:10:17.144Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:10:16.989Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"session_key=input:sha256:2e7bb... has no available affinity target\"}","timestamp":"2026-09-12T05:10:17.144Z"}
+
+data: {"data":"{\"level\":30,\"time\":\"2026-09-12T05:10:16.990Z\",\"service\":\"omniroute\",\"module\":\"sse\",\"tag\":\"AUTH\",\"msg\":\"Using nvidia account: ***...\"}","timestamp":"2026-09-12T05:10:17.144Z"}
+
+data: {"data":"[ProxyEgress] openai-compatible-chat-867ad8e7-6ede-43be-824c-7ad07e5e4a4a status=success","timestamp":"2026-09-12T05:10:17.150Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:10:17.193Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:10:17.199Z"}
+
+data: {"data":"[ProxyEgress] sensenova status=success","timestamp":"2026-09-12T05:10:17.214Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.280Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.290Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.302Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.310Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.320Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.563Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.570Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.576Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.583Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.589Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.615Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.620Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.626Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.632Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.638Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.655Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.663Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.669Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.676Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.683Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.702Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.709Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.714Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.720Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.726Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.748Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.755Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.761Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.768Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:10:17.775Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=723MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:17.892Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=723MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:22.362Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=723MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:22.603Z"}
+
+data: {"data":"[heapwatch] heapUsed=340MB heap_size_limit=4192MB pressure=0.081 rss=723MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:46.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=723MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:46.462Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=707MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:47.895Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=707MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:52.364Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=707MB shed_threshold=0.75","timestamp":"2026-09-12T05:10:52.605Z"}
+
+data: {"data":"[ProxyEgress] nvidia status=success","timestamp":"2026-09-12T05:11:14.052Z"}
+
+data: {"data":"[heapwatch] heapUsed=351MB heap_size_limit=4192MB pressure=0.084 rss=759MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:16.409Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=762MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:17.894Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=763MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:22.364Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=763MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:22.606Z"}
+
+data: {"data":"[05:11:26] 📊 \u001b[32m[USAGE] NVIDIA | in=135971 | out=419 | account=703fdd50...\u001b[0m | cache_read=135424","timestamp":"2026-09-12T05:11:26.783Z"}
+
+data: {"data":"[05:11:26] 🌊 [STREAM] NVIDIA | moonshotai/kimi-k3 | 69707ms | complete","timestamp":"2026-09-12T05:11:26.817Z"}
+
+data: {"data":"[heapwatch] heapUsed=354MB heap_size_limit=4192MB pressure=0.085 rss=789MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:46.423Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=789MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:47.900Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=789MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:52.370Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=789MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:52.612Z"}
+
+data: {"data":"[heapwatch] heapUsed=9MB heap_size_limit=4192MB pressure=0.002 rss=789MB shed_threshold=0.75","timestamp":"2026-09-12T05:11:56.897Z"}
+
+data: {"data":"[heapwatch] heapUsed=321MB heap_size_limit=4192MB pressure=0.076 rss=699MB shed_threshold=0.75","timestamp":"2026-09-12T05:12:16.417Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=699MB shed_threshold=0.75","timestamp":"2026-09-12T05:12:17.904Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=698MB shed_threshold=0.75","timestamp":"2026-09-12T05:12:22.374Z"}
+
+data: {"data":"[heapwatch] heapUsed=8MB heap_size_limit=4192MB pressure=0.002 rss=698MB shed_threshold=0.75","timestamp":"2026-09-12T05:12:22.616Z"}
+

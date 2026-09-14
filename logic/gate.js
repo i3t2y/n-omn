@@ -531,7 +531,12 @@ async function proxyV1(req, res) {
   // (等价"不再等下一个 key 的 240s")。GET/OPTIONS 等无会话语义的请求不拦。
   // #16: probe 快路径不进账本 (账本只对 POST 语义服务, 探针本就不参与 fallback 治暴)。
   const fgGuardApplies = req.method === 'POST' && !isProbe;
-  if (fgGuardApplies && req._fgSessionKey) {
+  // #17: 指纹会话 ('m:'/'f:' 前缀) 不可作锁定依据 —— 它们把"不同客户端、碰巧同前缀 messages"
+  //   折到同一账本, 一旦上游抖动 3 次, 指纹会话被黏死, 所有同前缀客户端 (cron/脚本) 撞锁秒 502 永不自愈。
+  //   只锁显式会话 ('h:'/'b:'): 真实客户端能主动换 X-Session-Id 解锁, 认知正确、自愈路径明确。
+  //   指纹账户继续记账 (canSessionAttempt 仍会走 recordSessionAttempt/Failure), 仅取消锁死语义。
+  const fgCanLock = req._fgSessionKey && (req._fgSessionKey.startsWith('h:') || req._fgSessionKey.startsWith('b:'));
+  if (fgGuardApplies && req._fgSessionKey && fgCanLock) {
     const fgGate = policyGuard.canSessionAttempt(fallbackLedger, req._fgSessionKey);
     if (!fgGate.allow) {
       logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 502,

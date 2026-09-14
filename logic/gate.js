@@ -137,6 +137,13 @@ function resolveSessionKey(req, bodyBuf) {
   return `f:${req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || 'anon'}:${req._normPath || ''}`;
 }
 
+// #18: 指纹会话 (m:/f: 前缀) 不是真实客户端会话, 见 #17 fgCanLock — 这里把同一判定抽出来共用。
+//   上游失败对它们不记 failure: 多客户端共享 m: 指纹时, 一家的上游抖动会污染所有同前缀客户端的账本,
+//   最终把该指纹推向"看起来总在失败"; 显式会话 (h:/b:) 才允许记失败 (真实客户端,失败归属清晰).
+function fgExplicitSession(sessionKey) {
+  return typeof sessionKey === 'string' && (sessionKey.startsWith('h:') || sessionKey.startsWith('b:'));
+}
+
 // 读 body 前缀 (最多 maxBytes) 并**原样重放给下游**: 用 PassThrough 承接已读字节,
 // 之后 req 剩余字节 pipe 进去, 下游 req.pipe 改读该 PassThrough —— body 语义零改动, 不走 unshift
 // (unshift 在 pause 中的 IncomingMessage 上不可靠, 会致下游 400)。
@@ -377,7 +384,11 @@ function recordFallbackOutcome(req, verdict, statusCode) {
     policyGuard.clearSessionFailure(fallbackLedger, key);
     return;
   }
-  const r = policyGuard.recordSessionFailure(fallbackLedger, key, { reason });
+  const r = fgExplicitSession(key)
+    ? policyGuard.recordSessionFailure(fallbackLedger, key, { reason })
+    // #18: 指纹会话 (m:/f:) 对退化空响应也不记 failure — 同 #17, 避免上游抖动污染多客户端共享账本。
+    //   但**仍要 logGuard**, 保证可观测。
+    : { failures: 0, emptyResponses: 0, newlyDenied: false, denied: null };
   logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
     httpStatus: verdict.degenerateEmpty ? 200 : 502,
     errorCode: verdict.degenerateEmpty ? 'upstream_degenerate_empty_response' : 'upstream_empty_response',
@@ -535,7 +546,7 @@ async function proxyV1(req, res) {
   //   折到同一账本, 一旦上游抖动 3 次, 指纹会话被黏死, 所有同前缀客户端 (cron/脚本) 撞锁秒 502 永不自愈。
   //   只锁显式会话 ('h:'/'b:'): 真实客户端能主动换 X-Session-Id 解锁, 认知正确、自愈路径明确。
   //   指纹账户继续记账 (canSessionAttempt 仍会走 recordSessionAttempt/Failure), 仅取消锁死语义。
-  const fgCanLock = req._fgSessionKey && (req._fgSessionKey.startsWith('h:') || req._fgSessionKey.startsWith('b:'));
+  const fgCanLock = fgExplicitSession(req._fgSessionKey);
   if (fgGuardApplies && req._fgSessionKey && fgCanLock) {
     const fgGate = policyGuard.canSessionAttempt(fallbackLedger, req._fgSessionKey);
     if (!fgGate.allow) {
@@ -571,7 +582,9 @@ async function proxyV1(req, res) {
     //   只对"2xx 却给不出内容"与"4xx/5xx 失败"记失败, 达上限才拒。普通客户端连续对话不受影响。
     if (req._fgSessionKey) {
       const fgState0 = policyGuard.recordSessionAttempt(fallbackLedger, req._fgSessionKey);
-      if (upstreamRes.statusCode >= 400) {
+      // #18: 只有显式会话 (h:/b:) 才记 4xx/5xx 失败 — 指纹会话 (m:/f:) 对上游抖动不记账,
+      //   否则一家的失败会污染所有同前缀客户端的账本, 最终触发误锁。
+      if (upstreamRes.statusCode >= 400 && fgExplicitSession(req._fgSessionKey)) {
         policyGuard.recordSessionFailure(fallbackLedger, req._fgSessionKey,
           { reason: `upstream_status_${upstreamRes.statusCode}` });
       }

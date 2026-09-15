@@ -1,0 +1,18 @@
+data: {"data":"===== Build Queued at 2026-09-12 06:50:45 / Commit SHA: fb2c4f4 =====\n","timestamp":"2026-09-12T06:50:45Z"}
+
+data: {"data":"--> FROM ghcr.io/i3t2y/omn-base@sha256:db9037a71379569fa3a86b0760df972fd8413cc07f0a58b64e575bbf28a1718b","timestamp":"2026-09-12T06:50:50.204Z"}
+
+data: {"data":"DONE 0.0s\n","timestamp":"2026-09-12T06:50:50.204Z"}
+
+data: {"data":"--> COPY --chmod=755 start.sh /start.sh","timestamp":"2026-09-12T06:50:50.204Z"}
+
+data: {"data":"CACHED\n","timestamp":"2026-09-12T06:50:50.204Z"}
+
+data: {"data":"--> Pushing image","timestamp":"2026-09-12T06:50:50.204Z"}
+
+data: {"data":"DONE 0.6s\n","timestamp":"2026-09-12T06:50:50.791Z"}
+
+data: {"data":"--> Exporting cache","timestamp":"2026-09-12T06:50:50.791Z"}
+
+data: {"data":"DONE 0.1s\n","timestamp":"2026-09-12T06:50:50.791Z"}
+

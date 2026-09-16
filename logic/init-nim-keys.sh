@@ -469,19 +469,22 @@ _ft_register_proxy() {
     [ "${#_fams[@]}" -eq 0 ] && echo "[init] FT proxy ${_nm}: 提示 无 providers 族, 只建裸 proxy 不绑."
     local _BODY _RESP _HTTP
     _BODY=$(jq -n --arg h "$_HOST" --argjson p "$_pt" --arg n "$_nm" \
-      '{name:$n, type:"http", host:$h, port:$p}')
+      '{items:[{name:$n, type:"http", host:$h, port:$p}]}')
     _RESP=$(_resp "ft_proxy_${_nm}.json")
+    # 2026-09-16 小思修 n-omn#2: bulk-import 走 upstream upsertProxy (身份键 host+port+username 命中则 update 不重复 insert).
+    #   原 POST /management/proxies 永远新 UUID 建条, 每次 boot 新增一行 → 11 天堆 24 条; bulk-import 则幂等.
     _HTTP=$(curl -s -o "$_RESP" -w "%{http_code}" -b "$COOKIE_FILE" \
-      -X POST "$BASE_URL/api/v1/management/proxies" \
+      -X POST "$BASE_URL/api/settings/proxies/bulk-import" \
       -H "Content-Type: application/json" -d "$_BODY" 2>/dev/null || echo "000")
     case "$_HTTP" in
       200|201) : ;;
-      409)     echo "[init] FT proxy ${_nm}: WARN HTTP 409 (已存在; POST 无查重, 罕见. 继续试绑). " ;;
-      *)       echo "[init] FT proxy ${_nm}: WARN 注册 HTTP $_HTTP ($(head -c 200 "$_RESP" 2>/dev/null)). 跳此桥."; return 1 ;;
+      *)       echo "[init] FT proxy ${_nm}: WARN bulk-import HTTP $_HTTP ($(head -c 200 "$_RESP" 2>/dev/null)). 跳此桥."; return 1 ;;
     esac
-    local _pid=""; _pid=$(jq -r '.id // empty' "$_RESP" 2>/dev/null)
-    [ -z "$_pid" ] && { echo "[init] FT proxy ${_nm}: WARN POST body 无 id 字段, 无法绑族. 跳此桥."; return 1; }
-    echo "[init] FT proxy ${_nm}: 建 ✓ (host=${_HOST}:${_pt} → id=${_pid}, HTTP $_HTTP)"
+    local _pid _pact
+    _pid=$(jq -r '.results[0].id // empty' "$_RESP" 2>/dev/null)
+    _pact=$(jq -r '.results[0].action // "?"' "$_RESP" 2>/dev/null)
+    [ -z "$_pid" ] && { echo "[init] FT proxy ${_nm}: WARN bulk-import 返体无 id, 无法绑族. 跳此桥."; return 1; }
+    echo "[init] FT proxy ${_nm}: ${_pact} ✓ (host=${_HOST}:${_pt} → id=${_pid}, HTTP $_HTTP)"
     _FT_PROXY_ID="$_pid"
     if [ "${#_fams[@]}" -gt 0 ]; then
       local _ids_json; _ids_json=$(printf '%s\n' "${_fams[@]}" | jq -R . | jq -s .)

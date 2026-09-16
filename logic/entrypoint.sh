@@ -221,6 +221,31 @@ _snap_restore() {
   return 1
 }
 
+# ── Bucket 挂载就绪闸 (2026-09-16 小思修, 对应 n-omn#1) ──
+# HF Space 冷启时 FUSE 挂载可能尚未就绪: SNAP_DIR 此时不可写/不可读 →
+# 下游 _snap_gen/_snap_restore 全部判"源坏/池空" → init 走幂等重建 seed →
+# Zen 看到"NIM keys 全没" (其实 bucket 里的 storage.sqlite / backups 都完好)
+# 等闸: 双向探测 (touch + 列目录), 最长 90s 超时 WARN 继续 (不 silent 不 FATAL)
+_BUCKET_WAIT_MAX="${BUCKET_MOUNT_WAIT_S:-90}"
+_bucket_ready() {
+  touch "$DATA_DIR/.boot-probe.$$" 2>/dev/null && rm -f "$DATA_DIR/.boot-probe.$$" 2>/dev/null \
+    && [ -d "$SNAP_DIR" ] 2>/dev/null
+}
+if ! _bucket_ready; then
+  echo "[entrypoint] bucket 挂载未就绪, 等 (上限 ${_BUCKET_WAIT_MAX}s)..."
+  _ebw=0
+  while [ "$_ebw" -lt "$_BUCKET_WAIT_MAX" ]; do
+    sleep 3; _ebw=$(( _ebw + 3 ))
+    if _bucket_ready; then
+      echo "[entrypoint] bucket 就绪 (等了 ${_ebw}s)"
+      break
+    fi
+  done
+  if ! _bucket_ready; then
+    echo "[entrypoint] WARN: ${_BUCKET_WAIT_MAX}s 仍未就绪, 继续走 seed 兜底 (大概率丢失 bucket 已有 keys)" >&2
+  fi
+fi
+
 mkdir -p "$SNAP_DIR" 2>/dev/null || true
 if [ -s "$DB_PATH" ]; then
   if _snap_gen "$DB_PATH"; then

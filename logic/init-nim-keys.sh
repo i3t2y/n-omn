@@ -533,6 +533,22 @@ _ft_register_proxy() {
   for _f in "${ALL_FT_FAMILIES[@]}"; do [ -n "$_f" ] && _fams+=("$_f"); done
   [ "${#_fams[@]}" -gt 0 ] && _ft_one "flaretunnel-8080" "$_PORT" "${_fams[@]}" || true
   echo "[init] FT bridge healthz: $(curl -s -m 3 "http://${_HOST}:${_PORT}/healthz" 2>/dev/null || echo '{}')"
+
+  # ── 一次性 stale 清: bulk-import 后取 keep_id, 删同 name 其余 (n-omn#2-B)
+  # bulk-import upsert 命中 host+port+username, 历史重复注册遗留 stale.
+  # keep = _FT_PROXY_ID (bulk-import 返回的 id), 其余同 name 均删.
+  if [ -n "${_FT_PROXY_ID:-}" ]; then
+    local _dup_ids _dup_id cnt=0
+    _dup_ids=$(curl -s -b "$COOKIE_FILE" "$BASE_URL/api/v1/management/proxies?limit=200" \
+      | jq -r --arg k "$_FT_PROXY_ID" '.items[] | select(.name=="flaretunnel-8080" and .id != $k) | .id' 2>/dev/null)
+    while IFS= read -r _dup_id; do
+      [ -n "$_dup_id" ] || continue
+      curl -s -X DELETE -b "$COOKIE_FILE" \
+        "$BASE_URL/api/v1/management/proxies?id=${_dup_id}&force=1" -o /dev/null -w "%{http_code}" \
+        | grep -q '200' && cnt=$((cnt+1))
+    done <<< "$_dup_ids"
+    [ "$cnt" -gt 0 ] && echo "[init] FT proxy stale 清理: 删 ${cnt} 条历史重复注册 (keep $_FT_PROXY_ID)"
+  fi
 }
 
 check_nim_model_health() {

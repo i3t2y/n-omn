@@ -305,8 +305,15 @@ app.get('/healthz', async (req, res) => {
   r?.ok ? res.json({ ok: true }) : res.status(503).json({ ok: false });
 });
 
-// 路径规整化: 解 dot-segment, 重复斜杠, 尾斜杠 (防绕过白名单匹配)
-function normalizePath(p) {
+// 路径规整化 (授权判定专用): 解 dot-segment, 重复斜杠, 尾斜杠 (防绕过白名单匹配)
+// ⚠️ 与 route-split.js 的 normalizePath **刻意是两份实现, 不可合并**:
+//    · 本函数用于**安全判定** (决定请求能否进 /v1 与后台), 必须基于 new URL 做百分号解码
+//      与 dot-segment 归一, 否则 `/v1/../admin`、`/%76/1/...` 之类可绕过前缀白名单。
+//    · route-split.js 那份是**纯字符串**实现 (该模块刻意零依赖、可独立单测), 只服务 lane 分类,
+//      属性能优化路径, 不承担安全判定。
+//    两份行为在个别输入上不等价 (例如含 %2e 的路径), 这是**有意为之**的安全纵深, 不是重复逻辑 bug。
+//    重构前两者同名 `normalizePath`, 极易被误当成"重复实现该合并" —— 故此处改名为 *ForAuthz 以断误会。
+function normalizePathForAuthz(p) {
   try {
     const u = new URL(p, 'http://x');
     let n = u.pathname.replace(/\/+/g, '/').replace(/\/$/, '');
@@ -320,7 +327,7 @@ function normalizePath(p) {
 // ── 暴露面 (单布尔开关: 默认仅 /healthz + /v1; GATE_ADMIN_ENABLED==='1' 时其余全路径走后台) ──
 //   非 /healthz / 非 /v1: 须 GATE_ADMIN_ENABLED==='1', 否则 404 (门关即全 404, 不泄露后台是否存在).
 app.use((req, res, next) => {
-  req._normPath = normalizePath(req.path);
+  req._normPath = normalizePathForAuthz(req.path);
   if (shuttingDown && req._normPath !== '/healthz') return res.status(503).json({ ok: false });
   if (req._normPath === '/healthz') return next();
   if (req._normPath === '/v1' || req._normPath.startsWith('/v1/')) return next();
@@ -402,6 +409,147 @@ function writeUpstreamChunk(res, upstreamRes, chunk) {
     upstreamRes.pause();
     res.once('drain', () => upstreamRes.resume());
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 共用件 (重构抽出): proxyV1 与 proxyAdmin 原各有一份近乎逐字相同的
+//   「abort 归因 / 超时 / transport 错误 / 请求体转发」实现 (约 60 行 ×2)。
+//   两份的代价是必然漂移 —— 重构前 admin 侧已落后于 v1 侧:
+//     · admin 的 upstreamRes.on('error') 硬码 abortSource='upstream_error', 而 v1 用 classifyAbortSource
+//     · admin 不传 elapsedMs ⇒ 'upstream_reset' (短时窗 socket reset) 判定在后台路径永不生效
+//     · admin 无 socketPhase (断在哪一相不可观测)
+//   本次**只抽出共用状态机, 不统一差异**: 差异经 opts 显式注入, 行为逐字保持原样;
+//   上述三条作为「已知不一致」单列, 需确认后再改 (见评审报告 BC-1~BC-3)。
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 请求体转发收尾: 三种情形归一。
+ * proxyAdmin 永不设置 _fgBodyStream, 故其落点与重构前完全一致 (pipe / 显式 end 二选一)。
+ */
+function forwardRequestBody(req, upstreamReq) {
+  if (req._fgBodyStream) {
+    req._fgBodyStream.pipe(upstreamReq);
+  } else if (req.readable && (req.headers['content-length'] || req.headers['transfer-encoding'])) {
+    req.pipe(upstreamReq);
+  } else {
+    // 无 body (GET/OPTIONS) 须显式 end 发请求: req 在 Express 已 end 但 pipe 不一定触发
+    // destination end; 显式收尾确保上游收到完整请求。
+    upstreamReq.end();
+  }
+}
+
+/**
+ * 上游请求生命周期托管: 客户端断开 / gate 超时 / transport 错误的归因与收尾。
+ *
+ * @param {object} req @param {object} res @param {object} upstreamReq
+ * @param {object} opts
+ *   @param {string}  opts.msgPrefix     日志 msg 前缀 (admin 路径 = 'admin_')
+ *   @param {boolean} opts.trackElapsed  是否把 elapsedMs 交给 classifyAbortSource
+ *                                       (false ⇒ 'upstream_reset' 判定不生效, 保持 admin 原行为)
+ *   @param {boolean} opts.trackPhase    是否记录 socketPhase (false = 保持 admin 原行为)
+ * @returns {{getCtx: () => {gateTimeout:boolean, clientAborted:boolean}}}
+ */
+function attachUpstreamLifecycle(req, res, upstreamReq, opts = {}) {
+  const msgPrefix = opts.msgPrefix || '';
+  const trackElapsed = opts.trackElapsed !== false;
+  const trackPhase = opts.trackPhase !== false;
+
+  // abort source tracking: 区分 client 断开 vs gate 超时 vs upstream 真错
+  let aborted = false;
+  let gateTimeout = false;   // gate 主动超时 destroy
+  let clientAborted = false; // 客户端断开触发 cleanup
+  function cleanup() {
+    if (aborted) return;
+    aborted = true;
+    if (upstreamReq) {
+      // 仅在 client 断开机上标记 (timeout handler 自己标记, 避免误判)
+      if (!gateTimeout) { clientAborted = true; upstreamReq.destroy(); }
+    }
+    res.removeAllListeners('drain');
+  }
+  req.on('error', () => { clientAborted = true; cleanup(); });
+  req.on('aborted', () => { clientAborted = true; cleanup(); });
+  // 不监 req 'close': body 读完 Node 正常 emit 'close' (非 client 真断), 旧版误判 clientAborted
+  //   会 destroy upstreamReq, 掐断 OR 慢响应(如 /api/auth/login bcrypt 比对 100-300ms),
+  //   致浏览器收 ECONNRESET 无提示进不去。真 client 中途断由 'aborted'/'error' 兜。
+  //   响应已开始后 client 跑路由 res 'close' (见下), 仅响应头未发时才掐 upstream。
+  res.on('close', () => { if (!res.headersSent) { clientAborted = true; cleanup(); } });
+
+  upstreamReq.on('timeout', () => {
+    gateTimeout = true;
+    upstreamReq.destroy(new Error('upstream_timeout'));
+    const code = 504;
+    logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: code, errorCode: 'ETIMEDOUT',
+      abortSource: 'timeout', destroyInitiator: 'gate_timeout', msg: `${msgPrefix}upstream_request_timeout` });
+    if (!res.headersSent) res.status(code).json({ error: statusErrorLabel(code), abort_source: 'timeout' });
+    else if (!res.writableEnded) res.end();
+  });
+
+  upstreamReq.on('error', (e) => {
+    // abort source 区分: client 已断开 + 这是 cleanup 反发的 destroy → client_close (不响应, client 已走)
+    const elapsedMs = Date.now() - (req._gateT0 || 0);
+    const abortSource = trackElapsed
+      ? classifyAbortSource(e, { gateTimeout, clientAborted, elapsedMs })
+      : classifyAbortSource(e, { gateTimeout, clientAborted });
+    const code = clientAborted ? null : mapUpstreamStatus(e, { gateTimeout });
+    // 不打 504 重复日志 (timeout handler 已打)
+    if (!gateTimeout) {
+      // socketPhase 仅附加于 upstream_reset/upstream_error (timeout/client_close/shutdown 不附, 非其语义)
+      const phase = (trackPhase && (abortSource === 'upstream_reset' || abortSource === 'upstream_error'))
+        ? (req._socketPhase || null) : null;
+      logGate(req, {
+        elapsedMs,
+        httpStatus: code,
+        errorCode: e?.code || e?.message || 'unknown_error',
+        abortSource,
+        socketPhase: phase,
+        destroyInitiator: clientAborted ? 'client' : (gateTimeout ? 'gate_timeout' : 'upstream'),
+        msg: abortSource === 'client_close' ? `${msgPrefix}client_disconnected_proxy_aborted`
+          : abortSource === 'shutdown' ? 'gate_shutting_down'
+          : abortSource === 'upstream_reset' ? 'upstream_socket_reset_short_lived'
+          : `${msgPrefix}upstream_error`,
+      });
+    }
+    // client 断开: client 已不可达, 不再写 res (headersSent与否都直接 end)
+    if (clientAborted) {
+      if (!res.writableEnded) { try { res.end(); } catch {} }
+      return;
+    }
+    if (!res.headersSent && code) {
+      res.status(code).json({ error: statusErrorLabel(code), abort_source: abortSource });
+    } else if (!res.writableEnded) {
+      res.end();
+    }
+  });
+
+  forwardRequestBody(req, upstreamReq);
+  return {
+    getCtx: () => ({ gateTimeout, clientAborted }),
+    isAborted: () => aborted,   // 供调用方抑制"正常完成"日志 (proxyAdmin 原有语义)
+  };
+}
+
+/**
+ * 上游**响应流**中途错的日志与收尾 (需 upstreamRes, 故独立于 attachUpstreamLifecycle)。
+ * @param {() => {gateTimeout:boolean, clientAborted:boolean}} getCtx
+ */
+function attachUpstreamResponseErrors(req, res, upstreamRes, getCtx, opts = {}) {
+  const trackPhase = opts.trackPhase !== false;
+  upstreamRes.on('error', (e) => {
+    const elapsedMs = Date.now() - (req._gateT0 || 0);
+    const ctx = (typeof getCtx === 'function' ? getCtx() : {}) || {};
+    // v1: 走 classifyAbortSource (可区分 upstream_reset / client_close / timeout)
+    // admin (trackPhase=false): 保持重构前的硬码 'upstream_error'
+    const abortSource = trackPhase
+      ? classifyAbortSource(e, { gateTimeout: ctx.gateTimeout, clientAborted: ctx.clientAborted, elapsedMs })
+      : 'upstream_error';
+    logGate(req, { elapsedMs, httpStatus: 502,
+      errorCode: e?.code || e?.message || 'upstream_response_stream_error',
+      abortSource, socketPhase: trackPhase ? (req._socketPhase || 'streaming') : null,
+      destroyInitiator: 'upstream', msg: 'upstream_response_stream_error' });
+    if (!res.headersSent) res.status(502).json({ error: 'bad_gateway', abort_source: abortSource });
+    else if (!res.writableEnded) res.end();
+  });
 }
 
 function passThroughUpstream(req, res, upstreamRes, fgProbe) {
@@ -604,18 +752,7 @@ async function proxyV1(req, res) {
       fgSessionState.failures > 0 && !shuttingDown);
     if (fgHoldHead) handleDegenerateHold(req, res, upstreamRes, fgProbe);
     else passThroughUpstream(req, res, upstreamRes, fgProbe);
-    upstreamRes.on('error', (e) => {
-      // 上游响应流中途错 (已 head, 非 connect 错): fallback 502 + 结构化日志
-      // task#23: 复用 classifyAbortSource (非硬码 'upstream_error'); 流相 elapsedMs 多 >5000 → 落 upstream_error
-      const elapsedMs = Date.now() - (req._gateT0 || 0);
-      const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted, elapsedMs });
-      logGate(req, { elapsedMs, httpStatus: 502,
-        errorCode: e?.code || e?.message || 'upstream_response_stream_error',
-        abortSource, socketPhase: req._socketPhase || 'streaming',
-        destroyInitiator: 'upstream', msg: 'upstream_response_stream_error' });
-      if (!res.headersSent) res.status(502).json({ error: 'bad_gateway', abort_source: abortSource });
-      else if (!res.writableEnded) res.end();
-    });
+    attachUpstreamResponseErrors(req, res, upstreamRes, lifecycle.getCtx, { trackPhase: true });
   });
 
   // socketPhase 跟踪: connecting → headers → streaming (供 upstream_reset/upstream_error 日志区分断在哪相)
@@ -624,80 +761,11 @@ async function proxyV1(req, res) {
     socket.on('connect', () => { if (req._socketPhase === 'connecting') req._socketPhase = 'headers'; });
   });
 
-  // abort source tracking: 区分 client 断开 vs gate 超时 vs upstream 真错
-  let aborted = false;
-  let gateTimeout = false;   // gate 主动超时 destroy
-  let clientAborted = false; // 客户端断开触发 cleanup
-  function cleanup() {
-    if (aborted) return;
-    aborted = true;
-    if (upstreamReq) {
-      // 仅在 client 断开机上标记 (timeout handler 自己标记, 避免误判)
-      if (!gateTimeout) { clientAborted = true; upstreamReq.destroy(); }
-    }
-    res.removeAllListeners('drain');
-  }
-  req.on('error', () => { clientAborted = true; cleanup(); });
-  req.on('aborted', () => { clientAborted = true; cleanup(); });
-  // 不监 req 'close': body 读完 Node 正常 emit 'close' (非 client 真断), 旧版误判 clientAborted
-  //   会 destroy upstreamReq, 掐断 OR 慢响应(如 /api/auth/login bcrypt 比对 100-300ms),
-  //   致浏览器收 ECONNRESET 无提示进不去。真 client 中途断由 'aborted'/'error' 兜。
-  //   响应已开始后 client 跑路由 res 'close' (见下), 仅响应头未发时才掐 upstream。
-  res.on('close', () => { if (!res.headersSent) { clientAborted = true; cleanup(); } });
-
-  upstreamReq.on('timeout', () => {
-    gateTimeout = true;
-    upstreamReq.destroy(new Error('upstream_timeout'));
-    const code = 504;
-    logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: code, errorCode: 'ETIMEDOUT',
-      abortSource: 'timeout', destroyInitiator: 'gate_timeout', msg: 'upstream_request_timeout' });
-    if (!res.headersSent) res.status(code).json({ error: statusErrorLabel(code), abort_source: 'timeout' });
-    else if (!res.writableEnded) res.end();
+  // 生命周期托管 (含请求体转发收尾): 与 proxyAdmin 共用同一状态机, 差异经 opts 注入。
+  // 响应回调异步触发, 故此处再赋值 lifecycle 不会命中 TDZ。
+  const lifecycle = attachUpstreamLifecycle(req, res, upstreamReq, {
+    msgPrefix: '', trackElapsed: true, trackPhase: true,
   });
-  upstreamReq.on('error', (e) => {
-    // abort source 区分: client 已断开 + 这是 cleanup 反发的 destroy → client_close (不响应, client 已走)
-    const elapsedMs = Date.now() - (req._gateT0 || 0);
-    const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted, elapsedMs });
-    const code = clientAborted ? null : mapUpstreamStatus(e, { gateTimeout });
-    // 不打 504 重复日志 (timeout handler 已打)
-    if (!gateTimeout) {
-      // socketPhase 仅附加于 upstream_reset/upstream_error (timeout/client_close/shutdown 不附, 非其语义)
-      const phase = (abortSource === 'upstream_reset' || abortSource === 'upstream_error')
-        ? (req._socketPhase || null) : null;
-      logGate(req, {
-        elapsedMs,
-        httpStatus: code,
-        errorCode: e?.code || e?.message || 'unknown_error',
-        abortSource,
-        socketPhase: phase,
-        destroyInitiator: clientAborted ? 'client' : (gateTimeout ? 'gate_timeout' : 'upstream'),
-        msg: abortSource === 'client_close' ? 'client_disconnected_proxy_aborted'
-          : abortSource === 'shutdown' ? 'gate_shutting_down'
-          : abortSource === 'upstream_reset' ? 'upstream_socket_reset_short_lived'
-          : 'upstream_error',
-      });
-    }
-    // client 断开: client 已不可达, 不再写 res (headersSent与否都直接 end)
-    if (clientAborted) {
-      if (!res.writableEnded) { try { res.end(); } catch {} }
-      return;
-    }
-    if (!res.headersSent && code) {
-      res.status(code).json({ error: statusErrorLabel(code), abort_source: abortSource });
-    } else if (!res.writableEnded) {
-      res.end();
-    }
-  });
-
-  // 转发 body: 有 body 用 pipe 自动 end; 无 body (GET/OPTIONS) 须显式 end 发请求 (req 在 Express 已 end
-  // 但 pipe 不一定触发 destination end; 显式收尾确保上游收到完整请求).
-  if (req._fgBodyStream) {
-    req._fgBodyStream.pipe(upstreamReq);
-  } else if (req.readable && (req.headers['content-length'] || req.headers['transfer-encoding'])) {
-    req.pipe(upstreamReq);
-  } else {
-    upstreamReq.end();
-  }
 }
 
 // ── /v1/ft/metrics: PSK 鉴权反代 FlareTunnel 桥本地 /metrics (路3-b, 2026-08-12 Zen令) ──
@@ -744,7 +812,27 @@ app.get('/v1/ft/metrics', async (req, res) => {
   }
 });
 
-app.use('/v1', (req, res) => proxyV1(req, res));
+// ── 代理入口兜底护栏 (重构新增, 见评审 P0-3) ──────────────────────────
+// proxyV1 是 async: 其内部**同步抛出** (如 http.request 因非法 header 抛) 会变成 rejected promise,
+//   Express 不捕获 async handler 的 rejection ⇒ Node 默认 --unhandled-rejections=throw ⇒ 进程崩溃。
+//   这是"错误处理缺失"最致命的一处: 一条畸形请求即可打掉整个 gate (进而整 Space)。
+//   此处统一兜住: 结构化日志 + 未发头则 502 (已发头则收尾), 进程不再因此退出。
+function onProxyError(handlerName, req, res, e) {
+  logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 502,
+    errorCode: e?.code || e?.message || 'gate_proxy_handler_error',
+    abortSource: 'gate_handler_error', destroyInitiator: 'gate',
+    msg: `gate_proxy_handler_threw handler=${handlerName}` });
+  if (!res.headersSent) res.status(502).json({ error: 'bad_gateway', abort_source: 'gate_handler_error' });
+  else if (!res.writableEnded) { try { res.end(); } catch {} }
+}
+function guardProxy(fn, req, res) {
+  let out;
+  try { out = fn(req, res); }
+  catch (e) { onProxyError(fn && fn.name, req, res, e); return; }
+  if (out && typeof out.catch === 'function') out.catch((e) => onProxyError(fn && fn.name, req, res, e));
+}
+
+app.use('/v1', (req, res) => guardProxy(proxyV1, req, res));
 
 // 后台页 + api 转发 (经 Basic Auth + Authorization 已删); /v1 已各别处理
 function proxyAdmin(req, res) {
@@ -765,95 +853,36 @@ function proxyAdmin(req, res) {
     timeout: UPSTREAM_TIMEOUT_MS,
   }, (upstreamRes) => {
     res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
-    upstreamRes.on('data', (chunk) => {
-      if (!res.write(chunk)) {
-        upstreamRes.pause();
-        res.once('drain', () => upstreamRes.resume());
-      }
-    });
+    upstreamRes.on('data', (chunk) => writeUpstreamChunk(res, upstreamRes, chunk));
     upstreamRes.on('end', () => {
       if (!res.writableEnded) res.end();
       // 正常成功完成 logGate (同 proxyV1 修, Zen 2026-07-29 探针验漏补)
-      if (!aborted && res.headersSent) {
+      if (!lifecycle.isAborted() && res.headersSent) {
         logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0),
           httpStatus: res.statusCode || 200, level: 'info', msg: 'upstream_completed' });
       }
     });
-    upstreamRes.on('error', (e) => {
-      // 上游响应流中途错 (非 connect 错): 已 head, fallback 502 + 结构化日志
-      logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: 502,
-        errorCode: e?.code || e?.message || 'upstream_response_stream_error',
-        abortSource: 'upstream_error', destroyInitiator: 'upstream', msg: 'upstream_response_stream_error' });
-      if (!res.headersSent) res.status(502).json({ error: 'bad_gateway', abort_source: 'upstream_error' });
-      else if (!res.writableEnded) res.end();
-    });
+    // trackPhase=false: 保持重构前 admin 侧的硬码 abortSource='upstream_error' 与无 socketPhase。
+    attachUpstreamResponseErrors(req, res, upstreamRes, lifecycle.getCtx, { trackPhase: false });
   });
-  // abort source tracking (同 proxyV1): 区分 client 断开 vs gate 超时 vs upstream 真错
-  let aborted = false;
-  let gateTimeout = false;
-  let clientAborted = false;
-  function cleanup() {
-    if (aborted) return;
-    aborted = true;
-    if (upstreamReq) {
-      if (!gateTimeout) { clientAborted = true; upstreamReq.destroy(); }
-    }
-    res.removeAllListeners('drain');
-  }
-  req.on('error', () => { clientAborted = true; cleanup(); });
-  req.on('aborted', () => { clientAborted = true; cleanup(); });
-  // 不监 req 'close': body 读完 Node 正常 emit 'close' (非 client 真断), 旧版误判 clientAborted
-  //   会 destroy upstreamReq, 掐断 OR 慢响应(如 /api/auth/login bcrypt 比对 100-300ms),
-  //   致浏览器收 ECONNRESET 无提示进不去后台。真 client 中途断由 'aborted'/'error' 兜。
-  //   响应头未发时 client 跑路才掐 upstream, 响应已开始流式则 client 自然关不算 abort。
-  res.on('close', () => { if (!res.headersSent) { clientAborted = true; cleanup(); } });
-  upstreamReq.on('timeout', () => {
-    gateTimeout = true;
-    upstreamReq.destroy(new Error('upstream_timeout'));
-    const code = 504;
-    logGate(req, { elapsedMs: Date.now() - (req._gateT0 || 0), httpStatus: code, errorCode: 'ETIMEDOUT',
-      abortSource: 'timeout', destroyInitiator: 'gate_timeout', msg: 'admin_upstream_request_timeout' });
-    if (!res.headersSent) res.status(code).json({ error: statusErrorLabel(code), abort_source: 'timeout' });
-    else if (!res.writableEnded) res.end();
+  // 生命周期托管: 与 proxyV1 共用同一状态机。
+  //   msgPrefix='admin_'         → 日志 msg 前缀 (与重构前一致)
+  //   trackElapsed=false         → 不把 elapsedMs 交给 classifyAbortSource (保持 admin 原归因口径)
+  //   trackPhase=false           → 不记录 socketPhase (保持 admin 原日志字段)
+  const lifecycle = attachUpstreamLifecycle(req, res, upstreamReq, {
+    msgPrefix: 'admin_', trackElapsed: false, trackPhase: false,
   });
-  upstreamReq.on('error', (e) => {
-    const abortSource = classifyAbortSource(e, { gateTimeout, clientAborted });
-    const code = clientAborted ? null : mapUpstreamStatus(e, { gateTimeout });
-    if (!gateTimeout) {
-      logGate(req, {
-        elapsedMs: Date.now() - (req._gateT0 || 0),
-        httpStatus: code,
-        errorCode: e?.code || e?.message || 'unknown_error',
-        abortSource,
-        destroyInitiator: clientAborted ? 'client' : (gateTimeout ? 'gate_timeout' : 'upstream'),
-        msg: abortSource === 'client_close' ? 'admin_client_disconnected_proxy_aborted'
-          : abortSource === 'shutdown' ? 'gate_shutting_down' : 'admin_upstream_error',
-      });
-    }
-    if (clientAborted) {
-      if (!res.writableEnded) { try { res.end(); } catch {} }
-      return;
-    }
-    if (!res.headersSent && code) {
-      res.status(code).json({ error: statusErrorLabel(code), abort_source: abortSource });
-    } else if (!res.writableEnded) {
-      res.end();
-    }
-  });
-  // 转发 body: 有 body 用 pipe 自动 end; 无 body (GET/OPTIONS) 须显式 end 发请求 (req 在 Express 已 end
-  // 但 pipe 不一定触发 destination end; 显式收尾确保上游收到完整请求).
-  if (req.readable && (req.headers['content-length'] || req.headers['transfer-encoding'])) {
-    req.pipe(upstreamReq);
-  } else {
-    upstreamReq.end();
-  }
 }
 // catch-all: 白名单已过中间件的 (后台页/api 非 /v1) → proxyAdmin; /v1 已前处理
 app.use((req, res) => {
-  if (req._normPath === '/healthz') return res.status(502).json({ error: 'bad_gateway' });  // /healthz 后端挂
-  if (req._normPath === '/v1' || req._normPath.startsWith('/v1/')) return proxyV1(req, res);
+  // /healthz 的非 GET (GET 已由上方 app.get('/healthz') 处理) → 后端挂, 502
+  if (req._normPath === '/healthz') return res.status(502).json({ error: 'bad_gateway' });
+  // 注: /v1* 已由上方 app.use('/v1', proxyV1) **全量接管**, 重构前的
+  //   `if (path==='/v1' || startsWith('/v1/')) return proxyV1(...)` 分支不可达 (死代码),
+  //   且它给人"proxyV1 有两个入口"的错觉。已删除。
+  //   若将来 /v1 挂载点发生变化, 必须同步此处 (否则后台路径会被误判为 /v1)。
   // 后台 (白名单已过 + Basic Auth 已过)
-  return proxyAdmin(req, res);
+  return guardProxy(proxyAdmin, req, res);
 });
 
 const server = app.listen(GATE_PORT, '0.0.0.0', () => {

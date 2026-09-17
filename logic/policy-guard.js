@@ -249,25 +249,6 @@ function clearSessionFailure(ledger, key, now) {
   return e;
 }
 
-module.exports = {
-  DEFAULT_POLICY,
-  createSessionLedger,
-  canSessionAttempt,
-  recordSessionAttempt,
-  recordSessionFailure,
-  clearSessionFailure,
-  SESSION_TTL_MS,
-  normalizePolicy,
-  createBudget,
-  canAttempt,
-  recordAttempt,
-  recordEmptyResponse,
-  terminalVerdict,
-  classifyProbeFailure,
-  isDegenerateEmptyCompletion,
-  createStreamProbe,
-};
-
 // ── 流探针: 旁路观测 SSE 流是否"有过真内容" ───────────────────────────
 // 设计取舍: 不缓冲全流 (内存零放大), 只保留滚动的尾部窗口做 SSE 行解析;
 //   一旦见到任一非 ping 的 `data:` 帧 → sawNonPingContent=true (此后早退, 不再解析)。
@@ -339,3 +320,33 @@ function createStreamProbe() {
 
   return { feed, verdict };
 }
+
+// ── 导出 (重构: 由文件中部移至末尾) ──────────────────────────────────
+// 原 module.exports 位于 createStreamProbe **之前**, 靠函数声明提升才能工作 ——
+//   读文件时极易误判"createStreamProbe 漏导出", 且任何把 createStreamProbe 改成
+//   const/箭头函数的改动都会静默破坏导出 (ReferenceError)。移至末尾消除该隐患。
+// 分组: 现役生产路径 / 遗留请求级账本 (仅单测使用)。
+module.exports = {
+  // ── 现役生产路径 (gate.js 实际调用) ──
+  DEFAULT_POLICY,
+  createSessionLedger,
+  canSessionAttempt,
+  recordSessionAttempt,
+  recordSessionFailure,
+  clearSessionFailure,
+  createStreamProbe,
+  classifyProbeFailure,
+  SESSION_TTL_MS,
+  normalizePolicy,
+
+  // ── 遗留「请求级」账本 API ──────────────────────────────────────────
+  // ⚠️ 生产路径零引用 (已核查: gate.js 对下列函数命中数均为 0), 仅 logic/tests 使用。
+  //    口径已被会话级账本取代 (见 createBudget 上方注释), 保留只为单测与推演。
+  //    处置建议: 与会话级账本二选一前不要删; 若要删, 需同步改测试。本次仅标注, 不改行为。
+  createBudget,
+  canAttempt,
+  recordAttempt,
+  recordEmptyResponse,
+  terminalVerdict,
+  isDegenerateEmptyCompletion,
+};

@@ -547,8 +547,12 @@ _ft_register_proxy() {
         "$BASE_URL/api/v1/management/proxies?id=${_dup_id}&force=1" -o /dev/null -w "%{http_code}" \
         | grep -q '200' && cnt=$((cnt+1))
     done <<< "$_dup_ids"
-    [ "$cnt" -gt 0 ] && echo "[init] FT proxy stale 清理: 删 ${cnt} 条历史重复注册 (keep $_FT_PROXY_ID)"
+    # ⚠️ 空态陷阱 (2026-09-19 停机事故根因): cnt=0 时 [ -gt 0 ] 返 1, 且本行是函数最后一条语句
+    #    ⇒ _ft_register_proxy 返 1 ⇒ set -eo pipefail 下 :1093 裸调用使 init 静默 exit 1 ⇒ 整站崩.
+    #    同类反模式见 :260 / :1223 注释. 必须 || true.
+    [ "$cnt" -gt 0 ] && echo "[init] FT proxy stale 清理: 删 ${cnt} 条历史重复注册 (keep $_FT_PROXY_ID)" || true
   fi
+  return 0
 }
 
 check_nim_model_health() {
@@ -1090,7 +1094,9 @@ if [ "$PROVIDERS_HTTP" = "200" ]; then
 fi
 echo "[init] Provider IDs: ${#PROVIDER_IDS[@]}"
 
-_ft_register_proxy
+# ⚠️ 2026-09-19 停机事故: 此处裸调用 + set -eo pipefail, FT 绑定任何非 0 返回都会静默打死 init.
+#    FT 绑定失败不影响主链路 (桥死由运行时自愈, 见 :448-449 注释), 故降级为告警.
+_ft_register_proxy || echo "[init] WARN: FT 绑定返回非 0 (rc=$?), 视为非致命继续 (桥死由运行时自愈)"
 
 echo "[init] Resilience (RPM=$_RPM, concurrent=$_CONCURRENT, interval=${_MIN_INTERVAL_MS}ms)..."
 

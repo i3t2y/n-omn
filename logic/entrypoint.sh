@@ -545,7 +545,10 @@ while true; do
     echo "[entrypoint] 上游服务 exited. 停止其余并退出."; _shutdown; exit 1
   fi
   if [ -n "$INIT_PID" ] && ! kill -0 "$INIT_PID" 2>/dev/null; then
-    [ "$_init_logged" = 1 ] || { wait "$INIT_PID" 2>/dev/null; _init_rc=$?; if [ "$_init_rc" -ne 0 ]; then echo "[entrypoint] ✗ NIM init 已退出 rc=$_init_rc (fail-closed 触发或异常)."; else echo "[entrypoint] NIM init 已退出 rc=0 (正常完成)."; fi; _init_logged=1; }
+    # ⚠️ 2026-09-19 停机事故根因: set -eo pipefail 下裸 wait 非 0 会在此静默终止整个脚本,
+    #    使下面那句告警永远打不出来, 且把"init 非致命"(:531-532 声明)变成整站崩溃.
+    #    必须给 wait 加护栏, 让 rc 被捕获而不是杀死脚本.
+    [ "$_init_logged" = 1 ] || { wait "$INIT_PID" 2>/dev/null && _init_rc=0 || _init_rc=$?; if [ "$_init_rc" -ne 0 ]; then echo "[entrypoint] ✗ NIM init 已退出 rc=$_init_rc (fail-closed 触发或异常)."; else echo "[entrypoint] NIM init 已退出 rc=0 (正常完成)."; fi; _init_logged=1; }
   fi
   if [ -n "$SCHED_PID" ] && ! kill -0 "$SCHED_PID" 2>/dev/null; then
     echo "[entrypoint] WARN: omn_scheduler 已退出 (永续日志 daemon 挂). 业务不受影响, 在线 30min 内可手动抓. PID 置空."

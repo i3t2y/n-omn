@@ -253,6 +253,71 @@ function logGate(req, fields) {
   } catch { /* never throw from logger */ }
 }
 
+// ── 每请求摘要 (2026-09-26): 站外调用方归因 ────────────────────────────────
+//   背景: gate 对正常请求**零日志**, 上游 OmniRoute 也不记来源 IP/UA ⇒ 站外流量在
+//     n-omn 侧**不可归因**。09-26 排查"谁在打 kimi-k3"只能靠请求形状猜 (同模型/同
+//     工具集/同无会话头), 无法证明"是否还有第二个持 PSK 的客户端"。
+//   本件补最小观测面: 每请求一行 JSON, 只记**来源与形态** —— ip / UA / XFF 跳数 /
+//     method / path / lane / 会话指纹 / body 形态(model, msgs, tools, stream)。
+//   **不记** body 原文、Authorization、X-Gate-PSK、任何 token (与 logGate 同一脱敏口径)。
+//   开关: GATE_REQ_LOG=0 关闭 (默认开)。两行同 requestId, 便于与 logGate 的终态行对拍:
+//     stage=request       请求到达 (含 401/404 等被拒流量, 归因用)
+//     stage=request_body  /v1 POST 且已读 body 前缀 (形态用; body 超 64KB 前缀会被截断)
+const REQ_LOG = process.env.GATE_REQ_LOG !== '0';
+function reqClientIp(req) {
+  const h = req?.headers || {};
+  const cf = h['cf-connecting-ip'];
+  if (typeof cf === 'string' && cf.trim()) return cf.trim();
+  const xff = h['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.trim()) return xff.split(',')[0].trim();
+  const xr = h['x-real-ip'];
+  if (typeof xr === 'string' && xr.trim()) return xr.trim();
+  return req?.socket?.remoteAddress || null;
+}
+function reqUaShort(req) {
+  const ua = req?.headers?.['user-agent'];
+  if (typeof ua !== 'string' || !ua) return null;
+  return ua.length > 120 ? `${ua.slice(0, 120)}…` : ua;
+}
+function reqBodyShape(buf) {
+  // 前缀最大 64KB: 超长 body 会截断 ⇒ JSON.parse 失败, 如实标 null + parsed=0, 不猜
+  try {
+    const j = JSON.parse(buf.toString('utf8'));
+    return {
+      parsed: 1,
+      model: typeof j?.model === 'string' ? j.model : null,
+      msgs: Array.isArray(j?.messages) ? j.messages.length : null,
+      tools: Array.isArray(j?.tools) ? j.tools.length : null,
+      stream: j?.stream === true ? 1 : 0,
+    };
+  } catch {
+    return { parsed: 0, model: null, msgs: null, tools: null, stream: null };
+  }
+}
+function logReq(req, stage, extra) {
+  if (!REQ_LOG) return;
+  try {
+    const xff = req?.headers?.['x-forwarded-for'];
+    const line = JSON.stringify({
+      ts: Date.now(),
+      level: 'info',
+      component: 'gate',
+      stage,
+      requestId: req?._gateReqId || null,
+      method: req?.method || null,
+      path: req?._normPath || req?.path || null,
+      ip: reqClientIp(req),
+      xff_hops: typeof xff === 'string' ? xff.split(',').length : (xff ? 1 : 0),
+      ua: reqUaShort(req),
+      ct: req?.headers?.['content-length'] || null,
+      lane: req?._gateLane || null,
+      sess: req?._fgSessionKey || null,
+      ...(extra || {}),
+    });
+    process.stderr.write(line + '\n');
+  } catch { /* never throw from logger */ }
+}
+
 // abort source 区分: 从上游 error 事件 + 标记位判断谁发起 destroy
 //   gateTimeout=true → 'timeout'; clientAborted=true → 'client_close'; shuttingDown → 'shutdown';
 //   ECONNRESET + elapsedMs<5000 → 'upstream_reset' (短时窗 socket reset, 候选 stale pooled socket);
@@ -328,6 +393,8 @@ function normalizePathForAuthz(p) {
 //   非 /healthz / 非 /v1: 须 GATE_ADMIN_ENABLED==='1', 否则 404 (门关即全 404, 不泄露后台是否存在).
 app.use((req, res, next) => {
   req._normPath = normalizePathForAuthz(req.path);
+  // 每请求摘要 (归因用): /healthz 是平台/监控高频探活, 不打 (否则淹没有效信号)
+  if (req._normPath !== '/healthz') logReq(req, 'request');
   if (shuttingDown && req._normPath !== '/healthz') return res.status(503).json({ ok: false });
   if (req._normPath === '/healthz') return next();
   if (req._normPath === '/v1' || req._normPath.startsWith('/v1/')) return next();
@@ -683,6 +750,8 @@ async function proxyV1(req, res) {
       if (!res.headersSent) return res.status(400).json({ error: 'bad_request', detail: 'failed to read request body' });
       return; }
     req._fgSessionKey = resolveSessionKey(req, prefix);
+    // 每请求摘要 (形态用): model/msgs/tools/stream —— 用来分辨"哪个客户端/哪类任务"
+    logReq(req, 'request_body', reqBodyShape(prefix));
   }
   // ── #4b fallback 治暴: 会话级预算账本 (key 见 resolveSessionKey) ──
   // 记账口径 = 同一会话的连续重放 (gate 是透明代理, 上游换 key 发生在上游内, 见 policy-guard.js 头注)。

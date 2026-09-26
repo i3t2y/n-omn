@@ -1,0 +1,34 @@
+data: {"data":"===== Build Queued at 2026-09-26 09:19:11 / Commit SHA: a603482 =====\n","timestamp":"2026-09-26T09:19:11Z"}
+
+data: {"data":"--> FROM ghcr.io/i3t2y/omn-base@sha256:db9037a71379569fa3a86b0760df972fd8413cc07f0a58b64e575bbf28a1718b","timestamp":"2026-09-26T09:19:12.863Z"}
+
+data: {"data":"DONE 0.0s\n","timestamp":"2026-09-26T09:19:12.863Z"}
+
+data: {"data":"DONE 16.3s\n","timestamp":"2026-09-26T09:19:29.116Z"}
+
+data: {"data":"DONE 26.6s\n","timestamp":"2026-09-26T09:19:39.497Z"}
+
+data: {"data":"DONE 27.1s\n","timestamp":"2026-09-26T09:19:39.949Z"}
+
+data: {"data":"DONE 27.3s\n","timestamp":"2026-09-26T09:19:40.171Z"}
+
+data: {"data":"DONE 27.7s\n","timestamp":"2026-09-26T09:19:40.611Z"}
+
+data: {"data":"DONE 27.9s\n","timestamp":"2026-09-26T09:19:40.794Z"}
+
+data: {"data":"DONE 28.1s\n","timestamp":"2026-09-26T09:19:40.977Z"}
+
+data: {"data":"DONE 28.1s\n","timestamp":"2026-09-26T09:19:41.155Z"}
+
+data: {"data":"--> COPY --chmod=755 start.sh /start.sh","timestamp":"2026-09-26T09:19:41.155Z"}
+
+data: {"data":"DONE 0.0s\n","timestamp":"2026-09-26T09:19:41.155Z"}
+
+data: {"data":"--> Pushing image","timestamp":"2026-09-26T09:19:41.155Z"}
+
+data: {"data":"DONE 1.0s\n","timestamp":"2026-09-26T09:19:42.132Z"}
+
+data: {"data":"--> Exporting cache","timestamp":"2026-09-26T09:19:42.132Z"}
+
+data: {"data":"DONE 9.1s\n","timestamp":"2026-09-26T09:19:51.066Z"}
+

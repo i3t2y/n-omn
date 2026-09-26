@@ -72,10 +72,10 @@ async function startGate(orPort, env = {}) {
   });
 
   const request = (opts) => new Promise((resolve, reject) => {
-    const { method = 'GET', p: reqPath = '/', headers = {}, body = null } = opts;
-    // ⚠ 必须显式 content-length: 不设 → chunked (无长度) → gate 的 readBodyPrefix 只在
-    //   'end' 时收尾, 而它在 finish() 里才挂 'end' 监听 ⇒ 替身流永不 end ⇒ 上游悬到超时。
-    const hdrs = body != null
+    const { method = 'GET', p: reqPath = '/', headers = {}, body = null, noContentLength = false } = opts;
+    // noContentLength=true → 走 chunked (不发 content-length), 用于复现/钉住
+    //   "chunked POST 在 gate 挂到超时" 那个既有缺陷 (见 T5)。
+    const hdrs = (body != null && !noContentLength)
       ? { 'content-length': String(Buffer.byteLength(body)), ...headers }
       : headers;
     let settled = false;
@@ -209,6 +209,37 @@ test('T3 GATE_REQ_LOG=0 → 完全静默 (开关可关, 不留观测面)', async
       await new Promise((res) => setTimeout(res, 400));
       const hits = gate.logs.filter((l) => l.stage === 'request' || l.stage === 'request_body');
       assert.strictEqual(hits.length, 0, `GATE_REQ_LOG=0 时不应有摘要行, 实收 ${hits.length}`);
+    } finally { (await g).stop(); }
+  });
+});
+
+// T5 钉一个**既有缺陷的修复**: 无 content-length 的 chunked POST 曾挂到超时 (504)。
+//   机理: readBodyPrefix 无 content-length 时 want 取 64KB 上限, 小 body 只能靠 req 的
+//   'end' 收尾; 而替身 PassThrough 的 'end' 监听是在 finish() 里才挂的 —— 那时 'end'
+//   事件**已经过去了**, 永不触发 ⇒ 替身流不 end ⇒ 上游一直等到 gate 超时。
+//   修复: finish 由 onEnd 触发时 (sawEnd) 立即 replay.end()。
+//   回归价值: 只要有人把 sawEnd 分支删掉/改回去, 本例立刻变红 (曾实测 504)。
+test('T5 chunked POST (无 content-length) 不得挂到超时: 应 200 且摘要行齐全', async () => {
+  await withUpstream(echoUpstream(), async (orPort) => {
+    const g = startGate(orPort, { GATE_UPSTREAM_TIMEOUT_MS: '5000' });   // 超时压到 5s, 挂了就快红
+    try {
+      const gate = await g;
+      const r = await gate.request({
+        method: 'POST',
+        p: '/v1/chat/completions',
+        headers: {
+          authorization: `Bearer ${PSK}`,
+          'content-type': 'application/json',
+          'user-agent': 'chunked-client/1.0',
+        },
+        body: JSON.stringify({ model: 'kimi-k3', messages: [{ role: 'user', content: 'hi' }] }),
+        noContentLength: true,
+      });
+      assert.strictEqual(r.status, 200, 'chunked POST 不应挂到超时 (曾 504)');
+      const l = await gate.waitLog((x) => x.stage === 'request_body', 8000, 'chunked request_body 行');
+      assert.strictEqual(l.parsed, 1, 'chunked body 也应解析出形态');
+      assert.strictEqual(l.model, 'kimi-k3');
+      assert.strictEqual(l.msgs, 1);
     } finally { (await g).stop(); }
   });
 });

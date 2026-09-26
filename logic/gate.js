@@ -154,12 +154,13 @@ function readBodyPrefix(req, maxBytes) {
     const chunks = [];
     let got = 0;
     let settled = false;
+    let sawEnd = false;          // 请求是否已读完 (finish 由 onEnd 触发 ⇒ 'end' 已过)
     const onData = (c) => {
       if (settled) return;
       chunks.push(c); got += c.length;
       if (got >= want) finish();
     };
-    const onEnd = () => finish();
+    const onEnd = () => { sawEnd = true; finish(); };
     const onErr = (e) => { if (settled) return; settled = true; cleanup(); reject(e); };
     function cleanup() {
       req.off('data', onData); req.off('end', onEnd); req.off('error', onErr);
@@ -172,11 +173,19 @@ function readBodyPrefix(req, maxBytes) {
       // 下游读的"替身 body": 已读字节 + 后续 req 剩余字节
       const replay = new PassThrough();
       if (buf.length > 0) replay.write(buf);
-      req.on('data', (c) => replay.write(c));
-      req.on('end', () => replay.end());
-      req.on('error', (e) => replay.destroy(e));
+      if (sawEnd) {
+        // ⚠ 2026-09-26 修: finish 由 onEnd 触发时, req 的 'end' **已经过去了**,
+        //   再挂 req.on('end') 永远不触发 ⇒ 替身流永不 end ⇒ 上游一直等 ⇒ 504。
+        //   典型触发 = 无 content-length 的 chunked POST (want 取 64KB 上限,
+        //   小 body 只能靠 'end' 收尾)。此处请求已完整读完, 替身流立即收尾。
+        replay.end();
+      } else {
+        req.on('data', (c) => replay.write(c));
+        req.on('end', () => replay.end());
+        req.on('error', (e) => replay.destroy(e));
+        req.resume();
+      }
       req._fgBodyStream = replay;
-      req.resume();
       resolve(buf);
     }
     req.on('data', onData);

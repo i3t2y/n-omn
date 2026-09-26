@@ -49,31 +49,40 @@ echo "[start] 同步 Bucket: $LOGIC_BUCKET_REPO"
 mkdir -p /tmp/logic
 
 _logic_err=/tmp/.logic.err; : > "$_logic_err"
-# 3.1 拉 manifest + 10 件 (9 业务 + flaretunnel 二进制) + 校验 sha256 (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
-#     flaretunnel 二进制 = 逻辑层资产 (entrypoint L217 注释), 源 flaretunnel/FlareTunnel.go 编译,
-#     与 8 件同批上传同 manifest 校验 (旧 Space 删后迁 Bucket 时未随迁, boot WARN 跳 FT 根因).
+# 3.1 拉 manifest → 按 manifest.files 全量拉取(件名/件数不再硬编码) + 逐件 sha256 校验
+#     (HF_HOME/HF_TOKEN 环境自动, 值零落会话)
+#     2026-09-26 改造: 清单改由 manifest 驱动。增删逻辑件只需改 CI 的 files 清单,
+#     本文件不再改动 ⇒ 避免"加个文件就要 push start.sh → 触 HF Space Rebuild"的高风险连锁。
+#     manifest 仍是提交点: 记 n-omn@SHA + 每文件 sha256; 不一致 = 撞 push 窗口 → fail, 下个 boot 自愈。
+#     flaretunnel 二进制 = 逻辑层资产 (源 tools/flaretunnel/FlareTunnel.go 编译), 与其他件同批
+#     上传同 manifest 校验 (旧 Space 删后迁 Bucket 时未随迁, boot WARN 跳 FT 根因).
 if command -v python3 >/dev/null 2>&1; then
   if LOGIC_BUCKET_REPO="$LOGIC_BUCKET_REPO" python3 -c '
 import os, hashlib, json, sys
 from huggingface_hub import download_bucket_files
 repo = os.environ["LOGIC_BUCKET_REPO"]
-files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
-         "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
-         "route-split.js","flaretunnel"]
 local = "/tmp/logic"
+# 清单由 manifest 驱动: start.sh 不再硬编码件名/件数。
+# 以后增删逻辑件只改 CI(sync-logic-xnexus.yml)的 files 清单 —— 本文件永不再动 ⇒ 不触 Space Rebuild。
+# manifest 仍是提交点(记 n-omn@SHA + 每文件 sha256), 原子性与防"撞 push 窗口"不变。
 try:
-    download_bucket_files(repo, files=[("manifest.json", f"{local}/manifest.json")] + [(f, f"{local}/{f}") for f in files])
+    download_bucket_files(repo, files=[("manifest.json", f"{local}/manifest.json")])
 except Exception as e:
-    print(f"[start] FATAL: 拉取 Bucket 失败: {type(e).__name__}", file=sys.stderr); sys.exit(1)
+    print(f"[start] FATAL: 拉取 manifest 失败: {type(e).__name__}", file=sys.stderr); sys.exit(1)
 mp = f"{local}/manifest.json"
 if not os.path.isfile(mp):
     print("[start] FATAL: 缺 manifest.json (Bucket 未初始化或拉取窗口)", file=sys.stderr); sys.exit(1)
 manifest = json.load(open(mp))
 mfiles = manifest.get("files", {})
+if not mfiles:
+    print("[start] FATAL: manifest.files 为空 (manifest 损坏?)", file=sys.stderr); sys.exit(1)
+files = sorted(mfiles.keys())
+try:
+    download_bucket_files(repo, files=[(f, f"{local}/{f}") for f in files])
+except Exception as e:
+    print(f"[start] FATAL: 拉取逻辑层文件失败: {type(e).__name__}", file=sys.stderr); sys.exit(1)
 bad = []
 for f in files:
-    if f not in mfiles:
-        print(f"[start] FATAL: manifest 缺 {f}", file=sys.stderr); sys.exit(1)
     fp = f"{local}/{f}"
     if not os.path.isfile(fp):
         bad.append(f); continue

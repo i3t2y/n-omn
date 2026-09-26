@@ -426,6 +426,15 @@ setInterval(() => {
   } catch (e) { /* 观测失败不惊动主进程 */ }
 }, IV);
 HEAPEOF
+# ── 2.5 SQLite 网络 FS 治本: WAL→DELETE + mmap=0 (2026-09-26) ──
+# 实现在独立逻辑件 /logic/db_harden.sh (由 start.sh 依 manifest 拉取), 便于独立维护/测试/复用。
+# 守卫: 文件缺失(清单未同步/旧镜像) 仅告警, 绝不阻断启动 —— 宁可 WAL 未根除, 也不让站点起不来。
+if [ -f /logic/db_harden.sh ]; then
+  bash /logic/db_harden.sh "$DB_PATH" || true
+else
+  echo "[entrypoint] ⚠ db-harden: /logic/db_harden.sh 不存在(清单未同步?), 跳过 — WAL 未根除"
+fi
+
 NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096} --require=/tmp/heapwatch.cjs" node server.js &
 OR_PID=$!
 echo "[entrypoint] 上游服务 PID=$OR_PID (heap ${NODE_OPTIONS:-default})"

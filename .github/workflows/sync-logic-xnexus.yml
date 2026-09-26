@@ -57,10 +57,20 @@ jobs:
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
                    "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
-                   "route-split.js","flaretunnel"]
-          # flaretunnel 二进制源在 tools/flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余 9 件在 logic/
+                   "route-split.js","db_harden.sh","flaretunnel"]
+          # flaretunnel 二进制源在 tools/flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余在 logic/
           def src_path(f):
               return "tools/flaretunnel/flaretunnel" if f == "flaretunnel" else f"logic/{f}"
+          # 护栏(2026-09-26): logic/ 下存在但未列入 files 的文件 → 告警。
+          #   boot 侧已改为"按 manifest 全量拉取", 漏列的文件不会有任何报错、只是永不下发
+          #   (静默失效), 故在此显式提醒补清单。新增逻辑件时记得同步 files。
+          import glob
+          _listed = set(files)
+          for _p in sorted(glob.glob("logic/*")):
+              if os.path.isfile(_p):
+                  _b = os.path.basename(_p)
+                  if _b not in _listed:
+                      print(f"[WARN] logic/{_b} 存在但未列入上传清单 → 不会下发到 boot, 请补进 files")
           # 1. 上传 9 件业务文件 + 读回算 sha256 (血缘: 校验 bucket 实际存的字节)
           # HF bucket 写后读最终一致, BlobNotFound 可能出现在上传阶段或读回阶段 → 整体重试
           from huggingface_hub import download_bucket_files
@@ -104,7 +114,7 @@ jobs:
           bucket = os.environ["BUCKET_ID"]
           files = ["entrypoint.sh","gate.js","init-nim-keys.sh","package.json",
                    "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
-                   "route-split.js","flaretunnel"]
+                   "route-split.js","db_harden.sh","flaretunnel"]
           os.makedirs("/tmp/verify", exist_ok=True)
           # 拉 manifest + 10 件 (对齐 boot 拉取路径, 验的是 boot 会看到的同一份)
           download_bucket_files(bucket, files=[("manifest.json","/tmp/verify/manifest.json")] + [(f, f"/tmp/verify/{f}") for f in files],

@@ -48,6 +48,24 @@ LOG_FILE = os.path.join(DATA_DIR, "backups", "logs", "raw", "failover-watch.log"
 
 BLOCKED_STATUSES = {"blocked", "error", "failed"}
 
+# ── Step A: connection schema 只读 dump (2026-10-18, 为收紧 is_blocked) ──
+# 每个 connection 的全部 key 只 dump 一次 (全局 flag); 值脱敏, 供 Z 贴回定规则.
+_dumped_schema = False
+_REDACT_KEYS = {"apikey", "api_key", "token", "password", "secret"}
+
+
+def redact_conn(conn: dict) -> dict:
+    out: dict = {}
+    for k in sorted(conn.keys()):
+        kl = k.lower()
+        v = conn[k]
+        if kl in _REDACT_KEYS or kl.endswith("key") or "_key" in kl:
+            out[k] = f"<redacted len={len(str(v))}>"
+        else:
+            s = str(v)
+            out[k] = s[:160]
+    return out
+
 
 def log(msg: str) -> None:
     line = f"[failover-watch] {time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
@@ -123,9 +141,14 @@ def get_opener():
 
 
 def tick(fails: dict, disabled_at: dict) -> None:
+    global _dumped_schema
     opener = get_opener()
     conns = list_connections(opener, BASE)
     now = time.time()
+    if not _dumped_schema:
+        _dumped_schema = True
+        for c in conns:
+            log("schema-dump: " + json.dumps(redact_conn(c), ensure_ascii=False))
 
     # 1) 冷却回池
     for k, ts in list(disabled_at.items()):

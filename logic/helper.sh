@@ -1,7 +1,8 @@
 #!/bin/sh
 # helper.sh · boot hooks before gate (entrypoint calls this, then node gate.js)
 # 1) Idempotent patch of gate.js + entrypoint.sh for init-hold middleware
-# 2) This-boot lock files so /v1 returns 503 while init-nim-keys.sh is alive
+# 2) Idempotent patch of entrypoint for dual-disk SQLite (next Restart fully on)
+# 3) This-boot lock files so /v1 returns 503 while init-nim-keys.sh is alive
 # /healthz stays on gate and is never held.
 #
 # Note: incremental init exits 0 without touching .init-done. Do NOT treat
@@ -13,7 +14,7 @@ log() { echo "[helper] $*"; }
 LOGIC="${LOGIC_DIR:-/logic}"
 DATA_DIR="${DATA_DIR:-/app/data}"
 
-# ── 1) source patch (this boot's gate.js must contain middleware) ───────────
+# ── 1) source patches ───────────────────────────────────────────────────────
 if [ -f "$LOGIC/patch_init_hold.py" ] && [ -f "$LOGIC/gate.js" ]; then
   if python3 "$LOGIC/patch_init_hold.py" --gate "$LOGIC/gate.js" --entrypoint "$LOGIC/entrypoint.sh" 2>&1 | sed 's/^/[helper] /'; then
     :
@@ -21,7 +22,15 @@ if [ -f "$LOGIC/patch_init_hold.py" ] && [ -f "$LOGIC/gate.js" ]; then
     log "WARN: patch_init_hold failed (gate may still work without hold)"
   fi
 else
-  log "patch skip (patch_init_hold.py or gate.js missing)"
+  log "patch_init_hold skip"
+fi
+
+if [ -f "$LOGIC/patch_db_local.py" ] && [ -f "$LOGIC/entrypoint.sh" ]; then
+  if python3 "$LOGIC/patch_db_local.py" --entrypoint "$LOGIC/entrypoint.sh" 2>&1 | sed 's/^/[helper] /'; then
+    :
+  else
+    log "WARN: patch_db_local failed"
+  fi
 fi
 
 # ── 2) this-boot init lock ─────────────────────────────────────────────────
@@ -49,8 +58,6 @@ if init_alive; then
   log "init still running → hold locks set ($RUN_A)"
   (
     while init_alive; do sleep 2; done
-    # Process gone: always clear running. Fail lock is only set by patched
-    # entrypoint when wait sees non-zero rc (next boots after entrypoint patch).
     rm_both "$RUN_A" "$RUN_B"
     log "init process exited → running locks cleared"
   ) &

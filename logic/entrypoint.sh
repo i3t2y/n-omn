@@ -80,7 +80,7 @@ export GATE_ROUTE_SPLIT_ENABLED="${GATE_ROUTE_SPLIT_ENABLED:-1}"
 export GATE_ROUTE_SPLIT_STRICT="${GATE_ROUTE_SPLIT_STRICT:-0}"
 echo "[entrypoint] 路径分流: enabled=$GATE_ROUTE_SPLIT_ENABLED strict=$GATE_ROUTE_SPLIT_STRICT (probe 快路径: health/models/bucket 探针; 不限流) (#16)"
 
-OR_PID=""; INIT_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""
+OR_PID=""; INIT_PID=""; GATE_PID=""; SCHED_PID=""; FT_PID=""; FAILOVER_PID=""
 # FT_PIDS = 空格分隔多桥 PID 串 (多桥模式); 单桥回退时仅一元素. trap/看门狗遍历此串.
 FT_PIDS=""
 
@@ -92,7 +92,7 @@ echo "[entrypoint] 上游服务启动 | PORT=$OMNIROUTE_PORT EXPOSED=$EXPOSED_PO
 cleanup_done=0
 _forward_signal() {
   local sig="$1" pid fpid
-  for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID" "$FAILOVER_PID"; do
     [ -z "$pid" ] && continue
     kill -0 "$pid" 2>/dev/null && kill -"$sig" "$pid" 2>/dev/null || true
   done
@@ -112,7 +112,7 @@ _shutdown() {
   local g=0 alive
   while [ "$g" -lt 50 ]; do
     alive=0
-    for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID"; do
+    for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID" "$FAILOVER_PID"; do
       [ -z "$pid" ] && continue
       kill -0 "$pid" 2>/dev/null && alive=1
     done
@@ -126,7 +126,7 @@ _shutdown() {
   done
   echo "[entrypoint] shutdown: force-kill 残留..."
   _forward_signal KILL
-  for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID"; do
+  for pid in "$OR_PID" "$INIT_PID" "$GATE_PID" "$SCHED_PID" "$FAILOVER_PID"; do
     [ -z "$pid" ] && continue
     wait "$pid" 2>/dev/null || true
   done
@@ -554,6 +554,14 @@ python3 /logic/omn_scheduler.py &
 SCHED_PID=$!
 echo "[entrypoint] omn_scheduler PID=$SCHED_PID (永续日志: 明文 stderr → Bucket backups/logs/raw)"
 
+# ── failover_watch: provider 池摘除+冷却 (n-omn issue #2, plan A, 2026-10-18) ──
+# 非致命 (同 scheduler): 退出只 WARN, 不停站. DRY_RUN 默认 1, 只观测不摘除.
+if [ "${FAILOVER_WATCH_ENABLED:-1}" = "1" ]; then
+  python3 /logic/failover_watch.py &
+  FAILOVER_PID=$!
+  echo "[entrypoint] failover_watch PID=$FAILOVER_PID (dry-run=${FAILOVER_DRY_RUN:-1}, 日志 → backups/logs/raw/failover-watch.log)"
+fi
+
 # ── 7. 监督循环: 任一关键进程退出 → 停其余 ──
 # gate 为对外服务 = 退出停一切; 上游服务为必需 = 退出停一切;
 # init/scheduler 非致命 (仅日志告警)
@@ -580,6 +588,10 @@ while true; do
   if [ -n "$SCHED_PID" ] && ! kill -0 "$SCHED_PID" 2>/dev/null; then
     echo "[entrypoint] WARN: omn_scheduler 已退出 (永续日志 daemon 挂). 业务不受影响, 在线 30min 内可手动抓. PID 置空."
     SCHED_PID=""
+  fi
+  if [ -n "$FAILOVER_PID" ] && ! kill -0 "$FAILOVER_PID" 2>/dev/null; then
+    echo "[entrypoint] WARN: failover_watch 已退出 (provider 摘除 daemon 挂, 非致命). PID 置空."
+    FAILOVER_PID=""
   fi
   # ── FT 看门狗: 桥非致命, 死则重启 (上限 5 次后弃守降级) ──
   # 重启安全 (2026-07-30 源码实证 generateCACert 复用语义): 桥重启不换 CA,

@@ -4,12 +4,35 @@
 // registering keys. Forwarding /v1 then comes back as 502 / empty catalog
 // and burns the fallback ledger. Hold /v1 with 503 until that process exits.
 // /healthz is not this middleware's job and must stay 200 for the keepalive.
+//
+// Lock files alone are enough (helper.sh + patched entrypoint). Set
+// GATE_INIT_HOLD=0 to force-forward even when a lock file is present.
 
-const DEFAULT_RUNNING = "/data/.init-running";
-const DEFAULT_FAILED = "/data/.init-failed";
+const path = require("path");
+
+function candidatePaths(envName, basename) {
+  const out = [];
+  if (process.env[envName]) out.push(process.env[envName]);
+  const dataDir = process.env.DATA_DIR || "/app/data";
+  out.push(path.join(dataDir, basename));
+  out.push(path.join("/data", basename));
+  out.push(path.join("/app/data", basename));
+  return [...new Set(out)];
+}
+
+function anyExists(fs, paths) {
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
+}
 
 function initHoldDecision({ hold, running, failed }) {
-  if (hold !== "1") return null;
+  if (hold === "0") return null;
   if (failed) {
     return {
       status: 503,
@@ -31,20 +54,17 @@ function initHoldDecision({ hold, running, failed }) {
 
 function initHoldMiddleware(opts) {
   const fs = opts.fs || require("fs");
-  const runningFile = opts.runningFile || DEFAULT_RUNNING;
-  const failedFile = opts.failedFile || DEFAULT_FAILED;
+  const runningPaths = opts.runningPaths || candidatePaths("INIT_RUNNING_FILE", ".init-running");
+  const failedPaths = opts.failedPaths || candidatePaths("INIT_FAILED_FILE", ".init-failed");
   const log = opts.log;
   return function initHold(req, res, next) {
-    let running = false;
-    let failed = false;
-    try {
-      running = fs.existsSync(runningFile);
-      failed = fs.existsSync(failedFile);
-    } catch {
-      running = false;
-      failed = false;
-    }
-    const decision = initHoldDecision({ hold: opts.hold, running, failed });
+    const running = anyExists(fs, runningPaths);
+    const failed = anyExists(fs, failedPaths);
+    const decision = initHoldDecision({
+      hold: opts.hold !== undefined ? opts.hold : process.env.GATE_INIT_HOLD,
+      running,
+      failed,
+    });
     if (!decision) return next();
     if (log) {
       log(req, {
@@ -61,4 +81,4 @@ function initHoldMiddleware(opts) {
   };
 }
 
-module.exports = { initHoldDecision, initHoldMiddleware };
+module.exports = { initHoldDecision, initHoldMiddleware, candidatePaths, anyExists };

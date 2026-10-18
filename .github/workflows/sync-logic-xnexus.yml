@@ -59,8 +59,7 @@ jobs:
           "helper.sh","omn_redact.py","omn_scheduler.py","policy-guard.js",
           "route-split.js","db_harden.sh","flaretunnel",
           "init_hold.js","patch_init_hold.py","hot_apply.py",
-          "hot-apply.example.json","db_local_boot.sh","patch_db_local.py",
-          "logic/failover_watch.py"]                   
+          "hot-apply.example.json","db_local_boot.sh","patch_db_local.py","failover_watch.py"]                   
           # flaretunnel 二进制源在 tools/flaretunnel/flaretunnel (gitignored, CI 刚编译), 其余在 logic/
           def src_path(f):
               return "tools/flaretunnel/flaretunnel" if f == "flaretunnel" else f"logic/{f}"

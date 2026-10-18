@@ -1,12 +1,11 @@
 #!/bin/sh
 # helper.sh · boot hooks before gate (entrypoint calls this, then node gate.js)
-# 1) Idempotent patch of gate.js + entrypoint.sh for init-hold middleware
-# 2) Idempotent patch of entrypoint for dual-disk SQLite (next Restart fully on)
-# 3) This-boot lock files so /v1 returns 503 while init-nim-keys.sh is alive
-# /healthz stays on gate and is never held.
 #
-# Note: incremental init exits 0 without touching .init-done. Do NOT treat
-# missing marker as failure — that would 503 forever after a healthy incremental run.
+# 红线: 禁止在运行中改写 /logic/entrypoint.sh。
+#   bash 边执行边读脚本文件; helper 若 rewrite entrypoint → 行号错位 →
+#   syntax error near unexpected token `)' (2026-10-18 实证 Exit 2).
+# entrypoint 的 db-local / init-hold 已固化进仓内 entrypoint.sh。
+# 本脚本只: (1) 幂等 patch gate.js  (2) 本 boot 的 init 锁文件
 set -u
 
 log() { echo "[helper] $*"; }
@@ -14,23 +13,15 @@ log() { echo "[helper] $*"; }
 LOGIC="${LOGIC_DIR:-/logic}"
 DATA_DIR="${DATA_DIR:-/app/data}"
 
-# ── 1) source patches ───────────────────────────────────────────────────────
+# ── 1) gate.js only (never touch entrypoint.sh here) ───────────────────────
 if [ -f "$LOGIC/patch_init_hold.py" ] && [ -f "$LOGIC/gate.js" ]; then
-  if python3 "$LOGIC/patch_init_hold.py" --gate "$LOGIC/gate.js" --entrypoint "$LOGIC/entrypoint.sh" 2>&1 | sed 's/^/[helper] /'; then
+  if python3 "$LOGIC/patch_init_hold.py" --gate "$LOGIC/gate.js" 2>&1 | sed 's/^/[helper] /'; then
     :
   else
-    log "WARN: patch_init_hold failed (gate may still work without hold)"
+    log "WARN: patch_init_hold gate failed (gate may still work without hold)"
   fi
 else
   log "patch_init_hold skip"
-fi
-
-if [ -f "$LOGIC/patch_db_local.py" ] && [ -f "$LOGIC/entrypoint.sh" ]; then
-  if python3 "$LOGIC/patch_db_local.py" --entrypoint "$LOGIC/entrypoint.sh" 2>&1 | sed 's/^/[helper] /'; then
-    :
-  else
-    log "WARN: patch_db_local failed"
-  fi
 fi
 
 # ── 2) this-boot init lock ─────────────────────────────────────────────────

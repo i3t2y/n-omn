@@ -20,9 +20,9 @@ ENV:
   INITIAL_PASSWORD / OMN_COOKIE_FILE  (复用 hot_apply)
   DATA_DIR                日志目录, 默认 /opt/omn-data
 
-钩子 (Z 后面收紧规则):
-  - is_blocked(conn, ctx): 判定 blocked 的条件
-    (HTTP 状态 / 连续失败次数 / 后端返回的 status 字段)
+钩子 (2026-10-18 已按 schema-dump 收紧一轮):
+  - is_blocked(conn, ctx): testStatus 坏字 / apiKeyHealth 坏字样 / backoffLevel>=2
+    (读侧字段: isActive/testStatus/backoffLevel, 写侧 toggle 仍是 enabled)
   - set_enabled(): toggle 接口待实测 (PUT/PATCH /api/providers/{id})
   - poll_proxies(): FT 代理池, 必要时再做 (和模型上游故障转移是两条线)
 """
@@ -48,6 +48,10 @@ DATA_DIR = os.environ.get("DATA_DIR", "/opt/omn-data")
 LOG_FILE = os.path.join(DATA_DIR, "backups", "logs", "raw", "failover-watch.log")
 
 BLOCKED_STATUSES = {"blocked", "error", "failed"}
+# testStatus 是读侧的明确状态字 (2026-10-18 schema-dump 实测)
+BLOCKED_TEST_STATUSES = {"blocked", "error", "failed", "invalid", "dead"}
+# apiKeyHealth 坏字样 (CredentialHealth 写 providerSpecificData.apiKeyHealth)
+_BAD_HEALTH_MARKS = ("invalid", "error", "unauth", "fail", "dead", "blocked")
 
 # ── Step A: connection schema 只读 dump (2026-10-18, 为收紧 is_blocked) ──
 # 每个 connection 的全部 key 只 dump 一次 (全局 flag); 值脱敏, 供 Z 贴回定规则.
@@ -80,15 +84,52 @@ def log(msg: str) -> None:
 
 
 # ── 钩子 1: 判定 blocked ──────────────────────────────────────────────
+def _is_active(conn: dict) -> bool:
+    """读侧字段是 isActive (写侧是 enabled, 见 hot_apply create).
+    2026-10-18 schema-dump: GET /api/providers 返回里没有 enabled, 只有 isActive. """
+    if "isActive" in conn:
+        return bool(conn["isActive"])
+    return bool(conn.get("enabled", True))
+
+
+def _api_key_health(conn: dict) -> dict:
+    psd = conn.get("providerSpecificData") or {}
+    if isinstance(psd, str):
+        try:
+            psd = json.loads(psd)
+        except Exception:
+            return {}
+    if isinstance(psd, dict):
+        hk = psd.get("apiKeyHealth")
+        return hk if isinstance(hk, dict) else {}
+    return {}
+
+
 def is_blocked(conn: dict, ctx: dict) -> tuple[bool, str]:
-    """conn: GET /api/providers 的单个 connection dict.
+    """conn: GET /api/providers 的单个 connection dict (2026-10-18 schema-dump 实测字段).
     ctx: {"fails": 连续命中次数}.
-    返回 (是否blocked, 原因). Z 后面收紧: 当前只认后端明确吐出的状态字, 不猜.
-    候选加码 (待后端字段实测): conn['lastError']/['error'] 非空 + fails>=N,
-    或探活该 connection 的模型端点看 HTTP 状态. """
+    优先级 (Grok Step B, 按真实字段改写):
+      1. testStatus 明确坏字
+      2. providerSpecificData.apiKeyHealth 非空且带坏字样 (CredentialHealth 写的)
+      3. backoffLevel >= 2 (后端已退避两次, 非单次瞬断)
+    4 (探活) 默认关, ENV 开. """
     st = str(conn.get("status") or "").strip().lower()
     if st in BLOCKED_STATUSES:
         return True, f"status={st}"
+    ts = str(conn.get("testStatus") or "").strip().lower()
+    if ts in BLOCKED_TEST_STATUSES:
+        return True, f"testStatus={ts}"
+    hk = _api_key_health(conn)
+    if hk:
+        bad = str(hk.get("status") or hk.get("health") or "").strip().lower()
+        if bad and any(x in bad for x in _BAD_HEALTH_MARKS):
+            return True, f"apiKeyHealth={bad}"
+    try:
+        bl = int(str(conn.get("backoffLevel") or "0"))
+    except ValueError:
+        bl = 0
+    if bl >= 2:
+        return True, f"backoffLevel={bl}"
     return False, ""
 
 
@@ -168,7 +209,7 @@ def tick(fails: dict, disabled_at: dict) -> None:
         k = key_of(c)
         if k in disabled_at:
             continue
-        if not c.get("enabled", True):
+        if not _is_active(c):
             continue  # 别人/手动关掉的, 不碰
         blocked, reason = is_blocked(c, {"fails": fails.get(k, 0)})
         if blocked:
@@ -177,7 +218,7 @@ def tick(fails: dict, disabled_at: dict) -> None:
         else:
             fails.pop(k, None)
 
-    alive = sum(1 for c in conns if c.get("enabled", True) and key_of(c) not in disabled_at)
+    alive = sum(1 for c in conns if _is_active(c) and key_of(c) not in disabled_at)
     budget = max(0, min(MAX_DISABLE, alive - MIN_ENABLED))
     for k, c, reason in victims[:budget]:
         ok = set_enabled(opener, BASE, k, False)

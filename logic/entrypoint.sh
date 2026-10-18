@@ -21,6 +21,7 @@ if [ -f /logic/db_local_boot.sh ]; then
   OMN_BUCKET_DATA="${DATA_DIR}"
   # shellcheck disable=SC1091
   . /logic/db_local_boot.sh || echo "[entrypoint] WARN: db_local_boot failed"
+  set +u  # db_local_boot.sh 自带 set -u 会泄漏进本 shell; entrypoint 原无 nounset, 此处还原
 fi
 
 # ── boot 编排日志全段落 raw (2026-08-01 Zen令补: entrypoint 本体 echo 全进 PID1 stdout 今丢, 补) ──
@@ -638,7 +639,7 @@ while true; do
         fi
         _i=$((_i+1))
       done
-      if [ "$_ft_abandoned" != 1 ] && [ -n "$_new_pids" ]; then
+      if [ "${_ft_abandoned:-0}" != 1 ] && [ -n "$_new_pids" ]; then
         FT_PIDS="${_new_pids# }"; FT_PORTS="${_new_ports# }"; FT_NAMES="${_new_names# }"; export FT_PIDS FT_PORTS FT_NAMES
       fi
     fi

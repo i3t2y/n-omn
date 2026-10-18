@@ -1,21 +1,72 @@
 #!/bin/sh
-# helper.sh · omn 补包统一入口 (Zen令泛化统管各种依赖/环境/插件/文件包)
-# 2026-07-29 Zen令"全构入3.8.48": runtime 装件全堆 GHCR base 镜像, helper runtime 装段退场.
-#   boto3 已入 omn-ops/ghcr Dockerfile (build push :stable), helper 无须 runtime 重装.
-# 框架留存: ensure_pip/ensure_apt/ensure_npm_binary/ensure_release_tar 扩展位,
-#   未来加包复用结构 (校验已装 → 装 → WARN 不停), 不改 start.sh/Dockerfile (三件红线).
-# 不改 start.sh/Dockerfile 免触三件定态红线 + 免 sync-space Rebuild; 由 entrypoint.sh 调.
-#
-# Zen 2026-07-29 裁砍七成: 路2加密降级, cryptography 不再需 (路2不实例化).
-#   omn_encrypt.py/_try_import 仍 import 尝试但 _try_import except -> OMN_ENCRYPT=None 无害.
-#   留 cryptography 代码 archive 不删, 将来多人/开路2 再加回此列表.
+# helper.sh · boot hooks before gate (entrypoint calls this, then node gate.js)
+# 1) Idempotent patch of gate.js + entrypoint.sh for init-hold middleware
+# 2) This-boot lock files so /v1 returns 503 while init-nim-keys.sh is alive
+# /healthz stays on gate and is never held.
 set -u
 
 log() { echo "[helper] $*"; }
 
-# ── 扩展位: 未来环境包(apt)/插件包(npm binary)/文件包(curl release tar) 入口留此 ──
-#   ensure_apt() / ensure_npm_binary() / ensure_release_tar() / ensure_pip() 同模式
-#   (校验已装 → 装 → WARN 不停)。本轮全件已入 base, helper 空跑留框架。
-#   Zen后续另令加包再实装此处 (改此脚本 + 重推 sync-logic, Restart 即效零 Rebuild)。
+LOGIC="${LOGIC_DIR:-/logic}"
+DATA_DIR="${DATA_DIR:-/app/data}"
 
-log "补包完成 (全件已入 base, helper 留框架)"
+# ── 1) source patch (this boot's gate.js must contain middleware) ───────────
+if [ -f "$LOGIC/patch_init_hold.py" ] && [ -f "$LOGIC/gate.js" ]; then
+  if python3 "$LOGIC/patch_init_hold.py" --gate "$LOGIC/gate.js" --entrypoint "$LOGIC/entrypoint.sh" 2>&1 | sed 's/^/[helper] /'; then
+    :
+  else
+    log "WARN: patch_init_hold failed (gate may still work without hold)"
+  fi
+else
+  log "patch skip (patch_init_hold.py or gate.js missing)"
+fi
+
+# ── 2) this-boot init lock ─────────────────────────────────────────────────
+# entrypoint starts init before helper; parent shell may not export INIT_PID.
+# Detect by process name. Mirror locks under DATA_DIR and /data (path drift).
+RUN_A="$DATA_DIR/.init-running"
+FAIL_A="$DATA_DIR/.init-failed"
+RUN_B="/data/.init-running"
+FAIL_B="/data/.init-failed"
+DONE_A="$DATA_DIR/.init-done"
+DONE_B="/data/.init-done"
+
+init_alive() {
+  pgrep -f 'init-nim-keys\.sh' >/dev/null 2>&1
+}
+
+touch_both() {
+  # $1 = path A, $2 = path B
+  : > "$1" 2>/dev/null || true
+  : > "$2" 2>/dev/null || true
+}
+
+rm_both() {
+  rm -f "$1" "$2" 2>/dev/null || true
+}
+
+if init_alive; then
+  rm_both "$FAIL_A" "$FAIL_B"
+  touch_both "$RUN_A" "$RUN_B"
+  log "init still running → hold locks set ($RUN_A)"
+  (
+    while init_alive; do sleep 2; done
+    if [ -f "$DONE_A" ] || [ -f "$DONE_B" ]; then
+      rm_both "$RUN_A" "$RUN_B"
+      rm_both "$FAIL_A" "$FAIL_B"
+      log "init finished ok → hold locks cleared"
+    else
+      rm_both "$RUN_A" "$RUN_B"
+      touch_both "$FAIL_A" "$FAIL_B"
+      log "init finished without .init-done → fail lock set"
+    fi
+  ) &
+else
+  # Stale running lock would 503 forever; clear if no init process.
+  if [ -f "$RUN_A" ] || [ -f "$RUN_B" ]; then
+    log "no init process; clearing stale running locks"
+    rm_both "$RUN_A" "$RUN_B"
+  fi
+fi
+
+log "boot hooks done"

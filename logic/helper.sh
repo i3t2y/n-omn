@@ -24,39 +24,26 @@ else
   log "patch_init_hold skip"
 fi
 
-# ── 2) this-boot init lock ─────────────────────────────────────────────────
+# ── 2) init lock sanity ─---------------------------------------------------
+# entrypoint 在起 init 时把 PID 写进 $RUN_A, init 退出时清掉 (监控循环)。
+# helper 只做一件事: 活锁绝不删, 死锁/空锁才清。不用 pgrep: 精简镜像常无 procps,
+# 且进程名匹配本就脆弱, PID 文件是精确判定 (2026-10-18 实测 pgrep 漏检运行中的 init)。
 RUN_A="$DATA_DIR/.init-running"
 FAIL_A="$DATA_DIR/.init-failed"
 RUN_B="/data/.init-running"
 FAIL_B="/data/.init-failed"
 
-init_alive() {
-  pgrep -f 'init-nim-keys\.sh' >/dev/null 2>&1
-}
+_lock_pid() { tr -d ' \t\r\n' < "$RUN_A" 2>/dev/null; }
 
-touch_both() {
-  : > "$1" 2>/dev/null || true
-  : > "$2" 2>/dev/null || true
-}
-
-rm_both() {
-  rm -f "$1" "$2" 2>/dev/null || true
-}
-
-if init_alive; then
-  rm_both "$FAIL_A" "$FAIL_B"
-  touch_both "$RUN_A" "$RUN_B"
-  log "init still running → hold locks set ($RUN_A)"
-  (
-    while init_alive; do sleep 2; done
-    rm_both "$RUN_A" "$RUN_B"
-    log "init process exited → running locks cleared"
-  ) &
+_lp=$(_lock_pid)
+if [ -n "$_lp" ] && kill -0 "$_lp" 2>/dev/null; then
+  rm -f "$FAIL_A" "$FAIL_B" 2>/dev/null || true
+  log "init still running (pid $_lp) -> hold locks kept ($RUN_A)"
 else
-  if [ -f "$RUN_A" ] || [ -f "$RUN_B" ]; then
-    log "no init process; clearing stale running locks"
-    rm_both "$RUN_A" "$RUN_B"
+  if [ -f "$RUN_A" ] || [ -f "$RUN_B" ] || [ -f "$FAIL_A" ] || [ -f "$FAIL_B" ]; then
+    log "no live init -> clearing stale locks"
   fi
+  rm -f "$RUN_A" "$RUN_B" "$FAIL_A" "$FAIL_B" 2>/dev/null || true
 fi
 
 log "boot hooks done"

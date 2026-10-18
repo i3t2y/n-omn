@@ -480,8 +480,8 @@ if [ -f /logic/init-nim-keys.sh ] && [ -n "${NIM_KEYS:-}" ]; then
   export INIT_RUNNING_FILE="${DATA_DIR}/.init-running"
   export INIT_FAILED_FILE="${DATA_DIR}/.init-failed"
   rm -f "$INIT_FAILED_FILE"
-  : > "$INIT_RUNNING_FILE"
   bash /logic/init-nim-keys.sh & INIT_PID=$!
+  echo "$INIT_PID" > "$INIT_RUNNING_FILE"  # lock 内记 PID
   echo "[entrypoint] Init PID=$INIT_PID"
 else
   rm -f "${DATA_DIR}/.init-running" "${DATA_DIR}/.init-failed"

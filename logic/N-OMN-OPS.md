@@ -17,15 +17,11 @@
 | 文件 | 作用 |
 |------|------|
 | `db_local_boot.sh` | Boot 时本地无/坏库 → 从 Bucket 健康源拉回；`export DATA_DIR` 到本地 |
-| `patch_db_local.py` | 幂等改 `entrypoint.sh`，在 `export DATA_DIR` 后 source 上面脚本 |
-| `helper.sh` | 起 gate 前自动跑两个 patch（含 init_hold） |
+| `entrypoint.sh`（git 固化，2026-10-18） | `export DATA_DIR` 后 source 上面脚本；快照池/挂载探针恒指 Bucket（`OMN_BUCKET_DATA`，双盘下 `DATA_DIR` 已切本地）；init-hold 加锁/清锁 |
+| `patch_db_local.py` | 仅手动补打用（helper 不再调用）；写文件一律原子 rename，禁止原地截断运行中的脚本 |
+| `helper.sh` | 起 gate 前只打 `gate.js` 补丁（init_hold 中间件）；init 锁只做存活校验（PID 文件 + `kill -0`），活锁绝不删 |
 
-**生效**：同步 Bucket 后 **Restart 两次**（第一次 helper 打补丁；第二次 entrypoint 已带双盘）。或一次 Restart 后手动：
-
-```bash
-python3 /logic/patch_db_local.py --entrypoint /logic/entrypoint.sh
-# 再 Restart
-```
+**生效**：同步 Bucket 后 **Restart 一次**（双盘与 init-hold 已固化进 git 的 `entrypoint.sh`；`/logic` 每 boot 从 Bucket 重拉，runtime 改动活不到下轮）。
 
 关闭双盘：`OMN_DB_LOCAL=0`。
 
@@ -73,4 +69,13 @@ python3 /logic/hot_apply.py --spec /logic/hot-apply.example.json
 
 ## 部署
 
-`logic/` → Bucket → Restart（库双盘建议两次或手动 patch_db_local 一次后再 Restart）。
+`logic/` → Bucket → Restart 一次。
+
+---
+
+## 2026-10-18 启动链修复记（验收通过，定为基线）
+
+1. **禁止 runtime 改写运行中的 entrypoint.sh**：bash 按字节偏移增量读脚本，原地截断重写 → 解析错位 → `syntax error near unexpected token` exit 2（本地实证复现）。补丁脚本一律同目录 tmp + `os.replace` 原子写；entrypoint 侧改动直接进 git。
+2. **被 source 的库脚本不得泄漏 shell 选项**：`db_local_boot.sh` 自带 `set -u`，被 source 后泄漏进 entrypoint 开启 nounset，致 `_ft_abandoned: unbound variable` exit 1。source 后立即 `set +u` 还原；裸变量一律写 `${v:-default}`。
+3. **init 存活判定不用 pgrep**：精简镜像常无 procps，实测漏检运行中的 init 并误删 fresh lock（致 init-hold 失效）。entrypoint 起 init 时把 PID 写进 lock 文件，helper 用 `kill -0` 精确判活。
+4. **`/logic` 每 boot 从 Bucket 重拉并 sha256 校验**：runtime patch 活不到下轮，「Restart 两次」作废；快照池与挂载探针必须恒指 Bucket（`OMN_BUCKET_DATA`），否则双盘下快照写本地盘、重启丢池丢 key。

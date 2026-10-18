@@ -1,0 +1,10 @@
+{
+  "provider": "amd",
+  "keys_env": "AMD_KEYS",
+  "name_template": "amd-{i}",
+  "base_url": null,
+  "models": [
+    "amd/example-model"
+  ],
+  "proxy_name": null
+}

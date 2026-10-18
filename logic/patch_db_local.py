@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
 """Wire db_local_boot.sh into entrypoint.sh (idempotent).
 
-Must run before OmniRoute opens storage.sqlite. helper.sh invokes this so the
-*next* Restart picks it up; if already patched, current file is used as-is.
+NOTE (2026-10-18): logic/entrypoint.sh in git now bakes the db-local block in
+directly, and helper.sh no longer invokes this at boot (runtime patching of
+entrypoint.sh can neither affect the running process nor survive the next
+Bucket re-pull). Kept for manual backfill use only.
+
+Writes are atomic (tmp + os.replace): never truncate a file a running
+interpreter may hold open.
 """
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+
+def atomic_write(path: Path, text: str) -> None:
+    """Write via temp file + os.replace (see patch_init_hold.py)."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 MARK = "db-local-v1"
 
@@ -45,7 +58,7 @@ def main() -> int:
     raw = args.entrypoint.read_text(encoding="utf-8")
     new = patch(raw)
     if new != raw:
-        args.entrypoint.write_text(new, encoding="utf-8")
+        atomic_write(args.entrypoint, new)
         print(f"[patch_db_local] patched {args.entrypoint}")
     else:
         print(f"[patch_db_local] already ok {args.entrypoint}")

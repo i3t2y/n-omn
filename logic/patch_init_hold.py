@@ -8,7 +8,21 @@ keepalive must keep seeing 200 while /v1 answers 503 Retry-After.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+
+def atomic_write(path: Path, text: str) -> None:
+    """Write via temp file + os.replace.
+
+    Never truncate a file a running interpreter may hold open: bash reads
+    scripts incrementally by byte offset, so an in-place rewrite desyncs its
+    parser -> 'syntax error near unexpected token', exit 2 (seen 2026-10-18).
+    Same-dir tmp keeps the rename on one filesystem, hence atomic.
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 MARK = "init-hold-v1"
 
@@ -91,11 +105,12 @@ def main() -> int:
     parser.add_argument("--entrypoint", type=Path)
     args = parser.parse_args()
     if args.gate:
-        args.gate.write_text(patch_gate(args.gate.read_text(encoding="utf-8")), encoding="utf-8")
+        atomic_write(args.gate, patch_gate(args.gate.read_text(encoding="utf-8")))
         print(f"[patch_init_hold] gate {args.gate}")
     if args.entrypoint:
-        args.entrypoint.write_text(
-            patch_entrypoint(args.entrypoint.read_text(encoding="utf-8")), encoding="utf-8"
+        atomic_write(
+            args.entrypoint,
+            patch_entrypoint(args.entrypoint.read_text(encoding="utf-8")),
         )
         print(f"[patch_init_hold] entrypoint {args.entrypoint}")
     return 0
